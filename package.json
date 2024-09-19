@@ -1,0 +1,34 @@
+{
+  "name": "sapien-contracts",
+  "version": "1.0.0",
+  "description": "Sapein Smart Contracts",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sapien-io/sapien-contracts.git"
+  },
+  "author": "Sina Deyhim",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Sapien-io/sapien-contracts/issues"
+  },
+  "homepage": "https://github.com/Sapien-io/sapien-contracts#readme",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.10",
+    "solhint": "^5.0.3"
+  },
+  "dependencies": {
+    "@gnosis.pm/safe-core-sdk": "^3.2.0",
+    "@gnosis.pm/safe-ethers-lib": "^1.7.0",
+    "@openzeppelin/contracts": "^5.0.2",
+    "@openzeppelin/contracts-upgradeable": "^5.0.2",
+    "alchemy-sdk": "^3.4.1",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.2",
+    "hardhat-deploy": "^0.12.4"
+  }
+}
