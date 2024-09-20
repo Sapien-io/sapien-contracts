@@ -95,6 +95,11 @@
       "address": "0xF4774398f55CDaDa0e2548d392308d2242a80163",
       "txHash": "0x9f48a7b4e80997a30cad20835bfbbca4426052f901f4a5f4cf21d42707cc8efb",
       "kind": "uups"
+    },
+    {
+      "address": "0x8483B93f367A7CA02fd1B8cEFf96B97214A4576C",
+      "txHash": "0xf29a3439546cd9e5da54a3bd394437b5e0824dca4e5c9054ae888793235bac61",
+      "kind": "uups"
     }
   ],
   "impls": {
