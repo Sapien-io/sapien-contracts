@@ -5,6 +5,8 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+
 
 
 
@@ -12,7 +14,8 @@ contract SapTestToken is
     Initializable,
     ERC20Upgradeable,
     PausableUpgradeable,
-    OwnableUpgradeable
+    OwnableUpgradeable,
+    UUPSUpgradeable
 {
     struct VestingSchedule {
         uint256 cliff; // The time period after which vesting starts
@@ -23,6 +26,9 @@ contract SapTestToken is
         bool revoked; // Whether the vesting has been revoked
         address safe; // Safe address
     }
+    event VestingScheduleCreated(string allocationType, VestingSchedule schedule);
+    event ContractInitiated(string msg);
+
 
     // Allocation constants
     uint256 public constant INVESTORS_ALLOCATION = 300000000 * 10 ** 18;
@@ -38,11 +44,10 @@ contract SapTestToken is
     // Vesting related variables
     uint256 private vestingStartTimestamp;
 
-    mapping(bytes32 => VestingSchedule) public vestingSchedules;
+    mapping(string => VestingSchedule) public vestingSchedules;
 
     address public gnosisSafe;
 
-    uint256 public vestingDuration;
 
     // Modifier to restrict access to only the Gnosis Safe
     modifier onlySafe() {
@@ -61,7 +66,8 @@ contract SapTestToken is
         __ERC20_init("SapTestToken", "SAPTEST");
         __Ownable_init(gnosisSafe);
         __Pausable_init();
-
+        __UUPSUpgradeable_init();
+        emit ContractInitiated("contract init");
         vestingStartTimestamp = block.timestamp;
 
         // Mint total supply to Gnosis Safe
@@ -73,17 +79,18 @@ contract SapTestToken is
 
     function _createHardcodedVestingSchedules() internal {
         uint256 cliff = 0 days;
-        // Example vesting schedules
-        // For Investors: 1-year cliff, 4-year vesting
-        vestingSchedules["investors"] = VestingSchedule({
-            cliff: cliff, // 1-day cliff
-            start: vestingStartTimestamp,
-            duration: 4 * 1 days, // 4 days vesting duration
-            amount: INVESTORS_ALLOCATION,
-            released: 0,
-            revoked: false,
-            safe: gnosisSafe
+        VestingSchedule memory teamSchedule = VestingSchedule({
+        cliff: 0,
+        start: vestingStartTimestamp,
+        duration: 2 * 1 days,
+        amount: TEAM_ADVISORS_ALLOCATION,
+        released: 0,
+        revoked: false,
+        safe: gnosisSafe
         });
+        vestingSchedules["investors"] = teamSchedule;
+
+        emit VestingScheduleCreated("investors", teamSchedule);
         vestingSchedules["team"] = VestingSchedule({
             cliff: cliff,
             start: vestingStartTimestamp,
@@ -140,7 +147,7 @@ contract SapTestToken is
         });
     }
 
-   function releaseTokens(bytes32 allocationType) external  {
+   function releaseTokens(string calldata allocationType) external  {
     VestingSchedule storage schedule = vestingSchedules[allocationType];
     assert(schedule.amount > 0);
 
@@ -205,5 +212,10 @@ contract SapTestToken is
         returns (uint256)
     {
         return super._contextSuffixLength();
+    }
+
+     // UUPS authorize upgrade function - must be implemented
+    function _authorizeUpgrade(address newImplementation) internal override onlySafe {
+
     }
 }

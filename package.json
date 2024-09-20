@@ -20,7 +20,8 @@
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@openzeppelin/hardhat-upgrades": "^3.3.0",
     "hardhat": "^2.22.11",
-    "solhint": "^5.0.3"
+    "solhint": "^5.0.3",
+    "typescript": "^5"
   },
   "dependencies": {
     "@gnosis.pm/safe-core-sdk": "^3.2.0",
