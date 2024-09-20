@@ -2,14 +2,16 @@
 pragma solidity 0.8.24;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+
+
 
 contract SapTestToken is
     Initializable,
     ERC20Upgradeable,
-    Pausable,
+    PausableUpgradeable,
     OwnableUpgradeable
 {
     struct VestingSchedule {
@@ -58,6 +60,7 @@ contract SapTestToken is
         gnosisSafe = _gnosisSafe;
         __ERC20_init("SapTestToken", "SAPTEST");
         __Ownable_init(gnosisSafe);
+        __Pausable_init();
 
         vestingStartTimestamp = block.timestamp;
 
@@ -69,7 +72,7 @@ contract SapTestToken is
     }
 
     function _createHardcodedVestingSchedules() internal {
-        uint256 cliff = 1 days;
+        uint256 cliff = 0 days;
         // Example vesting schedules
         // For Investors: 1-year cliff, 4-year vesting
         vestingSchedules["investors"] = VestingSchedule({
@@ -177,7 +180,7 @@ contract SapTestToken is
         internal
         view
         virtual
-        override(ContextUpgradeable, Context)
+        override(ContextUpgradeable)
         returns (address)
     {
         return super._msgSender();
@@ -187,7 +190,7 @@ contract SapTestToken is
         internal
         view
         virtual
-        override(ContextUpgradeable, Context)
+        override(ContextUpgradeable)
         returns (bytes calldata)
     {
         return super._msgData();
@@ -198,7 +201,7 @@ contract SapTestToken is
         internal
         view
         virtual
-        override(Context, ContextUpgradeable)
+        override(ContextUpgradeable)
         returns (uint256)
     {
         return super._contextSuffixLength();

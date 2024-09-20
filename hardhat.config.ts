@@ -1,7 +1,10 @@
-import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 
 require("dotenv").config({ path: __dirname + "/.env" });
+
+require("hardhat-deploy");
+require("@nomicfoundation/hardhat-verify");
+require("@openzeppelin/hardhat-upgrades");
 
 const { ALCHEMY_API_URL, PRIVATE_KEY, BASESCAN_API_KEY } = process.env;
 

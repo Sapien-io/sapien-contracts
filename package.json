@@ -1,7 +1,7 @@
 {
   "name": "sapien-contracts",
   "version": "1.0.0",
-  "description": "Sapein Smart Contracts",
+  "description": "Sapien Smart Contracts",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -18,7 +18,8 @@
   "homepage": "https://github.com/Sapien-io/sapien-contracts#readme",
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-    "hardhat": "^2.22.10",
+    "@openzeppelin/hardhat-upgrades": "^3.3.0",
+    "hardhat": "^2.22.11",
     "solhint": "^5.0.3"
   },
   "dependencies": {
