@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity ^0.8.25;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
@@ -69,7 +69,7 @@ contract SapTestToken is
 	function initialize(
 		address _gnosisSafe,
 		uint256 _totalSupply
-	) public initializer {
+	) public initializer onlySafe {
 		require(_gnosisSafe != address(0), "Invalid Gnosis Safe address");
 		require(_totalSupply > 0, "Total supply must be greater than zero");
 		gnosisSafe = _gnosisSafe;
@@ -156,16 +156,16 @@ contract SapTestToken is
 
    function releaseTokens(string calldata allocationType) external onlySafe nonReentrant whenNotPaused()  {
 		VestingSchedule storage schedule = vestingSchedules[allocationType];
-		assert(schedule.amount > 0);
+		require(schedule.amount > 0, "No tokens to release");
 
 		uint256 currentTime = block.timestamp;
 		uint256 elapsedTime = currentTime - schedule.start;
-		assert(elapsedTime >= schedule.cliff);
+		require(elapsedTime >= schedule.cliff, "Cliff not reached");
 
 		uint256 vestingPeriod = elapsedTime > schedule.duration ? schedule.duration : elapsedTime;
 		uint256 vestedAmount = (schedule.amount * vestingPeriod) / schedule.duration;
 		uint256 releasableAmount = vestedAmount - schedule.released;
-		assert(releasableAmount > 0);
+		require(releasableAmount > 0, "No tokens releasable");
 
 		schedule.released += releasableAmount;
 		_transfer(gnosisSafe, msg.sender, releasableAmount);
