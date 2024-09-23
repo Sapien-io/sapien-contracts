@@ -69,7 +69,7 @@ contract SapTestToken is
 	function initialize(
 		address _gnosisSafe,
 		uint256 _totalSupply
-	) public initializer onlySafe {
+	) public initializer() {
 		require(_gnosisSafe != address(0), "Invalid Gnosis Safe address");
 		require(_totalSupply > 0, "Total supply must be greater than zero");
 		gnosisSafe = _gnosisSafe;
