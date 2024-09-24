@@ -28,7 +28,7 @@ contract SapTestToken is
 		bool revoked; // Whether the vesting has been revoked
 		address safe; // Safe address
 	}
-	event ToekensReleased(string destination, uint256 amount);
+	event TokensReleased(string destination, uint256 amount);
 
 	// Allocation constants
 	uint256 public constant INVESTORS_ALLOCATION = 300000000 * 10 ** 18;
@@ -88,7 +88,7 @@ contract SapTestToken is
 
 	function _createHardcodedVestingSchedules() internal {
 		uint256 cliff = 0 days;
-		VestingSchedule memory teamSchedule = VestingSchedule({
+		VestingSchedule memory investorsSchedule = VestingSchedule({
 		cliff: 0,
 		start: vestingStartTimestamp,
 		duration: 2 * 1 days,
@@ -97,7 +97,7 @@ contract SapTestToken is
 		revoked: false,
 		safe: gnosisSafe
 		});
-		vestingSchedules["investors"] = teamSchedule;
+		vestingSchedules["investors"] = investorsSchedule;
 		vestingSchedules["team"] = VestingSchedule({
 			cliff: cliff,
 			start: vestingStartTimestamp,
@@ -169,7 +169,7 @@ contract SapTestToken is
 
 		schedule.released += releasableAmount;
 		_transfer(gnosisSafe, msg.sender, releasableAmount);
-		emit ToekensReleased(allocationType, releasableAmount);
+		emit TokensReleased(allocationType, releasableAmount);
 	}
 
 	// Pause token transfers, only Gnosis Safe can call this function
