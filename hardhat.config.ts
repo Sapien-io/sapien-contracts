@@ -1,8 +1,28 @@
-import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import "@openzeppelin/hardhat-upgrades";
+import "@nomicfoundation/hardhat-verify";
+import "hardhat-deploy";
 
-const config: HardhatUserConfig = {
-  solidity: "0.8.24",
+require("dotenv").config({ path: __dirname + "/.env" });
+
+const { ALCHEMY_API_URL, PRIVATE_KEY, BASESCAN_API_KEY } = process.env;
+
+module.exports = {
+  solidity: "0.8.25",
+  defaultNetwork: "base-sepolia",
+  networks: {
+    hardhat: {},
+    sepolia: {
+      url: ALCHEMY_API_URL,
+      accounts: [`0x${PRIVATE_KEY}`],
+    },
+    "base-sepolia": {
+      url: "https://sepolia.base.org",
+      accounts: [`0x${PRIVATE_KEY}`],
+      gasPrice: 1000000000,
+    },
+  },
+  etherscan: {
+    apiKey: BASESCAN_API_KEY,
+  },
 };
-
-export default config;
