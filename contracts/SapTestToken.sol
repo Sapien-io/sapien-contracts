@@ -29,6 +29,7 @@ contract SapTestToken is
 		address safe; // Safe address
 	}
 	event TokensReleased(string destination, uint256 amount);
+	event InitializedEvent(address safe, uint256 amount);
 
 	// Allocation constants
 	uint256 public constant INVESTORS_ALLOCATION = 300000000 * 10 ** 18;
@@ -70,6 +71,7 @@ contract SapTestToken is
 		address _gnosisSafe,
 		uint256 _totalSupply
 	) public initializer() {
+		emit InitializedEvent(_gnosisSafe, _totalSupply);
 		require(_gnosisSafe != address(0), "Invalid Gnosis Safe address");
 		require(_totalSupply > 0, "Total supply must be greater than zero");
 		gnosisSafe = _gnosisSafe;
