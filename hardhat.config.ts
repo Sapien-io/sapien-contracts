@@ -8,7 +8,7 @@ require("dotenv").config({ path: __dirname + "/.env" });
 const { ALCHEMY_API_URL, PRIVATE_KEY, BASESCAN_API_KEY } = process.env;
 
 module.exports = {
-  solidity: "0.8.25",
+  solidity: "0.8.24",
   defaultNetwork: "base-sepolia",
   networks: {
     hardhat: {},
