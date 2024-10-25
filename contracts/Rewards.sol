@@ -16,13 +16,15 @@ contract SapienRewards is
     ReentrancyGuardUpgradeable 
 {
     IERC20 public rewardToken;
-    address public authorizedSigner; 
+    address public authorizedSigner;
 
     // Mapping of wallet addresses to their Bloom filter for order IDs
     mapping(address => uint256) private userBloomFilters;
 
     // Event for claiming rewards
     event RewardClaimed(address indexed user, uint256 amount, bytes32 orderId);
+    // Event for withdrawal processing
+    event WithdrawalProcessed(address indexed user, bytes32 indexed eventOrderId, bool success, string reason);
 
     modifier hasTokenBalance(uint256 amount) {
         require(rewardToken.balanceOf(address(this)) >= amount, "Insufficient token balance");
@@ -30,7 +32,7 @@ contract SapienRewards is
     }
 
     function initialize(address _rewardToken, address _authorizedSigner) public initializer {
-        __Ownable_init();
+        __Ownable_init(_rewardToken);
         __Pausable_init();
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
@@ -55,7 +57,12 @@ contract SapienRewards is
         // Mark the orderId in the user’s Bloom filter
         addOrderToBloomFilter(msg.sender, orderId);
 
-        require(rewardToken.transfer(msg.sender, rewardAmount), "Token transfer failed");
+        bool success = rewardToken.transfer(msg.sender, rewardAmount);
+        string memory reason = success ? "" : "Token transfer failed";
+
+        emit WithdrawalProcessed(msg.sender, orderId, success, reason);
+
+        if (!success) revert("Token transfer failed");
 
         emit RewardClaimed(msg.sender, rewardAmount, orderId);
     }
@@ -80,7 +87,6 @@ contract SapienRewards is
         userBloomFilters[user] = bloomFilter; // Update the user's Bloom filter
     }
 
-    // Signature verification functions
     function verifyOrder(address user, uint256 rewardAmount, bytes32 orderId, bytes memory signature) 
         internal 
         view 
