@@ -118,35 +118,38 @@ contract SapienRewards is
         userBloomFilters[user] = bloomFilter; // Update the user's Bloom filter
     }
 
-function verifyOrder(
-    address userWallet,
-    uint256 rewardAmount,
-    string calldata orderId,
-    bytes memory signature
-) public view returns (bool) {
-    // Step 1: Recompute the hash using the inputs
-    bytes32 messageHash = keccak256(abi.encodePacked(userWallet, rewardAmount, orderId));
-    // bytes memory messageHashBytes = abi.encodePacked(messageHash);
+    function verifyOrder(
+        address userWallet,
+        uint256 rewardAmount,
+        string calldata orderId,
+        bytes memory signature
+    ) private view returns (bool) {
+        // Step 1: Recompute the hash using the inputs
+        bytes32 messageHash = keccak256(abi.encodePacked(userWallet, rewardAmount, orderId));
+        // bytes memory messageHashBytes = abi.encodePacked(messageHash);
+        
+        // Step 2: Apply the Ethereum Signed Message prefix
     
-    // Step 2: Apply the Ethereum Signed Message prefix
- 
-    bytes32 ethSignedMessageHash = keccak256(abi.encodePacked(
-        "\x19Ethereum Signed Message:\n32",
-        messageHash
-    ));
+        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked(
+            "\x19Ethereum Signed Message:\n32",
+            messageHash
+        ));
 
-    // Step 3: Recover the signer’s address from the signature
-    address signer = ethSignedMessageHash.recover(signature);
+        // Step 3: Recover the signer’s address from the signature
+        address signer = ethSignedMessageHash.recover(signature);
 
-    // Step 4: Check if the recovered signer is the authorized signer
-    return signer == authorizedSigner;
-}
+        // Step 4: Check if the recovered signer is the authorized signer
+        return signer == authorizedSigner;
+    }
 
 
+    function getContractTokenBalance() external view returns (uint256) {
+        return rewardToken.balanceOf(address(this));
+    }
 
     // Helper function to get message hash
     function getMessageHash(address userWallet, uint256 rewardAmount, string calldata orderId) 
-        public 
+        private 
         pure 
         returns (bytes32) 
     {
@@ -166,7 +169,7 @@ function verifyOrder(
 
     // Split the signature into r, s, v components
     function splitSignature(bytes memory sig) 
-        public 
+        private 
         pure 
         returns (bytes32 r, bytes32 s, uint8 v) 
     {

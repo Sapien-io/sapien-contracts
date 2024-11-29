@@ -89,7 +89,7 @@ contract SapTestToken is
             amount: LABELING_REWARDS_ALLOCATION,
             released: 0,
             revoked: false,
-            safe: 0xEA83D36058846Cab8f573032F358aaA099374124
+            safe: 0x3036403Cc8878c426DB7E503AD02591BA446347E
         });
         vestingSchedules["airdrop"] = VestingSchedule({
             cliff: cliff,
