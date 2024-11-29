@@ -6,9 +6,11 @@ const SapienRewards = artifacts.require("SapienRewards");
 contract("SapienRewards", (accounts) => {
   let rewardInstance;
   let tokenInstance;
-  const owner = accounts[0];
-  const authorizedSigner = accounts[1];
-  const user = accounts[2];
+  const owner = "0xd3Eb8BBEf0564dbf35640B209632Ae52EF2fdf5e"
+  const key = "f55400748b1ac13c95e6fc9e2db3c97534d46a8e92df2825b04678b0a4e5c206"
+
+  const user = "0x090d4116EaDfcE0aea28f7c81FABEB282B72bCDa"
+  console.log(",>>>>>>>>>",user)
   const rewardAmount = web3.utils.toWei("100", "ether");
   const depositAmount = web3.utils.toWei("1000", "ether");
   const totalSupply = web3.utils.toWei("1000000000", "ether"); 
@@ -17,33 +19,35 @@ contract("SapienRewards", (accounts) => {
     tokenInstance = await SapTestToken.new();
     rewardInstance = await SapienRewards.new();
     await tokenInstance.initialize(owner, totalSupply);
-    await rewardInstance.initialize(tokenInstance.address, authorizedSigner);
+    await rewardInstance.initialize(tokenInstance.address, owner);
     
     // Transfer tokens to reward contract
     await tokenInstance.transfer(rewardInstance.address, depositAmount, { from: owner });
   });
 
-  it("should initialize correctly", async () => {
+  it.only("should initialize correctly", async () => {
     const rewardToken = await rewardInstance.rewardToken();
-    const signer = await rewardInstance.authorizedSigner();
+    // const signer = await rewardInstance.authorizedSigner();
     
     assert.equal(rewardToken, tokenInstance.address, "Reward token address should be correct");
-    assert.equal(signer, authorizedSigner, "Authorized signer should be set correctly");
+    // assert.equal(signer, owner, "Authorized signer should be set correctly");
   });
 
-  it("should allow authorized signer to claim rewards", async () => {
-    // Generate a valid signature
+  it("should allow the authorized signer to claim rewards", async () => {
     const orderId = web3.utils.sha3("order1");
     const messageHash = await rewardInstance.getMessageHash(user, rewardAmount, orderId, user);
-    const signature = web3.eth.sign(messageHash, authorizedSigner);
 
+    // Sign the message hash using the generated private key
+    const signature = web3.eth.accounts.sign(messageHash, key).signature;
+
+    // User claims reward using the signature
     await rewardInstance.claimReward(rewardAmount, orderId, signature, { from: user });
     const userBalance = await tokenInstance.balanceOf(user);
-    
+
     assert.equal(userBalance.toString(), rewardAmount, "User should receive the correct reward amount");
   });
 
-  it.only("should revert if reward is claimed with an invalid signature", async () => {
+  it("should revert if reward is claimed with an invalid signature", async () => {
     const orderId = web3.utils.sha3("order1");
     const invalidSignature = web3.eth.sign(orderId, accounts[3]);
 

@@ -7,6 +7,13 @@ import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+
+
+// Define an interface for the rewardToken contract to interact with the releaseTokens function
+interface IRewardToken is IERC20 {
+    function releaseTokens(string calldata allocationType) external;
+}
 
 contract SapienRewards is 
     Initializable, 
@@ -15,59 +22,83 @@ contract SapienRewards is
     UUPSUpgradeable, 
     ReentrancyGuardUpgradeable 
 {
-    IERC20 public rewardToken;
+    using ECDSA for bytes32;
+    IRewardToken public rewardToken;
     address public authorizedSigner;
 
     // Mapping of wallet addresses to their Bloom filter for order IDs
     mapping(address => uint256) private userBloomFilters;
 
-    // Event for claiming rewards
-    event RewardClaimed(address indexed user, uint256 amount, bytes32 orderId);
-    // Event for withdrawal processing
-    event WithdrawalProcessed(address indexed user, bytes32 indexed eventOrderId, bool success, string reason);
+    // Events
+    event RewardClaimed(address indexed user, uint256 amount, string orderId);
+    event WithdrawalProcessed(address indexed user, string indexed eventOrderId, bool success, string reason);
+    event RewardTokenUpdated(address indexed newRewardToken);
+    event TokensReleasedToContract(string allocationType);
+    event SignatureVerified(address user, uint256 amount, string orderId);
+    event MsgHash(bytes32 msgHash);
+    event RecoveredSigner(address signer);
 
     modifier hasTokenBalance(uint256 amount) {
         require(rewardToken.balanceOf(address(this)) >= amount, "Insufficient token balance");
         _;
     }
 
-    function initialize(address _rewardToken, address _authorizedSigner) public initializer {
-        __Ownable_init(_rewardToken);
+    // Initialize function for the UUPS upgradeable pattern
+    function initialize(address _authorizedSigner) public initializer {
+        __Ownable_init(msg.sender);
         __Pausable_init();
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
 
-        rewardToken = IERC20(_rewardToken);
         authorizedSigner = _authorizedSigner;
     }
 
-    // Bloom filter parameters
-    uint8 private constant NUM_HASHES = 3; // Number of hash functions
+    // Set the reward token after deployment
+    function setRewardToken(address _rewardToken) external onlyOwner {
+        require(_rewardToken != address(0), "Invalid reward token address");
+        rewardToken = IRewardToken(_rewardToken);
+        emit RewardTokenUpdated(_rewardToken);
+    }
 
-    function claimReward(uint256 rewardAmount, bytes32 orderId, bytes memory signature)
+    // Function to call releaseTokens on the rewardToken contract
+    function releaseRewardTokens(string calldata allocationType) external onlyOwner whenNotPaused {
+        rewardToken.releaseTokens(allocationType);
+        emit TokensReleasedToContract(allocationType);
+    }
+
+    // Claim reward function using the preset reward token address
+    function claimReward(
+        uint256 rewardAmount, 
+        string calldata orderId, 
+        bytes memory signature
+    ) 
         external 
         hasTokenBalance(rewardAmount) 
         nonReentrant 
+        whenNotPaused 
+        returns (bool)
     {
-        require(verifyOrder(msg.sender, rewardAmount, orderId, signature), "Invalid order or signature");
+        // Check that the signature values match msg.sender, rewardAmount, orderId, and the authorized signer
+        require(verifyOrder(msg.sender, rewardAmount, orderId, signature), "Invalid signature or mismatched parameters");
 
-        // Check if the orderId is possibly already redeemed using the user’s Bloom filter
         require(!isOrderRedeemed(msg.sender, orderId), "Order ID already used");
 
-        // Mark the orderId in the user’s Bloom filter
         addOrderToBloomFilter(msg.sender, orderId);
 
-        bool success = rewardToken.transfer(msg.sender, rewardAmount);
+        bool success = rewardToken.transfer(msg.sender, rewardAmount * 10**18);
         string memory reason = success ? "" : "Token transfer failed";
 
-        emit WithdrawalProcessed(msg.sender, orderId, success, reason);
+        emit WithdrawalProcessed(msg.sender, orderId, success, reason); // Log withdrawal processing result
 
         if (!success) revert("Token transfer failed");
-
-        emit RewardClaimed(msg.sender, rewardAmount, orderId);
+        emit RewardClaimed(msg.sender, rewardAmount, orderId); // Log successful reward claim
+        return true;
     }
 
-    function isOrderRedeemed(address user, bytes32 orderId) internal view returns (bool) {
+    // Bloom filter implementation to track order IDs (used for duplicate checks)
+    uint8 private constant NUM_HASHES = 3;
+
+    function isOrderRedeemed(address user, string calldata orderId) internal view returns (bool) {
         uint256 bloomFilter = userBloomFilters[user];
         for (uint8 i = 0; i < NUM_HASHES; i++) {
             uint8 bitPos = uint8(uint256(keccak256(abi.encodePacked(orderId, i))) % 256);
@@ -78,7 +109,7 @@ contract SapienRewards is
         return true; // All bits are set, so the orderId is potentially redeemed
     }
 
-    function addOrderToBloomFilter(address user, bytes32 orderId) internal {
+    function addOrderToBloomFilter(address user, string calldata orderId) internal {
         uint256 bloomFilter = userBloomFilters[user];
         for (uint8 i = 0; i < NUM_HASHES; i++) {
             uint8 bitPos = uint8(uint256(keccak256(abi.encodePacked(orderId, i))) % 256);
@@ -87,28 +118,42 @@ contract SapienRewards is
         userBloomFilters[user] = bloomFilter; // Update the user's Bloom filter
     }
 
-    function verifyOrder(address user, uint256 rewardAmount, bytes32 orderId, bytes memory signature) 
-        internal 
-        view 
-        returns (bool) 
-    {
-        bytes32 messageHash = getMessageHash(user, rewardAmount, orderId, user);
-        return recoverSigner(messageHash, signature) == authorizedSigner;
-    }
+function verifyOrder(
+    address userWallet,
+    uint256 rewardAmount,
+    string calldata orderId,
+    bytes memory signature
+) public view returns (bool) {
+    // Step 1: Recompute the hash using the inputs
+    bytes32 messageHash = keccak256(abi.encodePacked(userWallet, rewardAmount, orderId));
+    // bytes memory messageHashBytes = abi.encodePacked(messageHash);
+    
+    // Step 2: Apply the Ethereum Signed Message prefix
+ 
+    bytes32 ethSignedMessageHash = keccak256(abi.encodePacked(
+        "\x19Ethereum Signed Message:\n32",
+        messageHash
+    ));
 
-    function getMessageHash(address user, uint256 rewardAmount, bytes32 orderId, address userWallet) 
+    // Step 3: Recover the signer’s address from the signature
+   address signer = ethSignedMessageHash.recover(signature);
+
+    // Step 4: Check if the recovered signer is the authorized signer
+    return signer == authorizedSigner;
+}
+
+
+
+    // Helper function to get message hash
+    function getMessageHash(address userWallet, uint256 rewardAmount, string calldata orderId) 
         public 
         pure 
         returns (bytes32) 
     {
-        bytes32 userHash = keccak256(abi.encodePacked(user));
-        bytes32 rewardAmountHex = bytes32(rewardAmount);
-        bytes32 orderIdHash = keccak256(abi.encodePacked(orderId));
-        bytes32 walletHash = keccak256(abi.encodePacked(userWallet));
-        
-        return keccak256(abi.encodePacked(userHash, rewardAmountHex, orderIdHash, walletHash));
+        return keccak256(abi.encodePacked(userWallet, rewardAmount, orderId));
     }
 
+    // Recover the signer from the signature
     function recoverSigner(bytes32 messageHash, bytes memory signature) 
         public 
         pure 
@@ -119,6 +164,7 @@ contract SapienRewards is
         return ecrecover(ethSignedMessageHash, v, r, s);
     }
 
+    // Split the signature into r, s, v components
     function splitSignature(bytes memory sig) 
         public 
         pure 
@@ -140,16 +186,6 @@ contract SapienRewards is
     // Owner-only function to withdraw tokens from the contract
     function withdrawTokens(uint256 amount) external onlyOwner {
         require(rewardToken.transfer(owner(), amount), "Token withdrawal failed");
-    }
-
-    // Function to pause the contract (only owner)
-    function pause() external onlyOwner {
-        _pause();
-    }
-
-    // Function to unpause the contract (only owner)
-    function unpause() external onlyOwner {
-        _unpause();
     }
 
     // Function to authorize contract upgrades
