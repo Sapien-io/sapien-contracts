@@ -42,7 +42,7 @@ async function signOrder(user: string, rewardAmount: number, orderId: string) {
 
   // Apply the Ethereum-specific prefix for EIP-191
   const ethSignedMessageHash = hashMessage(getBytes(messageHash));
-  const signature = await wallet.signMessage(getBytes(messageHash)); // Make sure this is consistent
+  const signature = await wallet.signMessage(getBytes(messageHash));
 
   return { signature, messageHash: ethSignedMessageHash };
 }
@@ -67,10 +67,12 @@ function verifySignature(
 }
 
 // Testing the function
-(async function testSignature() {
-  const user = OWNER1_ADDRESS!;
-  const rewardAmount = 1;
-  const orderId = "testOrder12";
+(async function testVerifyOrder() {
+  const user = "0x1234567890abcdef1234567890abcdef12345678"; // Replace with an actual address
+  const rewardAmount = 100;
+  const orderId = "order123";
+
+  console.log("Testing order verification...");
 
   // Generate signature
   const { signature, messageHash } = await signOrder(

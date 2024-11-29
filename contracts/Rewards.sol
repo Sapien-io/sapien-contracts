@@ -136,7 +136,7 @@ function verifyOrder(
     ));
 
     // Step 3: Recover the signer’s address from the signature
-   address signer = ethSignedMessageHash.recover(signature);
+    address signer = ethSignedMessageHash.recover(signature);
 
     // Step 4: Check if the recovered signer is the authorized signer
     return signer == authorizedSigner;
