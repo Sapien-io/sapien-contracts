@@ -89,7 +89,7 @@ contract SapTestToken is
             amount: LABELING_REWARDS_ALLOCATION,
             released: 0,
             revoked: false,
-            safe: 0x3036403Cc8878c426DB7E503AD02591BA446347E
+            safe: 0x6957342b8b28A0252ef9EeB5dadCEfaB31283c77
         });
         vestingSchedules["airdrop"] = VestingSchedule({
             cliff: cliff,
@@ -142,7 +142,7 @@ contract SapTestToken is
         require(releasableAmount > 0, "No tokens releasable");
 
         schedule.released += releasableAmount;
-        _transfer(gnosisSafe, msg.sender, releasableAmount);
+        _transfer(gnosisSafe, schedule.safe, releasableAmount);
         emit TokensReleased(allocationType, releasableAmount);
     }
 

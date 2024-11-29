@@ -1,4 +1,5 @@
 import { ethers } from "hardhat";
+import hre from "hardhat";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -12,26 +13,21 @@ async function deploySapienStaking() {
       throw new Error("Missing environment variables!");
     }
 
-    // Set up a provider and signer
-    const provider = new ethers.JsonRpcProvider(ALCHEMY_API_URL);
-    const wallet = new ethers.Wallet(PRIVATE_KEY!, provider);
+    // Get the contract factory for SapienRewards
+    const SapienStaking = await hre.ethers.getContractFactory("SapienStaking");
 
-    // Get the contract factory
-    const SapienStaking = await ethers.getContractFactory(
-      "SapienStaking",
-      wallet
+    // Deploy the proxy contract using UUPS upgradeability pattern
+    const contract = await hre.upgrades.deployProxy(
+      SapienStaking,
+      [TOKEN_ADDRESS, OWNER1_ADDRESS],
+      { initializer: "initialize", kind: "uups" }
     );
 
-    console.log("Deploying SapienStaking contract...");
+    // Wait for the deployment to be mined
+    const address = await contract.getAddress();
+    console.log("Contract deployed to", address);
 
-    // Deploy the contract
-    const sapienStaking = await SapienStaking.deploy(
-      TOKEN_ADDRESS,
-      OWNER1_ADDRESS
-    );
-    await sapienStaking.deployed();
-
-    console.log("SapienStaking deployed to:", sapienStaking.address);
+    console.log("SapienStaking contract initialized successfully!");
   } catch (error) {
     console.error("Error deploying contract:", error);
     process.exit(1);

@@ -30,7 +30,7 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
     uint256 public constant TWELVE_MONTHS_MAX_MULTIPLIER = 150; // 1.5x
 
     uint256 public constant COOLDOWN_PERIOD = 2 days;
-    uint256 public earlyWithdrawalPenalty = 20;
+    uint256 private constant earlyWithdrawalPenalty = 20;
 
     event Staked(address indexed user, uint256 amount, uint256 multiplier, uint256 lockUpPeriod);
     event UnstakingInitiated(address indexed user, uint256 amount);

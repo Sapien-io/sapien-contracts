@@ -24,7 +24,7 @@ contract SapienRewards is
 {
     using ECDSA for bytes32;
     IRewardToken public rewardToken;
-    address public authorizedSigner;
+    address private authorizedSigner;
 
     // Mapping of wallet addresses to their Bloom filter for order IDs
     mapping(address => uint256) private userBloomFilters;
@@ -158,7 +158,7 @@ contract SapienRewards is
 
     // Recover the signer from the signature
     function recoverSigner(bytes32 messageHash, bytes memory signature) 
-        public 
+        private 
         pure 
         returns (address) 
     {

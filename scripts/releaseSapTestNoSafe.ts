@@ -29,7 +29,6 @@ async function sapTestRelease() {
     releaseCon.releaseTokens
   );
   try {
-    const tx = await releaseCon.releaseTokens(allocationType);
     console.log(
       `Attempting to release tokens for allocation type: ${allocationType}`
     );
