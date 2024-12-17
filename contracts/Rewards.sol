@@ -126,10 +126,8 @@ contract SapienRewards is
     ) private view returns (bool) {
         // Step 1: Recompute the hash using the inputs
         bytes32 messageHash = keccak256(abi.encodePacked(userWallet, rewardAmount, orderId));
-        // bytes memory messageHashBytes = abi.encodePacked(messageHash);
         
         // Step 2: Apply the Ethereum Signed Message prefix
-    
         bytes32 ethSignedMessageHash = keccak256(abi.encodePacked(
             "\x19Ethereum Signed Message:\n32",
             messageHash
