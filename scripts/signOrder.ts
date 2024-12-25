@@ -82,8 +82,8 @@ function verifySignature(
 // Testing the function
 (async function testVerifyOrder() {
   const user = "0x090d4116EaDfcE0aea28f7c81FABEB282B72bCDa"; // Replace with an actual address
-  const rewardAmount = 1000000000000000000000;
-  const orderId = "fd989e27-79bb-40af-83a5-0bb56485433c";
+  const rewardAmount = 1000;
+  const orderId = "f4e5ca6b-84e9-48b9-b2b6-a4e890b28405";
 
   console.log("Testing order verification...");
 
@@ -95,10 +95,9 @@ function verifySignature(
   );
   //2592000
   console.log("Signature:", signature);
-
   console.log(
-    "block sig:",
-    "0x9479138d8150792d36cba4d73b5e78fbf4faaae73d14fdebe5f1311c820d06da29db13d612409eea99240fea30a91d7a68455892f40ae8a1c809d62cda572f3e1c"
+    "created sig",
+    "0x4d145d7428caceffbaddb0f3c05d91a84d26a134b381b8ae12cbcb8f1bdcdd302a491be9ef852d2300ad09cd79c026bc9f0dce948d0122b5976e4b95890070931b"
   );
 
   // Verify signature

@@ -52,7 +52,7 @@ contract SapTestToken is
         require(_gnosisSafe != address(0), "Invalid Gnosis Safe address");
         require(_totalSupply > 0, "Total supply must be greater than zero");
         gnosisSafe = _gnosisSafe;
-        __ERC20_init("SapTestToken", "SAPTEST");
+        __ERC20_init("SapTestToken", "PTSPN");
         __Ownable_init(gnosisSafe);
         __Pausable_init();
         __UUPSUpgradeable_init();
@@ -89,7 +89,7 @@ contract SapTestToken is
             amount: LABELING_REWARDS_ALLOCATION,
             released: 0,
             revoked: false,
-            safe: 0x6957342b8b28A0252ef9EeB5dadCEfaB31283c77
+            safe: 0xf3c8B751D3900f1b704546E5510E1962c0CAE1dB
         });
         vestingSchedules["airdrop"] = VestingSchedule({
             cliff: cliff,
