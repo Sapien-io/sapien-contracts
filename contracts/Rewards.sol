@@ -85,7 +85,7 @@ contract SapienRewards is
 
         addOrderToBloomFilter(msg.sender, orderId);
 
-        bool success = rewardToken.transfer(msg.sender, rewardAmount * 10**18);
+        bool success = rewardToken.transfer(msg.sender, rewardAmount);
         string memory reason = success ? "" : "Token transfer failed";
 
         emit WithdrawalProcessed(msg.sender, orderId, success, reason); // Log withdrawal processing result

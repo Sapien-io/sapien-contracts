@@ -6,6 +6,7 @@ async function main() {
   const gnosisSafeAddress = process.env.OWNER1_ADDRESS;
   const totalSupply = ethers.parseUnits("1000000000000000000000000000", 18);
 
+
   if (!gnosisSafeAddress || !totalSupply) {
     throw new Error(
       "GNOSIS_SAFE_ADDRESS and TOTAL_SUPPLY must be defined in .env"
