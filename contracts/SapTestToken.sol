@@ -63,11 +63,11 @@ contract SapTestToken is
     }
 
     function _createHardcodedVestingSchedules() internal {
-        uint256 cliff = 0 days;
+        uint256 cliff = 365 days; // 1 year cliff
         vestingSchedules["investors"] = VestingSchedule({
             cliff: cliff,
             start: vestingStartTimestamp,
-            duration: 2 * 1 days,
+            duration: 48 * 30 days, // 48 months
             amount: INVESTORS_ALLOCATION,
             released: 0,
             revoked: false,
@@ -76,26 +76,53 @@ contract SapTestToken is
         vestingSchedules["team"] = VestingSchedule({
             cliff: cliff,
             start: vestingStartTimestamp,
-            duration: 2 * 1 days,
+            duration: 48 * 30 days, // 48 months
             amount: TEAM_ADVISORS_ALLOCATION,
             released: 0,
             revoked: false,
             safe: gnosisSafe
         });
         vestingSchedules["rewards"] = VestingSchedule({
-            cliff: cliff,
+            cliff: 0, // No cliff for rewards
             start: vestingStartTimestamp,
-            duration: 2 * 1 days,
+            duration: 48 * 30 days, // 48 months
             amount: LABELING_REWARDS_ALLOCATION,
             released: 0,
             revoked: false,
-            safe: 0xf3c8B751D3900f1b704546E5510E1962c0CAE1dB
+            safe: gnosisSafe
         });
         vestingSchedules["airdrop"] = VestingSchedule({
-            cliff: cliff,
+            cliff: 0, // No cliff for airdrops
             start: vestingStartTimestamp,
-            duration: 2 * 1 days,
+            duration: 48 * 30 days, // 48 months
             amount: AIRDROPS_ALLOCATION,
+            released: 0,
+            revoked: false,
+            safe: gnosisSafe
+        });
+        vestingSchedules["communityTreasury"] = VestingSchedule({
+            cliff: 0, // No cliff for community treasury
+            start: vestingStartTimestamp,
+            duration: 48 * 30 days, // 48 months
+            amount: COMMUNITY_TREASURY_ALLOCATION,
+            released: 0,
+            revoked: false,
+            safe: gnosisSafe
+        });
+        vestingSchedules["stakingIncentives"] = VestingSchedule({
+            cliff: 0, // No cliff for staking incentives
+            start: vestingStartTimestamp,
+            duration: 48 * 30 days, // 48 months
+            amount: STAKING_INCENTIVES_ALLOCATION,
+            released: 0,
+            revoked: false,
+            safe: gnosisSafe
+        });
+        vestingSchedules["liquidityIncentives"] = VestingSchedule({
+            cliff: 0, // No cliff for liquidity incentives
+            start: vestingStartTimestamp,
+            duration: 48 * 30 days, // 48 months
+            amount: LIQUIDITY_INCENTIVES_ALLOCATION,
             released: 0,
             revoked: false,
             safe: gnosisSafe
@@ -121,7 +148,7 @@ contract SapTestToken is
         });
         emit VestingScheduleUpdated(allocationType, amount);
     }
-	// Removed only safe. Add it back and whitelist the contracts
+
     function releaseTokens(string calldata allocationType) external nonReentrant whenNotPaused {
         VestingSchedule storage schedule = vestingSchedules[allocationType];
         require(schedule.amount > 0, "No tokens to release");
