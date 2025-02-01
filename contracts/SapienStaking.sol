@@ -115,6 +115,7 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
     function initiateUnstake(uint256 amount, string calldata orderId, bytes memory signature) public whenNotPaused nonReentrant {
         StakingInfo storage info = stakers[msg.sender][orderId];
         require(info.isActive, "Staking position not active");
+        require(block.timestamp >= info.startTime + info.lockUpPeriod, "Lock-up period not completed");
         require(info.cooldownStart == 0, "Cooldown already initiated");
         require(verifyOrder(msg.sender, amount, orderId, signature), "Invalid signature or mismatched parameters");
 
@@ -129,13 +130,19 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
         require(info.cooldownStart > 0, "Cooldown not initiated");
         require(verifyOrder(msg.sender, amount, orderId, signature), "Invalid signature or mismatched parameters");
         require(block.timestamp >= info.cooldownStart + COOLDOWN_PERIOD, "Cooldown period not completed");
+        require(info.amount >= amount, "Insufficient staked amount");
 
-   
+        info.amount -= amount;
+        if (info.amount == 0) {
+            info.isActive = false;
+        }
+        totalStaked -= amount;
 
         sapienToken.transfer(msg.sender, amount);
 
         emit Unstaked(msg.sender, amount, orderId);
     }
+
 
     function instantUnstake(uint256 amount, string calldata orderId, bytes memory signature) public whenNotPaused nonReentrant {
         StakingInfo storage info = stakers[msg.sender][orderId];
