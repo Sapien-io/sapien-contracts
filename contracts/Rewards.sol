@@ -33,7 +33,7 @@ contract SapienRewards is
     );
 
     mapping(bytes32 => bool) private usedSignatures;
-    mapping(address => uint256) private userBloomFilters;
+    mapping(address => mapping(bytes32 => bool)) private redeemedOrders;
 
     event RewardClaimed(address indexed user, uint256 amount, string orderId);
     event WithdrawalProcessed(address indexed user, string indexed eventOrderId, bool success, string reason);
@@ -94,7 +94,7 @@ contract SapienRewards is
         require(verifyOrder(msg.sender, rewardAmount, orderId, signature), "Invalid signature or mismatched parameters");
         require(!isOrderRedeemed(msg.sender, orderId), "Order ID already used");
 
-        addOrderToBloomFilter(msg.sender, orderId);
+        addOrderToRedeemed(msg.sender, orderId);
 
         bool success = rewardToken.transfer(msg.sender, rewardAmount);
         string memory reason = success ? "" : "Token transfer failed";
@@ -106,26 +106,12 @@ contract SapienRewards is
         return true;
     }
 
-    uint8 private constant NUM_HASHES = 3;
-
     function isOrderRedeemed(address user, string calldata orderId) internal view returns (bool) {
-        uint256 bloomFilter = userBloomFilters[user];
-        for (uint8 i = 0; i < NUM_HASHES; i++) {
-            uint8 bitPos = uint8(uint256(keccak256(abi.encodePacked(orderId, i))) % 256);
-            if ((bloomFilter & (1 << bitPos)) == 0) {
-                return false;
-            }
-        }
-        return true;
+        return redeemedOrders[user][keccak256(abi.encodePacked(orderId))];
     }
 
-    function addOrderToBloomFilter(address user, string calldata orderId) internal {
-        uint256 bloomFilter = userBloomFilters[user];
-        for (uint8 i = 0; i < NUM_HASHES; i++) {
-            uint8 bitPos = uint8(uint256(keccak256(abi.encodePacked(orderId, i))) % 256);
-            bloomFilter |= (1 << bitPos);
-        }
-        userBloomFilters[user] = bloomFilter;
+    function addOrderToRedeemed(address user, string calldata orderId) internal {
+        redeemedOrders[user][keccak256(abi.encodePacked(orderId))] = true;
     }
 
     function verifyOrder(
