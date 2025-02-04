@@ -38,6 +38,13 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
     uint256 public constant COOLDOWN_PERIOD = 2 days;
     uint256 private constant EARLY_WITHDRAWAL_PENALTY = 20; // 20%
 
+    bytes32 public DOMAIN_SEPARATOR;
+    bytes32 public constant STAKING_TYPEHASH = keccak256(
+        "Staking(address walletAddress,uint256 rewardAmount,string orderId)"
+    );
+
+    mapping(bytes32 => bool) private usedSignatures;
+
     event Staked(address indexed user, uint256 amount, uint256 multiplier, uint256 lockUpPeriod, string orderId);
     event UnstakingInitiated(address indexed user, uint256 amount, string orderId);
     event Unstaked(address indexed user, uint256 amount, string orderId);
@@ -50,6 +57,16 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
         __Ownable_init(msg.sender);
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
+
+        DOMAIN_SEPARATOR = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(bytes("SapienStaking")),      
+                keccak256(bytes("1")),                
+                block.chainid,                           
+                address(this)                            
+            )
+        );
     }
 
     modifier onlySapien() {
@@ -143,7 +160,6 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
         emit Unstaked(msg.sender, amount, orderId);
     }
 
-
     function instantUnstake(uint256 amount, string calldata orderId, bytes memory signature) public whenNotPaused nonReentrant {
         StakingInfo storage info = stakers[msg.sender][orderId];
         require(info.isActive, "Staking position not active");
@@ -165,15 +181,36 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
     }
 
     function verifyOrder(
-        address userWallet,
+        address walletAddress,
         uint256 rewardAmount,
         string calldata orderId,
         bytes memory signature
-    ) private view returns (bool) {
-        bytes32 messageHash = keccak256(abi.encodePacked(userWallet, rewardAmount, orderId));
-        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+    ) private returns (bool) {
+        // Create the struct hash for EIP-712 typed data
+        bytes32 structHash = keccak256(
+            abi.encode(
+                STAKING_TYPEHASH,
+                walletAddress,
+                rewardAmount,
+                keccak256(bytes(orderId)) 
+            )
+        );
 
-        address signer = ethSignedMessageHash.recover(signature);
-        return signer == sapienAddress;
+        // EIP-712 domain separation
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                DOMAIN_SEPARATOR,
+                structHash
+            )
+        );
+        require(!usedSignatures[digest], "Signature already used");
+        // Recover the signer
+        address signer = digest.recover(signature);
+        if (signer == sapienAddress) {
+            usedSignatures[digest] = true;
+            return true;
+        }
+        return false;
     }
 }

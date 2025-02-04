@@ -85,11 +85,11 @@ contract SapTestToken is
         vestingSchedules["rewards"] = VestingSchedule({
             cliff: 0, // No cliff for rewards
             start: vestingStartTimestamp,
-            duration: 48 * 30 days, // 48 months
+            duration: 1 days, // 48 months
             amount: LABELING_REWARDS_ALLOCATION,
             released: 0,
             revoked: false,
-            safe: gnosisSafe
+            safe: 0x1a03ADCEd183ef7A9cCae17D07DD4f47ac7CBF30
         });
         vestingSchedules["airdrop"] = VestingSchedule({
             cliff: 0, // No cliff for airdrops

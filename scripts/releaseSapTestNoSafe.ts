@@ -47,7 +47,7 @@ async function sapTestRelease() {
         `Tokens released successfully. Transaction hash: ${receipt.transactionHash}`
       );
     } catch (error) {
-      console.error("Error releasing tokens3:", error);
+      console.error("Error releasing tokens:", error);
     }
   } catch (error) {
     console.error("Error releasing tokens:", error);
