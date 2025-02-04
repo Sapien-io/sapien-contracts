@@ -45,10 +45,6 @@ contract SapienRewards is
         _disableInitializers();
     }
 
-    modifier hasTokenBalance(uint256 amount) {
-        require(rewardToken.balanceOf(address(this)) >= amount, "Insufficient token balance");
-        _;
-    }
 
     function initialize(address _authorizedSigner) public initializer {
         __Ownable_init(msg.sender);
@@ -83,7 +79,6 @@ function claimReward(
     bytes memory signature
 )
     external
-    hasTokenBalance(rewardAmount)
     nonReentrant
     whenNotPaused
     returns (bool)
@@ -97,6 +92,11 @@ function claimReward(
         !isOrderRedeemed(msg.sender, orderId), 
         "Order ID already used"
     );
+
+           require(
+            rewardToken.balanceOf(address(this)) >= rewardAmount, 
+            "Insufficient token balance"
+        );
 
     addOrderToRedeemed(msg.sender, orderId); // Mark order as redeemed to prevent reentrancy
 
