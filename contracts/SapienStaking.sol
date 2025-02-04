@@ -32,7 +32,7 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
     // BASE_STAKE is used to calculate the multiplier for the staking amount and is not
     // supposed to be blocking if the user wants to stake less than the base amount
     // however, for test-net, the minimum staking amount is set to BASE_STAKE
-    uint256 public constant BASE_STAKE = 1000 * 10 * DECIMALS;
+    uint256 public constant BASE_STAKE = 1000 * (10 ** DECIMALS);
     uint256 public constant ONE_MONTH_MAX_MULTIPLIER = 105;
     uint256 public constant THREE_MONTHS_MAX_MULTIPLIER = 110;
     uint256 public constant SIX_MONTHS_MAX_MULTIPLIER = 125;
@@ -102,7 +102,7 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
         uint256 maxMultiplier = getMaxMultiplier(lockUpPeriod);
         uint256 multiplier = calculateMultiplier(amount, maxMultiplier);
 
-        sapienToken.transferFrom(msg.sender, address(this), amount);
+        require(sapienToken.transferFrom(msg.sender, address(this), amount), "TransferFrom failed");
 
         stakers[msg.sender][orderId] = StakingInfo({
             amount: amount,
@@ -164,7 +164,9 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
         }
         totalStaked -= amount;
 
-        sapienToken.transfer(msg.sender, amount);
+
+        require(sapienToken.transfer(msg.sender, amount), "Transfer failed");
+        
 
         emit Unstaked(msg.sender, amount, orderId);
     }
@@ -185,8 +187,10 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
         }
         totalStaked -= amount;
 
-        sapienToken.transfer(msg.sender, payout);
-        sapienToken.transfer(owner(), penalty);
+        
+        require(sapienToken.transfer(msg.sender, payout), "Transfer failed");
+        require(sapienToken.transfer(owner(), penalty), "Transfer failed");
+
 
         emit InstantUnstake(msg.sender, payout, orderId);
     }

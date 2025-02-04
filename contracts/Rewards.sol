@@ -34,7 +34,7 @@ contract SapienRewards is
     mapping(address => mapping(bytes32 => bool)) private redeemedOrders;
 
     event RewardClaimed(address indexed user, uint256 amount, string orderId);
-    event WithdrawalProcessed(address indexed user, string indexed eventOrderId, bool success, string reason);
+    event WithdrawalProcessed(address indexed user, string indexed eventOrderId);
     event RewardTokenUpdated(address indexed newRewardToken);
     event TokensReleasedToContract(string allocationType);
     event SignatureVerified(address user, uint256 amount, string orderId);
@@ -93,11 +93,10 @@ contract SapienRewards is
 
         addOrderToRedeemed(msg.sender, orderId);
 
-        bool success = rewardToken.transfer(msg.sender, rewardAmount);
-        string memory reason = success ? "" : "Token transfer failed";
-        require(success, "Token transfer failed");
+        require(rewardToken.transfer(msg.sender, rewardAmount), "Token transfer failed");
 
-        emit WithdrawalProcessed(msg.sender, orderId, success, reason);
+
+        emit WithdrawalProcessed(msg.sender, orderId);
         emit RewardClaimed(msg.sender, rewardAmount, orderId);
         return true;
     }
