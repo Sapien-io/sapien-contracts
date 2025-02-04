@@ -8,12 +8,14 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "./SapTestToken.sol";
 
 contract SapienStaking is Initializable, PausableUpgradeable, Ownable2StepUpgradeable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
     using ECDSA for bytes32;
 
-    IERC20 public sapienToken;
-    address private sapienAddress;
+    SapTestToken public immutable sapienToken;
+    address private immutable sapienAddress;
+    bytes32 public immutable DOMAIN_SEPARATOR;
 
     uint8 public constant DECIMALS = 18;
 
@@ -38,7 +40,6 @@ contract SapienStaking is Initializable, PausableUpgradeable, Ownable2StepUpgrad
     uint256 public constant COOLDOWN_PERIOD = 2 days;
     uint256 private constant EARLY_WITHDRAWAL_PENALTY = 20;
 
-    bytes32 public DOMAIN_SEPARATOR;
     bytes32 public constant STAKING_TYPEHASH = keccak256(
         "Staking(address walletAddress,uint256 rewardAmount,string orderId)"
     );
@@ -50,21 +51,12 @@ contract SapienStaking is Initializable, PausableUpgradeable, Ownable2StepUpgrad
     event Unstaked(address indexed user, uint256 amount, string orderId);
     event InstantUnstake(address indexed user, uint256 amount, string orderId);
 
-    constructor() {
-        _disableInitializers();
-    }
-
-    function initialize(IERC20 _sapienToken, address _sapienAddress) public initializer {
+    constructor(SapTestToken _sapienToken, address _sapienAddress) {
         require(address(_sapienToken) != address(0), "SapienToken address cannot be zero");
         require(_sapienAddress != address(0), "Sapien address cannot be zero");
 
         sapienToken = _sapienToken;
         sapienAddress = _sapienAddress;
-
-        __Pausable_init();
-        __Ownable2Step_init();
-        __UUPSUpgradeable_init();
-        __ReentrancyGuard_init();
 
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(
@@ -75,6 +67,15 @@ contract SapienStaking is Initializable, PausableUpgradeable, Ownable2StepUpgrad
                 address(this)
             )
         );
+
+        _disableInitializers();
+    }
+
+    function initialize() public initializer {
+        __Pausable_init();
+        __Ownable2Step_init();
+        __UUPSUpgradeable_init();
+        __ReentrancyGuard_init();
     }
 
     modifier onlySapien() {

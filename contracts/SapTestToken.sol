@@ -39,14 +39,38 @@ contract SapTestToken is
     uint256 public constant STAKING_INCENTIVES_ALLOCATION = 50000000 * 10 ** DECIMALS;
     uint256 public constant LIQUIDITY_INCENTIVES_ALLOCATION = 50000000 * 10 ** DECIMALS;
 
-    uint256 private vestingStartTimestamp;
-    address public sapienRewardsContract;
-    mapping(string => VestingSchedule) public vestingSchedules;
+    uint256 public immutable vestingStartTimestamp;
+    address public immutable sapienRewardsContract;
     address public gnosisSafe;
-    address private pendingSafe; // New pending safe address for two-step process
+    address private pendingSafe;
 
-    constructor() {
-        _disableInitializers();
+    mapping(string => VestingSchedule) public vestingSchedules;
+
+    constructor(address _gnosisSafe, uint256 _totalSupply, address _sapienRewardsContract) {
+        require(_gnosisSafe != address(0), "Invalid Gnosis Safe address");
+        require(_sapienRewardsContract != address(0), "Invalid SapienRewards address");
+
+        uint256 totalAllocations = INVESTORS_ALLOCATION +
+                                   TEAM_ADVISORS_ALLOCATION +
+                                   LABELING_REWARDS_ALLOCATION +
+                                   AIRDROPS_ALLOCATION +
+                                   COMMUNITY_TREASURY_ALLOCATION +
+                                   STAKING_INCENTIVES_ALLOCATION +
+                                   LIQUIDITY_INCENTIVES_ALLOCATION;
+
+        require(_totalSupply == totalAllocations, "Total supply must match allocations");
+
+        sapienRewardsContract = _sapienRewardsContract;
+        gnosisSafe = _gnosisSafe;
+        vestingStartTimestamp = block.timestamp;
+
+        __ERC20_init("SapTestToken", "PTSPN");
+        __Pausable_init();
+        __UUPSUpgradeable_init();
+
+        _mint(_gnosisSafe, _totalSupply);
+        _createHardcodedVestingSchedules();
+        emit InitializedEvent(_gnosisSafe, _totalSupply, _sapienRewardsContract);
     }
 
     modifier onlySafe() {
@@ -57,33 +81,6 @@ contract SapTestToken is
     modifier onlyPendingSafe() {
         require(msg.sender == pendingSafe, "Only the pending Safe can accept ownership");
         _;
-    }
-
-    function initialize(address _gnosisSafe, uint256 _totalSupply, address _sapienRewardsContract) public initializer {
-        emit InitializedEvent(_gnosisSafe, _totalSupply, _sapienRewardsContract);
-        uint256 totalAllocations = INVESTORS_ALLOCATION +
-                                   TEAM_ADVISORS_ALLOCATION +
-                                   LABELING_REWARDS_ALLOCATION +
-                                   AIRDROPS_ALLOCATION +
-                                   COMMUNITY_TREASURY_ALLOCATION +
-                                   STAKING_INCENTIVES_ALLOCATION +
-                                   LIQUIDITY_INCENTIVES_ALLOCATION;
-
-        require(_gnosisSafe != address(0), "Invalid Gnosis Safe address");
-        require(_totalSupply == totalAllocations, "Total supply must match allocations");
-        require(_sapienRewardsContract != address(0), "Invalid SapienRewards address");
-
-        sapienRewardsContract = _sapienRewardsContract;
-        gnosisSafe = _gnosisSafe;
-
-        __ERC20_init("SapTestToken", "PTSPN");
-        __Pausable_init();
-        __UUPSUpgradeable_init();
-
-        vestingStartTimestamp = block.timestamp;
-
-        _mint(_gnosisSafe, _totalSupply);
-        _createHardcodedVestingSchedules();
     }
 
     function transferSafe(address newSafe) external onlySafe {

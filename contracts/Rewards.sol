@@ -25,8 +25,8 @@ contract SapienRewards is
     );
 
     SapTestToken public rewardToken;
-    address private authorizedSigner;
-    bytes32 public DOMAIN_SEPARATOR;
+    address private immutable authorizedSigner;
+    bytes32 public immutable DOMAIN_SEPARATOR;
 
     mapping(bytes32 => bool) private usedSignatures;
     mapping(address => mapping(bytes32 => bool)) private redeemedOrders;
@@ -39,20 +39,13 @@ contract SapienRewards is
     event MsgHash(bytes32 msgHash);
     event RecoveredSigner(address signer);
 
-    constructor() {
-        _disableInitializers();
-    }
+    event TokensDeposited(address indexed from, uint256 amount);
+    event TokensWithdrawn(address indexed to, uint256 amount);
 
-    function initialize(address _authorizedSigner) public initializer {
-        __Ownable2Step_init();
-        __Pausable_init();
-        __UUPSUpgradeable_init();
-        __ReentrancyGuard_init();
-
-        require(_authorizedSigner != address(0), "authorizedSigner address cannot be zero");
+    constructor(address _authorizedSigner) {
+        require(_authorizedSigner != address(0), "Authorized signer address cannot be zero");
 
         authorizedSigner = _authorizedSigner;
-
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(
                 keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
@@ -62,6 +55,15 @@ contract SapienRewards is
                 address(this)
             )
         );
+
+        _disableInitializers();
+    }
+
+    function initialize() public initializer {
+        __Ownable2Step_init();
+        __Pausable_init();
+        __UUPSUpgradeable_init();
+        __ReentrancyGuard_init();
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
@@ -74,10 +76,12 @@ contract SapienRewards is
 
     function depositTokens(uint256 amount) external onlyOwner {
         require(rewardToken.transferFrom(msg.sender, address(this), amount), "Token deposit failed");
+        emit TokensDeposited(msg.sender, amount);
     }
 
     function withdrawTokens(uint256 amount) external onlyOwner {
         require(rewardToken.transfer(owner(), amount), "Token withdrawal failed");
+        emit TokensWithdrawn(owner(), amount);
     }
 
     function pause() external onlyOwner {
