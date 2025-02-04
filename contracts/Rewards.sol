@@ -95,10 +95,9 @@ contract SapienRewards is
 
         bool success = rewardToken.transfer(msg.sender, rewardAmount);
         string memory reason = success ? "" : "Token transfer failed";
+        require(success, "Token transfer failed");
 
         emit WithdrawalProcessed(msg.sender, orderId, success, reason);
-
-        if (!success) revert("Token transfer failed");
         emit RewardClaimed(msg.sender, rewardAmount, orderId);
         return true;
     }
