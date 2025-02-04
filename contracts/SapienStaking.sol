@@ -29,6 +29,9 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
     mapping(address => mapping(string => StakingInfo)) public stakers; // Mapping from user to orderId to StakingInfo
     uint256 public totalStaked;
 
+    // BASE_STAKE is used to calculate the multiplier for the staking amount and is not
+    // supposed to be blocking if the user wants to stake less than the base amount
+    // however, for test-net, the minimum staking amount is set to BASE_STAKE
     uint256 public constant BASE_STAKE = 1000 * TOKEN_DECIMALS;
     uint256 public constant ONE_MONTH_MAX_MULTIPLIER = 105;
     uint256 public constant THREE_MONTHS_MAX_MULTIPLIER = 110;
@@ -85,6 +88,7 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
     }
 
     function stake(uint256 amount, uint256 lockUpPeriod, string calldata orderId, bytes memory signature) public whenNotPaused nonReentrant {
+        // this check will be removed in mainnet 
         require(amount >= BASE_STAKE, "Amount must be greater than base stake");
         require(
             lockUpPeriod == 30 days || lockUpPeriod == 90 days || lockUpPeriod == 180 days || lockUpPeriod == 365 days,
