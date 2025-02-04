@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
@@ -12,7 +11,6 @@ contract SapTestToken is
     Initializable,
     ERC20Upgradeable,
     PausableUpgradeable,
-    OwnableUpgradeable,
     UUPSUpgradeable,
     ReentrancyGuardUpgradeable
 {
@@ -75,7 +73,6 @@ contract SapTestToken is
         sapienRewardsContract = _sapienRewardsContract;
         gnosisSafe = _gnosisSafe;
         __ERC20_init("SapTestToken", "PTSPN");
-        __Ownable_init(gnosisSafe);
         __Pausable_init();
         __UUPSUpgradeable_init();
         vestingStartTimestamp = block.timestamp;
