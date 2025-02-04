@@ -49,6 +49,8 @@ contract SapienRewards is
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
 
+        require(_authorizedSigner != address(0), "authorizedSigner address cannot be zero");
+
         authorizedSigner = _authorizedSigner;
 
         DOMAIN_SEPARATOR = keccak256(
