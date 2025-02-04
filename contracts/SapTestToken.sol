@@ -20,7 +20,6 @@ contract SapTestToken is
         uint256 duration;
         uint256 amount;
         uint256 released;
-        bool revoked;
         address safe;
     }
 
@@ -89,7 +88,6 @@ contract SapTestToken is
             duration: 48 * 30 days, // 48 months
             amount: INVESTORS_ALLOCATION,
             released: 0,
-            revoked: false,
             safe: gnosisSafe
         });
         vestingSchedules["team"] = VestingSchedule({
@@ -98,7 +96,6 @@ contract SapTestToken is
             duration: 48 * 30 days, // 48 months
             amount: TEAM_ADVISORS_ALLOCATION,
             released: 0,
-            revoked: false,
             safe: gnosisSafe
         });
         vestingSchedules["rewards"] = VestingSchedule({
@@ -107,7 +104,6 @@ contract SapTestToken is
             duration: 48 * 30 days, // 48 months
             amount: LABELING_REWARDS_ALLOCATION,
             released: 0,
-            revoked: false,
             safe: sapienRewardsContract
         });
         vestingSchedules["airdrop"] = VestingSchedule({
@@ -116,7 +112,6 @@ contract SapTestToken is
             duration: 48 * 30 days, // 48 months
             amount: AIRDROPS_ALLOCATION,
             released: 0,
-            revoked: false,
             safe: gnosisSafe
         });
         vestingSchedules["communityTreasury"] = VestingSchedule({
@@ -125,7 +120,6 @@ contract SapTestToken is
             duration: 48 * 30 days, // 48 months
             amount: COMMUNITY_TREASURY_ALLOCATION,
             released: 0,
-            revoked: false,
             safe: gnosisSafe
         });
         vestingSchedules["stakingIncentives"] = VestingSchedule({
@@ -134,7 +128,6 @@ contract SapTestToken is
             duration: 48 * 30 days, // 48 months
             amount: STAKING_INCENTIVES_ALLOCATION,
             released: 0,
-            revoked: false,
             safe: gnosisSafe
         });
         vestingSchedules["liquidityIncentives"] = VestingSchedule({
@@ -143,7 +136,6 @@ contract SapTestToken is
             duration: 48 * 30 days, // 48 months
             amount: LIQUIDITY_INCENTIVES_ALLOCATION,
             released: 0,
-            revoked: false,
             safe: gnosisSafe
         });
     }
@@ -162,7 +154,6 @@ contract SapTestToken is
             duration: duration,
             amount: amount,
             released: vestingSchedules[allocationType].released, // Preserve the released amount
-            revoked: false,
             safe: safe
         });
         emit VestingScheduleUpdated(allocationType, amount);
