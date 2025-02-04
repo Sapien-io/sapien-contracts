@@ -93,10 +93,10 @@ function claimReward(
         "Order ID already used"
     );
 
-           require(
-            rewardToken.balanceOf(address(this)) >= rewardAmount, 
-            "Insufficient token balance"
-        );
+    require(
+    rewardToken.balanceOf(address(this)) >= rewardAmount, 
+    "Insufficient token balance"
+    );
 
     addOrderToRedeemed(msg.sender, orderId); // Mark order as redeemed to prevent reentrancy
 
