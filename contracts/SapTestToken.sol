@@ -60,8 +60,17 @@ contract SapTestToken is
 
     function initialize(address _gnosisSafe, uint256 _totalSupply, address _sapienRewardsContract) public initializer {
         emit InitializedEvent(_gnosisSafe, _totalSupply,_sapienRewardsContract );
+        uint256 totalAllocations = INVESTORS_ALLOCATION +
+                               TEAM_ADVISORS_ALLOCATION +
+                               LABELING_REWARDS_ALLOCATION +
+                               AIRDROPS_ALLOCATION +
+                               COMMUNITY_TREASURY_ALLOCATION +
+                               STAKING_INCENTIVES_ALLOCATION +
+                               LIQUIDITY_INCENTIVES_ALLOCATION;
+
+
         require(_gnosisSafe != address(0), "Invalid Gnosis Safe address");
-        require(_totalSupply > 0, "Total supply must be greater than zero");
+        require(_totalSupply == totalAllocations, "Total supply must match the sum of all allocations");
         require(_sapienRewardsContract != address(0), "Invalid SapienRewards address");
         sapienRewardsContract = _sapienRewardsContract;
         gnosisSafe = _gnosisSafe;
