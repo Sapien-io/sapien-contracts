@@ -58,6 +58,8 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
     }
 
     function initialize(IERC20 _sapienToken, address _sapienAddress) public initializer {
+        require(address(_sapienToken) != address(0), "SapienToken address cannot be zero");
+        require(_sapienAddress != address(0), "Sapien address cannot be zero");
         sapienToken = _sapienToken;
         sapienAddress = _sapienAddress;
         __Pausable_init();
@@ -138,6 +140,7 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
     }
 
     function initiateUnstake(uint256 amount, string calldata orderId, bytes memory signature) public whenNotPaused nonReentrant {
+        require(amount > 0, "Unstake amount must be greater than zero");
         StakingInfo storage info = stakers[msg.sender][orderId];
         require(info.isActive, "Staking position not active");
         require(block.timestamp >= info.startTime + info.lockUpPeriod, "Lock-up period not completed");
@@ -150,6 +153,7 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
     }
 
     function unstake(uint256 amount, string calldata orderId, bytes memory signature) public whenNotPaused nonReentrant {
+        require(amount > 0, "Unstake amount must be greater than zero");
         StakingInfo storage info = stakers[msg.sender][orderId];
         require(info.isActive, "Staking position not active");
         require(info.cooldownStart > 0, "Cooldown not initiated");
@@ -169,6 +173,7 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
     }
 
     function instantUnstake(uint256 amount, string calldata orderId, bytes memory signature) public whenNotPaused nonReentrant {
+        require(amount > 0, "Unstake amount must be greater than zero");
         StakingInfo storage info = stakers[msg.sender][orderId];
         require(info.isActive, "Staking position not active");
         require(verifyOrder(msg.sender, amount, orderId, signature), "Invalid signature or mismatched parameters");

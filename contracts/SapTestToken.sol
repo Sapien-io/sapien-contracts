@@ -148,6 +148,11 @@ contract SapTestToken is
         uint256 amount,
         address safe
     ) external onlySafe {
+        require(vestingSchedules[allocationType].amount > 0, "Invalid allocation type");
+        require(cliff < duration, "Cliff must be less than duration");
+        require(start >= block.timestamp, "Start time must be in the future");
+        require(safe != address(0), "Invalid safe address");
+
         vestingSchedules[allocationType] = VestingSchedule({
             cliff: cliff,
             start: start,
