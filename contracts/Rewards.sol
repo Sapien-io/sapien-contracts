@@ -11,8 +11,6 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import "./SapTestToken.sol"; 
 
-// Interface for the rewardToken
-interface IRewardToken is IERC20 {}
 
 contract SapienRewards is 
     Initializable, 
@@ -23,7 +21,7 @@ contract SapienRewards is
 {
     using ECDSA for bytes32;
 
-    IRewardToken public rewardToken;
+    SapTestToken public rewardToken;
     address private authorizedSigner;
 
     // ------------------ ADDED FOR EIP-712 ------------------
@@ -75,33 +73,45 @@ contract SapienRewards is
 
     function setRewardToken(address _rewardToken) external onlyOwner {
         require(_rewardToken != address(0), "Invalid reward token address");
-        rewardToken = IRewardToken(_rewardToken);
+         rewardToken = SapTestToken(_rewardToken); 
         emit RewardTokenUpdated(_rewardToken);
     }
 
-    function claimReward(
-        uint256 rewardAmount, 
-        string calldata orderId, 
-        bytes memory signature
-    )
-        external
-        hasTokenBalance(rewardAmount)
-        nonReentrant
-        whenNotPaused
-        returns (bool)
-    {
-        require(verifyOrder(msg.sender, rewardAmount, orderId, signature), "Invalid signature or mismatched parameters");
-        require(!isOrderRedeemed(msg.sender, orderId), "Order ID already used");
+function claimReward(
+    uint256 rewardAmount, 
+    string calldata orderId, 
+    bytes memory signature
+)
+    external
+    hasTokenBalance(rewardAmount)
+    nonReentrant
+    whenNotPaused
+    returns (bool)
+{
 
-        addOrderToRedeemed(msg.sender, orderId);
+    require(
+        verifyOrder(msg.sender, rewardAmount, orderId, signature), 
+        "Invalid signature or mismatched parameters"
+    );
+    require(
+        !isOrderRedeemed(msg.sender, orderId), 
+        "Order ID already used"
+    );
 
-        require(rewardToken.transfer(msg.sender, rewardAmount), "Token transfer failed");
+    addOrderToRedeemed(msg.sender, orderId); // Mark order as redeemed to prevent reentrancy
 
 
-        emit WithdrawalProcessed(msg.sender, orderId);
-        emit RewardClaimed(msg.sender, rewardAmount, orderId);
-        return true;
-    }
+    require(
+        rewardToken.transfer(msg.sender, rewardAmount), 
+        "Token transfer failed"
+    );
+
+    emit WithdrawalProcessed(msg.sender, orderId);
+    emit RewardClaimed(msg.sender, rewardAmount, orderId);
+
+    return true;
+}
+
 
     function isOrderRedeemed(address user, string calldata orderId) internal view returns (bool) {
         return redeemedOrders[user][keccak256(abi.encodePacked(orderId))];

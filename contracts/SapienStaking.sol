@@ -12,8 +12,8 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
     using ECDSA for bytes32;
 
-    IERC20 public immutable sapienToken;
-    address private immutable sapienAddress;
+    IERC20 public sapienToken;
+    address private sapienAddress;
 
     uint8 public constant DECIMALS = 18;
 
@@ -93,16 +93,24 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
         _unpause();
     }
 
-    function stake(uint256 amount, uint256 lockUpPeriod, string calldata orderId, bytes memory signature) public whenNotPaused nonReentrant {
-        // this check will be removed in mainnet 
-        require(amount >= BASE_STAKE, "Amount must be greater than base stake");
-
-        require(verifyOrder(msg.sender, amount, orderId, signature), "Invalid signature or mismatched parameters");
+    function stake(
+        uint256 amount, 
+        uint256 lockUpPeriod, 
+        string calldata orderId, 
+        bytes memory signature
+    ) 
+        public 
+        whenNotPaused 
+        nonReentrant 
+    {
+        require(amount >= BASE_STAKE, "Amount must be greater than base stake"); // To be removed on mainnet
+        require(
+            verifyOrder(msg.sender, amount, orderId, signature), 
+            "Invalid signature or mismatched parameters"
+        );
 
         uint256 maxMultiplier = getMaxMultiplier(lockUpPeriod);
         uint256 multiplier = calculateMultiplier(amount, maxMultiplier);
-
-        require(sapienToken.transferFrom(msg.sender, address(this), amount), "TransferFrom failed");
 
         stakers[msg.sender][orderId] = StakingInfo({
             amount: amount,
@@ -115,8 +123,14 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
 
         totalStaked += amount;
 
+        require(
+            sapienToken.transferFrom(msg.sender, address(this), amount), 
+            "TransferFrom failed"
+        );
+
         emit Staked(msg.sender, amount, multiplier, lockUpPeriod, orderId);
     }
+
 
     function calculateMultiplier(uint256 amount, uint256 maxMultiplier) public pure returns (uint256) {
         if (amount >= BASE_STAKE) {
