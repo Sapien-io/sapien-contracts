@@ -41,6 +41,10 @@ contract SapienRewards is
     event MsgHash(bytes32 msgHash);
     event RecoveredSigner(address signer);
 
+    constructor() {
+        _disableInitializers();
+    }
+
     modifier hasTokenBalance(uint256 amount) {
         require(rewardToken.balanceOf(address(this)) >= amount, "Insufficient token balance");
         _;

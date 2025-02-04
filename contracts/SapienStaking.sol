@@ -53,6 +53,10 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
     event Unstaked(address indexed user, uint256 amount, string orderId);
     event InstantUnstake(address indexed user, uint256 amount, string orderId);
 
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize(IERC20 _sapienToken, address _sapienAddress) public initializer {
         sapienToken = _sapienToken;
         sapienAddress = _sapienAddress;

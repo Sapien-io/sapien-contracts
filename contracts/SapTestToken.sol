@@ -43,6 +43,10 @@ contract SapTestToken is
     mapping(string => VestingSchedule) public vestingSchedules;
     address public gnosisSafe;
 
+    constructor() {
+        _disableInitializers();
+    }
+
     modifier onlySafe() {
         require(msg.sender == gnosisSafe, "Only the Safe can perform this");
         _;
@@ -51,7 +55,7 @@ contract SapTestToken is
     modifier onlySapienRewards() {
     require(msg.sender == sapienRewardsContract, "Caller is not SapienRewards contract");
     _;
-}
+    }
 
 
     function initialize(address _gnosisSafe, uint256 _totalSupply, address _sapienRewardsContract) public initializer {
