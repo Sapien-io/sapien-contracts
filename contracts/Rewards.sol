@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
@@ -13,7 +13,7 @@ import "./SapTestToken.sol";
 
 contract SapienRewards is 
     Initializable, 
-    OwnableUpgradeable, 
+    Ownable2StepUpgradeable, 
     PausableUpgradeable, 
     UUPSUpgradeable, 
     ReentrancyGuardUpgradeable 
@@ -44,7 +44,7 @@ contract SapienRewards is
     }
 
     function initialize(address _authorizedSigner) public initializer {
-        __Ownable_init(msg.sender);
+        __Ownable2Step_init();
         __Pausable_init();
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();

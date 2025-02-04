@@ -25,10 +25,11 @@ contract SapTestToken is
 
     uint8 public constant DECIMALS = 18;
 
-
     event TokensReleased(string destination, uint256 amount);
     event InitializedEvent(address safe, uint256 amount, address sapienRewardsContract);
     event VestingScheduleUpdated(string allocationType, uint256 amount);
+    event SafeTransferInitiated(address indexed newSafe);
+    event SafeTransferCompleted(address indexed newSafe);
 
     uint256 public constant INVESTORS_ALLOCATION = 300000000 * 10 ** DECIMALS;
     uint256 public constant TEAM_ADVISORS_ALLOCATION = 200000000 * 10 ** DECIMALS;
@@ -42,6 +43,7 @@ contract SapTestToken is
     address public sapienRewardsContract;
     mapping(string => VestingSchedule) public vestingSchedules;
     address public gnosisSafe;
+    address private pendingSafe; // New pending safe address for two-step process
 
     constructor() {
         _disableInitializers();
@@ -52,119 +54,59 @@ contract SapTestToken is
         _;
     }
 
-    modifier onlySapienRewards() {
-    require(msg.sender == sapienRewardsContract, "Caller is not SapienRewards contract");
-    _;
+    modifier onlyPendingSafe() {
+        require(msg.sender == pendingSafe, "Only the pending Safe can accept ownership");
+        _;
     }
 
-
     function initialize(address _gnosisSafe, uint256 _totalSupply, address _sapienRewardsContract) public initializer {
-        emit InitializedEvent(_gnosisSafe, _totalSupply,_sapienRewardsContract );
+        emit InitializedEvent(_gnosisSafe, _totalSupply, _sapienRewardsContract);
         uint256 totalAllocations = INVESTORS_ALLOCATION +
-                               TEAM_ADVISORS_ALLOCATION +
-                               LABELING_REWARDS_ALLOCATION +
-                               AIRDROPS_ALLOCATION +
-                               COMMUNITY_TREASURY_ALLOCATION +
-                               STAKING_INCENTIVES_ALLOCATION +
-                               LIQUIDITY_INCENTIVES_ALLOCATION;
-
+                                   TEAM_ADVISORS_ALLOCATION +
+                                   LABELING_REWARDS_ALLOCATION +
+                                   AIRDROPS_ALLOCATION +
+                                   COMMUNITY_TREASURY_ALLOCATION +
+                                   STAKING_INCENTIVES_ALLOCATION +
+                                   LIQUIDITY_INCENTIVES_ALLOCATION;
 
         require(_gnosisSafe != address(0), "Invalid Gnosis Safe address");
-        require(_totalSupply == totalAllocations, "Total supply must match the sum of all allocations");
+        require(_totalSupply == totalAllocations, "Total supply must match allocations");
         require(_sapienRewardsContract != address(0), "Invalid SapienRewards address");
+
         sapienRewardsContract = _sapienRewardsContract;
         gnosisSafe = _gnosisSafe;
+
         __ERC20_init("SapTestToken", "PTSPN");
         __Pausable_init();
         __UUPSUpgradeable_init();
+
         vestingStartTimestamp = block.timestamp;
 
         _mint(_gnosisSafe, _totalSupply);
         _createHardcodedVestingSchedules();
     }
 
-    function _createHardcodedVestingSchedules() internal {
-        uint256 cliff = 365 days; // 1 year cliff
-        vestingSchedules["investors"] = VestingSchedule({
-            cliff: cliff,
-            start: vestingStartTimestamp,
-            duration: 48 * 30 days, // 48 months
-            amount: INVESTORS_ALLOCATION,
-            released: 0,
-            safe: gnosisSafe
-        });
-        vestingSchedules["team"] = VestingSchedule({
-            cliff: cliff,
-            start: vestingStartTimestamp,
-            duration: 48 * 30 days, // 48 months
-            amount: TEAM_ADVISORS_ALLOCATION,
-            released: 0,
-            safe: gnosisSafe
-        });
-        vestingSchedules["rewards"] = VestingSchedule({
-            cliff: 0, // No cliff for rewards
-            start: vestingStartTimestamp,
-            duration: 48 * 30 days, // 48 months
-            amount: LABELING_REWARDS_ALLOCATION,
-            released: 0,
-            safe: sapienRewardsContract
-        });
-        vestingSchedules["airdrop"] = VestingSchedule({
-            cliff: 0, // No cliff for airdrops
-            start: vestingStartTimestamp,
-            duration: 48 * 30 days, // 48 months
-            amount: AIRDROPS_ALLOCATION,
-            released: 0,
-            safe: gnosisSafe
-        });
-        vestingSchedules["communityTreasury"] = VestingSchedule({
-            cliff: 0, // No cliff for community treasury
-            start: vestingStartTimestamp,
-            duration: 48 * 30 days, // 48 months
-            amount: COMMUNITY_TREASURY_ALLOCATION,
-            released: 0,
-            safe: gnosisSafe
-        });
-        vestingSchedules["stakingIncentives"] = VestingSchedule({
-            cliff: 0, // No cliff for staking incentives
-            start: vestingStartTimestamp,
-            duration: 48 * 30 days, // 48 months
-            amount: STAKING_INCENTIVES_ALLOCATION,
-            released: 0,
-            safe: gnosisSafe
-        });
-        vestingSchedules["liquidityIncentives"] = VestingSchedule({
-            cliff: 0, // No cliff for liquidity incentives
-            start: vestingStartTimestamp,
-            duration: 48 * 30 days, // 48 months
-            amount: LIQUIDITY_INCENTIVES_ALLOCATION,
-            released: 0,
-            safe: gnosisSafe
-        });
+    function transferSafe(address newSafe) external onlySafe {
+        require(newSafe != address(0), "Invalid address");
+        pendingSafe = newSafe;
+        emit SafeTransferInitiated(newSafe);
     }
 
-    function updateVestingSchedule(
-        string calldata allocationType,
-        uint256 cliff,
-        uint256 start,
-        uint256 duration,
-        uint256 amount,
-        address safe
-    ) external onlySafe {
-        require(vestingSchedules[allocationType].amount > 0, "Invalid allocation type");
-        require(cliff < duration, "Cliff must be less than duration");
-        require(start >= block.timestamp, "Start time must be in the future");
-        require(safe != address(0), "Invalid safe address");
+    function acceptSafe() external onlyPendingSafe {
+        gnosisSafe = pendingSafe;
+        pendingSafe = address(0);
+        emit SafeTransferCompleted(gnosisSafe);
+    }
 
-        vestingSchedules[allocationType] = VestingSchedule({
-            cliff: cliff,
-            start: start,
-            duration: duration,
-            amount: amount,
-            released: vestingSchedules[allocationType].released, // Preserve the released amount
-            safe: safe
-        });
-        emit VestingScheduleUpdated(allocationType, amount);
+    function _createHardcodedVestingSchedules() internal {
+        uint256 cliff = 365 days;
+        vestingSchedules["investors"] = VestingSchedule(cliff, vestingStartTimestamp, 48 * 30 days, INVESTORS_ALLOCATION, 0, gnosisSafe);
+        vestingSchedules["team"] = VestingSchedule(cliff, vestingStartTimestamp, 48 * 30 days, TEAM_ADVISORS_ALLOCATION, 0, gnosisSafe);
+        vestingSchedules["rewards"] = VestingSchedule(0, vestingStartTimestamp, 48 * 30 days, LABELING_REWARDS_ALLOCATION, 0, sapienRewardsContract);
+        vestingSchedules["airdrop"] = VestingSchedule(0, vestingStartTimestamp, 48 * 30 days, AIRDROPS_ALLOCATION, 0, gnosisSafe);
+        vestingSchedules["communityTreasury"] = VestingSchedule(0, vestingStartTimestamp, 48 * 30 days, COMMUNITY_TREASURY_ALLOCATION, 0, gnosisSafe);
+        vestingSchedules["stakingIncentives"] = VestingSchedule(0, vestingStartTimestamp, 48 * 30 days, STAKING_INCENTIVES_ALLOCATION, 0, gnosisSafe);
+        vestingSchedules["liquidityIncentives"] = VestingSchedule(0, vestingStartTimestamp, 48 * 30 days, LIQUIDITY_INCENTIVES_ALLOCATION, 0, gnosisSafe);
     }
 
     function releaseTokens(string calldata allocationType) external nonReentrant whenNotPaused onlySafe {
