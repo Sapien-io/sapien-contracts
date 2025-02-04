@@ -9,6 +9,8 @@ import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
+import "./SapTestToken.sol"; 
+
 // Interface for the rewardToken
 interface IRewardToken is IERC20 {}
 
