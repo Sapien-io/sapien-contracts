@@ -9,8 +9,7 @@ import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
-import "./SapTestToken.sol"; 
-
+import "./SapTestToken.sol";
 
 contract SapienRewards is 
     Initializable, 
@@ -21,14 +20,13 @@ contract SapienRewards is
 {
     using ECDSA for bytes32;
 
-    SapTestToken public rewardToken;
-    address private authorizedSigner;
-
-    // ------------------ ADDED FOR EIP-712 ------------------
-    bytes32 public DOMAIN_SEPARATOR;
     bytes32 public constant REWARD_TYPEHASH = keccak256(
         "RewardClaim(address walletAddress,uint256 rewardAmount,string orderId)"
     );
+
+    SapTestToken public rewardToken;
+    address private authorizedSigner;
+    bytes32 public DOMAIN_SEPARATOR;
 
     mapping(bytes32 => bool) private usedSignatures;
     mapping(address => mapping(bytes32 => bool)) private redeemedOrders;
@@ -44,7 +42,6 @@ contract SapienRewards is
     constructor() {
         _disableInitializers();
     }
-
 
     function initialize(address _authorizedSigner) public initializer {
         __Ownable_init(msg.sender);
@@ -69,49 +66,65 @@ contract SapienRewards is
 
     function setRewardToken(address _rewardToken) external onlyOwner {
         require(_rewardToken != address(0), "Invalid reward token address");
-         rewardToken = SapTestToken(_rewardToken); 
+        rewardToken = SapTestToken(_rewardToken);
         emit RewardTokenUpdated(_rewardToken);
     }
 
-function claimReward(
-    uint256 rewardAmount, 
-    string calldata orderId, 
-    bytes memory signature
-)
-    external
-    nonReentrant
-    whenNotPaused
-    returns (bool)
-{
+    function depositTokens(uint256 amount) external onlyOwner {
+        require(rewardToken.transferFrom(msg.sender, address(this), amount), "Token deposit failed");
+    }
 
-    require(
-        verifyOrder(msg.sender, rewardAmount, orderId, signature), 
-        "Invalid signature or mismatched parameters"
-    );
-    require(
-        !isOrderRedeemed(msg.sender, orderId), 
-        "Order ID already used"
-    );
+    function withdrawTokens(uint256 amount) external onlyOwner {
+        require(rewardToken.transfer(owner(), amount), "Token withdrawal failed");
+    }
 
-    require(
-    rewardToken.balanceOf(address(this)) >= rewardAmount, 
-    "Insufficient token balance"
-    );
+    function pause() external onlyOwner {
+        _pause();
+    }
 
-    addOrderToRedeemed(msg.sender, orderId); // Mark order as redeemed to prevent reentrancy
+    function unpause() external onlyOwner {
+        _unpause();
+    }
 
+    function claimReward(
+        uint256 rewardAmount, 
+        string calldata orderId, 
+        bytes memory signature
+    )
+        external
+        nonReentrant
+        whenNotPaused
+        returns (bool)
+    {
+        require(
+            verifyOrder(msg.sender, rewardAmount, orderId, signature), 
+            "Invalid signature or mismatched parameters"
+        );
+        require(
+            !isOrderRedeemed(msg.sender, orderId), 
+            "Order ID already used"
+        );
+        require(
+            rewardToken.balanceOf(address(this)) >= rewardAmount, 
+            "Insufficient token balance"
+        );
 
-    require(
-        rewardToken.transfer(msg.sender, rewardAmount), 
-        "Token transfer failed"
-    );
+        addOrderToRedeemed(msg.sender, orderId);
 
-    emit WithdrawalProcessed(msg.sender, orderId);
-    emit RewardClaimed(msg.sender, rewardAmount, orderId);
+        require(
+            rewardToken.transfer(msg.sender, rewardAmount), 
+            "Token transfer failed"
+        );
 
-    return true;
-}
+        emit WithdrawalProcessed(msg.sender, orderId);
+        emit RewardClaimed(msg.sender, rewardAmount, orderId);
 
+        return true;
+    }
+
+    function getContractTokenBalance() external view returns (uint256) {
+        return rewardToken.balanceOf(address(this));
+    }
 
     function isOrderRedeemed(address user, string calldata orderId) internal view returns (bool) {
         return redeemedOrders[user][keccak256(abi.encodePacked(orderId))];
@@ -154,26 +167,4 @@ function claimReward(
         }
         return false;
     }
-
-
-    function getContractTokenBalance() external view returns (uint256) {
-        return rewardToken.balanceOf(address(this));
-    }
-
-    function depositTokens(uint256 amount) external onlyOwner {
-        require(rewardToken.transferFrom(msg.sender, address(this), amount), "Token deposit failed");
-    }
-
-    function withdrawTokens(uint256 amount) external onlyOwner {
-        require(rewardToken.transfer(owner(), amount), "Token withdrawal failed");
-    }
-
-    function pause() external onlyOwner {
-        _pause();
-    }
-
-    function unpause() external onlyOwner {
-        _unpause();
-    }
-
 }
