@@ -23,11 +23,13 @@ contract SapTestToken is
         address safe;
     }
 
+    enum AllocationType { INVESTORS, TEAM_ADVISORS, LABELING_REWARDS, AIRDROPS, COMMUNITY_TREASURY, STAKING_INCENTIVES, LIQUIDITY_INCENTIVES }
+
     uint8 public constant DECIMALS = 18;
 
-    event TokensReleased(string destination, uint256 amount);
+    event TokensReleased(AllocationType allocationType, uint256 amount);
     event InitializedEvent(address safe, uint256 amount, address sapienRewardsContract);
-    event VestingScheduleUpdated(string allocationType, uint256 amount);
+    event VestingScheduleUpdated(AllocationType allocationType, uint256 amount);
     event SafeTransferInitiated(address indexed newSafe);
     event SafeTransferCompleted(address indexed newSafe);
 
@@ -44,7 +46,7 @@ contract SapTestToken is
     address public gnosisSafe;
     address private pendingSafe;
 
-    mapping(string => VestingSchedule) public vestingSchedules;
+    mapping(AllocationType => VestingSchedule) public vestingSchedules;
 
     constructor(address _gnosisSafe, uint256 _totalSupply, address _sapienRewardsContract) {
         require(_gnosisSafe != address(0), "Invalid Gnosis Safe address");
@@ -73,23 +75,14 @@ contract SapTestToken is
         emit InitializedEvent(_gnosisSafe, _totalSupply, _sapienRewardsContract);
     }
 
-    modifier onlySafe() {
-        require(msg.sender == gnosisSafe, "Only the Safe can perform this");
-        _;
-    }
-
-    modifier onlyPendingSafe() {
-        require(msg.sender == pendingSafe, "Only the pending Safe can accept ownership");
-        _;
-    }
-
-    function transferSafe(address newSafe) external onlySafe {
+    function transferSafe(address newSafe) external safeO {
         require(newSafe != address(0), "Invalid address");
         pendingSafe = newSafe;
         emit SafeTransferInitiated(newSafe);
     }
 
-    function acceptSafe() external onlyPendingSafe {
+    function acceptSafe() external {
+        require(msg.sender == pendingSafe, "Only the pending Safe can accept ownership");
         gnosisSafe = pendingSafe;
         pendingSafe = address(0);
         emit SafeTransferCompleted(gnosisSafe);
@@ -97,16 +90,16 @@ contract SapTestToken is
 
     function _createHardcodedVestingSchedules() internal {
         uint256 cliff = 365 days;
-        vestingSchedules["investors"] = VestingSchedule(cliff, vestingStartTimestamp, 48 * 30 days, INVESTORS_ALLOCATION, 0, gnosisSafe);
-        vestingSchedules["team"] = VestingSchedule(cliff, vestingStartTimestamp, 48 * 30 days, TEAM_ADVISORS_ALLOCATION, 0, gnosisSafe);
-        vestingSchedules["rewards"] = VestingSchedule(0, vestingStartTimestamp, 48 * 30 days, LABELING_REWARDS_ALLOCATION, 0, sapienRewardsContract);
-        vestingSchedules["airdrop"] = VestingSchedule(0, vestingStartTimestamp, 48 * 30 days, AIRDROPS_ALLOCATION, 0, gnosisSafe);
-        vestingSchedules["communityTreasury"] = VestingSchedule(0, vestingStartTimestamp, 48 * 30 days, COMMUNITY_TREASURY_ALLOCATION, 0, gnosisSafe);
-        vestingSchedules["stakingIncentives"] = VestingSchedule(0, vestingStartTimestamp, 48 * 30 days, STAKING_INCENTIVES_ALLOCATION, 0, gnosisSafe);
-        vestingSchedules["liquidityIncentives"] = VestingSchedule(0, vestingStartTimestamp, 48 * 30 days, LIQUIDITY_INCENTIVES_ALLOCATION, 0, gnosisSafe);
+        vestingSchedules[AllocationType.INVESTORS] = VestingSchedule(cliff, vestingStartTimestamp, 48 * 30 days, INVESTORS_ALLOCATION, 0, gnosisSafe);
+        vestingSchedules[AllocationType.TEAM_ADVISORS] = VestingSchedule(cliff, vestingStartTimestamp, 48 * 30 days, TEAM_ADVISORS_ALLOCATION, 0, gnosisSafe);
+        vestingSchedules[AllocationType.LABELING_REWARDS] = VestingSchedule(0, vestingStartTimestamp, 48 * 30 days, LABELING_REWARDS_ALLOCATION, 0, sapienRewardsContract);
+        vestingSchedules[AllocationType.AIRDROPS] = VestingSchedule(0, vestingStartTimestamp, 48 * 30 days, AIRDROPS_ALLOCATION, 0, gnosisSafe);
+        vestingSchedules[AllocationType.COMMUNITY_TREASURY] = VestingSchedule(0, vestingStartTimestamp, 48 * 30 days, COMMUNITY_TREASURY_ALLOCATION, 0, gnosisSafe);
+        vestingSchedules[AllocationType.STAKING_INCENTIVES] = VestingSchedule(0, vestingStartTimestamp, 48 * 30 days, STAKING_INCENTIVES_ALLOCATION, 0, gnosisSafe);
+        vestingSchedules[AllocationType.LIQUIDITY_INCENTIVES] = VestingSchedule(0, vestingStartTimestamp, 48 * 30 days, LIQUIDITY_INCENTIVES_ALLOCATION, 0, gnosisSafe);
     }
 
-    function releaseTokens(string calldata allocationType) external nonReentrant whenNotPaused onlySafe {
+    function releaseTokens(AllocationType allocationType) external nonReentrant whenNotPaused onlyOwner {
         VestingSchedule storage schedule = vestingSchedules[allocationType];
         require(schedule.amount > 0, "No tokens to release");
 
@@ -130,13 +123,13 @@ contract SapTestToken is
         emit TokensReleased(allocationType, releasableAmount);
     }
 
-    function pause() external onlySafe {
+    function pause() external onlyOwner {
         _pause();
     }
 
-    function unpause() external onlySafe {
+    function unpause() external onlyOwner {
         _unpause();
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlySafe {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 }
