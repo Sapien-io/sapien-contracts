@@ -96,10 +96,7 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
     function stake(uint256 amount, uint256 lockUpPeriod, string calldata orderId, bytes memory signature) public whenNotPaused nonReentrant {
         // this check will be removed in mainnet 
         require(amount >= BASE_STAKE, "Amount must be greater than base stake");
-        require(
-            lockUpPeriod == 30 days || lockUpPeriod == 90 days || lockUpPeriod == 180 days || lockUpPeriod == 365 days,
-            "Invalid lock-up period"
-        );
+
         require(verifyOrder(msg.sender, amount, orderId, signature), "Invalid signature or mismatched parameters");
 
         uint256 maxMultiplier = getMaxMultiplier(lockUpPeriod);
