@@ -164,6 +164,7 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
         StakingInfo storage info = stakers[msg.sender][orderId];
         require(info.isActive, "Staking position not active");
         require(verifyOrder(msg.sender, amount, orderId, signature), "Invalid signature or mismatched parameters");
+        require(block.timestamp < info.startTime + info.lockUpPeriod, "Lock-up ended; use regular unstake");
 
         uint256 penalty = (amount * EARLY_WITHDRAWAL_PENALTY) / 100;
         uint256 payout = amount - penalty;
