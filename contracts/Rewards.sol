@@ -161,4 +161,12 @@ contract SapienRewards is
         require(rewardToken.transfer(owner(), amount), "Token withdrawal failed");
     }
 
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
 }
