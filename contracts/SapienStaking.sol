@@ -12,10 +12,10 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
     using ECDSA for bytes32;
 
-    IERC20 public sapienToken;
-    address private sapienAddress;
+    IERC20 public immutable sapienToken;
+    address private immutable sapienAddress;
 
-    uint256 private constant TOKEN_DECIMALS = 10 ** 18;
+    uint8 public constant DECIMALS = 18;
 
     struct StakingInfo {
         uint256 amount;
@@ -32,7 +32,7 @@ contract SapienStaking is Initializable, PausableUpgradeable, OwnableUpgradeable
     // BASE_STAKE is used to calculate the multiplier for the staking amount and is not
     // supposed to be blocking if the user wants to stake less than the base amount
     // however, for test-net, the minimum staking amount is set to BASE_STAKE
-    uint256 public constant BASE_STAKE = 1000 * TOKEN_DECIMALS;
+    uint256 public constant BASE_STAKE = 1000 * 10 * DECIMALS;
     uint256 public constant ONE_MONTH_MAX_MULTIPLIER = 105;
     uint256 public constant THREE_MONTHS_MAX_MULTIPLIER = 110;
     uint256 public constant SIX_MONTHS_MAX_MULTIPLIER = 125;

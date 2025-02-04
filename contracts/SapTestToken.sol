@@ -23,17 +23,20 @@ contract SapTestToken is
         address safe;
     }
 
+    uint8 public constant DECIMALS = 18;
+
+
     event TokensReleased(string destination, uint256 amount);
     event InitializedEvent(address safe, uint256 amount, address sapienRewardsContract);
     event VestingScheduleUpdated(string allocationType, uint256 amount);
 
-    uint256 public constant INVESTORS_ALLOCATION = 300000000 * 10 ** 18;
-    uint256 public constant TEAM_ADVISORS_ALLOCATION = 200000000 * 10 ** 18;
-    uint256 public constant LABELING_REWARDS_ALLOCATION = 150000000 * 10 ** 18;
-    uint256 public constant AIRDROPS_ALLOCATION = 150000000 * 10 ** 18;
-    uint256 public constant COMMUNITY_TREASURY_ALLOCATION = 100000000 * 10 ** 18;
-    uint256 public constant STAKING_INCENTIVES_ALLOCATION = 50000000 * 10 ** 18;
-    uint256 public constant LIQUIDITY_INCENTIVES_ALLOCATION = 50000000 * 10 ** 18;
+    uint256 public constant INVESTORS_ALLOCATION = 300000000 * 10 * DECIMALS;
+    uint256 public constant TEAM_ADVISORS_ALLOCATION = 200000000 * 10 ** DECIMALS;
+    uint256 public constant LABELING_REWARDS_ALLOCATION = 150000000 * 10 ** DECIMALS;
+    uint256 public constant AIRDROPS_ALLOCATION = 150000000 * 10 ** DECIMALS;
+    uint256 public constant COMMUNITY_TREASURY_ALLOCATION = 100000000 * 10 ** DECIMALS;
+    uint256 public constant STAKING_INCENTIVES_ALLOCATION = 50000000 * 10 ** DECIMALS;
+    uint256 public constant LIQUIDITY_INCENTIVES_ALLOCATION = 50000000 * 10 ** DECIMALS;
 
     uint256 private vestingStartTimestamp;
     address public sapienRewardsContract;
