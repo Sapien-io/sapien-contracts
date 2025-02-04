@@ -27,7 +27,7 @@ contract SapTestToken is
     }
 
     event TokensReleased(string destination, uint256 amount);
-    event InitializedEvent(address safe, uint256 amount);
+    event InitializedEvent(address safe, uint256 amount, address sapienRewardsContract);
     event VestingScheduleUpdated(string allocationType, uint256 amount);
 
     uint256 public constant INVESTORS_ALLOCATION = 300000000 * 10 ** 18;
@@ -39,6 +39,7 @@ contract SapTestToken is
     uint256 public constant LIQUIDITY_INCENTIVES_ALLOCATION = 50000000 * 10 ** 18;
 
     uint256 private vestingStartTimestamp;
+    address public sapienRewardsContract;
     mapping(string => VestingSchedule) public vestingSchedules;
     address public gnosisSafe;
 
@@ -47,10 +48,18 @@ contract SapTestToken is
         _;
     }
 
-    function initialize(address _gnosisSafe, uint256 _totalSupply) public initializer {
-        emit InitializedEvent(_gnosisSafe, _totalSupply);
+    modifier onlySapienRewards() {
+    require(msg.sender == sapienRewardsContract, "Caller is not SapienRewards contract");
+    _;
+}
+
+
+    function initialize(address _gnosisSafe, uint256 _totalSupply, address _sapienRewardsContract) public initializer {
+        emit InitializedEvent(_gnosisSafe, _totalSupply,_sapienRewardsContract );
         require(_gnosisSafe != address(0), "Invalid Gnosis Safe address");
         require(_totalSupply > 0, "Total supply must be greater than zero");
+        require(_sapienRewardsContract != address(0), "Invalid SapienRewards address");
+        sapienRewardsContract = _sapienRewardsContract;
         gnosisSafe = _gnosisSafe;
         __ERC20_init("SapTestToken", "PTSPN");
         __Ownable_init(gnosisSafe);
@@ -85,11 +94,11 @@ contract SapTestToken is
         vestingSchedules["rewards"] = VestingSchedule({
             cliff: 0, // No cliff for rewards
             start: vestingStartTimestamp,
-            duration: 1 days, // 48 months
+            duration: 48 * 30 days, // 48 months
             amount: LABELING_REWARDS_ALLOCATION,
             released: 0,
             revoked: false,
-            safe: 0x1a03ADCEd183ef7A9cCae17D07DD4f47ac7CBF30
+            safe: sapienRewardsContract
         });
         vestingSchedules["airdrop"] = VestingSchedule({
             cliff: 0, // No cliff for airdrops
@@ -149,7 +158,7 @@ contract SapTestToken is
         emit VestingScheduleUpdated(allocationType, amount);
     }
 
-    function releaseTokens(string calldata allocationType) external nonReentrant whenNotPaused {
+    function releaseTokens(string calldata allocationType) external nonReentrant whenNotPaused onlySafe {
         VestingSchedule storage schedule = vestingSchedules[allocationType];
         require(schedule.amount > 0, "No tokens to release");
 

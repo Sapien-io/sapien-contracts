@@ -10,9 +10,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 // Interface for the rewardToken
-interface IRewardToken is IERC20 {
-    function releaseTokens(string calldata allocationType) external;
-}
+interface IRewardToken is IERC20 {}
 
 contract SapienRewards is 
     Initializable, 
@@ -73,11 +71,6 @@ contract SapienRewards is
         require(_rewardToken != address(0), "Invalid reward token address");
         rewardToken = IRewardToken(_rewardToken);
         emit RewardTokenUpdated(_rewardToken);
-    }
-
-    function releaseRewardTokens(string calldata allocationType) external onlyOwner whenNotPaused {
-        rewardToken.releaseTokens(allocationType);
-        emit TokensReleasedToContract(allocationType);
     }
 
     function claimReward(
