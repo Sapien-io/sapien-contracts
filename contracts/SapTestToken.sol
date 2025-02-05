@@ -75,7 +75,17 @@ contract SapTestToken is
         emit InitializedEvent(_gnosisSafe, _totalSupply, _sapienRewardsContract);
     }
 
-    function transferSafe(address newSafe) external safeO {
+    modifier onlySafe() {
+        require(msg.sender == gnosisSafe, "Only the Safe can perform this");
+        _;
+    }
+
+    modifier onlyPendingSafe() {
+        require(msg.sender == pendingSafe, "Only the pending Safe can accept ownership");
+        _;
+    }
+
+    function transferSafe(address newSafe) external onlySafe {
         require(newSafe != address(0), "Invalid address");
         pendingSafe = newSafe;
         emit SafeTransferInitiated(newSafe);

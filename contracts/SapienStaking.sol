@@ -148,6 +148,67 @@ contract SapienStaking is Initializable, PausableUpgradeable, Ownable2StepUpgrad
         revert("Invalid lock-up period");
     }
 
+    function initiateUnstake(uint256 amount, string calldata orderId, bytes memory signature) public whenNotPaused nonReentrant {
+        require(amount > 0, "Unstake amount must be greater than zero");
+        StakingInfo storage info = stakers[msg.sender][orderId];
+        require(info.isActive, "Staking position not active");
+        require(block.timestamp >= info.startTime + info.lockUpPeriod, "Lock-up period not completed");
+        require(info.cooldownStart == 0, "Cooldown already initiated");
+        require(verifyOrder(msg.sender, amount, orderId, signature), "Invalid signature or mismatched parameters");
+
+        info.cooldownStart = block.timestamp;
+
+        emit UnstakingInitiated(msg.sender, info.amount, orderId);
+    }
+
+
+    function unstake(uint256 amount, string calldata orderId, bytes memory signature) public whenNotPaused nonReentrant {
+        require(amount > 0, "Unstake amount must be greater than zero");
+        StakingInfo storage info = stakers[msg.sender][orderId];
+        require(info.isActive, "Staking position not active");
+        require(info.cooldownStart > 0, "Cooldown not initiated");
+        require(verifyOrder(msg.sender, amount, orderId, signature), "Invalid signature or mismatched parameters");
+        require(block.timestamp >= info.cooldownStart + COOLDOWN_PERIOD, "Cooldown period not completed");
+        require(info.amount >= amount, "Insufficient staked amount");
+
+        info.amount -= amount;
+        if (info.amount == 0) {
+            info.isActive = false;
+        }
+        totalStaked -= amount;
+
+
+        require(sapienToken.transfer(msg.sender, amount), "Transfer failed");
+
+
+        emit Unstaked(msg.sender, amount, orderId);
+    }
+
+
+    function instantUnstake(uint256 amount, string calldata orderId, bytes memory signature) public whenNotPaused nonReentrant {
+        require(amount > 0, "Unstake amount must be greater than zero");
+        StakingInfo storage info = stakers[msg.sender][orderId];
+        require(info.isActive, "Staking position not active");
+        require(verifyOrder(msg.sender, amount, orderId, signature), "Invalid signature or mismatched parameters");
+        require(block.timestamp < info.startTime + info.lockUpPeriod, "Lock-up ended; use regular unstake");
+
+        uint256 penalty = (amount * EARLY_WITHDRAWAL_PENALTY) / 100;
+        uint256 payout = amount - penalty;
+
+        info.amount -= amount;
+        if (info.amount == 0) {
+            info.isActive = false;
+        }
+        totalStaked -= amount;
+
+
+        require(sapienToken.transfer(msg.sender, payout), "Transfer failed");
+        require(sapienToken.transfer(owner(), penalty), "Transfer failed");
+
+
+        emit InstantUnstake(msg.sender, payout, orderId);
+    }
+
     function verifyOrder(
         address walletAddress,
         uint256 rewardAmount,
