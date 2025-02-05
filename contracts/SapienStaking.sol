@@ -13,9 +13,9 @@ import "./SapTestToken.sol";
 contract SapienStaking is Initializable, PausableUpgradeable, Ownable2StepUpgradeable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
     using ECDSA for bytes32;
 
-    SapTestToken public immutable sapienToken;
-    address private immutable sapienAddress;
-    bytes32 public immutable DOMAIN_SEPARATOR;
+    SapTestToken public sapienToken;
+    address private sapienAddress;
+    bytes32 public DOMAIN_SEPARATOR;
 
     uint8 public constant DECIMALS = 18;
 
@@ -51,7 +51,12 @@ contract SapienStaking is Initializable, PausableUpgradeable, Ownable2StepUpgrad
     event Unstaked(address indexed user, uint256 amount, string orderId);
     event InstantUnstake(address indexed user, uint256 amount, string orderId);
 
-    constructor(SapTestToken _sapienToken, address _sapienAddress) {
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(SapTestToken _sapienToken, address _sapienAddress) public initializer {
+
         require(address(_sapienToken) != address(0), "SapienToken address cannot be zero");
         require(_sapienAddress != address(0), "Sapien address cannot be zero");
 
@@ -65,13 +70,9 @@ contract SapienStaking is Initializable, PausableUpgradeable, Ownable2StepUpgrad
                 keccak256(bytes("1")),
                 block.chainid,
                 address(this)
-            )
-        );
-
-        _disableInitializers();
-    }
-
-    function initialize() public initializer {
+                )
+            );
+           
         __Pausable_init();
         __Ownable2Step_init();
         __UUPSUpgradeable_init();

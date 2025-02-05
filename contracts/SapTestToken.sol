@@ -41,16 +41,22 @@ contract SapTestToken is
     uint256 public constant STAKING_INCENTIVES_ALLOCATION = 50000000 * 10 ** DECIMALS;
     uint256 public constant LIQUIDITY_INCENTIVES_ALLOCATION = 50000000 * 10 ** DECIMALS;
 
-    uint256 public immutable vestingStartTimestamp;
-    address public immutable sapienRewardsContract;
+    uint256 public vestingStartTimestamp;
+    address public sapienRewardsContract;
     address public gnosisSafe;
     address private pendingSafe;
 
     mapping(AllocationType => VestingSchedule) public vestingSchedules;
 
-    constructor(address _gnosisSafe, uint256 _totalSupply, address _sapienRewardsContract) {
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _gnosisSafe, uint256 _totalSupply, address _sapienRewardsContract) public initializer {
         require(_gnosisSafe != address(0), "Invalid Gnosis Safe address");
         require(_sapienRewardsContract != address(0), "Invalid SapienRewards address");
+        require(_gnosisSafe != address(0), "Invalid Gnosis Safe address");
+        require(_totalSupply > 0, "Total supply must be greater than zero");
 
         uint256 totalAllocations = INVESTORS_ALLOCATION +
                                    TEAM_ADVISORS_ALLOCATION +
@@ -62,18 +68,21 @@ contract SapTestToken is
 
         require(_totalSupply == totalAllocations, "Total supply must match allocations");
 
-        sapienRewardsContract = _sapienRewardsContract;
+
         gnosisSafe = _gnosisSafe;
-        vestingStartTimestamp = block.timestamp;
+        sapienRewardsContract = _sapienRewardsContract
 
         __ERC20_init("SapTestToken", "PTSPN");
+        __Ownable_init(gnosisSafe);
         __Pausable_init();
         __UUPSUpgradeable_init();
+        vestingStartTimestamp = block.timestamp;
 
         _mint(_gnosisSafe, _totalSupply);
         _createHardcodedVestingSchedules();
         emit InitializedEvent(_gnosisSafe, _totalSupply, _sapienRewardsContract);
     }
+
 
     modifier onlySafe() {
         require(msg.sender == gnosisSafe, "Only the Safe can perform this");

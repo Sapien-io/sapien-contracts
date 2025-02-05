@@ -25,8 +25,8 @@ contract SapienRewards is
     );
 
     SapTestToken public rewardToken;
-    address private immutable authorizedSigner;
-    bytes32 public immutable DOMAIN_SEPARATOR;
+    address private authorizedSigner;
+    bytes32 public DOMAIN_SEPARATOR;
 
     mapping(bytes32 => bool) private usedSignatures;
     mapping(address => mapping(bytes32 => bool)) private redeemedOrders;
@@ -42,7 +42,11 @@ contract SapienRewards is
     event TokensDeposited(address indexed from, uint256 amount);
     event TokensWithdrawn(address indexed to, uint256 amount);
 
-    constructor(address _authorizedSigner) {
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _authorizedSigner) public initializer {
         require(_authorizedSigner != address(0), "Authorized signer address cannot be zero");
 
         authorizedSigner = _authorizedSigner;
@@ -55,11 +59,7 @@ contract SapienRewards is
                 address(this)
             )
         );
-
-        _disableInitializers();
-    }
-
-    function initialize() public initializer {
+        
         __Ownable2Step_init();
         __Pausable_init();
         __UUPSUpgradeable_init();
