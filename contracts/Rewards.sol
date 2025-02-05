@@ -32,7 +32,7 @@ contract SapienRewards is
     mapping(address => mapping(bytes32 => bool)) private redeemedOrders;
 
     event RewardClaimed(address indexed user, uint256 amount, string orderId);
-    event WithdrawalProcessed(address indexed user, string indexed eventOrderId);
+    event WithdrawalProcessed(address indexed user, string eventOrderId);
     event RewardTokenUpdated(address indexed newRewardToken);
     event TokensReleasedToContract(string allocationType);
     event SignatureVerified(address user, uint256 amount, string orderId);
@@ -59,7 +59,7 @@ contract SapienRewards is
                 address(this)
             )
         );
-        
+
         __Ownable2Step_init();
         __Pausable_init();
         __UUPSUpgradeable_init();

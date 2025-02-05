@@ -70,10 +70,9 @@ contract SapTestToken is
 
 
         gnosisSafe = _gnosisSafe;
-        sapienRewardsContract = _sapienRewardsContract
+        sapienRewardsContract = _sapienRewardsContract;
 
         __ERC20_init("SapTestToken", "PTSPN");
-        __Ownable_init(gnosisSafe);
         __Pausable_init();
         __UUPSUpgradeable_init();
         vestingStartTimestamp = block.timestamp;
@@ -118,7 +117,7 @@ contract SapTestToken is
         vestingSchedules[AllocationType.LIQUIDITY_INCENTIVES] = VestingSchedule(0, vestingStartTimestamp, 48 * 30 days, LIQUIDITY_INCENTIVES_ALLOCATION, 0, gnosisSafe);
     }
 
-    function releaseTokens(AllocationType allocationType) external nonReentrant whenNotPaused onlyOwner {
+    function releaseTokens(AllocationType allocationType) external nonReentrant whenNotPaused onlySafe {
         VestingSchedule storage schedule = vestingSchedules[allocationType];
         require(schedule.amount > 0, "No tokens to release");
 
@@ -142,13 +141,13 @@ contract SapTestToken is
         emit TokensReleased(allocationType, releasableAmount);
     }
 
-    function pause() external onlyOwner {
+    function pause() external onlySafe {
         _pause();
     }
 
-    function unpause() external onlyOwner {
+    function unpause() external onlySafe {
         _unpause();
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    function _authorizeUpgrade(address newImplementation) internal override onlySafe {}
 }
