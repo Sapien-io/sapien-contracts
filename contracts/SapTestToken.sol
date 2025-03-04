@@ -58,6 +58,12 @@ contract SapTestToken is
     /// @notice Emitted when a vesting schedule is updated
     event VestingScheduleUpdated(AllocationType indexed allocationType, uint256 amount);
 
+    /// @notice Emitted when a new rewards contract is proposed
+    event RewardsContractChangeProposed(address indexed newRewardsContract);
+
+    /// @notice Emitted when a new rewards contract is accepted
+    event RewardsContractChangeAccepted(address indexed newRewardsContract);
+
     // -------------------------------------------------------------
     // Constants
     // -------------------------------------------------------------
@@ -112,6 +118,9 @@ contract SapTestToken is
 
     /// @notice Address of the authorized rewards contract
     address public rewardsContract;
+
+    // Add new state variables
+    address public pendingRewardsContract;
 
     // -------------------------------------------------------------
     // Modifiers
@@ -285,12 +294,23 @@ contract SapTestToken is
     }
 
     /**
-     * @notice Sets the authorized rewards contract address
-     * @param _rewardsContract Address of the rewards contract
+     * @notice Proposes a new rewards contract address (step 1 of 2)
+     * @param _newRewardsContract Address of the proposed rewards contract
      */
-    function setRewardsContract(address _rewardsContract) external onlySafe {
-        require(_rewardsContract != address(0), "Invalid rewards contract address");
-        rewardsContract = _rewardsContract;
+    function proposeRewardsContract(address _newRewardsContract) external onlySafe {
+        require(_newRewardsContract != address(0), "Invalid rewards contract address");
+        pendingRewardsContract = _newRewardsContract;
+        emit RewardsContractChangeProposed(_newRewardsContract);
+    }
+
+    /**
+     * @notice Accepts the proposed rewards contract change (step 2 of 2)
+     */
+    function acceptRewardsContract() external onlySafe {
+        require(pendingRewardsContract != address(0), "No pending rewards contract");
+        rewardsContract = pendingRewardsContract;
+        pendingRewardsContract = address(0);
+        emit RewardsContractChangeAccepted(rewardsContract);
     }
 
     /**

@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
@@ -33,7 +33,7 @@ interface IRewardToken is IERC20 {
  */
 contract SapienRewards is 
     Initializable, 
-    OwnableUpgradeable, 
+    Ownable2StepUpgradeable,
     PausableUpgradeable, 
     UUPSUpgradeable, 
     ReentrancyGuardUpgradeable 
