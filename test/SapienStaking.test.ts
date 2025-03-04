@@ -101,15 +101,18 @@ describe("SapienStaking", function () {
       expect(stakerInfo.isActive).to.be.true;
     });
 
-    it("Should reject staking with invalid amount", async function () {
+    it("Should allow staking with amount less than base stake and calculate correct multiplier", async function () {
       const amount = BASE_STAKE / BigInt(2);
       const lockUpPeriod = BigInt(30) * ONE_DAY;
       const orderId = "order2";
       const signature = await signStakeMessage(await user.getAddress(), amount, orderId, 0);
 
-      await expect(
-        sapienStaking.connect(user).stake(amount, lockUpPeriod, orderId, signature)
-      ).to.be.revertedWith("Amount must be greater than base stake");
+      await sapienStaking.connect(user).stake(amount, lockUpPeriod, orderId, signature);
+      
+      const stakingInfo = await sapienStaking.stakers(await user.getAddress(), orderId);
+      // For 30 days, max multiplier is 105
+      // At half of BASE_STAKE, should get halfway between 100 and 105
+      expect(stakingInfo.multiplier).to.equal(102); // (100 + (105-100)/2)
     });
   });
 

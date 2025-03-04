@@ -245,7 +245,7 @@ contract SapienStaking is
         whenNotPaused
         nonReentrant
     {
-        require(amount >= BASE_STAKE, "Amount must be greater than base stake");
+        require(amount > 0, "Amount must be greater than 0");
         require(
             lockUpPeriod == 30 days ||
                 lockUpPeriod == 90 days ||
@@ -420,7 +420,7 @@ contract SapienStaking is
     // Internal/Private Functions
     // -------------------------------------------------------------
 
-        /**
+    /**
      * @notice Calculates the multiplier for a given `amount` based on the `maxMultiplier`.
      * @dev If `amount` >= BASE_STAKE, the multiplier is `maxMultiplier`.
      *      Otherwise, it linearly scales from 100 up to `maxMultiplier`.
@@ -433,17 +433,18 @@ contract SapienStaking is
         pure
         returns (uint256)
     {
-        if (amount >= BASE_STAKE) {
-            return maxMultiplier;
-        }
+        // Base multiplier (100%) when no bonus is applied
         uint256 baseMultiplier = 100;
-        uint256 calculatedMultiplier = baseMultiplier + (
-            (amount * (maxMultiplier - baseMultiplier)) / BASE_STAKE
-        );
-
-        return calculatedMultiplier > maxMultiplier
-            ? maxMultiplier
-            : calculatedMultiplier;
+        
+        // If amount is less than BASE_STAKE, scale the multiplier linearly
+        if (amount < BASE_STAKE) {
+            return baseMultiplier + (
+                (amount * (maxMultiplier - baseMultiplier)) / BASE_STAKE
+            );
+        }
+        
+        // Maximum multiplier for amounts >= BASE_STAKE
+        return maxMultiplier;
     }
 
     /**
