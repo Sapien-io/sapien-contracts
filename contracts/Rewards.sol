@@ -86,9 +86,6 @@ contract SapienRewards is
     /// @notice Logs the recovered signer, mainly for debugging or testing.
     event RecoveredSigner(address signer);
 
-    /// @notice Emitted when tokens are released to this contract from the RewardToken contract.
-    event TokensReleasedToContract(string allocationType);
-
     // -------------------------------------------------------------
     // Constructor
     // -------------------------------------------------------------
@@ -162,20 +159,6 @@ contract SapienRewards is
         require(_rewardToken != address(0), "Invalid reward token address");
         rewardToken = IRewardToken(_rewardToken);
         emit RewardTokenUpdated(_rewardToken);
-    }
-
-    /**
-     * @notice Calls the `releaseTokens` function on the reward token contract.
-     *         This allows the owner to release tokens into this contract.
-     * @param allocationType The type of allocation to release tokens for.
-     */
-    function releaseRewardTokens(string calldata allocationType) 
-        external 
-        onlyOwner 
-        whenNotPaused 
-    {
-        rewardToken.releaseTokens(allocationType);
-        emit TokensReleasedToContract(allocationType);
     }
 
     /**
