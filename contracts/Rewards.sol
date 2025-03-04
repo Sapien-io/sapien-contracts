@@ -146,6 +146,22 @@ contract SapienRewards is
     // -------------------------------------------------------------
 
     /**
+     * @notice Allows the owner to pause all critical functions in case of emergency
+     * @dev Only callable by the contract owner
+     */
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /**
+     * @notice Allows the owner to unpause the contract and resume normal operations
+     * @dev Only callable by the contract owner
+     */
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    /**
      * @notice Sets the reward token address after deployment.
      * @param _rewardToken The address of the new reward token contract.
      */
