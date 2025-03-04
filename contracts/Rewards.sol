@@ -50,8 +50,8 @@ contract SapienRewards is
     /// @dev The address that is authorized to sign reward claims.
     address private authorizedSigner;
 
-    /// @notice Mapping of wallet addresses to their Bloom filter for used order IDs.
-    mapping(address => uint256) private userBloomFilters;
+    /// @notice Mapping of wallet addresses to their redeemed order IDs.
+    mapping(address => mapping(bytes32 => bool)) private redeemedOrders;
 
     // EIP-712 domain separator hashes
     bytes32 private constant EIP712_DOMAIN_TYPEHASH = keccak256(
@@ -63,10 +63,6 @@ contract SapienRewards is
 
     /// @notice EIP-712 domain separator for this contract.
     bytes32 private DOMAIN_SEPARATOR;
-
-    // Bloom filter constant
-    /// @dev The number of hash functions used for Bloom filter.
-    uint8 private constant NUM_HASHES = 3;
 
     // -------------------------------------------------------------
     // Events
@@ -254,8 +250,7 @@ contract SapienRewards is
     // -------------------------------------------------------------
 
     /**
-     * @dev Checks if a given `orderId` has been used (redeemed) by the user
-     *      based on the Bloom filter bits.
+     * @dev Checks if a given `orderId` has been redeemed by the user.
      * @param user The user's wallet address.
      * @param orderId The ID of the order to check.
      * @return True if the `orderId` is already redeemed; otherwise, false.
@@ -265,37 +260,16 @@ contract SapienRewards is
         view 
         returns (bool) 
     {
-        uint256 bloomFilter = userBloomFilters[user];
-        for (uint8 i = 0; i < NUM_HASHES; i++) {
-            uint8 bitPos = uint8(
-                uint256(
-                    keccak256(abi.encodePacked(orderId, i))
-                ) % 256
-            );
-            if ((bloomFilter & (1 << bitPos)) == 0) {
-                // If any bit is not set, the order is not redeemed
-                return false;
-            }
-        }
-        return true; 
+        return redeemedOrders[user][keccak256(abi.encodePacked(orderId))];
     }
 
     /**
-     * @dev Adds an `orderId` to the user's Bloom filter to mark it as redeemed.
+     * @dev Marks an `orderId` as redeemed for the user.
      * @param user The user's wallet address.
-     * @param orderId The ID of the order to add to the Bloom filter.
+     * @param orderId The ID of the order to mark as redeemed.
      */
     function addOrderToBloomFilter(address user, string calldata orderId) internal {
-        uint256 bloomFilter = userBloomFilters[user];
-        for (uint8 i = 0; i < NUM_HASHES; i++) {
-            uint8 bitPos = uint8(
-                uint256(
-                    keccak256(abi.encodePacked(orderId, i))
-                ) % 256
-            );
-            bloomFilter |= (1 << bitPos);
-        }
-        userBloomFilters[user] = bloomFilter;
+        redeemedOrders[user][keccak256(abi.encodePacked(orderId))] = true;
     }
 
     // -------------------------------------------------------------
