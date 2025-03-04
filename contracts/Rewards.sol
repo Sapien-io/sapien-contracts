@@ -105,6 +105,8 @@ contract SapienRewards is
      * @param _authorizedSigner The address authorized to sign reward claims.
      */
     function initialize(address _authorizedSigner) public initializer {
+        require(_authorizedSigner != address(0), "Invalid authorized signer address");
+        
         __Ownable_init(msg.sender);
         __Pausable_init();
         __UUPSUpgradeable_init();
