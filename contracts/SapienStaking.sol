@@ -302,6 +302,7 @@ contract SapienStaking is
         require(info.isActive, "Staking position not active");
         require(info.cooldownStart == 0, "Cooldown already initiated");
         require(!usedOrders[newOrderId], "Order already used");
+        require(amount <= info.amount, "Amount exceeds staked amount");
         require(
             verifyOrder(msg.sender, amount, newOrderId, ActionType.INITIATE_UNSTAKE, signature),
             "Invalid signature or mismatched parameters"
@@ -310,7 +311,7 @@ contract SapienStaking is
         info.cooldownStart = block.timestamp;
         _markOrderAsUsed(newOrderId);
 
-        emit UnstakingInitiated(msg.sender, info.amount, stakeOrderId);
+        emit UnstakingInitiated(msg.sender, amount, stakeOrderId);
     }
 
     /**
@@ -334,6 +335,7 @@ contract SapienStaking is
         require(info.isActive, "Staking position not active");
         require(info.cooldownStart > 0, "Cooldown not initiated");
         require(!usedOrders[newOrderId], "Order already used");
+        require(amount <= info.amount, "Amount exceeds staked amount");
         require(
             verifyOrder(msg.sender, amount, newOrderId, ActionType.UNSTAKE, signature),
             "Invalid signature or mismatched parameters"
@@ -342,9 +344,17 @@ contract SapienStaking is
             block.timestamp >= info.cooldownStart + COOLDOWN_PERIOD,
             "Cooldown period not completed"
         );
+        
+        // Add check for lock period completion
+        require(
+            block.timestamp >= info.startTime + info.lockUpPeriod,
+            "Lock period not completed"
+        );
 
+        // Transfer tokens and update state
         sapienToken.transfer(msg.sender, amount);
-        info.isActive = false;
+        info.amount -= amount;
+        info.isActive = info.amount > 0;
         totalStaked -= amount;
         _markOrderAsUsed(newOrderId);
 
