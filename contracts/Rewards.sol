@@ -224,7 +224,7 @@ contract SapienRewards is
             "Order ID already used"
         );
 
-        addOrderToBloomFilter(msg.sender, orderId);
+        markOrderAsRedeemed(msg.sender, orderId);
 
         success = rewardToken.transfer(msg.sender, rewardAmount);
         string memory reason = success ? "" : "Token transfer failed";
@@ -268,7 +268,7 @@ contract SapienRewards is
      * @param user The user's wallet address.
      * @param orderId The ID of the order to mark as redeemed.
      */
-    function addOrderToBloomFilter(address user, string calldata orderId) internal {
+    function markOrderAsRedeemed(address user, string calldata orderId) internal {
         redeemedOrders[user][keccak256(abi.encodePacked(orderId))] = true;
     }
 
