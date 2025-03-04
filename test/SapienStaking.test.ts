@@ -130,6 +130,9 @@ describe("SapienStaking", function () {
       const stakerInfo = await sapienStaking.stakers(await user.getAddress(), stakeOrderId);
       expect(stakerInfo.isActive).to.be.true;
       expect(stakerInfo.amount).to.equal(stakedAmount);
+
+      // Increase time to complete lock period
+      await time.increase(BigInt(30) * ONE_DAY);
     });
 
     it("Should allow initiating unstake", async function () {
@@ -164,8 +167,8 @@ describe("SapienStaking", function () {
         initiateSignature
       );
 
-      const lockPeriod = BigInt(30) * ONE_DAY;
-      await time.increase(lockPeriod + COOLDOWN_PERIOD);
+      // Increase time for cooldown period only (lock period was already increased in beforeEach)
+      await time.increase(COOLDOWN_PERIOD);
 
       const unstakeSignature = await signStakeMessage(
         await user.getAddress(), 

@@ -307,6 +307,11 @@ contract SapienStaking is
             verifyOrder(msg.sender, amount, newOrderId, ActionType.INITIATE_UNSTAKE, signature),
             "Invalid signature or mismatched parameters"
         );
+        // Add check for lock period completion
+        require(
+            block.timestamp >= info.startTime + info.lockUpPeriod,
+            "Lock period not completed"
+        );
 
         info.cooldownStart = block.timestamp;
         _markOrderAsUsed(newOrderId);
@@ -384,6 +389,11 @@ contract SapienStaking is
         require(
             verifyOrder(msg.sender, amount, newOrderId, ActionType.INSTANT_UNSTAKE, signature),
             "Invalid signature or mismatched parameters"
+        );
+        // Add check to ensure instant unstake is only possible during lock period
+        require(
+            block.timestamp < info.startTime + info.lockUpPeriod,
+            "Lock period completed, use regular unstake"
         );
 
         // Calculate penalty
