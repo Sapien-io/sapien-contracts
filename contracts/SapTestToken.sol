@@ -128,6 +128,17 @@ contract SapTestToken is
         require(_gnosisSafe != address(0), "Invalid Gnosis Safe address");
         require(_totalSupply > 0, "Total supply must be greater than zero");
         
+        // Calculate total expected supply from all allocations
+        uint256 expectedSupply = INVESTORS_ALLOCATION +
+            TEAM_ADVISORS_ALLOCATION +
+            LABELING_REWARDS_ALLOCATION +
+            AIRDROPS_ALLOCATION +
+            COMMUNITY_TREASURY_ALLOCATION +
+            STAKING_INCENTIVES_ALLOCATION +
+            LIQUIDITY_INCENTIVES_ALLOCATION;
+        
+        require(_totalSupply == expectedSupply, "Total supply must match sum of allocations");
+        
         gnosisSafe = _gnosisSafe;
         __ERC20_init("SapTestToken", "PTSPN");
         __Ownable_init(gnosisSafe);
