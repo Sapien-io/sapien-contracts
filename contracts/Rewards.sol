@@ -23,11 +23,11 @@ interface IRewardToken is IERC20 {
 
 /**
  * @title SapienRewards
- * @dev This contract manages reward token claims using EIP-712 signatures and a Bloom filter
+ * @dev This contract manages reward token claims using EIP-712 signatures and a map
  *      to prevent duplicate claims (by tracking used order IDs). It supports upgrading via UUPS.
  *
  *      - Users can claim rewards if they have a valid signature from an authorized signer.
- *      - Orders (identified by `orderId`) are tracked in a user-specific Bloom filter to prevent reuse.
+ *      - Orders (identified by `orderId`) are tracked in a user-specific mapping to prevent reuse.
  *      - Owners can deposit/withdraw tokens, pause the contract, and release tokens from the reward token.
  *      - Contract is upgradeable via UUPS (only owner can authorize an upgrade).
  */
@@ -197,7 +197,7 @@ contract SapienRewards is
 
     /**
      * @notice Claims a reward using a valid signature from the authorized signer.
-     * @dev Uses EIP-712 for message signing and a Bloom filter to track used order IDs.
+     * @dev Uses EIP-712 for message signing and a mapping to track used order IDs.
      * @param rewardAmount The amount of reward tokens to claim.
      * @param orderId The unique identifier of the order.
      * @param signature The EIP-712 signature from the authorized signer.
@@ -246,7 +246,7 @@ contract SapienRewards is
     }
 
     // -------------------------------------------------------------
-    // Internal Functions (Bloom Filter)
+    // Internal Functions (Order Mapping)
     // -------------------------------------------------------------
 
     /**
