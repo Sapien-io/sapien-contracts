@@ -50,13 +50,13 @@ contract SapTestToken is
     // -------------------------------------------------------------
 
     /// @notice Emitted when tokens are released from a vesting schedule
-    event TokensReleased(string destination, uint256 amount);
+    event TokensReleased(AllocationType indexed destination, uint256 amount);
 
     /// @notice Emitted when the contract is initialized
     event InitializedEvent(address safe, uint256 amount);
 
     /// @notice Emitted when a vesting schedule is updated
-    event VestingScheduleUpdated(string allocationType, uint256 amount);
+    event VestingScheduleUpdated(AllocationType indexed allocationType, uint256 amount);
 
     // -------------------------------------------------------------
     // Constants
@@ -93,8 +93,19 @@ contract SapTestToken is
     /// @dev Timestamp when vesting starts
     uint256 private vestingStartTimestamp;
 
+    // Add enum definition
+    enum AllocationType {
+        INVESTORS,
+        TEAM,
+        REWARDS,
+        AIRDROP,
+        COMMUNITY_TREASURY,
+        STAKING_INCENTIVES,
+        LIQUIDITY_INCENTIVES
+    }
+
     /// @notice Mapping of allocation types to their vesting schedules
-    mapping(string => VestingSchedule) public vestingSchedules;
+    mapping(AllocationType => VestingSchedule) public vestingSchedules;
 
     /// @notice Address of the Gnosis Safe that controls administrative functions
     address public gnosisSafe;
@@ -160,7 +171,7 @@ contract SapTestToken is
      */
     function _createHardcodedVestingSchedules() internal {
         uint256 cliff = 365 days; // 1 year cliff
-        vestingSchedules["investors"] = VestingSchedule({
+        vestingSchedules[AllocationType.INVESTORS] = VestingSchedule({
             cliff: cliff,
             start: vestingStartTimestamp,
             duration: 48 * 30 days, // 48 months
@@ -168,7 +179,7 @@ contract SapTestToken is
             released: 0,
             safe: gnosisSafe
         });
-        vestingSchedules["team"] = VestingSchedule({
+        vestingSchedules[AllocationType.TEAM] = VestingSchedule({
             cliff: cliff,
             start: vestingStartTimestamp,
             duration: 48 * 30 days, // 48 months
@@ -176,7 +187,7 @@ contract SapTestToken is
             released: 0,
             safe: gnosisSafe
         });
-        vestingSchedules["rewards"] = VestingSchedule({
+        vestingSchedules[AllocationType.REWARDS] = VestingSchedule({
             cliff: 0, // No cliff for rewards
             start: vestingStartTimestamp,
             duration: 48 * 30 days, // 48 months
@@ -184,7 +195,7 @@ contract SapTestToken is
             released: 0,
             safe: gnosisSafe
         });
-        vestingSchedules["airdrop"] = VestingSchedule({
+        vestingSchedules[AllocationType.AIRDROP] = VestingSchedule({
             cliff: 0, // No cliff for airdrops
             start: vestingStartTimestamp,
             duration: 48 * 30 days, // 48 months
@@ -192,7 +203,7 @@ contract SapTestToken is
             released: 0,
             safe: gnosisSafe
         });
-        vestingSchedules["communityTreasury"] = VestingSchedule({
+        vestingSchedules[AllocationType.COMMUNITY_TREASURY] = VestingSchedule({
             cliff: 0, // No cliff for community treasury
             start: vestingStartTimestamp,
             duration: 48 * 30 days, // 48 months
@@ -200,7 +211,7 @@ contract SapTestToken is
             released: 0,
             safe: gnosisSafe
         });
-        vestingSchedules["stakingIncentives"] = VestingSchedule({
+        vestingSchedules[AllocationType.STAKING_INCENTIVES] = VestingSchedule({
             cliff: 0, // No cliff for staking incentives
             start: vestingStartTimestamp,
             duration: 48 * 30 days, // 48 months
@@ -208,7 +219,7 @@ contract SapTestToken is
             released: 0,
             safe: gnosisSafe
         });
-        vestingSchedules["liquidityIncentives"] = VestingSchedule({
+        vestingSchedules[AllocationType.LIQUIDITY_INCENTIVES] = VestingSchedule({
             cliff: 0, // No cliff for liquidity incentives
             start: vestingStartTimestamp,
             duration: 48 * 30 days, // 48 months
@@ -238,7 +249,7 @@ contract SapTestToken is
      * @param safe Address that will receive the vested tokens
      */
     function updateVestingSchedule(
-        string calldata allocationType,
+        AllocationType allocationType,
         uint256 cliff,
         uint256 start,
         uint256 duration,
@@ -286,7 +297,7 @@ contract SapTestToken is
      * @notice Releases available tokens for a specific allocation type
      * @param allocationType The type of allocation to release tokens from
      */
-    function releaseTokens(string calldata allocationType) 
+    function releaseTokens(AllocationType allocationType) 
         external 
         nonReentrant 
         whenNotPaused 
