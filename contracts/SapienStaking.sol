@@ -165,6 +165,9 @@ contract SapienStaking is
         public
         initializer
     {
+        require(address(_sapienToken) != address(0), "Zero address not allowed for token");
+        require(_sapienAddress != address(0), "Zero address not allowed for signer");
+        
         sapienToken = _sapienToken;
         sapienAddress = _sapienAddress;
 
@@ -342,6 +345,8 @@ contract SapienStaking is
         whenNotPaused
         nonReentrant
     {
+        require(amount > 0, "Amount must be greater than 0");
+        
         StakingInfo storage info = stakers[msg.sender][stakeOrderId];
         require(info.isActive, "Staking position not active");
         require(info.cooldownStart > 0, "Cooldown not initiated");
