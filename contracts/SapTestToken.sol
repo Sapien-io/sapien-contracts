@@ -237,12 +237,26 @@ contract SapTestToken is
         uint256 amount,
         address safe
     ) external onlySafe {
+        VestingSchedule storage existingSchedule = vestingSchedules[allocationType];
+        
+        if (block.timestamp > existingSchedule.start && existingSchedule.amount > 0) {
+            require(start <= existingSchedule.start, "Cannot delay start time after vesting begins");
+            require(amount >= existingSchedule.released, "Cannot reduce amount below released tokens");
+            require(safe == existingSchedule.safe, "Cannot change safe address after vesting begins");
+        }
+
+        // Validate new parameters
+        require(safe != address(0), "Invalid safe address");
+        require(duration >= cliff, "Duration must be greater than or equal to cliff");
+        require(amount > 0, "Amount must be greater than 0");
+        require(start <= block.timestamp, "Start time cannot be in the future");
+
         vestingSchedules[allocationType] = VestingSchedule({
             cliff: cliff,
             start: start,
             duration: duration,
             amount: amount,
-            released: vestingSchedules[allocationType].released,
+            released: existingSchedule.released,
             revoked: false,
             safe: safe
         });
