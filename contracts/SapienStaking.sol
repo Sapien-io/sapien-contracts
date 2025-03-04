@@ -479,7 +479,7 @@ contract SapienStaking is
 
     /**
      * @notice Returns the max multiplier based on the lock-up period.
-     * @dev Reverts if the provided `lockUpPeriod` does not match any predefined period.
+     * @dev Assumes the lockUpPeriod has already been validated.
      * @param lockUpPeriod The duration of lock-up in seconds.
      * @return The maximum multiplier for the specified lock-up period.
      */
@@ -500,7 +500,7 @@ contract SapienStaking is
         if (lockUpPeriod == 365 days) {
             return TWELVE_MONTHS_MAX_MULTIPLIER;
         }
-        revert("Invalid lock-up period");
+        return 0; // This line should never be reached due to validation in stake()
     }
 
     /**
