@@ -271,13 +271,6 @@ contract SapienStaking is
         uint256 maxMultiplier = getMaxMultiplier(lockUpPeriod);
         uint256 multiplier = calculateMultiplier(amount, maxMultiplier);
 
-        // Transfer tokens from user to contract
-        require(
-            sapienToken.transferFrom(msg.sender, address(this), amount),
-            "Token transfer failed"
-        );
-
-        // Store staking info
         stakers[msg.sender][orderId] = StakingInfo({
             amount: amount,
             lockUpPeriod: lockUpPeriod,
@@ -289,6 +282,11 @@ contract SapienStaking is
 
         totalStaked += amount;
         _markOrderAsUsed(orderId);
+
+        require(
+            sapienToken.transferFrom(msg.sender, address(this), amount),
+            "Token transfer failed"
+        );
 
         emit Staked(msg.sender, amount, multiplier, lockUpPeriod, orderId);
     }
