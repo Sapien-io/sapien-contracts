@@ -38,10 +38,12 @@ contract SapienStaking is
     // -------------------------------------------------------------
 
     /// @notice The Sapien token interface for staking/unstaking (IERC20).
-    IERC20 public sapienToken;
+    /// @dev Effectively immutable, but can't use immutable keyword due to upgradeability
+    IERC20 private _sapienToken;
 
     /// @notice The authorized Sapien signer address (for verifying signatures).
-    address private sapienAddress;
+    /// @dev Effectively immutable, but can't use immutable keyword due to upgradeability
+    address private _sapienAddress;
 
     /// @dev Constant for the token's decimal representation (e.g., 10^18 for 18 decimal tokens).
     uint256 private constant TOKEN_DECIMALS = 10 ** 18;
@@ -65,7 +67,7 @@ contract SapienStaking is
     }
 
     /// @notice Mapping of user addresses and their `orderId` to a StakingInfo struct.
-    mapping(address => mapping(string => StakingInfo)) public stakers;
+    mapping(address => mapping(bytes32 => StakingInfo)) public stakers;
 
     /// @notice Tracks the total amount of tokens staked in this contract.
     uint256 public totalStaked;
@@ -90,7 +92,7 @@ contract SapienStaking is
         "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
     );
     bytes32 private constant STAKE_TYPEHASH = keccak256(
-        "Stake(address userWallet,uint256 amount,string orderId,uint8 actionType)"
+        "Stake(address userWallet,uint256 amount,bytes32 orderId,uint8 actionType)"
     );
 
     /// @notice EIP-712 domain separator for this contract.
@@ -106,7 +108,7 @@ contract SapienStaking is
     enum ActionType { STAKE, INITIATE_UNSTAKE, UNSTAKE, INSTANT_UNSTAKE }
 
     /// @notice Mapping to track used orders to prevent reuse.
-    mapping(string => bool) private usedOrders;
+    mapping(bytes32 => bool) private usedOrders;
 
     // -------------------------------------------------------------
     // Events
@@ -125,7 +127,7 @@ contract SapienStaking is
         uint256 amount,
         uint256 multiplier,
         uint256 lockUpPeriod,
-        string orderId
+        bytes32 orderId
     );
 
     /**
@@ -134,7 +136,7 @@ contract SapienStaking is
      * @param amount The staked amount associated with the stake.
      * @param orderId The unique identifier for the original stake.
      */
-    event UnstakingInitiated(address indexed user, uint256 amount, string orderId);
+    event UnstakingInitiated(address indexed user, uint256 amount, bytes32 orderId);
 
     /**
      * @notice Emitted when a user completes unstaking after the cooldown.
@@ -142,7 +144,7 @@ contract SapienStaking is
      * @param amount The amount unstaked.
      * @param orderId The unique identifier for the original stake.
      */
-    event Unstaked(address indexed user, uint256 amount, string orderId);
+    event Unstaked(address indexed user, uint256 amount, bytes32 orderId);
 
     /**
      * @notice Emitted when a user performs an instant unstake (penalty applied).
@@ -150,7 +152,7 @@ contract SapienStaking is
      * @param amount The amount actually received by the user (penalty deducted).
      * @param orderId The unique identifier for the original stake.
      */
-    event InstantUnstake(address indexed user, uint256 amount, string orderId);
+    event InstantUnstake(address indexed user, uint256 amount, bytes32 orderId);
 
     // -------------------------------------------------------------
     // Initialization (UUPS)
@@ -158,18 +160,18 @@ contract SapienStaking is
 
     /**
      * @notice Initializes the SapienStaking contract.
-     * @param _sapienToken The ERC20 token contract for Sapien.
-     * @param _sapienAddress The address authorized to sign stake actions.
+     * @param sapienToken_ The ERC20 token contract for Sapien.
+     * @param sapienAddress_ The address authorized to sign stake actions.
      */
-    function initialize(IERC20 _sapienToken, address _sapienAddress)
+    function initialize(IERC20 sapienToken_, address sapienAddress_)
         public
         initializer
     {
-        require(address(_sapienToken) != address(0), "Zero address not allowed for token");
-        require(_sapienAddress != address(0), "Zero address not allowed for signer");
+        require(address(sapienToken_) != address(0), "Zero address not allowed for token");
+        require(sapienAddress_ != address(0), "Zero address not allowed for signer");
         
-        sapienToken = _sapienToken;
-        sapienAddress = _sapienAddress;
+        _sapienToken = sapienToken_;
+        _sapienAddress = sapienAddress_;
 
         __Pausable_init();
         __Ownable_init(msg.sender);
@@ -207,7 +209,7 @@ contract SapienStaking is
      * @dev Restricts a function to be callable only by the `sapienAddress`.
      */
     modifier onlySapien() {
-        require(msg.sender == sapienAddress, "Caller is not Sapien");
+        require(msg.sender == _sapienAddress, "Caller is not Sapien");
         _;
     }
 
@@ -247,7 +249,7 @@ contract SapienStaking is
     function stake(
         uint256 amount,
         uint256 lockUpPeriod,
-        string calldata orderId,
+        bytes32 orderId,
         bytes memory signature
     )
         public
@@ -284,7 +286,7 @@ contract SapienStaking is
         _markOrderAsUsed(orderId);
 
         require(
-            sapienToken.transferFrom(msg.sender, address(this), amount),
+            _sapienToken.transferFrom(msg.sender, address(this), amount),
             "Token transfer failed"
         );
 
@@ -300,8 +302,8 @@ contract SapienStaking is
      */
     function initiateUnstake(
         uint256 amount,
-        string calldata newOrderId,
-        string calldata stakeOrderId,
+        bytes32 newOrderId,
+        bytes32 stakeOrderId,
         bytes memory signature
     )
         public
@@ -326,7 +328,7 @@ contract SapienStaking is
         info.cooldownStart = block.timestamp;
         _markOrderAsUsed(newOrderId);
 
-        emit UnstakingInitiated(msg.sender, amount, stakeOrderId);
+        emit UnstakingInitiated(msg.sender, amount, newOrderId);
     }
 
     /**
@@ -338,8 +340,8 @@ contract SapienStaking is
      */
     function unstake(
         uint256 amount,
-        string calldata newOrderId,
-        string calldata stakeOrderId,
+        bytes32 newOrderId,
+        bytes32 stakeOrderId,
         bytes memory signature
     )
         public
@@ -370,7 +372,7 @@ contract SapienStaking is
 
         // Transfer tokens and update state
         require(
-            sapienToken.transfer(msg.sender, amount),
+            _sapienToken.transfer(msg.sender, amount),
             "Token transfer failed"
         );
         info.amount -= amount;
@@ -378,7 +380,7 @@ contract SapienStaking is
         totalStaked -= amount;
         _markOrderAsUsed(newOrderId);
 
-        emit Unstaked(msg.sender, amount, stakeOrderId);
+        emit Unstaked(msg.sender, amount, newOrderId);
     }
 
     /**
@@ -390,8 +392,8 @@ contract SapienStaking is
      */
     function instantUnstake(
         uint256 amount,
-        string calldata newOrderId,
-        string calldata stakeOrderId,
+        bytes32 newOrderId,
+        bytes32 stakeOrderId,
         bytes memory signature
     )
         public
@@ -424,17 +426,17 @@ contract SapienStaking is
 
         // Transfer net amount to user, penalty to owner
         require(
-            sapienToken.transfer(msg.sender, payout),
+            _sapienToken.transfer(msg.sender, payout),
             "Token transfer to user failed"
         );
         require(
-            sapienToken.transfer(owner(), penalty),
+            _sapienToken.transfer(owner(), penalty),
             "Token transfer of penalty failed"
         );
 
         _markOrderAsUsed(newOrderId);
 
-        emit InstantUnstake(msg.sender, payout, stakeOrderId);
+        emit InstantUnstake(msg.sender, payout, newOrderId);
     }
 
     // -------------------------------------------------------------
@@ -525,7 +527,7 @@ contract SapienStaking is
     function verifyOrder(
         address userWallet,
         uint256 amount,
-        string calldata orderId,
+        bytes32 orderId,
         ActionType actionType,
         bytes memory signature
     )
@@ -540,7 +542,7 @@ contract SapienStaking is
                 STAKE_TYPEHASH,
                 userWallet,
                 amount,
-                keccak256(bytes(orderId)),
+                orderId,
                 uint8(actionType)
             )
         );
@@ -550,14 +552,14 @@ contract SapienStaking is
         );
 
         address signer = hash.recover(signature);
-        return (signer == sapienAddress);
+        return (signer == _sapienAddress);
     }
 
     /**
      * @notice Marks a given `orderId` as used to prevent reuse.
      * @param orderId The unique identifier for the action.
      */
-    function _markOrderAsUsed(string calldata orderId) private {
+    function _markOrderAsUsed(bytes32 orderId) private {
         usedOrders[orderId] = true;
     }
 }

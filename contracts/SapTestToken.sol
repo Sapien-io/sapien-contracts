@@ -96,8 +96,8 @@ contract SapTestToken is
     // State Variables
     // -------------------------------------------------------------
 
-    /// @dev Timestamp when vesting starts
-    uint256 private vestingStartTimestamp;
+    /// @dev Timestamp when vesting starts (effectively immutable, but can't use immutable keyword due to upgradeability)
+    uint256 private _vestingStartTimestamp;
 
     // Add enum definition
     enum AllocationType {
@@ -113,8 +113,8 @@ contract SapTestToken is
     /// @notice Mapping of allocation types to their vesting schedules
     mapping(AllocationType => VestingSchedule) public vestingSchedules;
 
-    /// @notice Address of the Gnosis Safe that controls administrative functions
-    address public gnosisSafe;
+    /// @notice Address of the Gnosis Safe that controls administrative functions (effectively immutable, but can't use immutable keyword due to upgradeability)
+    address public _gnosisSafe;
 
     /// @notice Address of the authorized rewards contract
     address public rewardsContract;
@@ -130,7 +130,7 @@ contract SapTestToken is
      * @dev Ensures the caller is the Gnosis Safe
      */
     modifier onlySafe() {
-        require(msg.sender == gnosisSafe, "Only the Safe can perform this");
+        require(msg.sender == _gnosisSafe, "Only the Safe can perform this");
         _;
     }
 
@@ -140,12 +140,11 @@ contract SapTestToken is
 
     /**
      * @notice Initializes the token contract with initial supply and Gnosis Safe address
-     * @param _gnosisSafe Address of the Gnosis Safe that will control the contract
+     * @param _gnosisSafeAddress Address of the Gnosis Safe that will control the contract
      * @param _totalSupply Initial total supply of tokens
      */
-    function initialize(address _gnosisSafe, uint256 _totalSupply) public initializer {
-        emit InitializedEvent(_gnosisSafe, _totalSupply);
-        require(_gnosisSafe != address(0), "Invalid Gnosis Safe address");
+    function initialize(address _gnosisSafeAddress, uint256 _totalSupply) public initializer {
+        require(_gnosisSafeAddress != address(0), "Invalid Gnosis Safe address");
         require(_totalSupply > 0, "Total supply must be greater than zero");
         
         // Calculate total expected supply from all allocations
@@ -159,11 +158,11 @@ contract SapTestToken is
         
         require(_totalSupply == expectedSupply, "Total supply must match sum of allocations");
         
-        gnosisSafe = _gnosisSafe;
+        _gnosisSafe = _gnosisSafeAddress;
         __ERC20_init("SapTestToken", "PTSPN");
         __Pausable_init();
         __UUPSUpgradeable_init();
-        vestingStartTimestamp = block.timestamp;
+        _vestingStartTimestamp = block.timestamp;
 
         _mint(_gnosisSafe, _totalSupply);
         _createHardcodedVestingSchedules();
@@ -182,59 +181,59 @@ contract SapTestToken is
         uint256 cliff = 365 days; // 1 year cliff
         vestingSchedules[AllocationType.INVESTORS] = VestingSchedule({
             cliff: cliff,
-            start: vestingStartTimestamp,
+            start: _vestingStartTimestamp,
             duration: 48 * 30 days, // 48 months
             amount: INVESTORS_ALLOCATION,
             released: 0,
-            safe: gnosisSafe
+            safe: _gnosisSafe
         });
         vestingSchedules[AllocationType.TEAM] = VestingSchedule({
             cliff: cliff,
-            start: vestingStartTimestamp,
+            start: _vestingStartTimestamp,
             duration: 48 * 30 days, // 48 months
             amount: TEAM_ADVISORS_ALLOCATION,
             released: 0,
-            safe: gnosisSafe
+            safe: _gnosisSafe
         });
         vestingSchedules[AllocationType.REWARDS] = VestingSchedule({
             cliff: 0, // No cliff for rewards
-            start: vestingStartTimestamp,
+            start: _vestingStartTimestamp,
             duration: 48 * 30 days, // 48 months
             amount: LABELING_REWARDS_ALLOCATION,
             released: 0,
-            safe: gnosisSafe
+            safe: _gnosisSafe
         });
         vestingSchedules[AllocationType.AIRDROP] = VestingSchedule({
             cliff: 0, // No cliff for airdrops
-            start: vestingStartTimestamp,
+            start: _vestingStartTimestamp,
             duration: 48 * 30 days, // 48 months
             amount: AIRDROPS_ALLOCATION,
             released: 0,
-            safe: gnosisSafe
+            safe: _gnosisSafe
         });
         vestingSchedules[AllocationType.COMMUNITY_TREASURY] = VestingSchedule({
             cliff: 0, // No cliff for community treasury
-            start: vestingStartTimestamp,
+            start: _vestingStartTimestamp,
             duration: 48 * 30 days, // 48 months
             amount: COMMUNITY_TREASURY_ALLOCATION,
             released: 0,
-            safe: gnosisSafe
+            safe: _gnosisSafe
         });
         vestingSchedules[AllocationType.STAKING_INCENTIVES] = VestingSchedule({
             cliff: 0, // No cliff for staking incentives
-            start: vestingStartTimestamp,
+            start: _vestingStartTimestamp,
             duration: 48 * 30 days, // 48 months
             amount: STAKING_INCENTIVES_ALLOCATION,
             released: 0,
-            safe: gnosisSafe
+            safe: _gnosisSafe
         });
         vestingSchedules[AllocationType.LIQUIDITY_INCENTIVES] = VestingSchedule({
             cliff: 0, // No cliff for liquidity incentives
-            start: vestingStartTimestamp,
+            start: _vestingStartTimestamp,
             duration: 48 * 30 days, // 48 months
             amount: LIQUIDITY_INCENTIVES_ALLOCATION,
             released: 0,
-            safe: gnosisSafe
+            safe: _gnosisSafe
         });
     }
 
@@ -323,7 +322,7 @@ contract SapTestToken is
         whenNotPaused 
     {
         require(
-            msg.sender == rewardsContract || msg.sender == gnosisSafe,
+            msg.sender == rewardsContract || msg.sender == _gnosisSafe,
             "Caller is not authorized"
         );
         
@@ -346,7 +345,7 @@ contract SapTestToken is
         require(releasableAmount > 0, "No tokens releasable");
 
         schedule.released += releasableAmount;
-        _transfer(gnosisSafe, schedule.safe, releasableAmount);
+        _transfer(_gnosisSafe, schedule.safe, releasableAmount);
         emit TokensReleased(allocationType, releasableAmount);
     }
 

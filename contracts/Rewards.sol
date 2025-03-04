@@ -48,7 +48,8 @@ contract SapienRewards is
     IRewardToken public rewardToken;
 
     /// @dev The address that is authorized to sign reward claims.
-    address private authorizedSigner;
+    /// @dev Effectively immutable, but can't use immutable keyword due to upgradeability
+    address private _authorizedSigner;
 
     /// @notice Mapping of wallet addresses to their redeemed order IDs.
     mapping(address => mapping(bytes32 => bool)) private redeemedOrders;
@@ -58,7 +59,7 @@ contract SapienRewards is
         "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
     );
     bytes32 private constant REWARD_CLAIM_TYPEHASH = keccak256(
-        "RewardClaim(address userWallet,uint256 amount,string orderId)"
+        "RewardClaim(address userWallet,uint256 amount,bytes32 orderId)"
     );
 
     /// @notice EIP-712 domain separator for this contract.
@@ -69,22 +70,16 @@ contract SapienRewards is
     // -------------------------------------------------------------
 
     /// @notice Emitted when a user successfully claims rewards.
-    event RewardClaimed(address indexed user, uint256 amount, string orderId);
+    event RewardClaimed(address indexed user, uint256 amount, bytes32 orderId);
 
     /// @notice Emitted after processing a withdrawal attempt (whether successful or not).
-    event WithdrawalProcessed(address indexed user, string indexed eventOrderId, bool success, string reason);
+    event WithdrawalProcessed(address indexed user, bytes32 indexed eventOrderId, bool success, string reason);
 
     /// @notice Emitted when the reward token address is updated.
     event RewardTokenUpdated(address indexed newRewardToken);
 
-    /// @notice Emitted if needed to show successful signature verification steps.
-    event SignatureVerified(address user, uint256 amount, string orderId);
-
     /// @notice Logs the message hash, mainly for debugging or testing.
     event MsgHash(bytes32 msgHash);
-
-    /// @notice Logs the recovered signer, mainly for debugging or testing.
-    event RecoveredSigner(address signer);
 
     // -------------------------------------------------------------
     // Constructor
@@ -102,17 +97,17 @@ contract SapienRewards is
     /**
      * @notice Initializes the contract with the provided authorized signer address.
      *         Sets up the Ownable, Pausable, UUPS, and ReentrancyGuard functionalities.
-     * @param _authorizedSigner The address authorized to sign reward claims.
+     * @param _authorizedSigner_ The address authorized to sign reward claims.
      */
-    function initialize(address _authorizedSigner) public initializer {
-        require(_authorizedSigner != address(0), "Invalid authorized signer address");
+    function initialize(address _authorizedSigner_) public initializer {
+        require(_authorizedSigner_ != address(0), "Invalid authorized signer address");
         
         __Ownable_init(msg.sender);
         __Pausable_init();
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
 
-        authorizedSigner = _authorizedSigner;
+        _authorizedSigner = _authorizedSigner_;
 
         // Initialize domain separator for EIP-712
         DOMAIN_SEPARATOR = keccak256(
@@ -199,7 +194,7 @@ contract SapienRewards is
      */
     function claimReward(
         uint256 rewardAmount,
-        string calldata orderId,
+        bytes32 orderId,
         bytes memory signature
     )
         external
@@ -249,12 +244,12 @@ contract SapienRewards is
      * @param orderId The ID of the order to check.
      * @return True if the `orderId` is already redeemed; otherwise, false.
      */
-    function isOrderRedeemed(address user, string calldata orderId) 
+    function isOrderRedeemed(address user, bytes32 orderId) 
         internal 
         view 
         returns (bool) 
     {
-        return redeemedOrders[user][keccak256(abi.encodePacked(orderId))];
+        return redeemedOrders[user][orderId];
     }
 
     /**
@@ -262,8 +257,8 @@ contract SapienRewards is
      * @param user The user's wallet address.
      * @param orderId The ID of the order to mark as redeemed.
      */
-    function markOrderAsRedeemed(address user, string calldata orderId) internal {
-        redeemedOrders[user][keccak256(abi.encodePacked(orderId))] = true;
+    function markOrderAsRedeemed(address user, bytes32 orderId) internal {
+        redeemedOrders[user][orderId] = true;
     }
 
     // -------------------------------------------------------------
@@ -276,12 +271,12 @@ contract SapienRewards is
      * @param rewardAmount The amount of the reward.
      * @param orderId The unique identifier of the order.
      * @param signature The EIP-712 signature from the authorized signer.
-     * @return True if the recovered signer matches the `authorizedSigner`.
+     * @return True if the recovered signer matches the `_authorizedSigner`.
      */
     function verifyOrder(
         address userWallet,
         uint256 rewardAmount,
-        string calldata orderId,
+        bytes32 orderId,
         bytes memory signature
     ) 
         private 
@@ -293,7 +288,7 @@ contract SapienRewards is
                 REWARD_CLAIM_TYPEHASH,
                 userWallet,
                 rewardAmount,
-                keccak256(bytes(orderId))
+                orderId
             )
         );
 
@@ -302,7 +297,7 @@ contract SapienRewards is
         );
 
         address signer = hash.recover(signature);
-        return (signer == authorizedSigner);
+        return (signer == _authorizedSigner);
     }
 }
 

@@ -59,7 +59,7 @@ describe("SapienStaking", function () {
       Stake: [
         { name: "userWallet", type: "address" },
         { name: "amount", type: "uint256" },
-        { name: "orderId", type: "string" },
+        { name: "orderId", type: "bytes32" },
         { name: "actionType", type: "uint8" }
       ]
     };
@@ -74,7 +74,7 @@ describe("SapienStaking", function () {
     const value = {
       userWallet: wallet,
       amount: amount,
-      orderId: orderId,
+      orderId: ethers.id(orderId),
       actionType: actionType
     };
 
@@ -91,12 +91,12 @@ describe("SapienStaking", function () {
       await expect(sapienStaking.connect(user).stake(
         amount,
         lockUpPeriod,
-        orderId,
+        ethers.id(orderId),
         signature
       )).to.emit(sapienStaking, "Staked")
-        .withArgs(await user.getAddress(), amount, BigInt(105), lockUpPeriod, orderId);
+        .withArgs(await user.getAddress(), amount, BigInt(105), lockUpPeriod, ethers.id(orderId));
 
-      const stakerInfo = await sapienStaking.stakers(await user.getAddress(), orderId);
+      const stakerInfo = await sapienStaking.stakers(await user.getAddress(), ethers.id(orderId));
       expect(stakerInfo.amount).to.equal(amount);
       expect(stakerInfo.isActive).to.be.true;
     });
@@ -107,12 +107,15 @@ describe("SapienStaking", function () {
       const orderId = "order2";
       const signature = await signStakeMessage(await user.getAddress(), amount, orderId, 0);
 
-      await sapienStaking.connect(user).stake(amount, lockUpPeriod, orderId, signature);
+      await sapienStaking.connect(user).stake(
+        amount, 
+        lockUpPeriod, 
+        ethers.id(orderId),
+        signature
+      );
       
-      const stakingInfo = await sapienStaking.stakers(await user.getAddress(), orderId);
-      // For 30 days, max multiplier is 105
-      // At half of BASE_STAKE, should get halfway between 100 and 105
-      expect(stakingInfo.multiplier).to.equal(102); // (100 + (105-100)/2)
+      const stakingInfo = await sapienStaking.stakers(await user.getAddress(), ethers.id(orderId));
+      expect(stakingInfo.multiplier).to.equal(102);
     });
   });
 
@@ -123,18 +126,20 @@ describe("SapienStaking", function () {
     let stakedAmount: bigint;
     
     beforeEach(async function () {
-      // Setup a stake first
       stakedAmount = BASE_STAKE;
       const lockUpPeriod = BigInt(30) * ONE_DAY;
       const signature = await signStakeMessage(await user.getAddress(), stakedAmount, stakeOrderId, 0);
-      await sapienStaking.connect(user).stake(stakedAmount, lockUpPeriod, stakeOrderId, signature);
+      await sapienStaking.connect(user).stake(
+        stakedAmount, 
+        lockUpPeriod, 
+        ethers.id(stakeOrderId),
+        signature
+      );
       
-      // Verify the stake was created correctly
-      const stakerInfo = await sapienStaking.stakers(await user.getAddress(), stakeOrderId);
+      const stakerInfo = await sapienStaking.stakers(await user.getAddress(), ethers.id(stakeOrderId));
       expect(stakerInfo.isActive).to.be.true;
       expect(stakerInfo.amount).to.equal(stakedAmount);
 
-      // Increase time to complete lock period
       await time.increase(BigInt(30) * ONE_DAY);
     });
 
@@ -149,8 +154,8 @@ describe("SapienStaking", function () {
       await expect(
         sapienStaking.connect(user).initiateUnstake(
           stakedAmount,
-          initiateUnstakeOrderId,
-          stakeOrderId,
+          ethers.id(initiateUnstakeOrderId),
+          ethers.id(stakeOrderId),
           signature
         )
       ).to.emit(sapienStaking, "UnstakingInitiated");
@@ -165,12 +170,11 @@ describe("SapienStaking", function () {
       );
       await sapienStaking.connect(user).initiateUnstake(
         stakedAmount,
-        initiateUnstakeOrderId,
-        stakeOrderId,
+        ethers.id(initiateUnstakeOrderId),
+        ethers.id(stakeOrderId),
         initiateSignature
       );
 
-      // Increase time for cooldown period only (lock period was already increased in beforeEach)
       await time.increase(COOLDOWN_PERIOD);
 
       const unstakeSignature = await signStakeMessage(
@@ -182,8 +186,8 @@ describe("SapienStaking", function () {
       await expect(
         sapienStaking.connect(user).unstake(
           stakedAmount,
-          unstakeOrderId,
-          stakeOrderId,
+          ethers.id(unstakeOrderId),
+          ethers.id(stakeOrderId),
           unstakeSignature
         )
       ).to.emit(sapienStaking, "Unstaked");
@@ -197,27 +201,33 @@ describe("SapienStaking", function () {
       const stakeOrderId = "stake2";
       const instantUnstakeOrderId = "instant_unstake2";
       
-      // Setup initial stake
       const stakeSignature = await signStakeMessage(await user.getAddress(), stakeAmount, stakeOrderId, 0);
-      await sapienStaking.connect(user).stake(stakeAmount, lockUpPeriod, stakeOrderId, stakeSignature);
+      await sapienStaking.connect(user).stake(
+        stakeAmount, 
+        lockUpPeriod, 
+        ethers.id(stakeOrderId),
+        stakeSignature
+      );
       
-      // Verify stake is active
-      const stakerInfo = await sapienStaking.stakers(await user.getAddress(), stakeOrderId);
+      const stakerInfo = await sapienStaking.stakers(await user.getAddress(), ethers.id(stakeOrderId));
       expect(stakerInfo.isActive).to.be.true;
 
-      // Perform instant unstake
       const unstakeSignature = await signStakeMessage(await user.getAddress(), stakeAmount, instantUnstakeOrderId, 3);
       const expectedPayout = (stakeAmount * BigInt(80)) / BigInt(100);
       
       await expect(
         sapienStaking.connect(user).instantUnstake(
           stakeAmount,
-          instantUnstakeOrderId,
-          stakeOrderId,
+          ethers.id(instantUnstakeOrderId),
+          ethers.id(stakeOrderId),
           unstakeSignature
         )
       ).to.emit(sapienStaking, "InstantUnstake")
-        .withArgs(await user.getAddress(), expectedPayout, stakeOrderId);
+        .withArgs(
+          await user.getAddress(), 
+          expectedPayout, 
+          ethers.id(instantUnstakeOrderId)
+        );
     });
   });
 }); 

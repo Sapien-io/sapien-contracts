@@ -54,7 +54,7 @@ describe("SapienRewards", function () {
       RewardClaim: [
         { name: "userWallet", type: "address" },
         { name: "amount", type: "uint256" },
-        { name: "orderId", type: "string" }
+        { name: "orderId", type: "bytes32" }
       ]
     };
   });
@@ -67,7 +67,7 @@ describe("SapienRewards", function () {
     const value = {
       userWallet: wallet,
       amount: amount,
-      orderId: orderId
+      orderId: ethers.encodeBytes32String(orderId)
     };
 
     return await authorizedSigner.signTypedData(domain, types, value);
@@ -83,7 +83,11 @@ describe("SapienRewards", function () {
       
       // Try to claim reward - if it doesn't revert with signature error, signer is correct
       await expect(
-        sapienRewards.connect(user).claimReward(REWARD_AMOUNT, "test1", signature)
+        sapienRewards.connect(user).claimReward(
+          REWARD_AMOUNT, 
+          ethers.encodeBytes32String("test1"),
+          signature
+        )
       ).to.not.be.revertedWith("Invalid signature or mismatched parameters");
     });
 
@@ -102,9 +106,13 @@ describe("SapienRewards", function () {
       );
 
       await expect(
-        sapienRewards.connect(user).claimReward(REWARD_AMOUNT, orderId, signature)
+        sapienRewards.connect(user).claimReward(
+          REWARD_AMOUNT, 
+          ethers.encodeBytes32String(orderId),
+          signature
+        )
       ).to.emit(sapienRewards, "RewardClaimed")
-        .withArgs(await user.getAddress(), REWARD_AMOUNT, orderId);
+        .withArgs(await user.getAddress(), REWARD_AMOUNT, ethers.encodeBytes32String(orderId));
     });
 
     it("Should prevent duplicate claims", async function () {
@@ -115,10 +123,18 @@ describe("SapienRewards", function () {
         orderId
       );
 
-      await sapienRewards.connect(user).claimReward(REWARD_AMOUNT, orderId, signature);
+      await sapienRewards.connect(user).claimReward(
+        REWARD_AMOUNT, 
+        ethers.encodeBytes32String(orderId),
+        signature
+      );
 
       await expect(
-        sapienRewards.connect(user).claimReward(REWARD_AMOUNT, orderId, signature)
+        sapienRewards.connect(user).claimReward(
+          REWARD_AMOUNT, 
+          ethers.encodeBytes32String(orderId),
+          signature
+        )
       ).to.be.revertedWith("Order ID already used");
     });
 
@@ -127,11 +143,15 @@ describe("SapienRewards", function () {
       const signature = await signRewardClaim(
         await user.getAddress(),
         REWARD_AMOUNT,
-        "different-order-id" // Mismatch between signed orderId and provided orderId
+        "different-order-id"
       );
 
       await expect(
-        sapienRewards.connect(user).claimReward(REWARD_AMOUNT, orderId, signature)
+        sapienRewards.connect(user).claimReward(
+          REWARD_AMOUNT, 
+          ethers.encodeBytes32String(orderId),
+          signature
+        )
       ).to.be.revertedWith("Invalid signature or mismatched parameters");
     });
 
@@ -148,7 +168,11 @@ describe("SapienRewards", function () {
       );
 
       await expect(
-        sapienRewards.connect(user).claimReward(REWARD_AMOUNT, orderId, signature)
+        sapienRewards.connect(user).claimReward(
+          REWARD_AMOUNT, 
+          ethers.encodeBytes32String(orderId),
+          signature
+        )
       ).to.be.revertedWith("Insufficient token balance");
     });
   });
