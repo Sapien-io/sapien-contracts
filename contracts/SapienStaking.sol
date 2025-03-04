@@ -442,15 +442,34 @@ contract SapienStaking is
         // Base multiplier (100%) when no bonus is applied
         uint256 baseMultiplier = 100;
         
-        // If amount is less than BASE_STAKE, scale the multiplier linearly
-        if (amount < BASE_STAKE) {
-            return baseMultiplier + (
-                (amount * (maxMultiplier - baseMultiplier)) / BASE_STAKE
-            );
-        }
+        // Create tiers for more granular multiplier calculation
+        // Each tier represents 25% of BASE_STAKE
+        uint256 tier1 = BASE_STAKE / 4;     // 250 tokens
+        uint256 tier2 = BASE_STAKE / 2;     // 500 tokens
+        uint256 tier3 = (BASE_STAKE * 3) / 4; // 750 tokens
         
-        // Maximum multiplier for amounts >= BASE_STAKE
-        return maxMultiplier;
+        // Calculate the bonus range (difference between max and base multiplier)
+        uint256 bonusRange = maxMultiplier - baseMultiplier;
+        
+        if (amount >= BASE_STAKE) {
+            return maxMultiplier;
+        } else if (amount >= tier3) {
+            // 75-100% of bonus range
+            return baseMultiplier + (bonusRange * 75 / 100) + 
+                   (bonusRange * 25 * (amount - tier3) / (BASE_STAKE - tier3) / 100);
+        } else if (amount >= tier2) {
+            // 50-75% of bonus range
+            return baseMultiplier + (bonusRange * 50 / 100) +
+                   (bonusRange * 25 * (amount - tier2) / (tier3 - tier2) / 100);
+        } else if (amount >= tier1) {
+            // 25-50% of bonus range
+            return baseMultiplier + (bonusRange * 25 / 100) +
+                   (bonusRange * 25 * (amount - tier1) / (tier2 - tier1) / 100);
+        } else {
+            // 0-25% of bonus range
+            return baseMultiplier +
+                   (bonusRange * 25 * amount / tier1 / 100);
+        }
     }
 
     /**
