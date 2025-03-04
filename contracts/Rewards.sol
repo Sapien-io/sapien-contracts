@@ -40,11 +40,6 @@ contract SapienRewards is
 {
     using ECDSA for bytes32;
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
-
     // -------------------------------------------------------------
     // State Variables
     // -------------------------------------------------------------
@@ -82,9 +77,6 @@ contract SapienRewards is
     /// @notice Emitted when the reward token address is updated.
     event RewardTokenUpdated(address indexed newRewardToken);
 
-    /// @notice Emitted when tokens are released to this contract from the RewardToken contract.
-    event TokensReleasedToContract(string allocationType);
-
     /// @notice Emitted if needed to show successful signature verification steps.
     event SignatureVerified(address user, uint256 amount, string orderId);
 
@@ -94,9 +86,17 @@ contract SapienRewards is
     /// @notice Logs the recovered signer, mainly for debugging or testing.
     event RecoveredSigner(address signer);
 
+    /// @notice Emitted when tokens are released to this contract from the RewardToken contract.
+    event TokensReleasedToContract(string allocationType);
+
     // -------------------------------------------------------------
-    // Modifiers
+    // Constructor
     // -------------------------------------------------------------
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
 
     // -------------------------------------------------------------
     // Initialization (UUPS-related)
