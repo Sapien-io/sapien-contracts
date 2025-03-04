@@ -94,6 +94,9 @@ contract SapTestToken is
     /// @notice Address of the Gnosis Safe that controls administrative functions
     address public gnosisSafe;
 
+    /// @notice Address of the authorized rewards contract
+    address public rewardsContract;
+
     // -------------------------------------------------------------
     // Modifiers
     // -------------------------------------------------------------
@@ -247,6 +250,15 @@ contract SapTestToken is
     }
 
     /**
+     * @notice Sets the authorized rewards contract address
+     * @param _rewardsContract Address of the rewards contract
+     */
+    function setRewardsContract(address _rewardsContract) external onlySafe {
+        require(_rewardsContract != address(0), "Invalid rewards contract address");
+        rewardsContract = _rewardsContract;
+    }
+
+    /**
      * @notice Releases available tokens for a specific allocation type
      * @param allocationType The type of allocation to release tokens from
      */
@@ -255,6 +267,11 @@ contract SapTestToken is
         nonReentrant 
         whenNotPaused 
     {
+        require(
+            msg.sender == rewardsContract || msg.sender == gnosisSafe,
+            "Caller is not authorized"
+        );
+        
         VestingSchedule storage schedule = vestingSchedules[allocationType];
         require(schedule.amount > 0, "No tokens to release");
 
