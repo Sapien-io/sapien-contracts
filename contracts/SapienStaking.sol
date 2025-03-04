@@ -272,7 +272,10 @@ contract SapienStaking is
         uint256 multiplier = calculateMultiplier(amount, maxMultiplier);
 
         // Transfer tokens from user to contract
-        sapienToken.transferFrom(msg.sender, address(this), amount);
+        require(
+            sapienToken.transferFrom(msg.sender, address(this), amount),
+            "Token transfer failed"
+        );
 
         // Store staking info
         stakers[msg.sender][orderId] = StakingInfo({
@@ -368,7 +371,10 @@ contract SapienStaking is
         );
 
         // Transfer tokens and update state
-        sapienToken.transfer(msg.sender, amount);
+        require(
+            sapienToken.transfer(msg.sender, amount),
+            "Token transfer failed"
+        );
         info.amount -= amount;
         info.isActive = info.amount > 0;
         totalStaked -= amount;
@@ -419,8 +425,14 @@ contract SapienStaking is
         totalStaked -= amount;
 
         // Transfer net amount to user, penalty to owner
-        sapienToken.transfer(msg.sender, payout);
-        sapienToken.transfer(owner(), penalty);
+        require(
+            sapienToken.transfer(msg.sender, payout),
+            "Token transfer to user failed"
+        );
+        require(
+            sapienToken.transfer(owner(), penalty),
+            "Token transfer of penalty failed"
+        );
 
         _markOrderAsUsed(newOrderId);
 
