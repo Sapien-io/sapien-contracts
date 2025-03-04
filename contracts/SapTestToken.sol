@@ -62,26 +62,29 @@ contract SapTestToken is
     // Constants
     // -------------------------------------------------------------
 
+    /// @notice Number of decimals for token amounts
+    uint8 public constant DECIMALS = 18;
+
     /// @notice Total allocation for investors
-    uint256 public constant INVESTORS_ALLOCATION = 300000000 * 10 ** 18;
+    uint256 public constant INVESTORS_ALLOCATION = 300000000 * 10 ** DECIMALS;
 
     /// @notice Total allocation for team and advisors
-    uint256 public constant TEAM_ADVISORS_ALLOCATION = 200000000 * 10 ** 18;
+    uint256 public constant TEAM_ADVISORS_ALLOCATION = 200000000 * 10 ** DECIMALS;
 
     /// @notice Total allocation for labeling rewards
-    uint256 public constant LABELING_REWARDS_ALLOCATION = 150000000 * 10 ** 18;
+    uint256 public constant LABELING_REWARDS_ALLOCATION = 150000000 * 10 ** DECIMALS;
 
     /// @notice Total allocation for airdrops
-    uint256 public constant AIRDROPS_ALLOCATION = 150000000 * 10 ** 18;
+    uint256 public constant AIRDROPS_ALLOCATION = 150000000 * 10 ** DECIMALS;
 
     /// @notice Total allocation for community treasury
-    uint256 public constant COMMUNITY_TREASURY_ALLOCATION = 100000000 * 10 ** 18;
+    uint256 public constant COMMUNITY_TREASURY_ALLOCATION = 100000000 * 10 ** DECIMALS;
 
     /// @notice Total allocation for staking incentives
-    uint256 public constant STAKING_INCENTIVES_ALLOCATION = 50000000 * 10 ** 18;
+    uint256 public constant STAKING_INCENTIVES_ALLOCATION = 50000000 * 10 ** DECIMALS;
 
     /// @notice Total allocation for liquidity incentives
-    uint256 public constant LIQUIDITY_INCENTIVES_ALLOCATION = 50000000 * 10 ** 18;
+    uint256 public constant LIQUIDITY_INCENTIVES_ALLOCATION = 50000000 * 10 ** DECIMALS;
 
     // -------------------------------------------------------------
     // State Variables
