@@ -397,10 +397,10 @@ contract SapienStaking is
     }
 
     // -------------------------------------------------------------
-    // Public/External View/Pure Functions
+    // Internal/Private Functions
     // -------------------------------------------------------------
 
-    /**
+        /**
      * @notice Calculates the multiplier for a given `amount` based on the `maxMultiplier`.
      * @dev If `amount` >= BASE_STAKE, the multiplier is `maxMultiplier`.
      *      Otherwise, it linearly scales from 100 up to `maxMultiplier`.
@@ -409,7 +409,7 @@ contract SapienStaking is
      * @return The calculated multiplier (clamped at `maxMultiplier` if needed).
      */
     function calculateMultiplier(uint256 amount, uint256 maxMultiplier)
-        public
+        private
         pure
         returns (uint256)
     {
@@ -451,10 +451,6 @@ contract SapienStaking is
         }
         revert("Invalid lock-up period");
     }
-
-    // -------------------------------------------------------------
-    // Internal/Private Functions
-    // -------------------------------------------------------------
 
     /**
      * @notice Verifies the EIP-712 signature for a staking action.
