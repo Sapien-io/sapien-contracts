@@ -98,18 +98,6 @@ contract SapienRewards is
     // Modifiers
     // -------------------------------------------------------------
 
-    /**
-     * @dev Ensures the contract holds enough reward tokens before processing a claim.
-     * @param amount The amount of tokens required.
-     */
-    modifier hasTokenBalance(uint256 amount) {
-        require(
-            rewardToken.balanceOf(address(this)) >= amount,
-            "Insufficient token balance"
-        );
-        _;
-    }
-
     // -------------------------------------------------------------
     // Initialization (UUPS-related)
     // -------------------------------------------------------------
@@ -230,11 +218,15 @@ contract SapienRewards is
         bytes memory signature
     )
         external
-        hasTokenBalance(rewardAmount)
         nonReentrant
         whenNotPaused
         returns (bool success)
     {
+        require(
+            rewardToken.balanceOf(address(this)) >= rewardAmount,
+            "Insufficient token balance"
+        );
+
         require(
             verifyOrder(msg.sender, rewardAmount, orderId, signature),
             "Invalid signature or mismatched parameters"
