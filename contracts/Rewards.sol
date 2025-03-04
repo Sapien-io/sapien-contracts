@@ -350,45 +350,5 @@ contract SapienRewards is
     {
         return keccak256(abi.encodePacked(userWallet, rewardAmount, orderId));
     }
-
-    /**
-     * @notice Recovers the signer address from a given signature and a message hash (not EIP-712).
-     * @dev This is a helper, not used in the main EIP-712 flow, left for reference.
-     * @param messageHash The plain (non-EIP-712) message hash.
-     * @param signature The signature to recover the signer from.
-     * @return The address that signed the hashed message.
-     */
-    function recoverSigner(bytes32 messageHash, bytes memory signature) 
-        private 
-        pure 
-        returns (address) 
-    {
-        bytes32 ethSignedMessageHash = keccak256(
-            abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash)
-        );
-        (bytes32 r, bytes32 s, uint8 v) = splitSignature(signature);
-        return ecrecover(ethSignedMessageHash, v, r, s);
-    }
-
-    /**
-     * @notice Splits a signature into (r, s, v) components.
-     * @dev This is a helper function for signature splitting, not used in the main EIP-712 flow.
-     * @param sig The signature bytes (must be 65 bytes long).
-     * @return r The r component of the signature.
-     * @return s The s component of the signature.
-     * @return v The v component (recovery id) of the signature.
-     */
-    function splitSignature(bytes memory sig) 
-        private 
-        pure 
-        returns (bytes32 r, bytes32 s, uint8 v) 
-    {
-        require(sig.length == 65, "Invalid signature length");
-        assembly {
-            r := mload(add(sig, 32))
-            s := mload(add(sig, 64))
-            v := byte(0, mload(add(sig, 96)))
-        }
-    }
 }
 
