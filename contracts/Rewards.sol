@@ -40,6 +40,11 @@ contract SapienRewards is
 {
     using ECDSA for bytes32;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     // -------------------------------------------------------------
     // State Variables
     // -------------------------------------------------------------

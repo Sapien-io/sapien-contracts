@@ -26,6 +26,11 @@ contract SapTestToken is
     UUPSUpgradeable,
     ReentrancyGuardUpgradeable
 {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     // -------------------------------------------------------------
     // Structs
     // -------------------------------------------------------------

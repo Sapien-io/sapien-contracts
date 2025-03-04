@@ -27,6 +27,12 @@ contract SapienStaking is
 {
     using ECDSA for bytes32;
 
+    /// @dev Constructor that disables initializers
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     // -------------------------------------------------------------
     // State Variables
     // -------------------------------------------------------------
