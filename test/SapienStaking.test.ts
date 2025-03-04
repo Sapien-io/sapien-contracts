@@ -164,7 +164,8 @@ describe("SapienStaking", function () {
         initiateSignature
       );
 
-      await time.increase(COOLDOWN_PERIOD);
+      const lockPeriod = BigInt(30) * ONE_DAY;
+      await time.increase(lockPeriod + COOLDOWN_PERIOD);
 
       const unstakeSignature = await signStakeMessage(
         await user.getAddress(), 
