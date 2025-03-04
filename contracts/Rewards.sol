@@ -327,29 +327,5 @@ contract SapienRewards is
         address signer = hash.recover(signature);
         return (signer == authorizedSigner);
     }
-
-    // -------------------------------------------------------------
-    // (Optional) Helper Functions for Message Hashing & Recovery
-    // -------------------------------------------------------------
-
-    /**
-     * @notice Calculates a simple message hash of the claim parameters (not EIP-712).
-     * @dev This is a helper, not used in the main flow, left for reference.
-     * @param userWallet The address of the wallet.
-     * @param rewardAmount The amount of the reward.
-     * @param orderId The order identifier.
-     * @return The keccak256 hash of the concatenated parameters.
-     */
-    function getMessageHash(
-        address userWallet, 
-        uint256 rewardAmount, 
-        string calldata orderId
-    ) 
-        private 
-        pure 
-        returns (bytes32) 
-    {
-        return keccak256(abi.encodePacked(userWallet, rewardAmount, orderId));
-    }
 }
 
