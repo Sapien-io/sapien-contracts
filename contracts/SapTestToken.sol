@@ -162,6 +162,7 @@ contract SapTestToken is
         __ERC20_init("SapTestToken", "PTSPN");
         __Pausable_init();
         __UUPSUpgradeable_init();
+        __ReentrancyGuard_init();
         _vestingStartTimestamp = block.timestamp;
 
         _mint(_gnosisSafe, _totalSupply);
@@ -269,10 +270,11 @@ contract SapTestToken is
         
         VestingSchedule storage existingSchedule = vestingSchedules[allocationType];
         
-        if (block.timestamp > existingSchedule.start && existingSchedule.amount > 0) {
-            require(start <= existingSchedule.start, "Cannot delay start time after vesting begins");
+        // Only apply the start time restriction if tokens have been released
+        if (existingSchedule.released > 0) {
+            require(start <= existingSchedule.start, "Cannot delay start time after tokens released");
             require(amount >= existingSchedule.released, "Cannot reduce amount below released tokens");
-            require(safe == existingSchedule.safe, "Cannot change safe address after vesting begins");
+            require(safe == existingSchedule.safe, "Cannot change safe address after tokens released");
         }
 
         // Validate new parameters
