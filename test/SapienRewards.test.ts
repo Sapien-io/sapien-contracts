@@ -205,4 +205,64 @@ describe("SapienRewards", function () {
         .withArgs(await newToken.getAddress());
     });
   });
+
+  describe("Cross-contract Signature Security", function () {
+    it("Should reject signatures from different contract addresses", async function () {
+      // Create domain for a hypothetical different contract
+      const fakeDomain = {
+        name: "SapienRewards",
+        version: "1",
+        chainId: domain.chainId,
+        verifyingContract: await user.getAddress() // Different contract address
+      };
+
+      const orderId = "claim1";
+      const value = {
+        userWallet: await user.getAddress(),
+        amount: REWARD_AMOUNT,
+        orderId: ethers.encodeBytes32String(orderId)
+      };
+
+      // Sign with different domain
+      const signature = await authorizedSigner.signTypedData(fakeDomain, types, value);
+
+      // Attempt to use signature in real contract should fail
+      await expect(
+        sapienRewards.connect(user).claimReward(
+          REWARD_AMOUNT,
+          ethers.encodeBytes32String(orderId),
+          signature
+        )
+      ).to.be.revertedWith("Invalid signature or mismatched parameters");
+    });
+
+    it("Should reject signatures from different contract names", async function () {
+      // Create domain for a different contract name
+      const fakeDomain = {
+        name: "SapienStaking", // Different contract name
+        version: "1",
+        chainId: domain.chainId,
+        verifyingContract: await sapienRewards.getAddress()
+      };
+
+      const orderId = "claim1";
+      const value = {
+        userWallet: await user.getAddress(),
+        amount: REWARD_AMOUNT,
+        orderId: ethers.encodeBytes32String(orderId)
+      };
+
+      // Sign with different domain
+      const signature = await authorizedSigner.signTypedData(fakeDomain, types, value);
+
+      // Attempt to use signature in real contract should fail
+      await expect(
+        sapienRewards.connect(user).claimReward(
+          REWARD_AMOUNT,
+          ethers.encodeBytes32String(orderId),
+          signature
+        )
+      ).to.be.revertedWith("Invalid signature or mismatched parameters");
+    });
+  });
 }); 

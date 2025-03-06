@@ -230,4 +230,102 @@ describe("SapienStaking", function () {
         );
     });
   });
+
+  describe("Cross-contract Signature Security", function () {
+    it("Should reject signatures from different contract names", async function () {
+      // Create domain for SapienRewards contract
+      const rewardsDomain = {
+        name: "SapienRewards", // Different contract name
+        version: "1",
+        chainId: domain.chainId,
+        verifyingContract: await sapienStaking.getAddress()
+      };
+
+      // Create types for SapienRewards contract
+      const rewardsTypes = {
+        RewardClaim: [
+          { name: "userWallet", type: "address" },
+          { name: "amount", type: "uint256" },
+          { name: "orderId", type: "bytes32" }
+        ]
+      };
+
+      const orderId = "stake1";
+      const amount = BASE_STAKE;
+      const value = {
+        userWallet: await user.getAddress(),
+        amount: amount,
+        orderId: ethers.id(orderId)
+      };
+
+      // Sign with SapienRewards domain
+      const signature = await sapienSigner.signTypedData(rewardsDomain, rewardsTypes, value);
+
+      // Attempt to use SapienRewards signature in SapienStaking contract should fail
+      await expect(
+        sapienStaking.connect(user).stake(
+          amount,
+          BigInt(30) * ONE_DAY, // 30 day lock period
+          ethers.id(orderId),
+          signature
+        )
+      ).to.be.revertedWith("Invalid signature or mismatched parameters");
+    });
+
+    it("Should reject signatures from different contract addresses", async function () {
+      // Create domain for same contract name but different address
+      const fakeDomain = {
+        name: "SapienStaking",
+        version: "1",
+        chainId: domain.chainId,
+        verifyingContract: await user.getAddress() // Different contract address
+      };
+
+      const orderId = "stake2";
+      const amount = BASE_STAKE;
+      const value = {
+        userWallet: await user.getAddress(),
+        amount: amount,
+        orderId: ethers.id(orderId),
+        actionType: 0 // STAKE action
+      };
+
+      // Sign with fake domain
+      const signature = await sapienSigner.signTypedData(fakeDomain, types, value);
+
+      // Attempt to use signature with wrong contract address should fail
+      await expect(
+        sapienStaking.connect(user).stake(
+          amount,
+          BigInt(30) * ONE_DAY,
+          ethers.id(orderId),
+          signature
+        )
+      ).to.be.revertedWith("Invalid signature or mismatched parameters");
+    });
+
+    it("Should reject signatures with mismatched action types", async function () {
+      const orderId = "stake3";
+      const amount = BASE_STAKE;
+      const value = {
+        userWallet: await user.getAddress(),
+        amount: amount,
+        orderId: ethers.id(orderId),
+        actionType: 1 // INITIATE_UNSTAKE instead of STAKE
+      };
+
+      // Sign with wrong action type
+      const signature = await sapienSigner.signTypedData(domain, types, value);
+
+      // Attempt to use signature with wrong action type should fail
+      await expect(
+        sapienStaking.connect(user).stake(
+          amount,
+          BigInt(30) * ONE_DAY,
+          ethers.id(orderId),
+          signature
+        )
+      ).to.be.revertedWith("Invalid signature or mismatched parameters");
+    });
+  });
 }); 
