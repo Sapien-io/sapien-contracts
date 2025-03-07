@@ -18,7 +18,7 @@ interface IRewardToken is IERC20 {
      * @notice Allows release of tokens based on `allocationType`.
      * @param allocationType The type of allocation to release tokens for.
      */
-    function releaseTokens(string calldata allocationType) external;
+    function releaseTokens(uint8 allocationType) external;
 }
 
 /**
