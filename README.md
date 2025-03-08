@@ -64,21 +64,84 @@ The Sapien smart contracts consist of four main components:
 - Upgradeable architecture with pause functionality
 - Owner controls for token deposits and withdrawals
 
-## Deployment
+## Deployment Guide
 
-1. Deploy implementation contracts
-2. Deploy proxy contracts using UUPS pattern
-3. Initialize contracts with required parameters:
-```solidity
-// SapTestToken
-function initialize(address _gnosisSafeAddress, uint256 _totalSupply)
+This project includes deployment scripts for each contract individually or deploying all contracts at once. The scripts handle contract deployment in the correct order and save deployment information for future reference.
 
-// SapienStaking
-function initialize(IERC20 sapienToken_, address sapienAddress_)
+### Prerequisites
 
-// SapienRewards
-function initialize(address _authorizedSigner_)
-```
+- Node.js 14+
+- Hardhat installed
+- Configuration file (optional)
+
+### Configuration
+
+Create a configuration file at `config/deploy-config.json` to customize deployment parameters:
+
+Example configuration:
+    {
+      "tokenName": "Sapien Token",
+      "tokenSymbol": "SAP",
+      "initialSupply": "1000000000000000000000000",
+      "minStakeAmount": "100000000000000000000",
+      "lockPeriod": 604800,
+      "earlyWithdrawalPenalty": 1000,
+      "rewardRate": 100,
+      "rewardInterval": 2592000,
+      "bonusThreshold": "1000000000000000000000",
+      "bonusRate": 50
+    }
+
+If not provided, the deployment scripts will use sensible defaults.
+
+### Running Deployment Scripts
+
+#### Deploy All Contracts
+
+To deploy all contracts in the correct order (SAP Token → Staking → Rewards):
+
+    # For local development
+    npx hardhat run scripts/deploy-all.js --network localhost
+
+    # For testnet (Base Sepolia)
+    npx hardhat run scripts/deploy-all.js --network base-sepolia
+
+    # For mainnet (Base)
+    npx hardhat run scripts/deploy-all.js --network base
+
+#### Deploy Individual Contracts
+
+You can also deploy contracts individually if needed:
+
+    # Deploy only the SAP Token
+    npx hardhat run scripts/deploy-sap-test-token.js --network <network-name>
+
+    # Deploy only the Staking contract
+    npx hardhat run scripts/deploy-sapien-staking.js --network <network-name>
+
+    # Deploy only the Rewards contract
+    npx hardhat run scripts/deploy-sapien-rewards.js --network <network-name>
+
+Note: Individual deployments require previous contracts to be deployed first (e.g., deploying the Staking contract requires the SAP Token to be deployed first).
+
+### Deployment Artifacts
+
+All deployment information is saved to the `deployments/<network-name>/` directory:
+
+- `SapToken.json`: Contains SAP Token deployment details
+- `SapienStaking.json`: Contains Staking contract deployment details  
+- `SapienRewards.json`: Contains Rewards contract deployment details
+- `DeploymentSummary.json`: Contains complete deployment summary (when using deploy-all.js)
+
+### Verifying Deployment
+
+After deployment, you can verify the contracts on Basescan:
+
+    npx hardhat verify --network <network-name> <contract-address> <constructor-args>
+
+For example, to verify the SAP Token:
+
+    npx hardhat verify --network base-sepolia 0xYourTokenAddress "Sapien Token" "SAP" "1000000000000000000000000"
 
 ## Contract Interaction
 
@@ -164,12 +227,6 @@ function updateVestingSchedule(
 ```shell
 npx hardhat test
 REPORT_GAS=true npx hardhat test
-```
-
-### Deployment
-```shell
-npx hardhat node
-npx hardhat ignition deploy ./ignition/modules/Lock.ts
 ```
 
 ## License
