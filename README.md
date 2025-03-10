@@ -184,7 +184,25 @@ Each contract can be upgraded individually when needed. Make sure to thoroughly 
     # Upgrade the Rewards contract
     npx hardhat run scripts/upgrade-sapien-rewards.js --network <network-name>
 
-Note: Contract upgrades maintain all existing state and balances. The upgrade scripts include verification steps to ensure contract relationships remain intact after the upgrade. 
+Note: Contract upgrades maintain all existing state and balances. The upgrade scripts include verification steps to ensure contract relationships remain intact after the upgrade.
+
+#### Pause Contracts
+
+Contracts can be paused individually or all at once in case of emergency. The pause functionality will stop all state-changing operations while allowing read operations to continue.
+
+    # Pause the SAP Token
+    npx hardhat run scripts/pause-sap-token.js --network <network-name>
+
+    # Pause the Staking contract
+    npx hardhat run scripts/pause-sapien-staking.js --network <network-name>
+
+    # Pause the Rewards contract
+    npx hardhat run scripts/pause-sapien-rewards.js --network <network-name>
+
+    # Pause all contracts
+    npx hardhat run scripts/pause-all.js --network <network-name>
+
+Note: When using pause-all.js, contracts are paused in reverse dependency order (Rewards → Staking → Token) to ensure system safety. Only accounts with the appropriate permissions can pause contracts.
 
 ## Contract Interaction
 
