@@ -143,6 +143,49 @@ For example, to verify the SAP Token:
 
     npx hardhat verify --network base-sepolia 0xYourTokenAddress "Sapien Token" "SAP" "1000000000000000000000000"
 
+#### Initialize All Contracts
+
+To initialize all contracts in the correct order (SAP Token → Staking → Rewards):
+
+    # For local development
+    npx hardhat run scripts/initialize-all.js --network localhost
+
+    # For testnet (Base Sepolia)
+    npx hardhat run scripts/initialize-all.js --network base-sepolia
+
+    # For mainnet (Base)
+    npx hardhat run scripts/initialize-all.js --network base
+
+#### Initialize Individual Contracts
+
+You can also initialize contracts individually if needed:
+
+    # Initialize only the SAP Token
+    npx hardhat run scripts/initialize-sap-token.js --network <network-name>
+
+    # Initialize only the Staking contract
+    npx hardhat run scripts/initialize-sapien-staking.js --network <network-name>
+
+    # Initialize only the Rewards contract
+    npx hardhat run scripts/initialize-sapien-rewards.js --network <network-name>
+
+Note: Individual initializations should still be performed in order (Token → Staking → Rewards) to ensure proper contract interactions.
+
+#### Upgrade Contracts
+
+Each contract can be upgraded individually when needed. Make sure to thoroughly test upgrades on a testnet before deploying to mainnet.
+
+    # Upgrade the SAP Token
+    npx hardhat run scripts/upgrade-sap-token.js --network <network-name>
+
+    # Upgrade the Staking contract
+    npx hardhat run scripts/upgrade-sapien-staking.js --network <network-name>
+
+    # Upgrade the Rewards contract
+    npx hardhat run scripts/upgrade-sapien-rewards.js --network <network-name>
+
+Note: Contract upgrades maintain all existing state and balances. The upgrade scripts include verification steps to ensure contract relationships remain intact after the upgrade. 
+
 ## Contract Interaction
 
 ### Staking
@@ -231,4 +274,4 @@ REPORT_GAS=true npx hardhat test
 
 ## License
 
-MIT 
+MIT
