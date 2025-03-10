@@ -220,6 +220,12 @@ The Rewards contract can be configured and managed through several administrativ
     # Release tokens for a specific allocation type
     ALLOCATION_TYPE=0 npx hardhat run scripts/release-tokens.js --network <network-name>
 
+    # Propose a new rewards contract
+    NEW_REWARDS_CONTRACT=0x... npx hardhat run scripts/propose-rewards-contract.js --network <network-name>
+
+    # Accept the proposed rewards contract
+    npx hardhat run scripts/accept-rewards-contract.js --network <network-name>
+
 Note: Deposit and withdrawal amounts are specified in whole tokens (they will be automatically converted to the correct decimal places). The DEPOSIT_AMOUNT and WITHDRAW_AMOUNT environment variables must be set before running those scripts. Make sure the calling account has sufficient token balance for deposits and appropriate permissions for all operations.
 
 Note: ALLOCATION_TYPE corresponds to the following values:
@@ -231,6 +237,17 @@ Note: ALLOCATION_TYPE corresponds to the following values:
     5: STAKING_INCENTIVES
     6: LIQUIDITY_INCENTIVES
 The calling account must be either the Gnosis Safe or the authorized rewards contract. Ensure the cliff period has been reached and tokens are available for release.
+
+# Update a vesting schedule
+ALLOCATION_TYPE=0 \
+CLIFF_DAYS=365 \
+START_TIMESTAMP=1735689600 \
+DURATION_DAYS=1460 \
+AMOUNT=1000000 \
+SAFE_ADDRESS=0x... \
+npx hardhat run scripts/update-vesting-schedule.js --network <network-name>
+
+Note: When updating a vesting schedule, all parameters must be provided. CLIFF_DAYS and DURATION_DAYS are specified in days, AMOUNT is in whole tokens, and START_TIMESTAMP should be a Unix timestamp in seconds. The operation requires the calling account to be the Gnosis Safe. If tokens have already been released, certain parameters cannot be modified.
 
 ## Contract Interaction
 
