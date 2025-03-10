@@ -204,6 +204,34 @@ Contracts can be paused individually or all at once in case of emergency. The pa
 
 Note: When using pause-all.js, contracts are paused in reverse dependency order (Rewards → Staking → Token) to ensure system safety. Only accounts with the appropriate permissions can pause contracts.
 
+#### Manage Rewards Contract
+
+The Rewards contract can be configured and managed through several administrative functions. These operations require the calling account to have owner permissions.
+
+    # Set the reward token address
+    npx hardhat run scripts/set-reward-token.js --network <network-name>
+
+    # Deposit tokens to the rewards contract
+    DEPOSIT_AMOUNT=1000000 npx hardhat run scripts/deposit-rewards.js --network <network-name>
+
+    # Withdraw tokens from the rewards contract
+    WITHDRAW_AMOUNT=100000 npx hardhat run scripts/withdraw-rewards.js --network <network-name>
+
+    # Release tokens for a specific allocation type
+    ALLOCATION_TYPE=0 npx hardhat run scripts/release-tokens.js --network <network-name>
+
+Note: Deposit and withdrawal amounts are specified in whole tokens (they will be automatically converted to the correct decimal places). The DEPOSIT_AMOUNT and WITHDRAW_AMOUNT environment variables must be set before running those scripts. Make sure the calling account has sufficient token balance for deposits and appropriate permissions for all operations.
+
+Note: ALLOCATION_TYPE corresponds to the following values:
+    0: INVESTORS
+    1: TEAM
+    2: REWARDS
+    3: AIRDROP
+    4: COMMUNITY_TREASURY
+    5: STAKING_INCENTIVES
+    6: LIQUIDITY_INCENTIVES
+The calling account must be either the Gnosis Safe or the authorized rewards contract. Ensure the cliff period has been reached and tokens are available for release.
+
 ## Contract Interaction
 
 ### Staking
