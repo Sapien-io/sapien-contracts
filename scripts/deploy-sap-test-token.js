@@ -3,6 +3,7 @@ const hre = require("hardhat");
 const { ethers } = require("hardhat");
 const fs = require("fs");
 const path = require("path");
+const { upgrades } = require("hardhat");
 
 // Load configuration
 const loadConfig = () => {
@@ -15,7 +16,9 @@ const loadConfig = () => {
     return {
       tokenName: "Sapien Token",
       tokenSymbol: "SAP",
-      initialSupply: ethers.utils.parseEther("1000000") // 1 million tokens with 18 decimals
+      initialSupply: ethers.parseEther("1000000"),
+      gnosisSafeAddress: "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
+      totalSupply: ethers.parseEther("1000000")
     };
   }
 };
@@ -29,29 +32,33 @@ async function main() {
   // Get deployer account
   const [deployer] = await ethers.getSigners();
   console.log(`Deploying with account: ${deployer.address}`);
-  console.log(`Account balance: ${ethers.utils.formatEther(await deployer.getBalance())} ETH`);
+  console.log(`Account balance: ${ethers.formatEther(await ethers.provider.getBalance(deployer.address))} ETH`);
 
   // Deploy the token contract
-  const SapToken = await ethers.getContractFactory("SapToken");
   console.log("Deploying SAP Test Token...");
-  const sapToken = await SapToken.deploy(
-    config.tokenName,
-    config.tokenSymbol,
-    config.initialSupply
+  const SapTestToken = await ethers.getContractFactory("SapTestToken");
+  const sapTestToken = await upgrades.deployProxy(SapTestToken, 
+    [
+      config.gnosisSafeAddress,  // _gnosisSafeAddress
+      config.totalSupply         // _totalSupply
+    ],
+    { kind: 'uups' }
   );
+  await sapTestToken.waitForDeployment();
   
-  await sapToken.deployed();
-  console.log(`SAP Test Token deployed to: ${sapToken.address}`);
+  console.log(`SAP Test Token deployed to: ${sapTestToken.address}`);
 
   // Save deployment information
   const deployData = {
     network: hre.network.name,
-    tokenAddress: sapToken.address,
+    tokenAddress: sapTestToken.address,
     deploymentTime: new Date().toISOString(),
     deployer: deployer.address,
     tokenName: config.tokenName,
     tokenSymbol: config.tokenSymbol,
-    initialSupply: config.initialSupply.toString()
+    initialSupply: config.initialSupply.toString(),
+    gnosisSafeAddress: config.gnosisSafeAddress,
+    totalSupply: config.totalSupply.toString()
   };
 
   // Ensure deployment directory exists
@@ -70,7 +77,7 @@ async function main() {
   console.log("SAP Test Token deployment complete!");
 
   // Return the deployed contract for testing or for deploy-all.js
-  return sapToken;
+  return sapTestToken;
 }
 
 // Execute the script

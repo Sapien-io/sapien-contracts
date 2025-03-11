@@ -3,6 +3,7 @@ const hre = require("hardhat");
 const { ethers } = require("hardhat");
 const fs = require("fs");
 const path = require("path");
+require("dotenv").config();
 
 // Load configuration
 const loadConfig = () => {
@@ -45,10 +46,20 @@ async function main() {
   // Get configuration
   const config = loadConfig();
   
-  // Get deployer account
-  const [deployer] = await ethers.getSigners();
+  // Get deployer account with better error handling
+  const signers = await ethers.getSigners();
+  if (!signers || signers.length === 0) {
+    throw new Error("No signers found. Please check your Hardhat network configuration and make sure you have a wallet configured.");
+  }
+  
+  const [deployer] = signers;
+  if (!deployer) {
+    throw new Error("Deployer account not found. Please check your Hardhat configuration.");
+  }
+  
   console.log(`Deploying with account: ${deployer.address}`);
-  console.log(`Account balance: ${ethers.utils.formatEther(await deployer.getBalance())} ETH`);
+  const balance = await deployer.getBalance();
+  console.log(`Account balance: ${ethers.utils.formatEther(balance)} ETH`);
 
   // Get SAP Token address
   const sapTokenAddress = getSapTokenAddress(config, hre.network.name);
@@ -107,4 +118,6 @@ main()
   });
 
 // Export the main function for use in deploy-all.js
-module.exports = { deploy: main }; 
+module.exports = { deploy: main };
+
+console.log('Private key is present:', !!process.env.PRIVATE_KEY); 

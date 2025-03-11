@@ -1,14 +1,10 @@
 {
+  "network": "base-sepolia",
+  "deploymentTime": "2025-03-11T15:01:56.058Z",
+  "deployer": "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
   "tokenName": "Sapien Token",
   "tokenSymbol": "SAP",
   "initialSupply": "1000000000000000000000000000",
-  "minStakeAmount": "100000000000000000000",
-  "lockPeriod": 604800,
-  "earlyWithdrawalPenalty": 1000,
-  "rewardRate": 100,
-  "rewardInterval": 2592000,
-  "bonusThreshold": "1000000000000000000000",
-  "bonusRate": 50,
   "gnosisSafeAddress": "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
   "totalSupply": "1000000000000000000000000000"
-} 
+}

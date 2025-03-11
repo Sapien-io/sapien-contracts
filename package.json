@@ -17,18 +17,19 @@
   },
   "homepage": "https://github.com/Sapien-io/sapien-contracts#readme",
   "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
     "@nomicfoundation/hardhat-ethers": "^3.0.8",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@openzeppelin/hardhat-upgrades": "^3.9.0",
+    "chai": "^4.3.0",
     "ethers": "^6.13.5",
     "hardhat": "^2.22.19",
     "solhint": "^5.0.3",
-    "typescript": "^5",
-    "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
-    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
-    "chai": "^4.3.0"
+    "typescript": "^5"
   },
   "dependencies": {
+    "@ethereum-waffle/provider": "^4.0.0",
     "@gnosis.pm/safe-ethers-lib": "^1.7.0",
     "@openzeppelin/contracts": "^5.0.2",
     "@openzeppelin/contracts-upgradeable": "^5.0.2",
@@ -37,9 +38,8 @@
     "@safe-global/safe-core-sdk-types": "^5.1.0",
     "alchemy-sdk": "^3.4.1",
     "axios": "^1.7.7",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.4.7",
     "ethers": "^6.0.0",
-    "@ethereum-waffle/provider": "^4.0.0",
     "hardhat-deploy": "^0.12.4",
     "solc": "^0.8.24",
     "truffle": "^5.11.5"

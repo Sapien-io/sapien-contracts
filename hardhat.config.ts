@@ -2,6 +2,15 @@ import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-ethers";
 import "@openzeppelin/hardhat-upgrades";
 import "@nomicfoundation/hardhat-toolbox";
+import * as dotenv from "dotenv";
+
+dotenv.config();
+
+// Ensure private key is available
+const PRIVATE_KEY = process.env.PRIVATE_KEY;
+if (!PRIVATE_KEY) {
+  throw new Error("Private key not found in .env file");
+}
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -34,7 +43,7 @@ const config: HardhatUserConfig = {
     },
     "base-sepolia": {
       url: "https://sepolia.base.org",
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      accounts: [PRIVATE_KEY],
     },
   },
 };
