@@ -1,6 +1,6 @@
 // Script to deploy the Sapien Staking contract
 const hre = require("hardhat");
-const { ethers } = require("hardhat");
+const { ethers, upgrades } = require("hardhat");
 const fs = require("fs");
 const path = require("path");
 require("dotenv").config();
@@ -46,67 +46,84 @@ async function main() {
   // Get configuration
   const config = loadConfig();
   
-  // Get deployer account with better error handling
-  const signers = await ethers.getSigners();
-  if (!signers || signers.length === 0) {
-    throw new Error("No signers found. Please check your Hardhat network configuration and make sure you have a wallet configured.");
-  }
-  
-  const [deployer] = signers;
+  const [deployer] = await ethers.getSigners();
   if (!deployer) {
     throw new Error("Deployer account not found. Please check your Hardhat configuration.");
   }
   
   console.log(`Deploying with account: ${deployer.address}`);
-  const balance = await deployer.getBalance();
-  console.log(`Account balance: ${ethers.utils.formatEther(balance)} ETH`);
+  const balance = await ethers.provider.getBalance(deployer.address);
+  console.log(`Account balance: ${ethers.formatEther(balance)} ETH`);
 
   // Get SAP Token address
   const sapTokenAddress = getSapTokenAddress(config, hre.network.name);
   console.log(`Using SAP Token at address: ${sapTokenAddress}`);
 
-  // Deploy the staking contract
-  const SapienStaking = await ethers.getContractFactory("SapienStaking");
-  console.log("Deploying Sapien Staking contract...");
-  const stakingContract = await SapienStaking.deploy(
-    sapTokenAddress,
-    config.minStakeAmount,
-    config.lockPeriod,
-    config.earlyWithdrawalPenalty
-  );
-  
-  await stakingContract.deployed();
-  console.log(`Sapien Staking contract deployed to: ${stakingContract.address}`);
+  try {
+    // Deploy the implementation and proxy using OpenZeppelin's upgrades plugin
+    const SapienStaking = await ethers.getContractFactory("SapienStaking");
+    console.log("Deploying proxy and implementation...");
+    
+    const stakingContract = await upgrades.deployProxy(
+      SapienStaking,
+      [sapTokenAddress, deployer.address],
+      {
+        initializer: 'initialize',
+        kind: 'uups'
+      }
+    );
 
-  // Save deployment information
-  const deployData = {
-    network: hre.network.name,
-    stakingAddress: stakingContract.address,
-    deploymentTime: new Date().toISOString(),
-    deployer: deployer.address,
-    sapTokenAddress: sapTokenAddress,
-    minStakeAmount: config.minStakeAmount.toString(),
-    lockPeriod: config.lockPeriod.toString(),
-    earlyWithdrawalPenalty: config.earlyWithdrawalPenalty.toString()
-  };
+    await stakingContract.waitForDeployment();
+    const proxyAddress = await stakingContract.getAddress();
+    console.log(`Proxy deployed to: ${proxyAddress}`);
 
-  // Ensure deployment directory exists
-  const deployDir = path.join(__dirname, "../deployments", hre.network.name);
-  if (!fs.existsSync(deployDir)) {
-    fs.mkdirSync(deployDir, { recursive: true });
+    // Get the implementation address
+    const implementationAddress = await upgrades.erc1967.getImplementationAddress(proxyAddress);
+    console.log(`Implementation deployed to: ${implementationAddress}`);
+
+    // Save deployment information
+    const deployData = {
+      network: hre.network.name,
+      implementationAddress: implementationAddress,
+      proxyAddress: proxyAddress,
+      deploymentTime: new Date().toISOString(),
+      deployer: deployer.address,
+      sapTokenAddress: sapTokenAddress
+    };
+
+    // Ensure deployment directory exists
+    const deployDir = path.join(__dirname, "../deployments", hre.network.name);
+    if (!fs.existsSync(deployDir)) {
+      fs.mkdirSync(deployDir, { recursive: true });
+    }
+    
+    // Save deployment info to file
+    fs.writeFileSync(
+      path.join(deployDir, "SapienStaking.json"),
+      JSON.stringify(deployData, null, 2)
+    );
+
+    console.log("Deployment information saved to:", path.join(deployDir, "SapienStaking.json"));
+    console.log("Sapien Staking contract deployment complete!");
+
+    // Verify the initialization
+    try {
+      const owner = await stakingContract.owner();
+      console.log("Contract owner:", owner);
+    } catch (error) {
+      console.error("Error verifying contract initialization:", error);
+      throw error;
+    }
+
+    return stakingContract;
+
+  } catch (error) {
+    console.error("Deployment failed with error:", error);
+    if (error.error) {
+      console.error("Additional error details:", error.error);
+    }
+    throw error;
   }
-  
-  // Save deployment info to file
-  fs.writeFileSync(
-    path.join(deployDir, "SapienStaking.json"),
-    JSON.stringify(deployData, null, 2)
-  );
-
-  console.log("Deployment information saved to:", path.join(deployDir, "SapienStaking.json"));
-  console.log("Sapien Staking contract deployment complete!");
-
-  // Return the deployed contract for testing or for deploy-all.js
-  return stakingContract;
 }
 
 // Execute the script

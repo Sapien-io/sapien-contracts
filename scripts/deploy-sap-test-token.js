@@ -46,12 +46,15 @@ async function main() {
   );
   await sapTestToken.waitForDeployment();
   
-  console.log(`SAP Test Token deployed to: ${sapTestToken.address}`);
+  const deployedAddress = await sapTestToken.getAddress();
+  console.log("\n==============================================");
+  console.log(`SAP Test Token deployed to: ${deployedAddress}`);
+  console.log("==============================================\n");
 
   // Save deployment information
   const deployData = {
     network: hre.network.name,
-    tokenAddress: sapTestToken.address,
+    tokenAddress: deployedAddress,
     deploymentTime: new Date().toISOString(),
     deployer: deployer.address,
     tokenName: config.tokenName,

@@ -10,5 +10,6 @@
   "bonusThreshold": "1000000000000000000000",
   "bonusRate": 50,
   "gnosisSafeAddress": "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
-  "totalSupply": "1000000000000000000000000000"
-} 
+  "totalSupply": "1000000000000000000000000000",
+  "sapTokenAddress": "0xcaBC43623170120ebA1b2cc0c6a01A8A54bE4Cdc"
+}

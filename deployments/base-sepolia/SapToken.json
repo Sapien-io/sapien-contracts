@@ -1,6 +1,7 @@
 {
   "network": "base-sepolia",
-  "deploymentTime": "2025-03-11T15:01:56.058Z",
+  "tokenAddress": "0xcaBC43623170120ebA1b2cc0c6a01A8A54bE4Cdc",
+  "deploymentTime": "2025-03-11T15:36:57.731Z",
   "deployer": "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
   "tokenName": "Sapien Token",
   "tokenSymbol": "SAP",
