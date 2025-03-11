@@ -1,8 +1,8 @@
 {
   "network": "base-sepolia",
   "implementationAddress": "0x73AB52c2cbb8Be5b742C801c3FAAef0ce5c631CC",
-  "proxyAddress": "0xb46BfBFa75b33Fe974AB785a4Fdd1159834C7cf2",
-  "deploymentTime": "2025-03-11T15:46:57.354Z",
+  "proxyAddress": "0x7e6b2140417C5b95E8D3532E065741A6EAC9DFbB",
+  "deploymentTime": "2025-03-11T17:38:24.625Z",
   "deployer": "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
   "sapTokenAddress": "0xcaBC43623170120ebA1b2cc0c6a01A8A54bE4Cdc"
 }

@@ -1,6 +1,6 @@
 // Script to deploy the Sapien Rewards contract
 const hre = require("hardhat");
-const { ethers } = require("hardhat");
+const { ethers, upgrades } = require("hardhat");
 const fs = require("fs");
 const path = require("path");
 
@@ -73,40 +73,36 @@ async function main() {
   // Get deployer account
   const [deployer] = await ethers.getSigners();
   console.log(`Deploying with account: ${deployer.address}`);
-  console.log(`Account balance: ${ethers.utils.formatEther(await deployer.getBalance())} ETH`);
-
-  // Get deployed addresses
-  const addresses = getDeployedAddresses(config, hre.network.name);
-  console.log(`Using SAP Token at address: ${addresses.sapTokenAddress}`);
-  console.log(`Using Staking contract at address: ${addresses.stakingContractAddress}`);
+  
+  // Get deployer balance (fixed)
+  const balance = await ethers.provider.getBalance(deployer.address);
+  console.log(`Account balance: ${ethers.formatEther(balance)} ETH`);
 
   // Deploy the rewards contract
   const SapienRewards = await ethers.getContractFactory("SapienRewards");
   console.log("Deploying Sapien Rewards contract...");
-  const rewardsContract = await SapienRewards.deploy(
-    addresses.sapTokenAddress,
-    addresses.stakingContractAddress,
-    config.rewardRate,
-    config.rewardInterval,
-    config.bonusThreshold,
-    config.bonusRate
+  
+  // Deploy the implementation contract
+  const rewardsContract = await upgrades.deployProxy(
+    SapienRewards,
+    [deployer.address], // Pass the authorized signer address (using deployer for now)
+    {
+      initializer: 'initialize',
+      kind: 'uups',
+    }
   );
   
-  await rewardsContract.deployed();
-  console.log(`Sapien Rewards contract deployed to: ${rewardsContract.address}`);
+  await rewardsContract.waitForDeployment();
+  const rewardsAddress = await rewardsContract.getAddress();
+  console.log(`Sapien Rewards contract deployed to: ${rewardsAddress}`);
 
   // Save deployment information
   const deployData = {
     network: hre.network.name,
-    rewardsAddress: rewardsContract.address,
+    rewardsAddress: rewardsAddress,
     deploymentTime: new Date().toISOString(),
     deployer: deployer.address,
-    sapTokenAddress: addresses.sapTokenAddress,
-    stakingContractAddress: addresses.stakingContractAddress,
-    rewardRate: config.rewardRate.toString(),
-    rewardInterval: config.rewardInterval.toString(),
-    bonusThreshold: config.bonusThreshold.toString(),
-    bonusRate: config.bonusRate.toString()
+    authorizedSigner: deployer.address // Save the authorized signer address
   };
 
   // Ensure deployment directory exists
@@ -122,24 +118,8 @@ async function main() {
   );
 
   console.log("Deployment information saved to:", path.join(deployDir, "SapienRewards.json"));
-  
-  // Set up the rewards contract as a distributor in the staking contract
-  console.log("Setting up rewards contract as distributor in staking contract...");
-  try {
-    const SapienStaking = await ethers.getContractFactory("SapienStaking");
-    const stakingContract = await SapienStaking.attach(addresses.stakingContractAddress);
-    
-    const tx = await stakingContract.addDistributor(rewardsContract.address);
-    await tx.wait();
-    console.log("Rewards contract successfully set as distributor");
-  } catch (error) {
-    console.error("Error setting rewards contract as distributor:", error.message);
-    console.log("You may need to manually set the rewards contract as distributor.");
-  }
-
   console.log("Sapien Rewards contract deployment complete!");
 
-  // Return the deployed contract for testing or for deploy-all.js
   return rewardsContract;
 }
 
