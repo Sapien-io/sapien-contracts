@@ -58,6 +58,9 @@ contract SapTestToken is
     /// @notice Emitted when a vesting schedule is updated
     event VestingScheduleUpdated(AllocationType indexed allocationType, uint256 amount);
 
+    /// @notice Emitted when a vesting schedule's safe address is updated
+    event VestingSafeUpdated(AllocationType indexed allocationType, address indexed oldSafe, address indexed newSafe);
+
     /// @notice Emitted when a new rewards contract is proposed
     event RewardsContractChangeProposed(address indexed newRewardsContract);
 
@@ -363,5 +366,30 @@ contract SapTestToken is
      */
     function unpause() external onlySafe {
         _unpause();
+    }
+
+    /**
+     * @notice Updates only the safe address for a specific allocation type
+     * @param allocationType The type of allocation to update
+     * @param newSafe The new safe address to receive vested tokens
+     */
+    function updateVestingSafe(
+        AllocationType allocationType,
+        address newSafe
+    ) external onlySafe {
+        require(vestingSchedules[allocationType].amount > 0, "Invalid allocation type");
+        require(newSafe != address(0), "Invalid safe address");
+        
+        VestingSchedule storage schedule = vestingSchedules[allocationType];
+        
+        // Only apply restriction if tokens have been released
+        if (schedule.released > 0) {
+            require(newSafe == schedule.safe, "Cannot change safe address after tokens released");
+        }
+        
+        address oldSafe = schedule.safe;
+        schedule.safe = newSafe;
+        
+        emit VestingSafeUpdated(allocationType, oldSafe, newSafe);
     }
 }

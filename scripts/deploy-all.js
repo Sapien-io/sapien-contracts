@@ -4,16 +4,10 @@ const { ethers } = require("hardhat");
 const fs = require("fs");
 const path = require("path");
 
-// Import individual deployment scripts
-const { deploy: deploySapToken } = require("./deploy-sap-test-token");
-const { deploy: deploySapienStaking } = require("./deploy-sapien-staking");
-const { deploy: deploySapienRewards } = require("./deploy-sapien-rewards");
-
-// Function to wait for confirmations to ensure contract deployments are confirmed
-const waitForConfirmations = async (tx, confirmations = 1) => {
-  console.log(`Waiting for ${confirmations} confirmations...`);
-  await tx.wait(confirmations);
-};
+// Import individual deployment scripts - note these should return Promises
+const deploySapToken = require("./deploy-sap-test-token");
+const deploySapienStaking = require("./deploy-sapien-staking");
+const deploySapienRewards = require("./deploy-sapien-rewards");
 
 // Function to ensure the deployments directory exists
 const ensureDeploymentDirExists = () => {
@@ -31,7 +25,7 @@ async function main() {
   // Get deployer account
   const [deployer] = await ethers.getSigners();
   console.log(`Deploying with account: ${deployer.address}`);
-  console.log(`Account balance: ${ethers.utils.formatEther(await deployer.getBalance())} ETH`);
+  console.log(`Account balance: ${ethers.formatEther(await deployer.provider.getBalance(deployer.address))} ETH`);
   
   // Ensure deployments directory exists
   const deployDir = ensureDeploymentDirExists();
@@ -47,7 +41,53 @@ async function main() {
   try {
     // 1. Deploy SAP Test Token
     console.log("\n===== Step 1: Deploy SAP Test Token =====");
-    const sapToken = await deploySapToken();
+    // Get the tx receipt and wait for it to be mined
+    console.log("Deploying SAP Token...");
+    const sapToken = await deploySapToken.deploy();
+    
+    // Verify token deployment was successful by checking the contract code
+    const tokenCode = await ethers.provider.getCode(sapToken.address);
+    if (tokenCode === '0x' || tokenCode === '0x0') {
+      throw new Error("SAP Token deployment failed - no contract code at address");
+    }
+    console.log(`SAP Token deployed at ${sapToken.address} - verified contract exists on chain`);
+    console.log("SAP Token deployment complete");
+    
+    // Wait for blockchain to stabilize before next deployment
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
+    // 2. Deploy Sapien Staking
+    console.log("\n===== Step 2: Deploy Sapien Staking =====");
+    console.log("Deploying Staking Contract...");
+    const stakingContract = await deploySapienStaking.deployAndSetup();
+    
+    // Verify staking deployment was successful
+    const stakingCode = await ethers.provider.getCode(stakingContract.address);
+    if (stakingCode === '0x' || stakingCode === '0x0') {
+      throw new Error("Staking contract deployment failed - no contract code at address");
+    }
+    console.log(`Staking Contract deployed at ${stakingContract.address} - verified contract exists on chain`);
+    console.log("Staking Contract deployment complete");
+    
+    // Wait for blockchain to stabilize before next deployment
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    // 3. Deploy Sapien Rewards
+    console.log("\n===== Step 3: Deploy Sapien Rewards =====");
+    console.log("Deploying Rewards Contract...");
+    const rewardsContract = await deploySapienRewards.deployAndSetup();
+    
+    // Verify rewards deployment was successful
+    const rewardsCode = await ethers.provider.getCode(rewardsContract.address);
+    if (rewardsCode === '0x' || rewardsCode === '0x0') {
+      throw new Error("Rewards contract deployment failed - no contract code at address");
+    }
+    console.log(`Rewards Contract deployed at ${rewardsContract.address} - verified contract exists on chain`);
+    console.log("Rewards Contract deployment complete");
+    
+    // Wait for blockchain to stabilize before continuing
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
     deploymentSummary.contracts.sapToken = {
       address: sapToken.address,
       name: await sapToken.name(),
@@ -55,23 +95,8 @@ async function main() {
       totalSupply: (await sapToken.totalSupply()).toString()
     };
     
-    // 2. Deploy Sapien Staking
-    console.log("\n===== Step 2: Deploy Sapien Staking =====");
-    const stakingContract = await deploySapienStaking();
-    deploymentSummary.contracts.staking = {
-      address: stakingContract.address,
-      minStakeAmount: (await stakingContract.minStakeAmount()).toString(),
-      lockPeriod: (await stakingContract.lockPeriod()).toString()
-    };
-    
-    // 3. Deploy Sapien Rewards
-    console.log("\n===== Step 3: Deploy Sapien Rewards =====");
-    const rewardsContract = await deploySapienRewards();
-    deploymentSummary.contracts.rewards = {
-      address: rewardsContract.address,
-      rewardRate: (await rewardsContract.rewardRate()).toString(),
-      rewardInterval: (await rewardsContract.rewardInterval()).toString()
-    };
+    // Small delay to ensure file system sync
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
     // 4. Transfer ownership of contracts if needed (example)
     console.log("\n===== Step 4: Configure Contract Relationships =====");
@@ -82,7 +107,7 @@ async function main() {
       const initialRewardFund = ethers.utils.parseEther("10000");  // 10,000 tokens
       const transferTx = await sapToken.transfer(rewardsContract.address, initialRewardFund);
       await transferTx.wait();
-      console.log(`Transferred ${ethers.utils.formatEther(initialRewardFund)} SAP tokens to rewards contract`);
+      console.log(`Transferred ${ethers.formatEther(initialRewardFund)} SAP tokens to rewards contract`);
       
       deploymentSummary.initialFunding = {
         amount: initialRewardFund.toString(),

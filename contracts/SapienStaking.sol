@@ -55,6 +55,7 @@ contract SapienStaking is
      * @param startTime The timestamp when the stake started.
      * @param multiplier The multiplier applicable to the stake.
      * @param cooldownStart The timestamp when the user initiated unstaking.
+     * @param cooldownAmount The amount approved for unstaking during cooldown.
      * @param isActive Indicates if this stake is currently active.
      */
     struct StakingInfo {
@@ -63,6 +64,7 @@ contract SapienStaking is
         uint256 startTime;
         uint256 multiplier;
         uint256 cooldownStart;
+        uint256 cooldownAmount;
         bool isActive;
     }
 
@@ -75,11 +77,11 @@ contract SapienStaking is
     /// @notice The base stake required for minimum multiplier calculations (e.g., 1000 * 10^18).
     uint256 public constant BASE_STAKE = 1000 * TOKEN_DECIMALS;
 
-    // Maximum multipliers for specific lock-up periods
-    uint256 public constant ONE_MONTH_MAX_MULTIPLIER = 105;      // For 30 days
-    uint256 public constant THREE_MONTHS_MAX_MULTIPLIER = 110;   // For 90 days
-    uint256 public constant SIX_MONTHS_MAX_MULTIPLIER = 125;     // For 180 days
-    uint256 public constant TWELVE_MONTHS_MAX_MULTIPLIER = 150;  // For 365 days
+    // Maximum multipliers for specific lock-up periods (now with 2 decimal precision)
+    uint256 public constant ONE_MONTH_MAX_MULTIPLIER = 10500;      // For 30 days (105.00%)
+    uint256 public constant THREE_MONTHS_MAX_MULTIPLIER = 11000;   // For 90 days (110.00%)
+    uint256 public constant SIX_MONTHS_MAX_MULTIPLIER = 12500;     // For 180 days (125.00%)
+    uint256 public constant TWELVE_MONTHS_MAX_MULTIPLIER = 15000;  // For 365 days (150.00%)
 
     /// @notice The cooldown period before a user can finalize their unstake.
     uint256 public constant COOLDOWN_PERIOD = 2 days;
@@ -279,6 +281,7 @@ contract SapienStaking is
             startTime: block.timestamp,
             multiplier: multiplier,
             cooldownStart: 0,
+            cooldownAmount: 0,
             isActive: true
         });
 
@@ -326,6 +329,7 @@ contract SapienStaking is
         );
 
         info.cooldownStart = block.timestamp;
+        info.cooldownAmount = amount; // Store the amount approved for unstaking
         _markOrderAsUsed(newOrderId);
 
         emit UnstakingInitiated(msg.sender, amount, newOrderId);
@@ -355,6 +359,7 @@ contract SapienStaking is
         require(info.cooldownStart > 0, "Cooldown not initiated");
         require(!usedOrders[newOrderId], "Order already used");
         require(amount <= info.amount, "Amount exceeds staked amount");
+        require(amount <= info.cooldownAmount, "Amount exceeds approved unstake amount");
         require(
             verifyOrder(msg.sender, amount, newOrderId, ActionType.UNSTAKE, signature),
             "Invalid signature or mismatched parameters"
@@ -376,6 +381,7 @@ contract SapienStaking is
             "Token transfer failed"
         );
         info.amount -= amount;
+        info.cooldownAmount -= amount; // Reduce the approved cooldown amount
         info.isActive = info.amount > 0;
         totalStaked -= amount;
         _markOrderAsUsed(newOrderId);
@@ -446,7 +452,8 @@ contract SapienStaking is
     /**
      * @notice Calculates the multiplier for a given `amount` based on the `maxMultiplier`.
      * @dev If `amount` >= BASE_STAKE, the multiplier is `maxMultiplier`.
-     *      Otherwise, it linearly scales from 100 up to `maxMultiplier`.
+     *      Otherwise, it linearly scales from 10000 (100.00%) up to `maxMultiplier`.
+     *      Multipliers use 2 decimal places of precision (e.g., 14950 = 149.50%)
      * @param amount The amount staked.
      * @param maxMultiplier The maximum possible multiplier for the given lock-up period.
      * @return The calculated multiplier (clamped at `maxMultiplier` if needed).
@@ -457,7 +464,7 @@ contract SapienStaking is
         returns (uint256)
     {
         // Base multiplier (100%) when no bonus is applied
-        uint256 baseMultiplier = 100;
+        uint256 baseMultiplier = 10000;
         
         // Create tiers for more granular multiplier calculation
         // Each tier represents 25% of BASE_STAKE
