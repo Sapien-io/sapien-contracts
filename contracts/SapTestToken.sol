@@ -382,10 +382,8 @@ contract SapTestToken is
         
         VestingSchedule storage schedule = vestingSchedules[allocationType];
         
-        // Only apply restriction if tokens have been released
-        if (schedule.released > 0) {
-            require(newSafe == schedule.safe, "Cannot change safe address after tokens released");
-        }
+        // Prevent any safe address changes if tokens have been released
+        require(schedule.released == 0, "Cannot change safe address after tokens released");
         
         address oldSafe = schedule.safe;
         schedule.safe = newSafe;

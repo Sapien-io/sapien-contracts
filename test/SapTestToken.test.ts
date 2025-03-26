@@ -195,6 +195,27 @@ describe("SapTestToken", function () {
         )
       ).to.be.revertedWith("Invalid safe address");
     });
+
+    it("Should fail to update vesting safe after tokens are released, even with the same address", async function () {
+      // Set rewards contract
+      await sapTestToken.connect(gnosisSafe).proposeRewardsContract(
+        await rewardsContract.getAddress()
+      );
+      await sapTestToken.connect(gnosisSafe).acceptRewardsContract();
+      
+      // Fast forward past cliff period and release tokens
+      await time.increase(400 * 24 * 60 * 60);
+      await sapTestToken.connect(rewardsContract).releaseTokens(0); // INVESTORS
+      
+      // Try to update with the same safe address
+      const currentSafe = (await sapTestToken.vestingSchedules(0)).safe;
+      await expect(
+        sapTestToken.connect(gnosisSafe).updateVestingSafe(
+          0, // INVESTORS
+          currentSafe
+        )
+      ).to.be.revertedWith("Cannot change safe address after tokens released");
+    });
   });
 
   describe("Vesting Restrictions After Release", function () {
