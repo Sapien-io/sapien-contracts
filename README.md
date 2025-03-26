@@ -96,31 +96,16 @@ If not provided, the deployment scripts will use sensible defaults.
 
 ### Running Deployment Scripts
 
-#### Deploy All Contracts
-
-To deploy all contracts in the correct order (SAP Token → Staking → Rewards):
-
-    # For local development
-    npx hardhat run scripts/deploy-all.js --network localhost
-
-    # For testnet (Base Sepolia)
-    npx hardhat run scripts/deploy-all.js --network base-sepolia
-
-    # For mainnet (Base)
-    npx hardhat run scripts/deploy-all.js --network base
-
-#### Deploy Individual Contracts
-
 You can also deploy contracts individually if needed:
 
     # Deploy only the SAP Token
-    npx hardhat run scripts/deploy-sap-test-token.js --network <network-name>
+    npx hardhat run scripts/deploy-sap-test-token.js --network base-sepolia
 
     # Deploy only the Staking contract
-    npx hardhat run scripts/deploy-sapien-staking.js --network <network-name>
+    npx hardhat run scripts/deploy-sapien-staking.js --network base-sepolia
 
     # Deploy only the Rewards contract
-    npx hardhat run scripts/deploy-sapien-rewards.js --network <network-name>
+    npx hardhat run scripts/deploy-sapien-rewards.js --network base-sepolia
 
 Note: Individual deployments require previous contracts to be deployed first (e.g., deploying the Staking contract requires the SAP Token to be deployed first).
 
@@ -143,18 +128,6 @@ For example, to verify the SAP Token:
 
     npx hardhat verify --network base-sepolia 0xYourTokenAddress "Sapien Token" "SAP" "1000000000000000000000000"
 
-#### Initialize All Contracts
-
-To initialize all contracts in the correct order (SAP Token → Staking → Rewards):
-
-    # For local development
-    npx hardhat run scripts/initialize-all.js --network localhost
-
-    # For testnet (Base Sepolia)
-    npx hardhat run scripts/initialize-all.js --network base-sepolia
-
-    # For mainnet (Base)
-    npx hardhat run scripts/initialize-all.js --network base
 
 #### Initialize Individual Contracts
 

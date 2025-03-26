@@ -1,0 +1,7 @@
+{
+  "network": "base-sepolia",
+  "rewardsAddress": "0x0C0cbD916BA6C585a43cbf43AA80F508aa9754aD",
+  "deploymentTime": "2025-03-21T17:26:44.778Z",
+  "deployer": "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
+  "authorizedSigner": "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f"
+}

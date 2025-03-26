@@ -1,0 +1,11 @@
+{
+  "network": "base-sepolia",
+  "tokenAddress": "0x369524a215b99E835221Ea0E81b7f4A0acD89EB3",
+  "deploymentTime": "2025-03-21T17:24:41.698Z",
+  "deployer": "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
+  "tokenName": "Sapien Token",
+  "tokenSymbol": "SAP",
+  "initialSupply": "1000000000000000000000000000",
+  "gnosisSafeAddress": "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
+  "totalSupply": "1000000000000000000000000000"
+}

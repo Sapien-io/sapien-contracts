@@ -12,6 +12,18 @@ if (!PRIVATE_KEY) {
   throw new Error("Private key not found in .env file");
 }
 
+// Add Alchemy API key check
+const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY;
+if (!ALCHEMY_API_KEY) {
+  console.warn("Warning: Alchemy API key not found in .env file");
+}
+
+// Add Etherscan API key check
+const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY;
+if (!ETHERSCAN_API_KEY) {
+  console.warn("Warning: Etherscan API key not found in .env file");
+}
+
 const config: HardhatUserConfig = {
   solidity: {
     compilers: [
@@ -42,10 +54,17 @@ const config: HardhatUserConfig = {
       blockGasLimit: 12000000,
     },
     "base-sepolia": {
-      url: "https://sepolia.base.org",
+      url: ALCHEMY_API_KEY 
+        ? `https://base-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`
+        : "https://sepolia.base.org",
       accounts: [PRIVATE_KEY],
     },
   },
+  etherscan: {
+    apiKey: {
+      baseSepolia: ETHERSCAN_API_KEY || ''
+    }
+  }
 };
 
 export default config;

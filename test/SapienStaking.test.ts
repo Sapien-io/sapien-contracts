@@ -94,7 +94,7 @@ describe("SapienStaking", function () {
         ethers.id(orderId),
         signature
       )).to.emit(sapienStaking, "Staked")
-        .withArgs(await user.getAddress(), amount, BigInt(105), lockUpPeriod, ethers.id(orderId));
+        .withArgs(await user.getAddress(), amount, BigInt(10500), lockUpPeriod, ethers.id(orderId));
 
       const stakerInfo = await sapienStaking.stakers(await user.getAddress(), ethers.id(orderId));
       expect(stakerInfo.amount).to.equal(amount);
@@ -115,7 +115,7 @@ describe("SapienStaking", function () {
       );
       
       const stakingInfo = await sapienStaking.stakers(await user.getAddress(), ethers.id(orderId));
-      expect(stakingInfo.multiplier).to.equal(102);
+      expect(stakingInfo.multiplier).to.equal(10250);
     });
   });
 
@@ -128,6 +128,12 @@ describe("SapienStaking", function () {
     beforeEach(async function () {
       stakedAmount = BASE_STAKE;
       const lockUpPeriod = BigInt(30) * ONE_DAY;
+      
+      // Fund the staking contract with additional tokens to cover multiplier bonuses
+      // For 30-day stake, multiplier is 10500 (105%), so we need at least 5% extra tokens
+      const bonusTokens = (stakedAmount * BigInt(500)) / BigInt(10000); // 5% of stake
+      await sapienToken.mint(await sapienStaking.getAddress(), bonusTokens);
+      
       const signature = await signStakeMessage(await user.getAddress(), stakedAmount, stakeOrderId, 0);
       await sapienStaking.connect(user).stake(
         stakedAmount, 
@@ -191,6 +197,94 @@ describe("SapienStaking", function () {
           unstakeSignature
         )
       ).to.emit(sapienStaking, "Unstaked");
+    });
+
+    it("Should allow partial unstaking and reset cooldown state", async function () {
+      // Initial stake
+      const stakeAmount = BASE_STAKE;
+      const lockUpPeriod = BigInt(30) * ONE_DAY;
+      const stakeOrderId = "partial_stake";
+      const initiatePartialUnstakeOrderId = "partial_unstake_init";
+      const partialUnstakeOrderId = "partial_unstake_complete";
+      
+      // Get the current totalStaked value before we start
+      const initialTotalStaked = await sapienStaking.totalStaked();
+      
+      // Create and apply the stake
+      const stakeSignature = await signStakeMessage(await user.getAddress(), stakeAmount, stakeOrderId, 0);
+      await sapienStaking.connect(user).stake(
+        stakeAmount, 
+        lockUpPeriod, 
+        ethers.id(stakeOrderId),
+        stakeSignature
+      );
+      
+      // Verify the stake is active
+      const initialStakeInfo = await sapienStaking.stakers(await user.getAddress(), ethers.id(stakeOrderId));
+      expect(initialStakeInfo.isActive).to.be.true;
+      expect(initialStakeInfo.amount).to.equal(stakeAmount);
+      
+      // Complete the lock-up period
+      await time.increase(lockUpPeriod);
+      
+      // Calculate partial unstake amount (50% of original stake)
+      const partialAmount = stakeAmount / BigInt(2);
+      
+      // Initiate partial unstake
+      const initiateSignature = await signStakeMessage(
+        await user.getAddress(), 
+        partialAmount,
+        initiatePartialUnstakeOrderId,
+        1
+      );
+      await sapienStaking.connect(user).initiateUnstake(
+        partialAmount,
+        ethers.id(initiatePartialUnstakeOrderId),
+        ethers.id(stakeOrderId),
+        initiateSignature
+      );
+      
+      // Verify cooldown started with correct amount
+      const cooldownStakeInfo = await sapienStaking.stakers(await user.getAddress(), ethers.id(stakeOrderId));
+      expect(cooldownStakeInfo.cooldownStart).to.be.greaterThan(0);
+      expect(cooldownStakeInfo.cooldownAmount).to.equal(partialAmount);
+      
+      // Complete cooldown period
+      await time.increase(COOLDOWN_PERIOD);
+      
+      // Get user's token balance before unstaking
+      const balanceBefore = await sapienToken.balanceOf(await user.getAddress());
+      
+      // Complete the partial unstake
+      const unstakeSignature = await signStakeMessage(
+        await user.getAddress(), 
+        partialAmount,
+        partialUnstakeOrderId,
+        2
+      );
+      await sapienStaking.connect(user).unstake(
+        partialAmount,
+        ethers.id(partialUnstakeOrderId),
+        ethers.id(stakeOrderId),
+        unstakeSignature
+      );
+      
+      // Verify position is still active but with reduced amount
+      const finalStakeInfo = await sapienStaking.stakers(await user.getAddress(), ethers.id(stakeOrderId));
+      expect(finalStakeInfo.isActive).to.be.true;
+      expect(finalStakeInfo.amount).to.equal(stakeAmount - partialAmount);
+      
+      // Verify cooldown state was reset
+      expect(finalStakeInfo.cooldownStart).to.equal(0);
+      expect(finalStakeInfo.cooldownAmount).to.equal(0);
+      
+      // Verify user received tokens with multiplier applied
+      const expectedTransferAmount = (partialAmount * cooldownStakeInfo.multiplier) / BigInt(10000);
+      const balanceAfter = await sapienToken.balanceOf(await user.getAddress());
+      expect(balanceAfter - balanceBefore).to.equal(expectedTransferAmount);
+      
+      // Verify contract's total staked amount was reduced correctly
+      expect(await sapienStaking.totalStaked()).to.equal(initialTotalStaked + stakeAmount - partialAmount);
     });
   });
 

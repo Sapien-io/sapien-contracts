@@ -375,18 +375,28 @@ contract SapienStaking is
             "Lock period not completed"
         );
 
+        // Calculate the actual amount to transfer using the multiplier
+        uint256 transferAmount = (amount * info.multiplier) / 10000;
+        
         // Transfer tokens and update state
         require(
-            _sapienToken.transfer(msg.sender, amount),
+            _sapienToken.transfer(msg.sender, transferAmount),
             "Token transfer failed"
         );
         info.amount -= amount;
         info.cooldownAmount -= amount; // Reduce the approved cooldown amount
+        
+        // If this is a partial unstake, reset cooldown to allow future unstaking
+        if (info.amount > 0) {
+            info.cooldownStart = 0;
+            info.cooldownAmount = 0;
+        }
+        
         info.isActive = info.amount > 0;
         totalStaked -= amount;
         _markOrderAsUsed(newOrderId);
 
-        emit Unstaked(msg.sender, amount, newOrderId);
+        emit Unstaked(msg.sender, transferAmount, newOrderId);
     }
 
     /**
