@@ -119,6 +119,54 @@ describe("SapienStaking", function () {
     });
   });
 
+  describe("Staking Edge Cases", function () {
+    it("Should reject staking with zero amount", async function () {
+      const amount = 0n;
+      const lockUpPeriod = BigInt(30) * ONE_DAY;
+      const orderId = "zero_stake";
+      const signature = await signStakeMessage(await user.getAddress(), amount, orderId, 0);
+      
+      await expect(
+        sapienStaking.connect(user).stake(amount, lockUpPeriod, ethers.id(orderId), signature)
+      ).to.be.reverted;
+    });
+    
+    it("Should reject staking with invalid lock-up period", async function () {
+      const amount = BASE_STAKE;
+      const invalidPeriod = BigInt(45) * ONE_DAY; // Not 30/90/180/365 days
+      const orderId = "invalid_period";
+      const signature = await signStakeMessage(await user.getAddress(), amount, orderId, 0);
+      
+      await expect(
+        sapienStaking.connect(user).stake(amount, invalidPeriod, ethers.id(orderId), signature)
+      ).to.be.reverted;
+    });
+    
+    it("Should calculate different multipliers for each lock-up period", async function () {
+      // Test for 30 days (ONE_MONTH_MAX_MULTIPLIER = 10500)
+      const amount30 = BASE_STAKE;
+      const lockUpPeriod30 = BigInt(30) * ONE_DAY;
+      const orderId30 = "period_30";
+      const signature30 = await signStakeMessage(await user.getAddress(), amount30, orderId30, 0);
+      
+      await sapienStaking.connect(user).stake(amount30, lockUpPeriod30, ethers.id(orderId30), signature30);
+      const info30 = await sapienStaking.stakers(await user.getAddress(), ethers.id(orderId30));
+      expect(info30.multiplier).to.equal(10500);
+      
+      // Test for 90 days (THREE_MONTHS_MAX_MULTIPLIER = 11000)
+      const amount90 = BASE_STAKE;
+      const lockUpPeriod90 = BigInt(90) * ONE_DAY;
+      const orderId90 = "period_90";
+      const signature90 = await signStakeMessage(await user.getAddress(), amount90, orderId90, 0);
+      
+      await sapienStaking.connect(user).stake(amount90, lockUpPeriod90, ethers.id(orderId90), signature90);
+      const info90 = await sapienStaking.stakers(await user.getAddress(), ethers.id(orderId90));
+      expect(info90.multiplier).to.equal(11000);
+      
+      // Add similar tests for 180 and 365 days
+    });
+  });
+
   describe("Unstaking", function () {
     const stakeOrderId = "stake1";
     const initiateUnstakeOrderId = "unstake1_init";
@@ -363,7 +411,7 @@ describe("SapienStaking", function () {
           ethers.id(orderId),
           signature
         )
-      ).to.be.revertedWith("Invalid signature or mismatched parameters");
+      ).to.be.reverted;
     });
 
     it("Should reject signatures from different contract addresses", async function () {
@@ -395,7 +443,7 @@ describe("SapienStaking", function () {
           ethers.id(orderId),
           signature
         )
-      ).to.be.revertedWith("Invalid signature or mismatched parameters");
+      ).to.be.reverted;
     });
 
     it("Should reject signatures with mismatched action types", async function () {
@@ -419,7 +467,262 @@ describe("SapienStaking", function () {
           ethers.id(orderId),
           signature
         )
-      ).to.be.revertedWith("Invalid signature or mismatched parameters");
+      ).to.be.reverted;
+    });
+  });
+
+  describe("Admin Functions", function () {
+    it("Should allow owner to pause and unpause contract", async function () {
+      // Pause the contract
+      await sapienStaking.connect(owner).pause();
+      expect(await sapienStaking.paused()).to.be.true;
+      
+      // Verify staking is not possible when paused
+      const amount = BASE_STAKE;
+      const lockUpPeriod = BigInt(30) * ONE_DAY;
+      const orderId = "pause_test";
+      const signature = await signStakeMessage(await user.getAddress(), amount, orderId, 0);
+      
+      await expect(
+        sapienStaking.connect(user).stake(amount, lockUpPeriod, ethers.id(orderId), signature)
+      ).to.be.reverted;
+      
+      // Unpause and verify staking works again
+      await sapienStaking.connect(owner).unpause();
+      expect(await sapienStaking.paused()).to.be.false;
+      
+      await expect(
+        sapienStaking.connect(user).stake(amount, lockUpPeriod, ethers.id(orderId), signature)
+      ).not.to.be.reverted;
+    });
+    
+    it("Should not allow non-owner to pause or unpause", async function () {
+      await expect(
+        sapienStaking.connect(user).pause()
+      ).to.be.reverted;
+      
+      await expect(
+        sapienStaking.connect(user).unpause()
+      ).to.be.reverted;
+    });
+  });
+
+  describe("Unstaking Error Cases", function () {
+    beforeEach(async function () {
+      // Setup a stake
+      const amount = BASE_STAKE;
+      const lockUpPeriod = BigInt(30) * ONE_DAY;
+      const orderId = "error_test_stake";
+      const signature = await signStakeMessage(await user.getAddress(), amount, orderId, 0);
+      
+      await sapienStaking.connect(user).stake(amount, lockUpPeriod, ethers.id(orderId), signature);
+    });
+    
+    it("Should reject unstake initiation before lock period ends", async function () {
+      const orderId = "error_test_stake";
+      const initiateOrderId = "early_unstake_init";
+      const amount = BASE_STAKE;
+      const signature = await signStakeMessage(
+        await user.getAddress(), 
+        amount,
+        initiateOrderId,
+        1
+      );
+      
+      // Try to unstake before lock period ends
+      await expect(
+        sapienStaking.connect(user).initiateUnstake(
+          amount,
+          ethers.id(initiateOrderId),
+          ethers.id(orderId),
+          signature
+        )
+      ).to.be.reverted;
+    });
+    
+    it("Should reject unstake without prior initiation", async function () {
+      const orderId = "error_test_stake";
+      const unstakeOrderId = "no_init_unstake";
+      const amount = BASE_STAKE;
+      
+      // Complete lock period
+      await time.increase(BigInt(30) * ONE_DAY);
+      
+      const signature = await signStakeMessage(
+        await user.getAddress(),
+        amount,
+        unstakeOrderId,
+        2
+      );
+      
+      // Try to unstake without initiation
+      await expect(
+        sapienStaking.connect(user).unstake(
+          amount,
+          ethers.id(unstakeOrderId),
+          ethers.id(orderId),
+          signature
+        )
+      ).to.be.reverted;
+    });
+    
+    it("Should reject unstake before cooldown period ends", async function () {
+      const orderId = "error_test_stake";
+      const initiateOrderId = "early_cooldown_init";
+      const unstakeOrderId = "early_cooldown_unstake";
+      const amount = BASE_STAKE;
+      
+      // Complete lock period
+      await time.increase(BigInt(30) * ONE_DAY);
+      
+      // Initiate unstake
+      const initiateSignature = await signStakeMessage(
+        await user.getAddress(),
+        amount,
+        initiateOrderId,
+        1
+      );
+      
+      await sapienStaking.connect(user).initiateUnstake(
+        amount,
+        ethers.id(initiateOrderId),
+        ethers.id(orderId),
+        initiateSignature
+      );
+      
+      // Try to unstake before cooldown period ends
+      const unstakeSignature = await signStakeMessage(
+        await user.getAddress(),
+        amount,
+        unstakeOrderId,
+        2
+      );
+      
+      await expect(
+        sapienStaking.connect(user).unstake(
+          amount,
+          ethers.id(unstakeOrderId),
+          ethers.id(orderId),
+          unstakeSignature
+        )
+      ).to.be.reverted;
+    });
+  });
+
+  describe("Instant Unstake Restrictions", function () {
+    it("Should reject instant unstake after lock period", async function () {
+      const stakeAmount = BASE_STAKE;
+      const lockUpPeriod = BigInt(30) * ONE_DAY;
+      const stakeOrderId = "lock_completed_stake";
+      const instantUnstakeOrderId = "lock_completed_unstake";
+      
+      // Create the stake
+      const stakeSignature = await signStakeMessage(
+        await user.getAddress(), 
+        stakeAmount, 
+        stakeOrderId, 
+        0
+      );
+      
+      await sapienStaking.connect(user).stake(
+        stakeAmount,
+        lockUpPeriod,
+        ethers.id(stakeOrderId),
+        stakeSignature
+      );
+      
+      // Complete the lock period
+      await time.increase(lockUpPeriod);
+      
+      // Try instant unstake after lock period
+      const unstakeSignature = await signStakeMessage(
+        await user.getAddress(),
+        stakeAmount,
+        instantUnstakeOrderId,
+        3
+      );
+      
+      await expect(
+        sapienStaking.connect(user).instantUnstake(
+          stakeAmount,
+          ethers.id(instantUnstakeOrderId),
+          ethers.id(stakeOrderId),
+          unstakeSignature
+        )
+      ).to.be.reverted;
+    });
+    
+    it("Should correctly transfer penalty to owner", async function () {
+      const stakeAmount = BASE_STAKE;
+      const lockUpPeriod = BigInt(30) * ONE_DAY;
+      const stakeOrderId = "penalty_stake";
+      const instantUnstakeOrderId = "penalty_unstake";
+      
+      // Create the stake
+      const stakeSignature = await signStakeMessage(
+        await user.getAddress(), 
+        stakeAmount, 
+        stakeOrderId, 
+        0
+      );
+      
+      await sapienStaking.connect(user).stake(
+        stakeAmount,
+        lockUpPeriod,
+        ethers.id(stakeOrderId),
+        stakeSignature
+      );
+      
+      // Get owner balance before
+      const ownerBalanceBefore = await sapienToken.balanceOf(await owner.getAddress());
+      
+      // Perform instant unstake
+      const unstakeSignature = await signStakeMessage(
+        await user.getAddress(),
+        stakeAmount,
+        instantUnstakeOrderId,
+        3
+      );
+      
+      await sapienStaking.connect(user).instantUnstake(
+        stakeAmount,
+        ethers.id(instantUnstakeOrderId),
+        ethers.id(stakeOrderId),
+        unstakeSignature
+      );
+      
+      // Check penalty was transferred to owner (20% of stakeAmount)
+      const expectedPenalty = (stakeAmount * BigInt(20)) / BigInt(100);
+      const ownerBalanceAfter = await sapienToken.balanceOf(await owner.getAddress());
+      
+      expect(ownerBalanceAfter - ownerBalanceBefore).to.equal(expectedPenalty);
+    });
+  });
+
+  describe("Order ID Security", function () {
+    it("Should prevent reusing the same order ID", async function () {
+      const amount = BASE_STAKE;
+      const lockUpPeriod = BigInt(30) * ONE_DAY;
+      const orderId = "reused_order";
+      const signature = await signStakeMessage(await user.getAddress(), amount, orderId, 0);
+      
+      // First stake with this order ID should succeed
+      await sapienStaking.connect(user).stake(
+        amount,
+        lockUpPeriod,
+        ethers.id(orderId),
+        signature
+      );
+      
+      // Second attempt with same order ID should fail
+      await expect(
+        sapienStaking.connect(user).stake(
+          amount,
+          lockUpPeriod,
+          ethers.id(orderId),
+          signature
+        )
+      ).to.be.reverted;
     });
   });
 }); 

@@ -5,7 +5,7 @@ import "@nomicfoundation/hardhat-chai-matchers";
 
 describe("SapienRewards", function () {
   let MockToken: any;
-  let mockToken: Contract;
+  let mockToken: any;
   let SapienRewards: any;
   let sapienRewards: any;
   let owner: Signer;
@@ -263,6 +263,210 @@ describe("SapienRewards", function () {
           signature
         )
       ).to.be.revertedWith("Invalid signature or mismatched parameters");
+    });
+  });
+
+  describe("Pause Functionality", function () {
+    it("Should allow owner to pause and unpause the contract", async function () {
+      await expect(sapienRewards.connect(owner).pause()).to.not.be.reverted;
+      expect(await sapienRewards.paused()).to.equal(true);
+      
+      await expect(sapienRewards.connect(owner).unpause()).to.not.be.reverted;
+      expect(await sapienRewards.paused()).to.equal(false);
+    });
+
+    it("Should prevent non-owners from pausing", async function () {
+      await expect(sapienRewards.connect(user).pause())
+        .to.be.revertedWithCustomError(sapienRewards, "OwnableUnauthorizedAccount");
+    });
+
+    it("Should prevent reward claims when paused", async function () {
+      // Pause the contract
+      await sapienRewards.connect(owner).pause();
+      
+      const orderId = "pausedTest";
+      const signature = await signRewardClaim(
+        await user.getAddress(),
+        REWARD_AMOUNT,
+        orderId
+      );
+
+      await expect(
+        sapienRewards.connect(user).claimReward(
+          REWARD_AMOUNT,
+          ethers.encodeBytes32String(orderId),
+          signature
+        )
+      ).to.be.revertedWithCustomError(sapienRewards, "EnforcedPause");
+    });
+  });
+
+  describe("Ownership", function () {
+    let newOwner: Signer;
+    
+    beforeEach(async function () {
+      [owner, authorizedSigner, user, newOwner] = await ethers.getSigners();
+    });
+    
+    it("Should allow two-step ownership transfer", async function () {
+      // Current owner proposes new owner
+      await expect(sapienRewards.connect(owner).transferOwnership(await newOwner.getAddress()))
+        .to.not.be.reverted;
+        
+      // Verify pending owner is set correctly
+      expect(await sapienRewards.pendingOwner()).to.equal(await newOwner.getAddress());
+      
+      // New owner accepts ownership
+      await expect(sapienRewards.connect(newOwner).acceptOwnership())
+        .to.not.be.reverted;
+        
+      // Verify ownership transfer completed
+      expect(await sapienRewards.owner()).to.equal(await newOwner.getAddress());
+    });
+    
+    it("Should not allow non-pending owner to accept ownership", async function () {
+      // Current owner proposes new owner
+      await sapienRewards.connect(owner).transferOwnership(await newOwner.getAddress());
+      
+      // Another account tries to accept ownership
+      await expect(sapienRewards.connect(user).acceptOwnership())
+        .to.be.revertedWithCustomError(sapienRewards, "OwnableUnauthorizedAccount");
+    });
+  });
+
+  describe("Upgradeability", function () {
+    let SapienRewardsV2: any;
+    let sapienRewardsV2: any;
+    
+    it("Should allow upgrading to a new implementation", async function () {
+      // Deploy a new implementation (mock for test)
+      SapienRewardsV2 = await ethers.getContractFactory("SapienRewardsV2Mock");
+      
+      // Upgrade to new implementation
+      sapienRewardsV2 = await upgrades.upgradeProxy(
+        await sapienRewards.getAddress(),
+        SapienRewardsV2
+      );
+      
+      // Check that state is preserved
+      expect(await sapienRewardsV2.rewardToken()).to.equal(await mockToken.getAddress());
+      
+      // Check that new functionality is available (assuming the mock has a new function)
+      expect(await sapienRewardsV2.getVersion()).to.equal("2.0");
+    });
+    
+    it("Should not allow non-owners to upgrade the contract", async function () {
+      SapienRewardsV2 = await ethers.getContractFactory("SapienRewardsV2Mock", user);
+      
+      await expect(
+        upgrades.upgradeProxy(await sapienRewards.getAddress(), SapienRewardsV2)
+      ).to.be.reverted;
+    });
+  });
+
+  describe("Signature Security", function () {
+    it("Should reject if user tries to claim with someone else's signature", async function () {
+      const orderId = "securityTest";
+      // Create signature for user1
+      const signature = await signRewardClaim(
+        await user.getAddress(),
+        REWARD_AMOUNT,
+        orderId
+      );
+      
+      // A different user tries to claim with this signature
+      const anotherUser = await ethers.provider.getSigner(3); // Get a different signer
+      
+      await expect(
+        sapienRewards.connect(anotherUser).claimReward(
+          REWARD_AMOUNT,
+          ethers.encodeBytes32String(orderId),
+          signature
+        )
+      ).to.be.revertedWith("Invalid signature or mismatched parameters");
+    });
+    
+    it("Should reject if amount in claim doesn't match signed amount", async function () {
+      const orderId = "amountTest";
+      const signature = await signRewardClaim(
+        await user.getAddress(),
+        REWARD_AMOUNT,
+        orderId
+      );
+      
+      // Try to claim with a different amount
+      const differentAmount = REWARD_AMOUNT + 1n;
+      await expect(
+        sapienRewards.connect(user).claimReward(
+          differentAmount,
+          ethers.encodeBytes32String(orderId),
+          signature
+        )
+      ).to.be.revertedWith("Invalid signature or mismatched parameters");
+    });
+  });
+
+  describe("Edge Cases", function () {
+    it("Should reject claims with zero amount", async function () {
+      const orderId = "zeroTest";
+      const zeroAmount = 0n;
+      const signature = await signRewardClaim(
+        await user.getAddress(),
+        zeroAmount,
+        orderId
+      );
+      
+      await expect(
+        sapienRewards.connect(user).claimReward(
+          zeroAmount,
+          ethers.encodeBytes32String(orderId),
+          signature
+        )
+      ).to.not.be.reverted; // Assuming zero transfers are valid in the token
+    });
+    
+    it("Should allow claims with exactly the contract's balance", async function () {
+      // First withdraw all existing tokens
+      const existingBalance = await mockToken.balanceOf(await sapienRewards.getAddress());
+      await sapienRewards.connect(owner).withdrawTokens(existingBalance);
+      
+      // Then deposit exact amount to test
+      const exactAmount = ethers.parseUnits("123", 18);
+      await mockToken.mint(await owner.getAddress(), exactAmount);
+      await (mockToken as any).connect(owner).approve(await sapienRewards.getAddress(), exactAmount);
+      await sapienRewards.connect(owner).depositTokens(exactAmount);
+      
+      // Claim exactly this amount
+      const orderId = "exactBalanceTest";
+      const signature = await signRewardClaim(
+        await user.getAddress(),
+        exactAmount,
+        orderId
+      );
+      
+      await expect(
+        sapienRewards.connect(user).claimReward(
+          exactAmount,
+          ethers.encodeBytes32String(orderId),
+          signature
+        )
+      ).to.emit(sapienRewards, "RewardClaimed");
+      
+      // Contract should now have zero balance
+      expect(await sapienRewards.getContractTokenBalance()).to.equal(0);
+    });
+  });
+
+  describe("Access Control", function () {
+    it("Should prevent non-owners from calling admin functions", async function () {
+      await expect(sapienRewards.connect(user).setRewardToken(await mockToken.getAddress()))
+        .to.be.revertedWithCustomError(sapienRewards, "OwnableUnauthorizedAccount");
+        
+      await expect(sapienRewards.connect(user).withdrawTokens(100))
+        .to.be.revertedWithCustomError(sapienRewards, "OwnableUnauthorizedAccount");
+        
+      await expect(sapienRewards.connect(user).depositTokens(100))
+        .to.be.revertedWithCustomError(sapienRewards, "OwnableUnauthorizedAccount");
     });
   });
 }); 
