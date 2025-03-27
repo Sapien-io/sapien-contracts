@@ -17,15 +17,13 @@ describe("SapTestToken", function () {
   const LABELING_REWARDS_ALLOCATION = ethers.parseUnits("150000000", DECIMALS);
   const AIRDROPS_ALLOCATION = ethers.parseUnits("150000000", DECIMALS);
   const COMMUNITY_TREASURY_ALLOCATION = ethers.parseUnits("100000000", DECIMALS);
-  const STAKING_INCENTIVES_ALLOCATION = ethers.parseUnits("50000000", DECIMALS);
-  const LIQUIDITY_INCENTIVES_ALLOCATION = ethers.parseUnits("50000000", DECIMALS);
+  const LIQUIDITY_ALLOCATION = ethers.parseUnits("100000000", DECIMALS);
   const TOTAL_SUPPLY = INVESTORS_ALLOCATION + 
     TEAM_ADVISORS_ALLOCATION + 
     LABELING_REWARDS_ALLOCATION + 
     AIRDROPS_ALLOCATION + 
     COMMUNITY_TREASURY_ALLOCATION + 
-    STAKING_INCENTIVES_ALLOCATION + 
-    LIQUIDITY_INCENTIVES_ALLOCATION;
+    LIQUIDITY_ALLOCATION;
 
   beforeEach(async function () {
     [owner, gnosisSafe, rewardsContract, user] = await ethers.getSigners();

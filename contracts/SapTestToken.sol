@@ -89,11 +89,8 @@ contract SapTestToken is
     /// @notice Total allocation for community treasury
     uint256 public constant COMMUNITY_TREASURY_ALLOCATION = 100000000 * 10 ** DECIMALS;
 
-    /// @notice Total allocation for staking incentives
-    uint256 public constant STAKING_INCENTIVES_ALLOCATION = 50000000 * 10 ** DECIMALS;
-
     /// @notice Total allocation for liquidity incentives
-    uint256 public constant LIQUIDITY_INCENTIVES_ALLOCATION = 50000000 * 10 ** DECIMALS;
+    uint256 public constant LIQUIDITY_ALLOCATION = 50_000_000 * 10**18; // 50 million tokens (includes former staking incentives)
 
     // -------------------------------------------------------------
     // State Variables
@@ -109,7 +106,6 @@ contract SapTestToken is
         REWARDS,
         AIRDROP,
         COMMUNITY_TREASURY,
-        STAKING_INCENTIVES,
         LIQUIDITY_INCENTIVES
     }
 
@@ -156,8 +152,7 @@ contract SapTestToken is
             LABELING_REWARDS_ALLOCATION +
             AIRDROPS_ALLOCATION +
             COMMUNITY_TREASURY_ALLOCATION +
-            STAKING_INCENTIVES_ALLOCATION +
-            LIQUIDITY_INCENTIVES_ALLOCATION;
+            LIQUIDITY_ALLOCATION;
         
         require(_totalSupply == expectedSupply, "Total supply must match sum of allocations");
         
@@ -223,19 +218,11 @@ contract SapTestToken is
             released: 0,
             safe: _gnosisSafe
         });
-        vestingSchedules[AllocationType.STAKING_INCENTIVES] = VestingSchedule({
-            cliff: 0, // No cliff for staking incentives
-            start: _vestingStartTimestamp,
-            duration: 48 * 30 days, // 48 months
-            amount: STAKING_INCENTIVES_ALLOCATION,
-            released: 0,
-            safe: _gnosisSafe
-        });
         vestingSchedules[AllocationType.LIQUIDITY_INCENTIVES] = VestingSchedule({
             cliff: 0, // No cliff for liquidity incentives
             start: _vestingStartTimestamp,
             duration: 48 * 30 days, // 48 months
-            amount: LIQUIDITY_INCENTIVES_ALLOCATION,
+            amount: LIQUIDITY_ALLOCATION,
             released: 0,
             safe: _gnosisSafe
         });
