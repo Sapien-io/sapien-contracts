@@ -375,12 +375,9 @@ contract SapienStaking is
             "Lock period not completed"
         );
 
-        // Calculate the actual amount to transfer using the multiplier
-        uint256 transferAmount = (amount * info.multiplier) / 10000;
-        
-        // Transfer tokens and update state
+        // Transfer the exact amount (no multiplier bonus applied to tokens)
         require(
-            _sapienToken.transfer(msg.sender, transferAmount),
+            _sapienToken.transfer(msg.sender, amount),
             "Token transfer failed"
         );
         info.amount -= amount;
@@ -396,7 +393,7 @@ contract SapienStaking is
         totalStaked -= amount;
         _markOrderAsUsed(newOrderId);
 
-        emit Unstaked(msg.sender, transferAmount, newOrderId);
+        emit Unstaked(msg.sender, amount, newOrderId);
     }
 
     /**

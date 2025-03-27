@@ -326,8 +326,8 @@ describe("SapienStaking", function () {
       expect(finalStakeInfo.cooldownStart).to.equal(0);
       expect(finalStakeInfo.cooldownAmount).to.equal(0);
       
-      // Verify user received tokens with multiplier applied
-      const expectedTransferAmount = (partialAmount * cooldownStakeInfo.multiplier) / BigInt(10000);
+      // Verify user received tokens (without multiplier applied)
+      const expectedTransferAmount = partialAmount;
       const balanceAfter = await sapienToken.balanceOf(await user.getAddress());
       expect(balanceAfter - balanceBefore).to.equal(expectedTransferAmount);
       
