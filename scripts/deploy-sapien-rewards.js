@@ -15,7 +15,9 @@ const loadConfig = () => {
     return {
       rewardRate: 100, // 1% as basis points (10000 = 100%)
       rewardInterval: 30 * 24 * 60 * 60, // 30 days in seconds
-      bonusThreshold: ethers.utils.parseEther("1000"), // Bonus for staking more than 1000 tokens
+      bonusThreshold: ethers.utils.parseEther("1000"),
+      gnosisSafeAddress: "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
+      // Bonus for staking more than 1000 tokens
       bonusRate: 50, // Additional 0.5% bonus as basis points
       sapTokenAddress: "", // This should be provided or fetched from deployment files
       stakingContractAddress: "" // This should be provided or fetched from deployment files
@@ -85,7 +87,10 @@ async function main() {
   // Deploy the implementation contract
   const rewardsContract = await upgrades.deployProxy(
     SapienRewards,
-    [deployer.address], // Pass the authorized signer address (using deployer for now)
+    [
+      deployer.address,
+      config.gnosisSafeAddress,
+    ], // Pass the authorized signer address (using deployer for now)
     {
       initializer: 'initialize',
       kind: 'uups',
@@ -102,6 +107,7 @@ async function main() {
     rewardsAddress: rewardsAddress,
     deploymentTime: new Date().toISOString(),
     deployer: deployer.address,
+    gnosisSafeAddress: config.gnosisSafeAddress,
     authorizedSigner: deployer.address // Save the authorized signer address
   };
 

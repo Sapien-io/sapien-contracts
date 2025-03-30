@@ -12,6 +12,7 @@ describe("SapienStaking", function () {
   let owner: Signer;
   let sapienSigner: Signer;
   let user: Signer;
+  let gnosisSafe: Signer;
   let domain: {
     name: string;
     version: string;
@@ -27,7 +28,7 @@ describe("SapienStaking", function () {
   const COOLDOWN_PERIOD = BigInt(2) * ONE_DAY;
 
   beforeEach(async function () {
-    [owner, sapienSigner, user] = await ethers.getSigners();
+    [owner, sapienSigner, user, gnosisSafe] = await ethers.getSigners();
 
     // Deploy mock ERC20 token
     SapienToken = await ethers.getContractFactory("MockERC20");
@@ -37,7 +38,8 @@ describe("SapienStaking", function () {
     SapienStaking = await ethers.getContractFactory("SapienStaking");
     sapienStaking = await upgrades.deployProxy(SapienStaking, [
       await sapienToken.getAddress(),
-      await sapienSigner.getAddress()
+      await sapienSigner.getAddress(),
+      await gnosisSafe.getAddress()
     ]);
 
     // Mint tokens to user and approve staking contract

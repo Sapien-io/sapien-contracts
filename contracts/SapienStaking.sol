@@ -44,6 +44,9 @@ contract SapienStaking is
     /// @notice The authorized Sapien signer address (for verifying signatures).
     /// @dev Effectively immutable, but can't use immutable keyword due to upgradeability
     address private _sapienAddress;
+    
+    /// @notice Address of the Gnosis Safe that controls administrative functions (effectively immutable, but can't use immutable keyword due to upgradeability)
+    address public _gnosisSafe;
 
     /// @dev Constant for the token's decimal representation (e.g., 10^18 for 18 decimal tokens).
     uint256 private constant TOKEN_DECIMALS = 10 ** 18;
@@ -164,13 +167,21 @@ contract SapienStaking is
      * @notice Initializes the SapienStaking contract.
      * @param sapienToken_ The ERC20 token contract for Sapien.
      * @param sapienAddress_ The address authorized to sign stake actions.
+     * @param _gnosisSafe The address of the Gnosis Safe.
      */
-    function initialize(IERC20 sapienToken_, address sapienAddress_)
+    function initialize(
+      IERC20 sapienToken_,
+      address sapienAddress_,
+      address gnosisSafe_
+    )
         public
         initializer
     {
         require(address(sapienToken_) != address(0), "Zero address not allowed for token");
         require(sapienAddress_ != address(0), "Zero address not allowed for signer");
+        require(gnosisSafe_ != address(0), "Zero address not allowed for Gnosis Safe");
+
+        _gnosisSafe = gnosisSafe_;
         
         _sapienToken = sapienToken_;
         _sapienAddress = sapienAddress_;
@@ -200,7 +211,7 @@ contract SapienStaking is
     function _authorizeUpgrade(address newImplementation)
         internal
         override
-        onlyOwner
+        onlySafe
     {}
 
     // -------------------------------------------------------------
@@ -208,10 +219,10 @@ contract SapienStaking is
     // -------------------------------------------------------------
 
     /**
-     * @dev Restricts a function to be callable only by the `sapienAddress`.
+     * @dev Ensures the caller is the Gnosis Safe
      */
-    modifier onlySapien() {
-        require(msg.sender == _sapienAddress, "Caller is not Sapien");
+    modifier onlySafe() {
+        require(msg.sender == _gnosisSafe, "Only the Safe can perform this");
         _;
     }
 
@@ -223,7 +234,7 @@ contract SapienStaking is
      * @notice Pauses the contract, preventing certain actions (e.g., staking/unstaking).
      *         Only callable by the owner.
      */
-    function pause() external onlyOwner {
+    function pause() external onlySafe {
         _pause();
     }
 
@@ -231,7 +242,7 @@ contract SapienStaking is
      * @notice Unpauses the contract, allowing staking/unstaking.
      *         Only callable by the owner.
      */
-    function unpause() external onlyOwner {
+    function unpause() external onlySafe {
         _unpause();
     }
 

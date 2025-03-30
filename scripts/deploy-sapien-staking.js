@@ -16,6 +16,7 @@ const loadConfig = () => {
     return {
       minStakeAmount: ethers.utils.parseEther("100"), // 100 tokens minimum stake
       lockPeriod: 7 * 24 * 60 * 60,  // 7 days in seconds
+      gnosisSafeAddress: "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
       earlyWithdrawalPenalty: 1000,  // 10% as basis points (10000 = 100%)
       sapTokenAddress: "" // This should be provided or fetched from deployment files
     };
@@ -66,7 +67,11 @@ async function main() {
     
     const stakingContract = await upgrades.deployProxy(
       SapienStaking,
-      [sapTokenAddress, deployer.address],
+      [
+        sapTokenAddress,
+        deployer.address,
+        config.gnosisSafeAddress
+      ],
       {
         initializer: 'initialize',
         kind: 'uups'
@@ -88,6 +93,7 @@ async function main() {
       proxyAddress: proxyAddress,
       deploymentTime: new Date().toISOString(),
       deployer: deployer.address,
+      gnosisSafeAddress: config.gnosisSafeAddress,
       sapTokenAddress: sapTokenAddress
     };
 

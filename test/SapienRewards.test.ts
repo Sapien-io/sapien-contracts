@@ -6,6 +6,7 @@ import "@nomicfoundation/hardhat-chai-matchers";
 describe("SapienRewards", function () {
   let MockToken: any;
   let mockToken: any;
+  let gnosisSafe: Signer;
   let SapienRewards: any;
   let sapienRewards: any;
   let owner: Signer;
@@ -24,7 +25,7 @@ describe("SapienRewards", function () {
   const REWARD_AMOUNT = ethers.parseUnits("100", 18);
 
   beforeEach(async function () {
-    [owner, authorizedSigner, user] = await ethers.getSigners();
+    [owner, authorizedSigner, user, gnosisSafe] = await ethers.getSigners();
 
     // Deploy mock token (representing IRewardToken)
     MockToken = await ethers.getContractFactory("MockERC20");
@@ -33,7 +34,8 @@ describe("SapienRewards", function () {
     // Deploy SapienRewards
     SapienRewards = await ethers.getContractFactory("SapienRewards");
     sapienRewards = await upgrades.deployProxy(SapienRewards, [
-      await authorizedSigner.getAddress()
+      await authorizedSigner.getAddress(),
+      await gnosisSafe.getAddress()
     ]);
 
     // Set reward token

@@ -44,12 +44,16 @@ contract SapienRewards is
     // State Variables
     // -------------------------------------------------------------
 
+    /// @dev The address of the Gnosis Safe that controls administrative functions (effectively immutable, but can't use immutable keyword due to upgradeability)
+    address public _gnosisSafe;
+
     /// @dev The reward token interface used for transfers and release calls.
     IRewardToken public rewardToken;
 
     /// @dev The address that is authorized to sign reward claims.
     /// @dev Effectively immutable, but can't use immutable keyword due to upgradeability
     address private _authorizedSigner;
+
 
     /// @notice Mapping of wallet addresses to their redeemed order IDs.
     mapping(address => mapping(bytes32 => bool)) private redeemedOrders;
@@ -99,7 +103,10 @@ contract SapienRewards is
      *         Sets up the Ownable, Pausable, UUPS, and ReentrancyGuard functionalities.
      * @param _authorizedSigner_ The address authorized to sign reward claims.
      */
-    function initialize(address _authorizedSigner_) public initializer {
+    function initialize(
+      address _authorizedSigner_,
+      address gnosisSafe_
+    ) public initializer {
         require(_authorizedSigner_ != address(0), "Invalid authorized signer address");
         
         __Ownable_init(msg.sender);
@@ -108,6 +115,7 @@ contract SapienRewards is
         __ReentrancyGuard_init();
 
         _authorizedSigner = _authorizedSigner_;
+        _gnosisSafe = gnosisSafe_;
 
         // Initialize domain separator for EIP-712
         DOMAIN_SEPARATOR = keccak256(
@@ -126,7 +134,7 @@ contract SapienRewards is
      *         Only the contract owner can perform this action.
      * @param newImplementation The address of the new implementation.
      */
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    function _authorizeUpgrade(address newImplementation) internal override onlySafe {}
 
     // -------------------------------------------------------------
     // Owner Functions
@@ -136,7 +144,7 @@ contract SapienRewards is
      * @notice Allows the owner to pause all critical functions in case of emergency
      * @dev Only callable by the contract owner
      */
-    function pause() external onlyOwner {
+    function pause() external onlySafe {
         _pause();
     }
 
@@ -144,7 +152,7 @@ contract SapienRewards is
      * @notice Allows the owner to unpause the contract and resume normal operations
      * @dev Only callable by the contract owner
      */
-    function unpause() external onlyOwner {
+    function unpause() external onlySafe {
         _unpause();
     }
 
@@ -152,7 +160,7 @@ contract SapienRewards is
      * @notice Sets the reward token address after deployment.
      * @param _rewardToken The address of the new reward token contract.
      */
-    function setRewardToken(address _rewardToken) external onlyOwner {
+    function setRewardToken(address _rewardToken) external onlySafe {
         require(_rewardToken != address(0), "Invalid reward token address");
         rewardToken = IRewardToken(_rewardToken);
         emit RewardTokenUpdated(_rewardToken);
@@ -162,7 +170,7 @@ contract SapienRewards is
      * @notice Allows the contract owner to deposit tokens directly into this contract.
      * @param amount The amount of tokens to deposit.
      */
-    function depositTokens(uint256 amount) external onlyOwner {
+    function depositTokens(uint256 amount) external onlySafe {
         require(
             rewardToken.transferFrom(msg.sender, address(this), amount),
             "Token deposit failed"
@@ -173,7 +181,7 @@ contract SapienRewards is
      * @notice Allows the contract owner to withdraw tokens from this contract.
      * @param amount The amount of tokens to withdraw.
      */
-    function withdrawTokens(uint256 amount) external onlyOwner {
+    function withdrawTokens(uint256 amount) external onlySafe {
         require(
             rewardToken.transfer(owner(), amount),
             "Token withdrawal failed"
@@ -298,6 +306,18 @@ contract SapienRewards is
 
         address signer = hash.recover(signature);
         return (signer == _authorizedSigner);
+    }
+
+    // -------------------------------------------------------------
+    // Modifiers
+    // -------------------------------------------------------------
+
+    /**
+     * @dev Ensures the caller is the Gnosis Safe
+     */
+    modifier onlySafe() {
+        require(msg.sender == _gnosisSafe, "Only the Safe can perform this");
+        _;
     }
 }
 
