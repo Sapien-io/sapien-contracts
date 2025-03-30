@@ -167,23 +167,23 @@ contract SapienRewards is
     }
 
     /**
-     * @notice Allows the contract owner to deposit tokens directly into this contract.
+     * @notice Allows the contract owners to deposit tokens directly into this contract.
      * @param amount The amount of tokens to deposit.
      */
     function depositTokens(uint256 amount) external onlySafe {
         require(
-            rewardToken.transferFrom(msg.sender, address(this), amount),
+            rewardToken.transferFrom(_gnosisSafe, address(this), amount),
             "Token deposit failed"
         );
     }
 
     /**
-     * @notice Allows the contract owner to withdraw tokens from this contract.
+     * @notice Allows the contract owners to withdraw tokens from this contract.
      * @param amount The amount of tokens to withdraw.
      */
     function withdrawTokens(uint256 amount) external onlySafe {
         require(
-            rewardToken.transfer(owner(), amount),
+            rewardToken.transfer(_gnosisSafe, amount),
             "Token withdrawal failed"
         );
     }
@@ -306,6 +306,10 @@ contract SapienRewards is
 
         address signer = hash.recover(signature);
         return (signer == _authorizedSigner);
+    }
+
+    function owner() public override view returns (address) {
+        return _gnosisSafe;
     }
 
     // -------------------------------------------------------------

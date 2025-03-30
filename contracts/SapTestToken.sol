@@ -1,4 +1,4 @@
-/ SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
@@ -6,7 +6,7 @@ import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-
+import "hardhat/console.sol";
 /**
  * @title SapTestToken
  * @dev An upgradeable ERC20 token with vesting schedules for different allocation types.
@@ -153,6 +153,9 @@ contract SapTestToken is
             AIRDROPS_ALLOCATION +
             COMMUNITY_TREASURY_ALLOCATION +
             LIQUIDITY_ALLOCATION;
+
+        console.log("Total expected supply",expectedSupply);
+        console.log("Total actual supply",  _totalSupply);
         
         require(_totalSupply == expectedSupply, "Total supply must match sum of allocations");
         

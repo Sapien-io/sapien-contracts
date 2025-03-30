@@ -473,10 +473,10 @@ describe("SapienStaking", function () {
     });
   });
 
-  describe("Admin Functions", function () {
-    it("Should allow owner to pause and unpause contract", async function () {
+  describe("Safe Functions", function () {
+    it("Should allow safe to pause and unpause contract", async function () {
       // Pause the contract
-      await sapienStaking.connect(owner).pause();
+      await sapienStaking.connect(gnosisSafe).pause();
       expect(await sapienStaking.paused()).to.be.true;
       
       // Verify staking is not possible when paused
@@ -490,7 +490,7 @@ describe("SapienStaking", function () {
       ).to.be.reverted;
       
       // Unpause and verify staking works again
-      await sapienStaking.connect(owner).unpause();
+      await sapienStaking.connect(gnosisSafe).unpause();
       expect(await sapienStaking.paused()).to.be.false;
       
       await expect(
@@ -498,7 +498,7 @@ describe("SapienStaking", function () {
       ).not.to.be.reverted;
     });
     
-    it("Should not allow non-owner to pause or unpause", async function () {
+    it("Should not allow non-safe to pause or unpause", async function () {
       await expect(
         sapienStaking.connect(user).pause()
       ).to.be.reverted;

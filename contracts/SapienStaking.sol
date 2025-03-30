@@ -167,7 +167,7 @@ contract SapienStaking is
      * @notice Initializes the SapienStaking contract.
      * @param sapienToken_ The ERC20 token contract for Sapien.
      * @param sapienAddress_ The address authorized to sign stake actions.
-     * @param _gnosisSafe The address of the Gnosis Safe.
+     * @param gnosisSafe_ The address of the Gnosis Safe.
      */
     function initialize(
       IERC20 sapienToken_,
