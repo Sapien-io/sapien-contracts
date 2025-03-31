@@ -153,9 +153,6 @@ contract SapTestToken is
             AIRDROPS_ALLOCATION +
             COMMUNITY_TREASURY_ALLOCATION +
             LIQUIDITY_ALLOCATION;
-
-        console.log("Total expected supply",expectedSupply);
-        console.log("Total actual supply",  _totalSupply);
         
         require(_totalSupply == expectedSupply, "Total supply must match sum of allocations");
         

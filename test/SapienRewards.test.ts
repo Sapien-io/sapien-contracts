@@ -33,7 +33,7 @@ describe("SapienRewards", function () {
 
     // Deploy SapienRewards
     SapienRewards = await ethers.getContractFactory("SapienRewards");
-    sapienRewards = await upgrades.deployProxy(SapienRewards, [
+    sapienRewards = await upgrades.deployProxy(SapienRewards.connect(gnosisSafe), [
       await authorizedSigner.getAddress(),
       await gnosisSafe.getAddress()
     ]);
@@ -347,7 +347,7 @@ describe("SapienRewards", function () {
       // Upgrade to new implementation
       sapienRewardsV2 = await upgrades.upgradeProxy(
         await sapienRewards.getAddress(),
-        SapienRewardsV2
+        SapienRewardsV2.connect(gnosisSafe)
       );
       
       // Check that state is preserved
@@ -430,13 +430,13 @@ describe("SapienRewards", function () {
     it("Should allow claims with exactly the contract's balance", async function () {
       // First withdraw all existing tokens
       const existingBalance = await mockToken.balanceOf(await sapienRewards.getAddress());
-      await sapienRewards.connect(owner).withdrawTokens(existingBalance);
+      await sapienRewards.connect(gnosisSafe).withdrawTokens(existingBalance);
       
       // Then deposit exact amount to test
       const exactAmount = ethers.parseUnits("123", 18);
-      await mockToken.mint(await owner.getAddress(), exactAmount);
-      await (mockToken as any).connect(owner).approve(await sapienRewards.getAddress(), exactAmount);
-      await sapienRewards.connect(owner).depositTokens(exactAmount);
+      await mockToken.mint(await gnosisSafe.getAddress(), exactAmount);
+      await (mockToken as any).connect(gnosisSafe).approve(await sapienRewards.getAddress(), exactAmount);
+      await sapienRewards.connect(gnosisSafe).depositTokens(exactAmount);
       
       // Claim exactly this amount
       const orderId = "exactBalanceTest";
@@ -462,13 +462,13 @@ describe("SapienRewards", function () {
   describe("Access Control", function () {
     it("Should prevent non-owners from calling admin functions", async function () {
       await expect(sapienRewards.connect(user).setRewardToken(await mockToken.getAddress()))
-        .to.be.revertedWithCustomError(sapienRewards, "OwnableUnauthorizedAccount");
+        .to.be.revertedWith("Only the Safe can perform this");
         
       await expect(sapienRewards.connect(user).withdrawTokens(100))
-        .to.be.revertedWithCustomError(sapienRewards, "OwnableUnauthorizedAccount");
+        .to.be.revertedWith("Only the Safe can perform this");
         
       await expect(sapienRewards.connect(user).depositTokens(100))
-        .to.be.revertedWithCustomError(sapienRewards, "OwnableUnauthorizedAccount");
+        .to.be.revertedWith("Only the Safe can perform this");
     });
   });
 }); 
