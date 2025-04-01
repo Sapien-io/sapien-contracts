@@ -279,7 +279,7 @@ describe("SapienRewards", function () {
 
     it("Should prevent non-owners from pausing", async function () {
       await expect(sapienRewards.connect(user).pause())
-        .to.be.revertedWith("Only the Safe can perform this");
+        .to.be.revertedWithCustomError(SapienRewards, "OwnableUnauthorizedAccount");
     });
 
     it("Should prevent reward claims when paused", async function () {

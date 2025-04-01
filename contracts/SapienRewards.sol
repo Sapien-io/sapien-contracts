@@ -134,7 +134,7 @@ contract SapienRewards is
      *         Only the contract owner can perform this action.
      * @param newImplementation The address of the new implementation.
      */
-    function _authorizeUpgrade(address newImplementation) internal override onlySafe {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     // -------------------------------------------------------------
     // Owner Functions
@@ -144,7 +144,7 @@ contract SapienRewards is
      * @notice Allows the owner to pause all critical functions in case of emergency
      * @dev Only callable by the contract owner
      */
-    function pause() external onlySafe {
+    function pause() external onlyOwner {
         _pause();
     }
 
@@ -152,7 +152,7 @@ contract SapienRewards is
      * @notice Allows the owner to unpause the contract and resume normal operations
      * @dev Only callable by the contract owner
      */
-    function unpause() external onlySafe {
+    function unpause() external onlyOwner {
         _unpause();
     }
 
@@ -322,6 +322,21 @@ contract SapienRewards is
     modifier onlySafe() {
         require(msg.sender == _gnosisSafe, "Only the Safe can perform this");
         _;
+    }
+
+    function getOwnable2StepStorage() private pure returns (Ownable2StepUpgradeable.Ownable2StepStorage storage $) {
+      bytes32 position = 0x237e158222e3e6968b72b9db0d8043aacf074ad9f650f0d1606b4d82ee432c00;
+      assembly {
+        $.slot := position
+      }
+    }
+
+    function transferOwnership(
+        address newOwner
+    ) public override onlySafe {
+      Ownable2StepStorage storage $ = getOwnable2StepStorage();
+      $._pendingOwner = newOwner;
+      emit OwnershipTransferred(_gnosisSafe, newOwner);
     }
 }
 
