@@ -85,6 +85,11 @@ contract SapienRewards is
     /// @notice Logs the message hash, mainly for debugging or testing.
     event MsgHash(bytes32 msgHash);
 
+    /// @notice Mapping of owner addresses to whether they are authorized to upgrade.
+    mapping(address => bool) private _upgradeAuthorized;
+    event UpgradeAuthorized(address indexed implementation);
+
+
     // -------------------------------------------------------------
     // Constructor
     // -------------------------------------------------------------
@@ -129,12 +134,18 @@ contract SapienRewards is
         );
     }
 
-    /**
-     * @notice Authorizes an upgrade to a new implementation (UUPS). 
-     *         Only the contract owner can perform this action.
-     * @param newImplementation The address of the new implementation.
-     */
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    function authorizeUpgrade(address newImplementation) public onlySafe {
+      _upgradeAuthorized[newImplementation] = true;
+      emit UpgradeAuthorized(newImplementation);
+
+    }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+      require(_upgradeAuthorized[newImplementation], "TwoTierAccessControl: upgrade not authorized by safe");
+      // Reset authorization after use to prevent re-use
+      _upgradeAuthorized[newImplementation] = false;
+
+    }
 
     // -------------------------------------------------------------
     // Owner Functions

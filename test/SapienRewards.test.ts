@@ -342,12 +342,29 @@ describe("SapienRewards", function () {
     
     it("Should allow upgrading to a new implementation", async function () {
       // Deploy a new implementation (mock for test)
-      SapienRewardsV2 = await ethers.getContractFactory("SapienRewardsV2Mock");
-      
+      //
+      //
+      //
+      const SapienRewardsV2Factory = await ethers.getContractFactory("SapienRewardsV2Mock");
+
+      const sapienRewardsV2Address = await upgrades.prepareUpgrade(
+        await sapienRewards.getAddress(),
+        SapienRewardsV2Factory.connect(owner),
+        {
+          constructorArgs: [
+            //await authorizedSigner.getAddress(),
+            //await gnosisSafe.getAddress() 
+          ]
+        }
+      );
+
+      console.log(sapienRewards)
+      const authorizeUpgrade = await sapienRewards.connect(gnosisSafe).authorizeUpgrade(sapienRewardsV2Address);
+
       // Upgrade to new implementation
       sapienRewardsV2 = await upgrades.upgradeProxy(
         await sapienRewards.getAddress(),
-        SapienRewardsV2.connect(gnosisSafe)
+        SapienRewardsV2Factory.connect(gnosisSafe)
       );
       
       // Check that state is preserved
