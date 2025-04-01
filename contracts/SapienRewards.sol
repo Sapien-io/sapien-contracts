@@ -319,10 +319,6 @@ contract SapienRewards is
         return (signer == _authorizedSigner);
     }
 
-    function owner() public override view returns (address) {
-        return _gnosisSafe;
-    }
-
     // -------------------------------------------------------------
     // Modifiers
     // -------------------------------------------------------------
@@ -334,7 +330,9 @@ contract SapienRewards is
         require(msg.sender == _gnosisSafe, "Only the Safe can perform this");
         _;
     }
-
+    /**
+     * @dev overrides ownership Transfer so onlySafe can only change onlyOwner
+     */
     function getOwnable2StepStorage() private pure returns (Ownable2StepUpgradeable.Ownable2StepStorage storage $) {
       bytes32 position = 0x237e158222e3e6968b72b9db0d8043aacf074ad9f650f0d1606b4d82ee432c00;
       assembly {
