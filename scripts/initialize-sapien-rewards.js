@@ -25,7 +25,7 @@ async function main() {
   );
 
   // Attach to contracts
-  const SapToken = await ethers.getContractFactory("SapToken");
+  const SapToken = await ethers.getContractFactory("SapTestToken");
   const token = await SapToken.attach(tokenData.tokenAddress);
   
   const SapienRewards = await ethers.getContractFactory("SapienRewards");
@@ -33,8 +33,8 @@ async function main() {
 
   // Fund rewards contract with tokens
   console.log("Funding rewards contract with initial tokens...");
-  const fundAmount = ethers.utils.parseEther("100000"); // Fund with 100,000 tokens
-  const transferTx = await token.transfer(rewards.address, fundAmount);
+  const fundAmount = ethers.parseEther("100000"); // Fund with 100,000 tokens
+  const transferTx = await token.transfer(await rewards.getAddress(), fundAmount);
   await transferTx.wait();
   console.log(`Funded rewards contract with ${ethers.utils.formatEther(fundAmount)} tokens`);
 

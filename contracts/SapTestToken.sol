@@ -163,7 +163,8 @@ contract SapTestToken is
         __ReentrancyGuard_init();
         _vestingStartTimestamp = block.timestamp;
 
-        _mint(_gnosisSafe, _totalSupply);
+        // initially mint to deployer, have deployer forward to multisig during TGE
+        _mint(msg.sender, _totalSupply);
         _createHardcodedVestingSchedules();
         
         emit InitializedEvent(_gnosisSafe, _totalSupply);
