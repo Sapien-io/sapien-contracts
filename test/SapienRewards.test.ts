@@ -269,7 +269,7 @@ describe("SapienRewards", function () {
   });
 
   describe("Pause Functionality", function () {
-    it("Should allow safe to pause and unpause the contract", async function () {
+    it("Should allow owner to pause and unpause the contract", async function () {
       await expect(sapienRewards.connect(owner).pause()).to.not.be.reverted;
       expect(await sapienRewards.paused()).to.equal(true);
       
