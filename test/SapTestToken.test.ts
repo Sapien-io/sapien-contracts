@@ -24,7 +24,7 @@ describe("SapTestToken", function () {
     AIRDROPS_ALLOCATION + 
     COMMUNITY_TREASURY_ALLOCATION + 
     LIQUIDITY_ALLOCATION;
-
+  console.log('total supply', TOTAL_SUPPLY);
   beforeEach(async function () {
     [owner, gnosisSafe, rewardsContract, user] = await ethers.getSigners();
     

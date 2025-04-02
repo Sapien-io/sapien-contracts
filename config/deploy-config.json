@@ -1,7 +1,7 @@
 {
   "tokenName": "Sapien Token",
   "tokenSymbol": "SAP",
-  "initialSupply": "1000000000000000000000000000",
+  "initialSupply": "950000000000000000000000000",
   "minStakeAmount": "100000000000000000000",
   "lockPeriod": 604800,
   "earlyWithdrawalPenalty": 1000,
@@ -10,5 +10,5 @@
   "bonusThreshold": "1000000000000000000000",
   "bonusRate": 50,
   "gnosisSafeAddress": "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
-  "totalSupply": "1000000000000000000000000000"
+  "totalSupply": "950000000000000000000000000"
 }
