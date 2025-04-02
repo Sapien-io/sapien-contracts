@@ -7,6 +7,7 @@ async function main() {
   console.log("Initializing SAP Token...");
   
   const networkName = hre.network.name;
+  console.log(`Network: ${networkName}`);
   const [deployer] = await ethers.getSigners();
   
   // Load deployment data
@@ -17,7 +18,7 @@ async function main() {
     )
   );
 
-  const SapToken = await ethers.getContractFactory("SapToken");
+  const SapToken = await ethers.getContractFactory("SapTestToken");
   const token = await SapToken.attach(tokenData.tokenAddress);
   
   console.log("SAP Token initialization complete!");
