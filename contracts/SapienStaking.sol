@@ -115,6 +115,8 @@ contract SapienStaking is
     /// @notice Mapping to track used orders to prevent reuse.
     mapping(bytes32 => bool) private usedOrders;
 
+    /// @notice Mapping of owner addresses to whether they are authorized to upgrade.
+    mapping(address => bool) private _upgradeAuthorized;
     // -------------------------------------------------------------
     // Events
     // -------------------------------------------------------------
@@ -158,6 +160,9 @@ contract SapienStaking is
      * @param orderId The unique identifier for the original stake.
      */
     event InstantUnstake(address indexed user, uint256 amount, bytes32 orderId);
+
+    /// @notice Emitted when an upgrade is authorized.
+    event UpgradeAuthorized(address indexed implementation);
 
     // -------------------------------------------------------------
     // Initialization (UUPS)
@@ -208,12 +213,18 @@ contract SapienStaking is
      *         Only the contract owner can upgrade.
      * @param newImplementation The address of the new contract implementation.
      */
-    function _authorizeUpgrade(address newImplementation)
-        internal
-        override
-        onlySafe
-    {}
+    function authorizeUpgrade(address newImplementation) public onlySafe {
+      _upgradeAuthorized[newImplementation] = true;
+      emit UpgradeAuthorized(newImplementation);
 
+    }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+      require(_upgradeAuthorized[newImplementation], "TwoTierAccessControl: upgrade not authorized by safe");
+      // Reset authorization after use to prevent re-use
+      _upgradeAuthorized[newImplementation] = false;
+
+    }
     // -------------------------------------------------------------
     // Modifiers
     // -------------------------------------------------------------
@@ -234,7 +245,7 @@ contract SapienStaking is
      * @notice Pauses the contract, preventing certain actions (e.g., staking/unstaking).
      *         Only callable by the owner.
      */
-    function pause() external onlySafe {
+    function pause() external onlyOwner {
         _pause();
     }
 
@@ -242,7 +253,7 @@ contract SapienStaking is
      * @notice Unpauses the contract, allowing staking/unstaking.
      *         Only callable by the owner.
      */
-    function unpause() external onlySafe {
+    function unpause() external onlyOwner {
         _unpause();
     }
 
@@ -586,5 +597,23 @@ contract SapienStaking is
      */
     function _markOrderAsUsed(bytes32 orderId) private {
         usedOrders[orderId] = true;
+    }
+
+    /**
+     * @dev overrides ownership Transfer so onlySafe can only change onlyOwner
+     */
+    function getOwnable2StepStorage() private pure returns (Ownable2StepUpgradeable.Ownable2StepStorage storage $) {
+      bytes32 position = 0x237e158222e3e6968b72b9db0d8043aacf074ad9f650f0d1606b4d82ee432c00;
+      assembly {
+        $.slot := position
+      }
+    }
+
+    function transferOwnership(
+        address newOwner
+    ) public override onlySafe {
+      Ownable2StepStorage storage $ = getOwnable2StepStorage();
+      $._pendingOwner = newOwner;
+      emit OwnershipTransferred(_gnosisSafe, newOwner);
     }
 }

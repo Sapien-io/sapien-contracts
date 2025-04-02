@@ -33,13 +33,13 @@ describe("SapienRewards", function () {
 
     // Deploy SapienRewards
     SapienRewards = await ethers.getContractFactory("SapienRewards");
-    sapienRewards = await upgrades.deployProxy(SapienRewards.connect(gnosisSafe), [
+    sapienRewards = await upgrades.deployProxy(SapienRewards.connect(owner), [
       await authorizedSigner.getAddress(),
       await gnosisSafe.getAddress()
     ]);
 
     // Set reward token
-    await sapienRewards.connect(gnosisSafe).setRewardToken(await mockToken.getAddress());
+    await sapienRewards.connect(owner).setRewardToken(await mockToken.getAddress());
 
     // Fund the rewards contract
     await mockToken.mint(await sapienRewards.getAddress(), ethers.parseUnits("1000000", 18));
@@ -179,7 +179,7 @@ describe("SapienRewards", function () {
     });
   });
 
-  describe("Safe Functions", function () {
+  describe("Safe/ owner Functions", function () {
     it("Should allow safe to deposit tokens", async function () {
       const depositAmount = ethers.parseUnits("1000", 18);
       await mockToken.mint(await gnosisSafe.getAddress(), depositAmount);
@@ -198,11 +198,11 @@ describe("SapienRewards", function () {
       ).to.not.be.reverted;
     });
 
-    it("Should allow safe to update reward token", async function () {
+    it("Should allow owner to update reward token", async function () {
       const newToken = await MockToken.deploy("New Token", "NEW");
       
       await expect(
-        sapienRewards.connect(gnosisSafe).setRewardToken(await newToken.getAddress())
+        sapienRewards.connect(owner).setRewardToken(await newToken.getAddress())
       ).to.emit(sapienRewards, "RewardTokenUpdated")
         .withArgs(await newToken.getAddress());
     });
@@ -270,10 +270,10 @@ describe("SapienRewards", function () {
 
   describe("Pause Functionality", function () {
     it("Should allow safe to pause and unpause the contract", async function () {
-      await expect(sapienRewards.connect(gnosisSafe).pause()).to.not.be.reverted;
+      await expect(sapienRewards.connect(owner).pause()).to.not.be.reverted;
       expect(await sapienRewards.paused()).to.equal(true);
       
-      await expect(sapienRewards.connect(gnosisSafe).unpause()).to.not.be.reverted;
+      await expect(sapienRewards.connect(owner).unpause()).to.not.be.reverted;
       expect(await sapienRewards.paused()).to.equal(false);
     });
 
@@ -284,7 +284,7 @@ describe("SapienRewards", function () {
 
     it("Should prevent reward claims when paused", async function () {
       // Pause the contract
-      await sapienRewards.connect(gnosisSafe).pause();
+      await sapienRewards.connect(owner).pause();
       
       const orderId = "pausedTest";
       const signature = await signRewardClaim(
@@ -364,7 +364,7 @@ describe("SapienRewards", function () {
       // Upgrade to new implementation
       sapienRewardsV2 = await upgrades.upgradeProxy(
         await sapienRewards.getAddress(),
-        SapienRewardsV2Factory.connect(gnosisSafe)
+        SapienRewardsV2Factory.connect(owner)
       );
       
       // Check that state is preserved
@@ -479,7 +479,7 @@ describe("SapienRewards", function () {
   describe("Access Control", function () {
     it("Should prevent non-owners from calling admin functions", async function () {
       await expect(sapienRewards.connect(user).setRewardToken(await mockToken.getAddress()))
-        .to.be.revertedWith("Only the Safe can perform this");
+        .to.be.revertedWithCustomError(sapienRewards, "OwnableUnauthorizedAccount");
         
       await expect(sapienRewards.connect(user).withdrawTokens(100))
         .to.be.revertedWith("Only the Safe can perform this");

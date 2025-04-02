@@ -68,6 +68,9 @@ contract SapienRewards is
 
     /// @notice EIP-712 domain separator for this contract.
     bytes32 private DOMAIN_SEPARATOR;
+    
+    /// @notice Mapping of owner addresses to whether they are authorized to upgrade.
+    mapping(address => bool) private _upgradeAuthorized;
 
     // -------------------------------------------------------------
     // Events
@@ -85,8 +88,7 @@ contract SapienRewards is
     /// @notice Logs the message hash, mainly for debugging or testing.
     event MsgHash(bytes32 msgHash);
 
-    /// @notice Mapping of owner addresses to whether they are authorized to upgrade.
-    mapping(address => bool) private _upgradeAuthorized;
+    /// @notice Emitted when an upgrade is authorized.
     event UpgradeAuthorized(address indexed implementation);
 
 
@@ -171,7 +173,7 @@ contract SapienRewards is
      * @notice Sets the reward token address after deployment.
      * @param _rewardToken The address of the new reward token contract.
      */
-    function setRewardToken(address _rewardToken) external onlySafe {
+    function setRewardToken(address _rewardToken) external onlyOwner {
         require(_rewardToken != address(0), "Invalid reward token address");
         rewardToken = IRewardToken(_rewardToken);
         emit RewardTokenUpdated(_rewardToken);
