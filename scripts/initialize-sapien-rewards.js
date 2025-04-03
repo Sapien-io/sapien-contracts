@@ -36,7 +36,7 @@ async function main() {
   const fundAmount = ethers.parseEther("100000"); // Fund with 100,000 tokens
   const transferTx = await token.transfer(await rewards.getAddress(), fundAmount);
   await transferTx.wait();
-  console.log(`Funded rewards contract with ${ethers.utils.formatEther(fundAmount)} tokens`);
+  console.log(`Funded rewards contract with ${ethers.formatEther(fundAmount)} tokens`);
 
   console.log("Sapien Rewards initialization complete!");
   return rewards;

@@ -17,8 +17,8 @@ async function main() {
   console.log(`Upgrading with account: ${deployer.address}`);
   
   // Deploy new implementation
-  const SapTokenV2 = await ethers.getContractFactory("SapToken");
-  console.log("Upgrading SAP Token...");
+  const SapTokenV2 = await ethers.getContractFactory("SapTestToken");
+  console.log("Upgrading SAP Test Token...");
   
   const upgradedToken = await upgrades.upgradeProxy(
     currentDeployment.tokenAddress,
