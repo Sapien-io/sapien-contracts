@@ -25,8 +25,7 @@ async function main() {
 
   // Attach to contracts
   const SapToken = await ethers.getContractFactory("SapTestToken");
-  const token = await SapToken.attach(tokenData.tokenAddress);
-  console.log('stakingData', stakingData);
+  const token = await SapToken.attach(tokenData.proxyAddress);
   const SapienStaking = await ethers.getContractFactory("SapienStaking");
   const staking = await SapienStaking.attach(stakingData.proxyAddress);
 

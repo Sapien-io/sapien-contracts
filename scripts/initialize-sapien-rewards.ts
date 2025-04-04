@@ -1,9 +1,7 @@
-const hre = require("hardhat");
-const { ethers } = require("hardhat");
-const fs = require("fs");
-const path = require("path");
-
-async function main() {
+import hre, {ethers} from 'hardhat'
+import * as fs from 'fs'
+import * as path from 'path'
+export default async function main() {
   console.log("Initializing Sapien Rewards...");
   
   const networkName = hre.network.name;
@@ -26,10 +24,10 @@ async function main() {
 
   // Attach to contracts
   const SapToken = await ethers.getContractFactory("SapTestToken");
-  const token = await SapToken.attach(tokenData.tokenAddress);
+  const token = SapToken.attach(tokenData.proxyAddress);
   
   const SapienRewards = await ethers.getContractFactory("SapienRewards");
-  const rewards = await SapienRewards.attach(rewardsData.rewardsAddress);
+  const rewards = await SapienRewards.attach(rewardsData.proxyAddress);
 
   // Fund rewards contract with tokens
   console.log("Funding rewards contract with initial tokens...");
@@ -50,5 +48,3 @@ if (require.main === module) {
       process.exit(1);
     });
 }
-
-module.exports = { initialize: main }; 
