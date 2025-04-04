@@ -33,6 +33,7 @@ describe("SapTestToken", function () {
       await gnosisSafe.getAddress(),
       TOTAL_SUPPLY
     ]);
+    await sapTestToken.transfer(await gnosisSafe.getAddress(), TOTAL_SUPPLY);
   });
 
   describe("Initialization", function () {
