@@ -12,7 +12,7 @@ async function main() {
   // Load deployment data
   const tokenData = JSON.parse(
     fs.readFileSync(
-      path.join(__dirname, "../deployments", networkName, "SapToken.json"),
+      path.join(__dirname, "../deployments", networkName, "SapienToken.json"),
       "utf8"
     )
   );

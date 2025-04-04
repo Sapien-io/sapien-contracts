@@ -2,50 +2,30 @@
 import hre, {ethers, upgrades} from 'hardhat'
 import * as fs from 'fs'
 import * as path from 'path'
-import {type DeploymentMetadata, type TokenConfigMetadata} from './utils/types'
-// Load configuration
-const loadConfig = (): TokenConfigMetadata => {
-  try {
-    return JSON.parse(
-      fs.readFileSync(path.join(__dirname, "../config/deploy-config.json"), "utf8")
-    );
-  } catch (error) {
-    console.error("Error loading config file. Using default values.", error.message);
-    return {
-      tokenName: "Sapien Token",
-      tokenSymbol: "SAP",
-      initialSupply: 950000000000000000000000000n,
-      minStakeAmount: 100000000000000000000n,
-      lockPeriod: 604800n,
-      earlyWithdrawalPenalty: 1000n,
-      rewardRate: 100n,
-      rewardInterval: 2592000n,
-      bonusThreshold: 1000000000000000000000n,
-      bonusRate: 50n,
-      safe: "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
-      totalSupply: ethers.parseEther("1000000")
-    };
-  }
-};
+import {type DeploymentMetadata, type DeploymentConfig} from './utils/types'
+
+import { Contract, loadConfig } from './utils/loadConfig'
 
 export default async function main() {
   console.log("Starting SAP Test Token deployment...");
   
   // Get configuration
-  const config = loadConfig();
+  const config = loadConfig(Contract.SapienToken);
   
   // Get deployer account
   const [deployer] = await ethers.getSigners();
+
   console.log(`Deploying with account: ${deployer.address}`);
   console.log(`Account balance: ${ethers.formatEther(await ethers.provider.getBalance(deployer.address))} ETH`);
 
   // Deploy the token contract
   console.log("Deploying SAP Test Token...");
   const SapTestToken = await ethers.getContractFactory("SapTestToken");
+  console.log('totalSupply:', config.totalSupply);
   const sapTestToken = await upgrades.deployProxy(SapTestToken, 
     [
-      config.safe,  // _gnosisSafeAddress
-      config.totalSupply         // _totalSupply
+      config.safe,
+      config.totalSupply
     ],
     { kind: 'uups' }
   );
@@ -74,11 +54,11 @@ export default async function main() {
   
   // Save deployment info to file
   fs.writeFileSync(
-    path.join(deployDir, "SapToken.json"),
+    path.join(deployDir, "SapienToken.json"),
     JSON.stringify(deployData, null, 2)
   );
 
-  console.log("Deployment information saved to:", path.join(deployDir, "SapToken.json"));
+  console.log("Deployment information saved to:", path.join(deployDir, "SapienToken.json"));
   console.log("SAP Test Token deployment complete!");
 
   // Return the deployed contract for testing or for deploy-all.js

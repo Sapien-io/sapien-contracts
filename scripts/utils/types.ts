@@ -7,7 +7,7 @@ export type DeploymentMetadata = {
   safe: `0x${string}`
 }
 
-export type TokenConfigMetadata = {
+export type DeploymentConfig = {
   tokenName: string
   tokenSymbol: string
   initialSupply: bigint

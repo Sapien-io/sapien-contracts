@@ -10,7 +10,7 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   
   // Load current deployment data
-  const deploymentPath = path.join(__dirname, "../deployments", networkName, "SapToken.json");
+  const deploymentPath = path.join(__dirname, "../deployments", networkName, "SapienToken.json");
   const currentDeployment = JSON.parse(fs.readFileSync(deploymentPath, "utf8"));
   
   console.log(`Current SAP Token address: ${currentDeployment.tokenAddress}`);
