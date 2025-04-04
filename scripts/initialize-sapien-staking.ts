@@ -1,7 +1,6 @@
-const hre = require("hardhat");
-const { ethers } = require("hardhat");
-const fs = require("fs");
-const path = require("path");
+import hre, {ethers} from 'hardhat'
+import * as fs from 'fs'
+import * as path from 'path'
 
 async function main() {
   console.log("Initializing Sapien Staking...");

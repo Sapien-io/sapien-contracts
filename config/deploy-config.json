@@ -9,6 +9,6 @@
   "rewardInterval": 2592000,
   "bonusThreshold": "1000000000000000000000",
   "bonusRate": 50,
-  "gnosisSafeAddress": "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
+  "safe": "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
   "totalSupply": "950000000000000000000000000"
 }

@@ -1,12 +1,10 @@
 // Script to deploy the SAP Test Token (ERC20)
-const hre = require("hardhat");
-const { ethers } = require("hardhat");
-const fs = require("fs");
-const path = require("path");
-const { upgrades } = require("hardhat");
-
+import hre, {ethers, upgrades} from 'hardhat'
+import * as fs from 'fs'
+import * as path from 'path'
+import {type DeploymentMetadata, type TokenConfigMetadata} from './utils/types'
 // Load configuration
-const loadConfig = () => {
+const loadConfig = (): TokenConfigMetadata => {
   try {
     return JSON.parse(
       fs.readFileSync(path.join(__dirname, "../config/deploy-config.json"), "utf8")
@@ -16,14 +14,21 @@ const loadConfig = () => {
     return {
       tokenName: "Sapien Token",
       tokenSymbol: "SAP",
-      initialSupply: ethers.parseEther("1000000"),
-      gnosisSafeAddress: "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
+      initialSupply: 950000000000000000000000000n,
+      minStakeAmount: 100000000000000000000n,
+      lockPeriod: 604800n,
+      earlyWithdrawalPenalty: 1000n,
+      rewardRate: 100n,
+      rewardInterval: 2592000n,
+      bonusThreshold: 1000000000000000000000n,
+      bonusRate: 50n,
+      safe: "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
       totalSupply: ethers.parseEther("1000000")
     };
   }
 };
 
-async function main() {
+export default async function main() {
   console.log("Starting SAP Test Token deployment...");
   
   // Get configuration
@@ -39,7 +44,7 @@ async function main() {
   const SapTestToken = await ethers.getContractFactory("SapTestToken");
   const sapTestToken = await upgrades.deployProxy(SapTestToken, 
     [
-      config.gnosisSafeAddress,  // _gnosisSafeAddress
+      config.safe,  // _gnosisSafeAddress
       config.totalSupply         // _totalSupply
     ],
     { kind: 'uups' }
@@ -52,16 +57,13 @@ async function main() {
   console.log("==============================================\n");
 
   // Save deployment information
-  const deployData = {
+  const deployData: DeploymentMetadata = {
     network: hre.network.name,
-    tokenAddress: deployedAddress,
+    proxyAddress: deployedAddress as `0x${string}`,
+    implementationAddress: (await upgrades.erc1967.getImplementationAddress(deployedAddress)) as `0x${string}`,
     deploymentTime: new Date().toISOString(),
-    deployer: deployer.address,
-    tokenName: config.tokenName,
-    tokenSymbol: config.tokenSymbol,
-    initialSupply: config.initialSupply.toString(),
-    gnosisSafeAddress: config.gnosisSafeAddress,
-    totalSupply: config.totalSupply.toString()
+    deployer: deployer.address as `0x${string}`,
+    safe: config.safe,
   };
 
   // Ensure deployment directory exists
@@ -84,12 +86,15 @@ async function main() {
 }
 
 // Execute the script
-main()
-  .then(() => process.exit(0))
+//
+if (require.main === module) {
+  main()
+  .then((result) => {
+    console.log("Result:", result);
+    process.exit(0);
+  })
   .catch((error) => {
     console.error("Error during deployment:", error);
     process.exit(1);
   });
-
-// Export the main function for use in deploy-all.js
-module.exports = { deploy: main }; 
+}
