@@ -20,4 +20,7 @@ export type DeploymentConfig = {
   bonusRate: bigint
   safe: `0x${string}`
   totalSupply: bigint
+  upgradedAt?: Date
+  upgradeTransaction?: string
+  upgradedBy?: string
 }

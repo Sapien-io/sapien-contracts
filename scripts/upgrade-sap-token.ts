@@ -1,9 +1,8 @@
-const hre = require("hardhat");
-const { ethers, upgrades } = require("hardhat");
-const fs = require("fs");
-const path = require("path");
+import hre, { ethers, upgrades } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
 
-async function main() {
+export default async function main() {
   console.log("Starting SAP Token upgrade process...");
   
   const networkName = hre.network.name;
@@ -13,7 +12,7 @@ async function main() {
   const deploymentPath = path.join(__dirname, "../deployments", networkName, "SapienToken.json");
   const currentDeployment = JSON.parse(fs.readFileSync(deploymentPath, "utf8"));
   
-  console.log(`Current SAP Token address: ${currentDeployment.tokenAddress}`);
+  console.log(`Current SAP Token address: ${currentDeployment.proxyAddress}`);
   console.log(`Upgrading with account: ${deployer.address}`);
   
   // Deploy new implementation
@@ -21,7 +20,7 @@ async function main() {
   console.log("Upgrading SAP Test Token...");
   
   const upgradedToken = await upgrades.upgradeProxy(
-    currentDeployment.tokenAddress,
+    currentDeployment.proxyAddress,
     SapTokenV2
   );
   
@@ -50,5 +49,3 @@ if (require.main === module) {
       process.exit(1);
     });
 }
-
-module.exports = { upgrade: main }; 

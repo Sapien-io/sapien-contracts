@@ -1,7 +1,6 @@
-const hre = require("hardhat")
-const { ethers, upgrades  } = require('hardhat')
-const fs = require('fs')
-const path = require('path')
+import hre, { ethers, upgrades } from 'hardhat'
+import * as fs from 'fs'
+import * as path from 'path'
 
 export default async function main() {
   console.log('authorizing upgrade')
