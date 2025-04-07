@@ -6,7 +6,10 @@ import { loadConfig, Contract } from './utils/loadConfig'
 
 import SafeApiKit from '@safe-global/api-kit'
 import Safe, {
-  SafeFactory, SafeAccountConfig, PredictedSafeProps } from '@safe-global/protocol-kit'
+  SafeFactory,
+  SafeAccountConfig,
+  PredictedSafeProps
+} from '@safe-global/protocol-kit'
 
 import {
   MetaTransactionData,
@@ -42,7 +45,7 @@ export default async function main() {
   kind: "uups" 
  })
 
-  const callData = await sapToken.interface.encodeFunctionData(
+  const callData = sapToken.interface.encodeFunctionData(
     "authorizeUpgrade",
     [upgradedImpl]
   )
@@ -69,6 +72,18 @@ export default async function main() {
   console.log('signature', signature)
 
   console.log('authorizing upgrade')
+
+  const apiKit = new SafeApiKit({
+    chainId: 1337n,
+   txServiceUrl: 'http://localhost:8000/api' 
+  })
+  await apiKit.proposeTransaction({
+    safeAddress: config.safe,
+    safeTransactionData: safeTx.data,
+    safeTxHash: safeHash,
+    senderAddress: owner.address,
+    senderSignature: signature.data
+  })
   return true
 }
 
