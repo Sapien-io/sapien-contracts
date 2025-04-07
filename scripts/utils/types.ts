@@ -5,6 +5,9 @@ export type DeploymentMetadata = {
   deploymentTime: string
   deployer: `0x${string}`
   safe: `0x${string}`
+  upgradedAt?: Date
+  upgradeTransaction?: string
+  upgradedBy?: string
 }
 
 export type DeploymentConfig = {
@@ -20,7 +23,7 @@ export type DeploymentConfig = {
   bonusRate: bigint
   safe: `0x${string}`
   totalSupply: bigint
-  upgradedAt?: Date
-  upgradeTransaction?: string
-  upgradedBy?: string
+  token?: DeploymentMetadata
+  staking?: DeploymentMetadata
+  rewards?: DeploymentMetadata
 }

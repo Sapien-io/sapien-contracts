@@ -8,8 +8,11 @@ import Safe, {
 
 
 export default async function main() {
-  await mine(1) // https://github.com/NomicFoundation/hardhat/issues/5511#issuecomment-2288072104
+  //await mine(1) // https://github.com/NomicFoundation/hardhat/issues/5511#issuecomment-2288072104
   const [owner] = await ethers.getSigners();
+
+  const mnemonic = ethers.Mnemonic.fromPhrase(process.env.MNEMONIC)
+  const hdNode = await ethers.HDNodeWallet.fromMnemonic(mnemonic)
   
   const safeAccountConfig:SafeAccountConfig = {
     owners: [owner.address],
@@ -19,36 +22,29 @@ export default async function main() {
     safeAccountConfig
   }
   let providerUrl;
-  console.log('name', hre.network.name)
   if (hre.network.name === "hardhat" || hre.network.name === "localhost") {
     providerUrl = "http://localhost:8545";
   } else {
     providerUrl = `${process.env.ALCHEMY_API_URL}${process.env.ALCHEMY_API_KEY}`
   }
-  console.log('provider url', providerUrl)
   const protocolKit = await Safe.init({
     provider: providerUrl,
-    signer: process.env.PRIVATE_KEY,
+    signer: hdNode.privateKey,
     predictedSafe,
 
   })
-  console.log('hi')
-  console.log(protocolKit)
-  
   const deploymentTransaction = await protocolKit.createSafeDeploymentTransaction()
   
   const client = await protocolKit.getSafeProvider().getExternalSigner()
-  console.log('client', client)
   const transactionHash = await client.sendTransaction({
     to: deploymentTransaction.to,
     value: BigInt(deploymentTransaction.value),
     data: deploymentTransaction.data as `0x${string}`
   })
-  console.log(transactionHash)
+  console.log('address', await protocolKit.getAddress())
 
 
 
-  console.log(protocolKit)
   return true
 }
 

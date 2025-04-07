@@ -1,6 +1,6 @@
-import {type ConfigMetadata} from "../scripts/utils/types";
+import {type DeploymentConfig} from "../scripts/utils/types";
 
-const config: TokenConfigMetadata = {
+const config: DeploymentConfig = {
   "tokenName": "Sapien Token",
   "tokenSymbol": "SAP",
   "initialSupply": 950000000000000000000000000n,
@@ -11,7 +11,7 @@ const config: TokenConfigMetadata = {
   "rewardInterval": 2592000n,
   "bonusThreshold": 1000000000000000000000n,
   "bonusRate": 50n,
-  "safe": "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
+  "safe": "0x0b02e5D662a37A533c557AD842c55D913c87392C",
   "totalSupply": 950000000000000000000000000n
 }
 

@@ -9,7 +9,7 @@ export enum Contract {
   SapienStaking,
   SapienRewards
 }
-export const loadConfig = (contract: Contract ) => {
+export const loadConfig = (contract: Contract ): DeploymentConfig => {
   if (!(contract in Contract)) {
     throw new Error(`Invalid contract type: ${contract}`)
   }
