@@ -23,6 +23,9 @@ export default async function main() {
 
   const mnemonic = ethers.Mnemonic.fromPhrase(process.env.MNEMONIC)
   const hdNode = await ethers.HDNodeWallet.fromMnemonic(mnemonic)
+  if (hdNode.address !== owner.address) {
+    throw new Error("Invalid mnemonic")
+  }
 
   let providerUrl;
   if (hre.network.name === "hardhat" || hre.network.name === "localhost") {
@@ -30,7 +33,8 @@ export default async function main() {
   } else {
     providerUrl = `${process.env.ALCHEMY_API_URL}${process.env.ALCHEMY_API_KEY}`
   }
-
+  console.log('providerUrl', providerUrl)
+  console.log('config.safe', config.safe)
   const protocolKit = await Safe.init({
     provider: providerUrl,
     signer: hdNode.privateKey,

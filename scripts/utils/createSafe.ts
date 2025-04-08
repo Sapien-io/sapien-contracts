@@ -13,6 +13,11 @@ export default async function main() {
 
   const mnemonic = ethers.Mnemonic.fromPhrase(process.env.MNEMONIC)
   const hdNode = await ethers.HDNodeWallet.fromMnemonic(mnemonic)
+  console.log('hdnode', hdNode.address)
+  console.log('owner', owner.address)
+  if (hdNode.address !== owner.address) {
+    throw new Error("Invalid mnemonic")
+  }
   
   const safeAccountConfig:SafeAccountConfig = {
     owners: [owner.address],
