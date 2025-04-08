@@ -17,6 +17,10 @@ import {
 } from '@safe-global/types-kit'
 
 export default async function main() {
+  const deployDir = path.join(__dirname, "../deployments", hre.network.name);
+  if (!fs.existsSync(deployDir)) {
+    throw new Error("Deployment directory does not exist, please deploy first")
+  }
   const config = loadConfig(Contract.SapienToken);
 
   const [owner] = await ethers.getSigners();
@@ -45,7 +49,7 @@ export default async function main() {
 
  const SapV2 = await ethers.getContractFactory("SapTestToken") 
 
- const upgradedImpl = await upgrades.deployImplementation(SapV2, {
+ const upgradedImpl= await upgrades.deployImplementation(SapV2, {
   kind: "uups" 
  })
 
@@ -88,6 +92,21 @@ export default async function main() {
     senderAddress: owner.address,
     senderSignature: signature.data
   })
+
+  const sigRes = await apiKit.confirmTransaction(
+    safeHash,
+    signature.data
+  )
+  const safeTransaction = await apiKit.getTransaction(safeHash)
+  const executeTxResponse = await protocolKit.executeTransaction(safeTransaction)
+  console.log('executeTxResponse', executeTxResponse)
+
+  config.token.authorizedUpgradedImplementation = upgradedImpl as `0x${string}`
+
+  fs.writeFileSync(
+    path.join(deployDir, "SapienToken.json"),
+    JSON.stringify(config.token, null, 2)
+  )
   return true
 }
 

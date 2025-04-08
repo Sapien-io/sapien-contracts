@@ -5,6 +5,7 @@ export type DeploymentMetadata = {
   deploymentTime: string
   deployer: `0x${string}`
   safe: `0x${string}`
+  authorizedUpgradedImplementation?: `0x${string}`
   upgradedAt?: Date
   upgradeTransaction?: string
   upgradedBy?: string

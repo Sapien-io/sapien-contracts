@@ -18,13 +18,18 @@ export default async function main() {
   // Deploy new implementation
   const SapTokenV2 = await ethers.getContractFactory("SapTestToken");
   console.log("Upgrading SAP Test Token...");
-  
+
   const upgradedToken = await upgrades.upgradeProxy(
     currentDeployment.proxyAddress,
-    SapTokenV2
+    SapTokenV2,
+    {
+      useDeployedImplementation: true,
+      implementationAddress: currentDeployment.authorizedUpgradedImplementation,
+      //kind: "uups",
+    }
   );
   
-  await upgradedToken.deployed();
+  await upgradedToken.waitForDeployment();
   console.log("Upgrade complete!");
   
   // Update deployment information
