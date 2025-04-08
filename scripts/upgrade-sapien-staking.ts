@@ -1,9 +1,8 @@
-const hre = require("hardhat");
-const { ethers, upgrades } = require("hardhat");
-const fs = require("fs");
-const path = require("path");
 
-async function main() {
+import hre, { ethers, upgrades } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
+export default async function main() {
   console.log("Starting Sapien Staking contract upgrade process...");
   
   const networkName = hre.network.name;
@@ -21,14 +20,21 @@ async function main() {
   console.log("Upgrading Staking contract...");
   
   const upgradedStaking = await upgrades.upgradeProxy(
-    currentDeployment.stakingAddress,
-    SapienStakingV2
+    currentDeployment.proxyAddress,
+    SapienStakingV2,
+    {
+      useDeployedImplementation: true,
+      implementationAddress: currentDeployment.authorizedUpgradedImplementation,
+      //kind: "uups",
+    }
   );
   
-  await upgradedStaking.deployed();
+  await upgradedStaking.waitForDeployment();
   console.log("Upgrade complete!");
   
+  
   // Verify existing distributors are still set correctly
+  /*
   console.log("Verifying distributor settings...");
   const rewardsData = JSON.parse(
     fs.readFileSync(
@@ -36,17 +42,8 @@ async function main() {
       "utf8"
     )
   );
-  
-  // Check if rewards contract is still a distributor
-  const isDistributor = await upgradedStaking.isDistributor(rewardsData.rewardsAddress);
-  if (!isDistributor) {
-    console.log("Re-adding rewards contract as distributor...");
-    const tx = await upgradedStaking.addDistributor(rewardsData.rewardsAddress);
-    await tx.wait();
-    console.log("Rewards contract restored as distributor");
-  }
-  
-  // Update deployment information
+  */
+
   const upgradeData = {
     ...currentDeployment,
     upgradedAt: new Date().toISOString(),
@@ -55,6 +52,19 @@ async function main() {
   };
   
   fs.writeFileSync(deploymentPath, JSON.stringify(upgradeData, null, 2));
+  
+  // Check if rewards contract is still a distributor
+  /*
+  const isDistributor = await upgradedStaking.isDistributor(rewardsData.proxyAddress);
+  if (!isDistributor) {
+    console.log("Re-adding rewards contract as distributor...");
+    const tx = await upgradedStaking.addDistributor(rewardsData.rewardsAddress);
+    await tx.wait();
+    console.log("Rewards contract restored as distributor");
+  }
+  
+  // Update deployment information
+   */
   console.log("Upgrade information saved to:", deploymentPath);
   
   return upgradedStaking;
@@ -62,11 +72,12 @@ async function main() {
 
 if (require.main === module) {
   main()
-    .then(() => process.exit(0))
+    .then((result) =>{ 
+      console.log("Result:", result);
+      process.exit(0)
+    })
     .catch((error) => {
       console.error("Error during upgrade:", error);
       process.exit(1);
     });
 }
-
-module.exports = { upgrade: main }; 
