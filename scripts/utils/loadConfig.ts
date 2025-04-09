@@ -7,7 +7,8 @@ import config from '../../config/deploy-config'
 export enum Contract {
   SapienToken,
   SapienStaking,
-  SapienRewards
+  SapienRewards,
+  All
 }
 export const loadConfig = (contract: Contract ): DeploymentConfig => {
   if (!(contract in Contract)) {
