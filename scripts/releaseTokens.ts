@@ -1,10 +1,22 @@
-const { ethers } = require("hardhat");
+import hre, { ethers } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
 
-async function main() {
+
+export default async function main() {
   // Get the contract instance
+  //
+  //
+  const networkName = hre.network.name;
+  const tokenData = JSON.parse(
+    fs.readFileSync(
+      path.join(__dirname, "../deployments", networkName, "SapienToken.json"),
+      "utf8"
+    )
+  )
   const sapTestToken = await ethers.getContractAt(
     "SapTestToken",
-    "YOUR_CONTRACT_ADDRESS_HERE" // Replace with your deployed contract address
+    tokenData.proxyAddress // Replace with your deployed contract address
   );
 
   // AllocationType enum values:
@@ -14,7 +26,7 @@ async function main() {
   // 3: AIRDROP
   // 4: COMMUNITY_TREASURY
   // 5: STAKING_INCENTIVES
-  // 6: LIQUIDITY_INCENTIVES
+  // 6: LIQUIDITY_INCEYOUR_CONTRACT_ADDRESS_HERENTIVES
 
   try {
     // You need to call this from either the Gnosis Safe or the rewards contract

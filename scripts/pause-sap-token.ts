@@ -1,9 +1,8 @@
-const hre = require("hardhat");
-const { ethers } = require("hardhat");
-const fs = require("fs");
-const path = require("path");
+import hre, { ethers } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
 
-async function main() {
+export default async function main() {
   console.log("Pausing SAP Token...");
   
   const networkName = hre.network.name;
@@ -18,8 +17,8 @@ async function main() {
   );
 
   // Attach to contract
-  const SapToken = await ethers.getContractFactory("SapToken");
-  const token = await SapToken.attach(tokenData.tokenAddress);
+  const SapToken = await ethers.getContractFactory("SapTestToken");
+  const token = await SapToken.attach(tokenData.proxyAddress);
   
   // Check if already paused
   const isPaused = await token.paused();
@@ -46,4 +45,3 @@ if (require.main === module) {
     });
 }
 
-module.exports = { pause: main }; 

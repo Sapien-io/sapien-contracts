@@ -1,10 +1,18 @@
-const { ethers } = require("hardhat");
+import hre, { ethers } from "hardhat";
 
-async function main() {
+export default async function main() {
+  const network = hre.network.name;
+
+  const tokenData = JSON.parse(
+    fs.readFileSync(
+      path.join(__dirname, "../deployments", network, "SapienToken.json"),
+      "utf8"
+    )
+  )
   // Get the contract instance
   const sapTestToken = await ethers.getContractAt(
     "SapTestToken",
-    "YOUR_CONTRACT_ADDRESS_HERE" // Replace with your deployed contract address
+    tokenData.proxyAddress // Replace with your deployed contract address
   );
 
   // Get the new rewards contract address from environment variable

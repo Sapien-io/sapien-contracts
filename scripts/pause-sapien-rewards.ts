@@ -1,9 +1,8 @@
-const hre = require("hardhat");
-const { ethers } = require("hardhat");
-const fs = require("fs");
-const path = require("path");
+import hre, { ethers } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
 
-async function main() {
+export default async function main() {
   console.log("Pausing Sapien Rewards...");
   
   const networkName = hre.network.name;
@@ -19,7 +18,7 @@ async function main() {
 
   // Attach to contract
   const SapienRewards = await ethers.getContractFactory("SapienRewards");
-  const rewards = await SapienRewards.attach(rewardsData.rewardsAddress);
+  const rewards = await SapienRewards.attach(rewardsData.proxyAddress);
   
   // Check if already paused
   const isPaused = await rewards.paused();
@@ -45,5 +44,3 @@ if (require.main === module) {
       process.exit(1);
     });
 }
-
-module.exports = { pause: main }; 

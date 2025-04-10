@@ -1,9 +1,9 @@
-const hre = require("hardhat");
-const { pause: pauseToken } = require("./pause-sap-token");
-const { pause: pauseStaking } = require("./pause-sapien-staking");
-const { pause: pauseRewards } = require("./pause-sapien-rewards");
+import hre from "hardhat";
 
-async function main() {
+import pauseToken from "./pause-sap-token";
+import pauseStaking from "./pause-sapien-staking";
+import pauseRewards from "./pause-sapien-rewards";
+export default async function main() {
   console.log("Starting emergency pause of all contracts...");
 
   try {
@@ -33,5 +33,3 @@ if (require.main === module) {
       process.exit(1);
     });
 }
-
-module.exports = { pauseAll: main }; 

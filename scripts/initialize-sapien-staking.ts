@@ -50,4 +50,3 @@ if (require.main === module) {
     });
 }
 
-module.exports = { initialize: main }; 
