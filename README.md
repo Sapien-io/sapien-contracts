@@ -76,7 +76,18 @@ This project includes deployment scripts for each contract individually or deplo
 
 ### Configuration
 
+#### Get a Safe
+Sapien has infrastructure on the back end to facilitate using https://safe.global multisig smart wallets. One can use their UI to create one here https://app.safe.global/welcome . Or for development use 
+
+https://github.com/Sapien-io/safe-transaction-service
+`cd safe-transaction-service && cp .env.dev .env`
+get a fork url from a provider like alchemy, base sepolia had fork issues with alchemy, but forking mainnet with alchemy was fine
+`docker compose --profile develop up`
+
+`npx hardhat run sccripts/utils/create-safe.ts --network <network-name>` (localhost)
+
 Create a configuration file at `config/deploy-config.json` to customize deployment parameters:
+(the safe address goes here)
 
 Example configuration:
     {
@@ -87,6 +98,7 @@ Example configuration:
       "lockPeriod": 604800,
       "earlyWithdrawalPenalty": 1000,
       "rewardRate": 100,
+      "safe": "0x..",
       "rewardInterval": 2592000,
       "bonusThreshold": "1000000000000000000000",
       "bonusRate": 50
