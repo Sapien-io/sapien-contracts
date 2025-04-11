@@ -70,7 +70,7 @@ This project includes deployment scripts for each contract individually or deplo
 
 ### Prerequisites
 
-- Node.js 14+
+- Node.js 23
 - Hardhat installed
 - Configuration file (optional)
 
@@ -99,13 +99,13 @@ If not provided, the deployment scripts will use sensible defaults.
 You can also deploy contracts individually if needed:
 
     # Deploy only the SAP Token
-    npx hardhat run scripts/deploy-sap-test-token.js --network base-sepolia
+    npx hardhat run scripts/deploy-sap-test-token.ts --network base-sepolia
 
     # Deploy only the Staking contract
-    npx hardhat run scripts/deploy-sapien-staking.js --network base-sepolia
+    npx hardhat run scripts/deploy-sapien-staking.ts --network base-sepolia
 
     # Deploy only the Rewards contract
-    npx hardhat run scripts/deploy-sapien-rewards.js --network base-sepolia
+    npx hardhat run scripts/deploy-sapien-rewards.ts --network base-sepolia
 
 Note: Individual deployments require previous contracts to be deployed first (e.g., deploying the Staking contract requires the SAP Token to be deployed first).
 
@@ -113,7 +113,7 @@ Note: Individual deployments require previous contracts to be deployed first (e.
 
 All deployment information is saved to the `deployments/<network-name>/` directory:
 
-- `SapToken.json`: Contains SAP Token deployment details
+- `SapienToken.json`: Contains SAP Token deployment details
 - `SapienStaking.json`: Contains Staking contract deployment details  
 - `SapienRewards.json`: Contains Rewards contract deployment details
 - `DeploymentSummary.json`: Contains complete deployment summary (when using deploy-all.js)
@@ -134,13 +134,13 @@ For example, to verify the SAP Token:
 You can also initialize contracts individually if needed:
 
     # Initialize only the SAP Token
-    npx hardhat run scripts/initialize-sap-token.js --network <network-name>
+    npx hardhat run scripts/initialize-sap-token.ts --network <network-name>
 
     # Initialize only the Staking contract
-    npx hardhat run scripts/initialize-sapien-staking.js --network <network-name>
+    npx hardhat run scripts/initialize-sapien-staking.ts --network <network-name>
 
     # Initialize only the Rewards contract
-    npx hardhat run scripts/initialize-sapien-rewards.js --network <network-name>
+    npx hardhat run scripts/initialize-sapien-rewards.ts --network <network-name>
 
 Note: Individual initializations should still be performed in order (Token → Staking → Rewards) to ensure proper contract interactions.
 
@@ -148,14 +148,19 @@ Note: Individual initializations should still be performed in order (Token → S
 
 Each contract can be upgraded individually when needed. Make sure to thoroughly test upgrades on a testnet before deploying to mainnet.
 
+    # Safe authorizes the upgrade (use https://github.com/Sapien-io/safe-transaction-service to collect signatures and send transaction) or use
+    npx hardhat run scripts/authorize-sap-token-upgrade.ts --network <network-name>
+    npx hardhat run scripts/authorize-sapien-staking-upgrade.ts --network <network-name>
+    npx hardhat run scripts/authorize-sapien-rewards-upgrade.ts --network <network-name>
+    
     # Upgrade the SAP Token
-    npx hardhat run scripts/upgrade-sap-token.js --network <network-name>
+    npx hardhat run scripts/upgrade-sap-token.ts --network <network-name>
 
     # Upgrade the Staking contract
-    npx hardhat run scripts/upgrade-sapien-staking.js --network <network-name>
+    npx hardhat run scripts/upgrade-sapien-staking.ts --network <network-name>
 
     # Upgrade the Rewards contract
-    npx hardhat run scripts/upgrade-sapien-rewards.js --network <network-name>
+    npx hardhat run scripts/upgrade-sapien-rewards.ts --network <network-name>
 
 Note: Contract upgrades maintain all existing state and balances. The upgrade scripts include verification steps to ensure contract relationships remain intact after the upgrade.
 
@@ -164,16 +169,16 @@ Note: Contract upgrades maintain all existing state and balances. The upgrade sc
 Contracts can be paused individually or all at once in case of emergency. The pause functionality will stop all state-changing operations while allowing read operations to continue.
 
     # Pause the SAP Token
-    npx hardhat run scripts/pause-sap-token.js --network <network-name>
+    npx hardhat run scripts/pause-sap-token.ts --network <network-name>
 
     # Pause the Staking contract
-    npx hardhat run scripts/pause-sapien-staking.js --network <network-name>
+    npx hardhat run scripts/pause-sapien-staking.ts --network <network-name>
 
     # Pause the Rewards contract
-    npx hardhat run scripts/pause-sapien-rewards.js --network <network-name>
+    npx hardhat run scripts/pause-sapien-rewards.ts --network <network-name>
 
     # Pause all contracts
-    npx hardhat run scripts/pause-all.js --network <network-name>
+    npx hardhat run scripts/pause-all.ts --network <network-name>
 
 Note: When using pause-all.js, contracts are paused in reverse dependency order (Rewards → Staking → Token) to ensure system safety. Only accounts with the appropriate permissions can pause contracts.
 
@@ -182,22 +187,22 @@ Note: When using pause-all.js, contracts are paused in reverse dependency order 
 The Rewards contract can be configured and managed through several administrative functions. These operations require the calling account to have owner permissions.
 
     # Set the reward token address
-    npx hardhat run scripts/set-reward-token.js --network <network-name>
+    npx hardhat run scripts/set-reward-token.ts --network <network-name>
 
     # Deposit tokens to the rewards contract
-    DEPOSIT_AMOUNT=1000000 npx hardhat run scripts/deposit-rewards.js --network <network-name>
+    DEPOSIT_AMOUNT=1000000 npx hardhat run scripts/deposit-rewards.ts --network <network-name>
 
     # Withdraw tokens from the rewards contract
-    WITHDRAW_AMOUNT=100000 npx hardhat run scripts/withdraw-rewards.js --network <network-name>
+    WITHDRAW_AMOUNT=100000 npx hardhat run scripts/withdraw-rewards.ts --network <network-name>
 
     # Release tokens for a specific allocation type
-    ALLOCATION_TYPE=0 npx hardhat run scripts/release-tokens.js --network <network-name>
+    ALLOCATION_TYPE=0 npx hardhat run scripts/release-tokens.ts --network <network-name>
 
     # Propose a new rewards contract
-    NEW_REWARDS_CONTRACT=0x... npx hardhat run scripts/propose-rewards-contract.js --network <network-name>
+    NEW_REWARDS_CONTRACT=0x... npx hardhat run scripts/propose-rewards-contract.ts --network <network-name>
 
     # Accept the proposed rewards contract
-    npx hardhat run scripts/accept-rewards-contract.js --network <network-name>
+    npx hardhat run scripts/accept-rewards-contract.ts --network <network-name>
 
 Note: Deposit and withdrawal amounts are specified in whole tokens (they will be automatically converted to the correct decimal places). The DEPOSIT_AMOUNT and WITHDRAW_AMOUNT environment variables must be set before running those scripts. Make sure the calling account has sufficient token balance for deposits and appropriate permissions for all operations.
 
@@ -298,7 +303,7 @@ function updateVestingSchedule(
 ## Development
 
 ### Prerequisites
-- Node.js 14+
+- Node.js 23+
 - Hardhat
 - OpenZeppelin Contracts
 
