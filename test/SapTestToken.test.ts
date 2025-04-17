@@ -17,14 +17,14 @@ describe("SapTestToken", function () {
   const LABELING_REWARDS_ALLOCATION = ethers.parseUnits("150000000", DECIMALS);
   const AIRDROPS_ALLOCATION = ethers.parseUnits("150000000", DECIMALS);
   const COMMUNITY_TREASURY_ALLOCATION = ethers.parseUnits("100000000", DECIMALS);
-  const LIQUIDITY_ALLOCATION = ethers.parseUnits("100000000", DECIMALS);
+  const LIQUIDITY_ALLOCATION = ethers.parseUnits("50000000", DECIMALS);
   const TOTAL_SUPPLY = INVESTORS_ALLOCATION + 
     TEAM_ADVISORS_ALLOCATION + 
     LABELING_REWARDS_ALLOCATION + 
     AIRDROPS_ALLOCATION + 
     COMMUNITY_TREASURY_ALLOCATION + 
     LIQUIDITY_ALLOCATION;
-
+  console.log('total supply', TOTAL_SUPPLY);
   beforeEach(async function () {
     [owner, gnosisSafe, rewardsContract, user] = await ethers.getSigners();
     
@@ -33,6 +33,7 @@ describe("SapTestToken", function () {
       await gnosisSafe.getAddress(),
       TOTAL_SUPPLY
     ]);
+    await sapTestToken.transfer(await gnosisSafe.getAddress(), TOTAL_SUPPLY);
   });
 
   describe("Initialization", function () {

@@ -12,6 +12,7 @@ describe("SapienStaking", function () {
   let owner: Signer;
   let sapienSigner: Signer;
   let user: Signer;
+  let gnosisSafe: Signer;
   let domain: {
     name: string;
     version: string;
@@ -27,7 +28,7 @@ describe("SapienStaking", function () {
   const COOLDOWN_PERIOD = BigInt(2) * ONE_DAY;
 
   beforeEach(async function () {
-    [owner, sapienSigner, user] = await ethers.getSigners();
+    [owner, sapienSigner, user, gnosisSafe] = await ethers.getSigners();
 
     // Deploy mock ERC20 token
     SapienToken = await ethers.getContractFactory("MockERC20");
@@ -37,7 +38,8 @@ describe("SapienStaking", function () {
     SapienStaking = await ethers.getContractFactory("SapienStaking");
     sapienStaking = await upgrades.deployProxy(SapienStaking, [
       await sapienToken.getAddress(),
-      await sapienSigner.getAddress()
+      await sapienSigner.getAddress(),
+      await gnosisSafe.getAddress()
     ]);
 
     // Mint tokens to user and approve staking contract
@@ -471,9 +473,10 @@ describe("SapienStaking", function () {
     });
   });
 
-  describe("Admin Functions", function () {
+  describe("Owner Functions", function () {
     it("Should allow owner to pause and unpause contract", async function () {
       // Pause the contract
+
       await sapienStaking.connect(owner).pause();
       expect(await sapienStaking.paused()).to.be.true;
       
@@ -496,7 +499,7 @@ describe("SapienStaking", function () {
       ).not.to.be.reverted;
     });
     
-    it("Should not allow non-owner to pause or unpause", async function () {
+    it("Should not allow non-safe to pause or unpause", async function () {
       await expect(
         sapienStaking.connect(user).pause()
       ).to.be.reverted;
@@ -722,6 +725,54 @@ describe("SapienStaking", function () {
           ethers.id(orderId),
           signature
         )
+      ).to.be.reverted;
+    });
+  });
+
+  describe("Upgradeability", function () {
+    let SapienStakingV2: any;
+    let sapienStakingV2: any;
+    
+    it("Should allow upgrading to a new implementation", async function () {
+      // Deploy a new implementation (mock for test)
+      //
+      //
+      //
+      const oldTotalSupply = await sapienStaking.totalStaked()
+      const SapienStakingV2Factory = await ethers.getContractFactory("SapienStakingV2Mock");
+
+      const sapienStakingV2Address = await upgrades.prepareUpgrade(
+        await sapienStaking.getAddress(),
+        SapienStakingV2Factory.connect(owner),
+        {
+          constructorArgs: [
+            //await authorizedSigner.getAddress(),
+            //await gnosisSafe.getAddress() 
+          ]
+        }
+      );
+
+      console.log(sapienStaking)
+      const authorizeUpgrade = await sapienStaking.connect(gnosisSafe).authorizeUpgrade(sapienStakingV2Address);
+
+      // Upgrade to new implementation
+      sapienStakingV2 = await upgrades.upgradeProxy(
+        await sapienStaking.getAddress(),
+        SapienStakingV2Factory.connect(owner)
+      );
+      
+      // Check that state is preserved
+      expect(await sapienStakingV2.totalStaked()).to.equal(oldTotalSupply);
+      
+      // Check that new functionality is available (assuming the mock has a new function)
+      expect(await sapienStakingV2.getVersion()).to.equal("2.0");
+    });
+    
+    it("Should not allow non-owners to upgrade the contract", async function () {
+      SapienStakingV2 = await ethers.getContractFactory("SapienStakingV2Mock", user);
+      
+      await expect(
+        upgrades.upgradeProxy(await sapienStaking.getAddress(), SapienStakingV2)
       ).to.be.reverted;
     });
   });

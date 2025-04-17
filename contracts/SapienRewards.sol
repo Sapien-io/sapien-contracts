@@ -44,12 +44,16 @@ contract SapienRewards is
     // State Variables
     // -------------------------------------------------------------
 
+    /// @dev The address of the Gnosis Safe that controls administrative functions (effectively immutable, but can't use immutable keyword due to upgradeability)
+    address public _gnosisSafe;
+
     /// @dev The reward token interface used for transfers and release calls.
     IRewardToken public rewardToken;
 
     /// @dev The address that is authorized to sign reward claims.
     /// @dev Effectively immutable, but can't use immutable keyword due to upgradeability
     address private _authorizedSigner;
+
 
     /// @notice Mapping of wallet addresses to their redeemed order IDs.
     mapping(address => mapping(bytes32 => bool)) private redeemedOrders;
@@ -64,6 +68,9 @@ contract SapienRewards is
 
     /// @notice EIP-712 domain separator for this contract.
     bytes32 private DOMAIN_SEPARATOR;
+    
+    /// @notice Mapping of owner addresses to whether they are authorized to upgrade.
+    mapping(address => bool) private _upgradeAuthorized;
 
     // -------------------------------------------------------------
     // Events
@@ -80,6 +87,10 @@ contract SapienRewards is
 
     /// @notice Logs the message hash, mainly for debugging or testing.
     event MsgHash(bytes32 msgHash);
+
+    /// @notice Emitted when an upgrade is authorized.
+    event UpgradeAuthorized(address indexed implementation);
+
 
     // -------------------------------------------------------------
     // Constructor
@@ -99,7 +110,10 @@ contract SapienRewards is
      *         Sets up the Ownable, Pausable, UUPS, and ReentrancyGuard functionalities.
      * @param _authorizedSigner_ The address authorized to sign reward claims.
      */
-    function initialize(address _authorizedSigner_) public initializer {
+    function initialize(
+      address _authorizedSigner_,
+      address gnosisSafe_
+    ) public initializer {
         require(_authorizedSigner_ != address(0), "Invalid authorized signer address");
         
         __Ownable_init(msg.sender);
@@ -108,6 +122,7 @@ contract SapienRewards is
         __ReentrancyGuard_init();
 
         _authorizedSigner = _authorizedSigner_;
+        _gnosisSafe = gnosisSafe_;
 
         // Initialize domain separator for EIP-712
         DOMAIN_SEPARATOR = keccak256(
@@ -121,12 +136,18 @@ contract SapienRewards is
         );
     }
 
-    /**
-     * @notice Authorizes an upgrade to a new implementation (UUPS). 
-     *         Only the contract owner can perform this action.
-     * @param newImplementation The address of the new implementation.
-     */
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    function authorizeUpgrade(address newImplementation) public onlySafe {
+      _upgradeAuthorized[newImplementation] = true;
+      emit UpgradeAuthorized(newImplementation);
+
+    }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+      require(_upgradeAuthorized[newImplementation], "TwoTierAccessControl: upgrade not authorized by safe");
+      // Reset authorization after use to prevent re-use
+      _upgradeAuthorized[newImplementation] = false;
+
+    }
 
     // -------------------------------------------------------------
     // Owner Functions
@@ -159,23 +180,23 @@ contract SapienRewards is
     }
 
     /**
-     * @notice Allows the contract owner to deposit tokens directly into this contract.
+     * @notice Allows the contract owners to deposit tokens directly into this contract.
      * @param amount The amount of tokens to deposit.
      */
-    function depositTokens(uint256 amount) external onlyOwner {
+    function depositTokens(uint256 amount) external onlySafe {
         require(
-            rewardToken.transferFrom(msg.sender, address(this), amount),
+            rewardToken.transferFrom(_gnosisSafe, address(this), amount),
             "Token deposit failed"
         );
     }
 
     /**
-     * @notice Allows the contract owner to withdraw tokens from this contract.
+     * @notice Allows the contract owners to withdraw tokens from this contract.
      * @param amount The amount of tokens to withdraw.
      */
-    function withdrawTokens(uint256 amount) external onlyOwner {
+    function withdrawTokens(uint256 amount) external onlySafe {
         require(
-            rewardToken.transfer(owner(), amount),
+            rewardToken.transfer(_gnosisSafe, amount),
             "Token withdrawal failed"
         );
     }
@@ -298,6 +319,35 @@ contract SapienRewards is
 
         address signer = hash.recover(signature);
         return (signer == _authorizedSigner);
+    }
+
+    // -------------------------------------------------------------
+    // Modifiers
+    // -------------------------------------------------------------
+
+    /**
+     * @dev Ensures the caller is the Gnosis Safe
+     */
+    modifier onlySafe() {
+        require(msg.sender == _gnosisSafe, "Only the Safe can perform this");
+        _;
+    }
+    /**
+     * @dev overrides ownership Transfer so onlySafe can only change onlyOwner
+     */
+    function getOwnable2StepStorage() private pure returns (Ownable2StepUpgradeable.Ownable2StepStorage storage $) {
+      bytes32 position = 0x237e158222e3e6968b72b9db0d8043aacf074ad9f650f0d1606b4d82ee432c00;
+      assembly {
+        $.slot := position
+      }
+    }
+
+    function transferOwnership(
+        address newOwner
+    ) public override onlySafe {
+      Ownable2StepStorage storage $ = getOwnable2StepStorage();
+      $._pendingOwner = newOwner;
+      emit OwnershipTransferred(_gnosisSafe, newOwner);
     }
 }
 

@@ -11,6 +11,7 @@ describe("SapienRewards", function () {
   let owner: Signer;
   let authorizedSigner: Signer;
   let user: Signer;
+  let gnosisSafe: Signer;
   let domain: {
     name: string;
     version: string;
@@ -24,7 +25,7 @@ describe("SapienRewards", function () {
   const REWARD_AMOUNT = ethers.parseUnits("100", 18);
 
   beforeEach(async function () {
-    [owner, authorizedSigner, user] = await ethers.getSigners();
+    [owner, authorizedSigner, user, gnosisSafe] = await ethers.getSigners();
 
     // Deploy mock token (representing IRewardToken)
     MockToken = await ethers.getContractFactory("MockERC20");
@@ -32,12 +33,13 @@ describe("SapienRewards", function () {
 
     // Deploy SapienRewards
     SapienRewards = await ethers.getContractFactory("SapienRewards");
-    sapienRewards = await upgrades.deployProxy(SapienRewards, [
-      await authorizedSigner.getAddress()
+    sapienRewards = await upgrades.deployProxy(SapienRewards.connect(owner), [
+      await authorizedSigner.getAddress(),
+      await gnosisSafe.getAddress()
     ]);
 
     // Set reward token
-    await sapienRewards.setRewardToken(await mockToken.getAddress());
+    await sapienRewards.connect(owner).setRewardToken(await mockToken.getAddress());
 
     // Fund the rewards contract
     await mockToken.mint(await sapienRewards.getAddress(), ethers.parseUnits("1000000", 18));
@@ -158,7 +160,7 @@ describe("SapienRewards", function () {
     it("Should fail if contract has insufficient balance", async function () {
       // Withdraw all tokens from contract first
       const balance = await mockToken.balanceOf(await sapienRewards.getAddress());
-      await sapienRewards.connect(owner).withdrawTokens(balance);
+      await sapienRewards.connect(gnosisSafe).withdrawTokens(balance);
 
       const orderId = "claim4";
       const signature = await signRewardClaim(
@@ -177,22 +179,22 @@ describe("SapienRewards", function () {
     });
   });
 
-  describe("Admin Functions", function () {
-    it("Should allow owner to deposit tokens", async function () {
+  describe("Safe/ owner Functions", function () {
+    it("Should allow safe to deposit tokens", async function () {
       const depositAmount = ethers.parseUnits("1000", 18);
-      await mockToken.mint(await owner.getAddress(), depositAmount);
-      await mockToken.approve(await sapienRewards.getAddress(), depositAmount);
+      await mockToken.mint(await gnosisSafe.getAddress(), depositAmount);
+      await mockToken.connect(gnosisSafe).approve(await sapienRewards.getAddress(), depositAmount);
 
       await expect(
-        sapienRewards.depositTokens(depositAmount)
+        sapienRewards.connect(gnosisSafe).depositTokens(depositAmount)
       ).to.not.be.reverted;
     });
 
-    it("Should allow owner to withdraw tokens", async function () {
+    it("Should allow safe to withdraw tokens", async function () {
       const withdrawAmount = ethers.parseUnits("100", 18);
       
       await expect(
-        sapienRewards.withdrawTokens(withdrawAmount)
+        sapienRewards.connect(gnosisSafe).withdrawTokens(withdrawAmount)
       ).to.not.be.reverted;
     });
 
@@ -200,7 +202,7 @@ describe("SapienRewards", function () {
       const newToken = await MockToken.deploy("New Token", "NEW");
       
       await expect(
-        sapienRewards.setRewardToken(await newToken.getAddress())
+        sapienRewards.connect(owner).setRewardToken(await newToken.getAddress())
       ).to.emit(sapienRewards, "RewardTokenUpdated")
         .withArgs(await newToken.getAddress());
     });
@@ -277,7 +279,7 @@ describe("SapienRewards", function () {
 
     it("Should prevent non-owners from pausing", async function () {
       await expect(sapienRewards.connect(user).pause())
-        .to.be.revertedWithCustomError(sapienRewards, "OwnableUnauthorizedAccount");
+        .to.be.revertedWithCustomError(SapienRewards, "OwnableUnauthorizedAccount");
     });
 
     it("Should prevent reward claims when paused", async function () {
@@ -310,7 +312,7 @@ describe("SapienRewards", function () {
     
     it("Should allow two-step ownership transfer", async function () {
       // Current owner proposes new owner
-      await expect(sapienRewards.connect(owner).transferOwnership(await newOwner.getAddress()))
+      await expect(sapienRewards.connect(gnosisSafe).transferOwnership(await newOwner.getAddress()))
         .to.not.be.reverted;
         
       // Verify pending owner is set correctly
@@ -326,7 +328,7 @@ describe("SapienRewards", function () {
     
     it("Should not allow non-pending owner to accept ownership", async function () {
       // Current owner proposes new owner
-      await sapienRewards.connect(owner).transferOwnership(await newOwner.getAddress());
+      await sapienRewards.connect(gnosisSafe).transferOwnership(await newOwner.getAddress());
       
       // Another account tries to accept ownership
       await expect(sapienRewards.connect(user).acceptOwnership())
@@ -340,12 +342,29 @@ describe("SapienRewards", function () {
     
     it("Should allow upgrading to a new implementation", async function () {
       // Deploy a new implementation (mock for test)
-      SapienRewardsV2 = await ethers.getContractFactory("SapienRewardsV2Mock");
-      
+      //
+      //
+      //
+      const SapienRewardsV2Factory = await ethers.getContractFactory("SapienRewardsV2Mock");
+
+      const sapienRewardsV2Address = await upgrades.prepareUpgrade(
+        await sapienRewards.getAddress(),
+        SapienRewardsV2Factory.connect(owner),
+        {
+          constructorArgs: [
+            //await authorizedSigner.getAddress(),
+            //await gnosisSafe.getAddress() 
+          ]
+        }
+      );
+
+      console.log(sapienRewards)
+      const authorizeUpgrade = await sapienRewards.connect(gnosisSafe).authorizeUpgrade(sapienRewardsV2Address);
+
       // Upgrade to new implementation
       sapienRewardsV2 = await upgrades.upgradeProxy(
         await sapienRewards.getAddress(),
-        SapienRewardsV2
+        SapienRewardsV2Factory.connect(owner)
       );
       
       // Check that state is preserved
@@ -428,13 +447,13 @@ describe("SapienRewards", function () {
     it("Should allow claims with exactly the contract's balance", async function () {
       // First withdraw all existing tokens
       const existingBalance = await mockToken.balanceOf(await sapienRewards.getAddress());
-      await sapienRewards.connect(owner).withdrawTokens(existingBalance);
+      await sapienRewards.connect(gnosisSafe).withdrawTokens(existingBalance);
       
       // Then deposit exact amount to test
       const exactAmount = ethers.parseUnits("123", 18);
-      await mockToken.mint(await owner.getAddress(), exactAmount);
-      await (mockToken as any).connect(owner).approve(await sapienRewards.getAddress(), exactAmount);
-      await sapienRewards.connect(owner).depositTokens(exactAmount);
+      await mockToken.mint(await gnosisSafe.getAddress(), exactAmount);
+      await (mockToken as any).connect(gnosisSafe).approve(await sapienRewards.getAddress(), exactAmount);
+      await sapienRewards.connect(gnosisSafe).depositTokens(exactAmount);
       
       // Claim exactly this amount
       const orderId = "exactBalanceTest";
@@ -463,10 +482,10 @@ describe("SapienRewards", function () {
         .to.be.revertedWithCustomError(sapienRewards, "OwnableUnauthorizedAccount");
         
       await expect(sapienRewards.connect(user).withdrawTokens(100))
-        .to.be.revertedWithCustomError(sapienRewards, "OwnableUnauthorizedAccount");
+        .to.be.revertedWith("Only the Safe can perform this");
         
       await expect(sapienRewards.connect(user).depositTokens(100))
-        .to.be.revertedWithCustomError(sapienRewards, "OwnableUnauthorizedAccount");
+        .to.be.revertedWith("Only the Safe can perform this");
     });
   });
 }); 

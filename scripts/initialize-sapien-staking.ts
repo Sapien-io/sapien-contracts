@@ -1,7 +1,6 @@
-const hre = require("hardhat");
-const { ethers } = require("hardhat");
-const fs = require("fs");
-const path = require("path");
+import hre, {ethers} from 'hardhat'
+import * as fs from 'fs'
+import * as path from 'path'
 
 async function main() {
   console.log("Initializing Sapien Staking...");
@@ -19,22 +18,22 @@ async function main() {
   
   const tokenData = JSON.parse(
     fs.readFileSync(
-      path.join(__dirname, "../deployments", networkName, "SapToken.json"),
+      path.join(__dirname, "../deployments", networkName, "SapienToken.json"),
       "utf8"
     )
   );
 
   // Attach to contracts
-  const SapToken = await ethers.getContractFactory("SapToken");
-  const token = await SapToken.attach(tokenData.tokenAddress);
-  
+  const SapToken = await ethers.getContractFactory("SapTestToken");
+  const token = await SapToken.attach(tokenData.proxyAddress);
   const SapienStaking = await ethers.getContractFactory("SapienStaking");
-  const staking = await SapienStaking.attach(stakingData.stakingAddress);
+  const staking = await SapienStaking.attach(stakingData.proxyAddress);
 
   // Approve staking contract to spend tokens
   console.log("Approving staking contract to spend tokens...");
-  const maxApproval = ethers.constants.MaxUint256;
-  const approveTx = await token.approve(staking.address, maxApproval);
+  const maxApproval = ethers.MaxUint256;
+  console.log(await staking.getAddress())
+  const approveTx = await token.approve(await staking.getAddress(), maxApproval);
   await approveTx.wait();
   console.log("Staking contract approved to spend tokens");
 
@@ -51,4 +50,3 @@ if (require.main === module) {
     });
 }
 
-module.exports = { initialize: main }; 

@@ -1,9 +1,8 @@
-const hre = require("hardhat");
-const { ethers } = require("hardhat");
-const fs = require("fs");
-const path = require("path");
+import hre, { ethers } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
 
-async function main() {
+export default async function main() {
   console.log("Starting reward token setup process...");
   
   const networkName = hre.network.name;
@@ -19,18 +18,18 @@ async function main() {
   
   const tokenData = JSON.parse(
     fs.readFileSync(
-      path.join(__dirname, "../deployments", networkName, "SapToken.json"),
+      path.join(__dirname, "../deployments", networkName, "SapienToken.json"),
       "utf8"
     )
   );
 
   // Attach to rewards contract
   const SapienRewards = await ethers.getContractFactory("SapienRewards");
-  const rewards = await SapienRewards.attach(rewardsData.rewardsAddress);
+  const rewards = await SapienRewards.attach(rewardsData.proxyAddress);
 
   // Set reward token
-  console.log(`Setting reward token to: ${tokenData.tokenAddress}`);
-  const setTx = await rewards.setRewardToken(tokenData.tokenAddress);
+  console.log(`Setting reward token to: ${tokenData.proxyAddress}`);
+  const setTx = await rewards.setRewardToken(tokenData.proxyAddress);
   await setTx.wait();
   
   console.log("Reward token successfully set!");
@@ -46,5 +45,3 @@ if (require.main === module) {
       process.exit(1);
     });
 }
-
-module.exports = { setRewardToken: main }; 

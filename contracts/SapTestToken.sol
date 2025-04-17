@@ -5,8 +5,9 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-
+import "hardhat/console.sol";
 /**
  * @title SapTestToken
  * @dev An upgradeable ERC20 token with vesting schedules for different allocation types.
@@ -21,6 +22,7 @@ contract SapTestToken is
     Initializable,
     ERC20Upgradeable,
     PausableUpgradeable,
+    Ownable2StepUpgradeable,
     UUPSUpgradeable,
     ReentrancyGuardUpgradeable
 {
@@ -66,6 +68,9 @@ contract SapTestToken is
 
     /// @notice Emitted when a new rewards contract is accepted
     event RewardsContractChangeAccepted(address indexed newRewardsContract);
+
+    /// @notice Emitted when an upgrade is authorized.
+    event UpgradeAuthorized(address indexed implementation);
 
     // -------------------------------------------------------------
     // Constants
@@ -121,6 +126,8 @@ contract SapTestToken is
     // Add new state variables
     address public pendingRewardsContract;
 
+    /// @notice Mapping of owner addresses to whether they are authorized to upgrade.
+    mapping(address => bool) private _upgradeAuthorized;
     // -------------------------------------------------------------
     // Modifiers
     // -------------------------------------------------------------
@@ -159,11 +166,13 @@ contract SapTestToken is
         _gnosisSafe = _gnosisSafeAddress;
         __ERC20_init("SapTestToken", "PTSPN");
         __Pausable_init();
+        __Ownable_init(msg.sender);
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
         _vestingStartTimestamp = block.timestamp;
 
-        _mint(_gnosisSafe, _totalSupply);
+        // initially mint to deployer, have deployer forward to multisig during TGE
+        _mint(msg.sender, _totalSupply);
         _createHardcodedVestingSchedules();
         
         emit InitializedEvent(_gnosisSafe, _totalSupply);
@@ -229,10 +238,22 @@ contract SapTestToken is
     }
 
     /**
-     * @dev Authorizes an upgrade to a new implementation (UUPS)
-     * @param newImplementation Address of the new implementation
+     * @notice Authorizes an upgrade of this contract to a new implementation (UUPS).
+     *         Only the contract owner can upgrade.
+     * @param newImplementation The address of the new contract implementation.
      */
-    function _authorizeUpgrade(address newImplementation) internal override onlySafe {}
+    function authorizeUpgrade(address newImplementation) public onlySafe {
+      _upgradeAuthorized[newImplementation] = true;
+      emit UpgradeAuthorized(newImplementation);
+
+    }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+      require(_upgradeAuthorized[newImplementation], "TwoTierAccessControl: upgrade not authorized by safe");
+      // Reset authorization after use to prevent re-use
+      _upgradeAuthorized[newImplementation] = false;
+
+    }
 
     // -------------------------------------------------------------
     // External Functions

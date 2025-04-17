@@ -1,10 +1,12 @@
-const { ethers } = require("hardhat");
+import { ethers } from "hardhat";
+import { loadConfig, Contract } from "./utils/loadConfig";
+export default async function main() {
+  const config = loadConfig(Contract.All);
 
-async function main() {
   // Get the contract instance
   const sapTestToken = await ethers.getContractAt(
     "SapTestToken",
-    "YOUR_CONTRACT_ADDRESS_HERE" // Replace with your deployed contract address
+    config.token.proxyAddress // Replace with your deployed contract address
   );
 
   try {

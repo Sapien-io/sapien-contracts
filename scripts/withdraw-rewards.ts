@@ -1,9 +1,8 @@
-const hre = require("hardhat");
-const { ethers } = require("hardhat");
-const fs = require("fs");
-const path = require("path");
+import hre, { ethers } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
 
-async function main() {
+export default async function main() {
   const amount = process.env.WITHDRAW_AMOUNT || "0"; // Must be specified or 0
   console.log(`Starting rewards withdrawal process for ${amount} tokens...`);
   
@@ -20,14 +19,14 @@ async function main() {
 
   // Attach to contract
   const SapienRewards = await ethers.getContractFactory("SapienRewards");
-  const rewards = await SapienRewards.attach(rewardsData.rewardsAddress);
+  const rewards = await SapienRewards.attach(rewardsData.proxyAddress);
 
   // Check contract balance
   const contractBalance = await rewards.getContractTokenBalance();
-  const withdrawAmount = ethers.utils.parseEther(amount);
+  const withdrawAmount = ethers.parseEther(amount);
   
   if (contractBalance.lt(withdrawAmount)) {
-    throw new Error(`Insufficient contract balance. Have: ${ethers.utils.formatEther(contractBalance)}, Want to withdraw: ${amount}`);
+    throw new Error(`Insufficient contract balance. Have: ${ethers.formatEther(contractBalance)}, Want to withdraw: ${amount}`);
   }
 
   // Withdraw tokens
@@ -37,7 +36,7 @@ async function main() {
   
   // Verify new balance
   const newBalance = await rewards.getContractTokenBalance();
-  console.log(`Withdrawal successful! New rewards contract balance: ${ethers.utils.formatEther(newBalance)} tokens`);
+  console.log(`Withdrawal successful! New rewards contract balance: ${ethers.formatEther(newBalance)} tokens`);
   
   return rewards;
 }
@@ -50,5 +49,3 @@ if (require.main === module) {
       process.exit(1);
     });
 }
-
-module.exports = { withdraw: main }; 

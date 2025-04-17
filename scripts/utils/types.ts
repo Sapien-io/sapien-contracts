@@ -1,0 +1,30 @@
+export type DeploymentMetadata = {
+  network: string
+  proxyAddress: `0x${string}`
+  implementationAddress: `0x${string}`
+  deploymentTime: string
+  deployer: `0x${string}`
+  safe: `0x${string}`
+  authorizedUpgradedImplementation?: `0x${string}`
+  upgradedAt?: Date
+  upgradeTransaction?: string
+  upgradedBy?: string
+}
+
+export type DeploymentConfig = {
+  tokenName: string
+  tokenSymbol: string
+  initialSupply: bigint
+  minStakeAmount: bigint
+  lockPeriod: bigint
+  earlyWithdrawalPenalty: bigint
+  rewardRate: bigint
+  rewardInterval: bigint
+  bonusThreshold: bigint
+  bonusRate: bigint
+  safe: `0x${string}`
+  totalSupply: bigint
+  token?: DeploymentMetadata
+  staking?: DeploymentMetadata
+  rewards?: DeploymentMetadata
+}

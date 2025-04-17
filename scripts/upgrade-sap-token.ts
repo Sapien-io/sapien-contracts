@@ -1,31 +1,35 @@
-const hre = require("hardhat");
-const { ethers, upgrades } = require("hardhat");
-const fs = require("fs");
-const path = require("path");
+import hre, { ethers, upgrades } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
 
-async function main() {
+export default async function main() {
   console.log("Starting SAP Token upgrade process...");
   
   const networkName = hre.network.name;
   const [deployer] = await ethers.getSigners();
   
   // Load current deployment data
-  const deploymentPath = path.join(__dirname, "../deployments", networkName, "SapToken.json");
+  const deploymentPath = path.join(__dirname, "../deployments", networkName, "SapienToken.json");
   const currentDeployment = JSON.parse(fs.readFileSync(deploymentPath, "utf8"));
   
-  console.log(`Current SAP Token address: ${currentDeployment.tokenAddress}`);
+  console.log(`Current SAP Token address: ${currentDeployment.proxyAddress}`);
   console.log(`Upgrading with account: ${deployer.address}`);
   
   // Deploy new implementation
-  const SapTokenV2 = await ethers.getContractFactory("SapToken");
-  console.log("Upgrading SAP Token...");
-  
+  const SapTokenV2 = await ethers.getContractFactory("SapTestToken");
+  console.log("Upgrading SAP Test Token...");
+
   const upgradedToken = await upgrades.upgradeProxy(
-    currentDeployment.tokenAddress,
-    SapTokenV2
+    currentDeployment.proxyAddress,
+    SapTokenV2,
+    {
+      useDeployedImplementation: true,
+      implementationAddress: currentDeployment.authorizedUpgradedImplementation,
+      //kind: "uups",
+    }
   );
   
-  await upgradedToken.deployed();
+  await upgradedToken.waitForDeployment();
   console.log("Upgrade complete!");
   
   // Update deployment information
@@ -50,5 +54,3 @@ if (require.main === module) {
       process.exit(1);
     });
 }
-
-module.exports = { upgrade: main }; 

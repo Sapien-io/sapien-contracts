@@ -1,15 +1,16 @@
+import 'dotenv/config';
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-ethers";
 import "@openzeppelin/hardhat-upgrades";
 import "@nomicfoundation/hardhat-toolbox";
-import * as dotenv from "dotenv";
-
-dotenv.config();
-
 // Ensure private key is available
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 if (!PRIVATE_KEY) {
   throw new Error("Private key not found in .env file");
+}
+
+if (!process.env.MNEMONIC) {
+  throw new Error("Mnemonic not found in .env file");
 }
 
 // Add Alchemy API key check
@@ -52,6 +53,24 @@ const config: HardhatUserConfig = {
     hardhat: {
       gas: 12000000,
       blockGasLimit: 12000000,
+			chainId: 1,
+      forking: {
+        url: `${process.env.ALCHEMY_API_URL}${process.env.ALCHEMY_API_KEY}`,
+        //blockNumber: 24137840,
+      },
+      accounts: {
+        mnemonic: process.env.MNEMONIC,
+      }
+    },
+    localhost: {
+			chainId: 1337,
+      forking: {
+        url: `${process.env.ALCHEMY_API_URL}${process.env.ALCHEMY_API_KEY}`,
+        //blockNumber: 24137840,
+      },
+      accounts: {
+        mnemonic: process.env.MNEMONIC,
+      }
     },
     "base-sepolia": {
       url: ALCHEMY_API_KEY 

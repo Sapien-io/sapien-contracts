@@ -1,50 +1,14 @@
 // Script to deploy the Sapien Staking contract
-const hre = require("hardhat");
-const { ethers, upgrades } = require("hardhat");
-const fs = require("fs");
-const path = require("path");
-require("dotenv").config();
-
-// Load configuration
-const loadConfig = () => {
-  try {
-    return JSON.parse(
-      fs.readFileSync(path.join(__dirname, "../config/deploy-config.json"), "utf8")
-    );
-  } catch (error) {
-    console.error("Error loading config file. Using default values.", error.message);
-    return {
-      minStakeAmount: ethers.utils.parseEther("100"), // 100 tokens minimum stake
-      lockPeriod: 7 * 24 * 60 * 60,  // 7 days in seconds
-      earlyWithdrawalPenalty: 1000,  // 10% as basis points (10000 = 100%)
-      sapTokenAddress: "" // This should be provided or fetched from deployment files
-    };
-  }
-};
-
-// Load token address from deployment files if not provided in config
-const getSapTokenAddress = (config, networkName) => {
-  if (config.sapTokenAddress) return config.sapTokenAddress;
-  
-  try {
-    const deployData = JSON.parse(
-      fs.readFileSync(
-        path.join(__dirname, "../deployments", networkName, "SapToken.json"),
-        "utf8"
-      )
-    );
-    return deployData.tokenAddress;
-  } catch (error) {
-    console.error("Error fetching SAP Token address. Please deploy SAP Token first or provide address in config.");
-    throw error;
-  }
-};
-
+import hre, { ethers, upgrades } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
+import { loadConfig, Contract } from "./utils/loadConfig";
+import { type DeploymentMetadata } from "./utils/types";
 async function main() {
   console.log("Starting Sapien Staking contract deployment...");
   
   // Get configuration
-  const config = loadConfig();
+  const config = loadConfig(Contract.SapienStaking);
   
   const [deployer] = await ethers.getSigners();
   if (!deployer) {
@@ -56,7 +20,7 @@ async function main() {
   console.log(`Account balance: ${ethers.formatEther(balance)} ETH`);
 
   // Get SAP Token address
-  const sapTokenAddress = getSapTokenAddress(config, hre.network.name);
+  const sapTokenAddress = config.token.proxyAddress;
   console.log(`Using SAP Token at address: ${sapTokenAddress}`);
 
   try {
@@ -66,7 +30,11 @@ async function main() {
     
     const stakingContract = await upgrades.deployProxy(
       SapienStaking,
-      [sapTokenAddress, deployer.address],
+      [
+        sapTokenAddress,
+        deployer.address,
+        config.safe
+      ],
       {
         initializer: 'initialize',
         kind: 'uups'
@@ -82,13 +50,13 @@ async function main() {
     console.log(`Implementation deployed to: ${implementationAddress}`);
 
     // Save deployment information
-    const deployData = {
+    const deployData: DeploymentMetadata = {
       network: hre.network.name,
-      implementationAddress: implementationAddress,
-      proxyAddress: proxyAddress,
+      implementationAddress: implementationAddress as `0x${string}`,
+      proxyAddress: proxyAddress as `0x${string}`,
       deploymentTime: new Date().toISOString(),
-      deployer: deployer.address,
-      sapTokenAddress: sapTokenAddress
+      deployer: deployer.address as `0x${string}`,
+      safe: config.safe
     };
 
     // Ensure deployment directory exists
