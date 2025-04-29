@@ -2,12 +2,13 @@
 pragma solidity 0.8.24;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/cryptography/ECDSAUpgradeable.sol";
 
 /**
  * @title SapienStaking
@@ -25,7 +26,7 @@ contract SapienStaking is
     UUPSUpgradeable,
     ReentrancyGuardUpgradeable
 {
-    using ECDSA for bytes32;
+    using ECDSAUpgradeable for bytes32;
 
     /// @dev Constructor that disables initializers
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -39,7 +40,7 @@ contract SapienStaking is
 
     /// @notice The Sapien token interface for staking/unstaking (IERC20).
     /// @dev Effectively immutable, but can't use immutable keyword due to upgradeability
-    IERC20 private _sapienToken;
+    IERC20Upgradeable private _sapienToken;
 
     /// @notice The authorized Sapien signer address (for verifying signatures).
     /// @dev Effectively immutable, but can't use immutable keyword due to upgradeability
@@ -167,10 +168,10 @@ contract SapienStaking is
      * @notice Initializes the SapienStaking contract.
      * @param sapienToken_ The ERC20 token contract for Sapien.
      * @param sapienAddress_ The address authorized to sign stake actions.
-     * @param _gnosisSafe The address of the Gnosis Safe.
+     * @param gnosisSafe_ The address of the Gnosis Safe.
      */
     function initialize(
-      IERC20 sapienToken_,
+      IERC20Upgradeable sapienToken_,
       address sapienAddress_,
       address gnosisSafe_
     )
@@ -187,7 +188,7 @@ contract SapienStaking is
         _sapienAddress = sapienAddress_;
 
         __Pausable_init();
-        __Ownable_init(msg.sender);
+        __Ownable_init();
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
 
