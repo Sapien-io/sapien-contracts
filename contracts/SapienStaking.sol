@@ -9,10 +9,11 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/cryptography/ECDSAUpgradeable.sol";
+import "./interfaces/IPoolAdapter.sol";
 
 /**
  * @title SapienStaking
- * @notice This contract enables users to stake Sapien tokens for specific lock-up periods
+ * @notice This contract enables users to stake LP tokens for specific lock-up periods
  *         to potentially earn multipliers. It supports the following features:
  *         - Different lock-up periods (1/3/6/12 months) with corresponding maximum multipliers.
  *         - EIP-712 signature verification for stake actions (STAKE, INITIATE_UNSTAKE, UNSTAKE, INSTANT_UNSTAKE).
@@ -46,11 +47,20 @@ contract SapienStaking is
     /// @dev Effectively immutable, but can't use immutable keyword due to upgradeability
     address private _sapienAddress;
     
-    /// @notice Address of the Gnosis Safe that controls administrative functions (effectively immutable, but can't use immutable keyword due to upgradeability)
+    /// @notice Address of the Gnosis Safe that controls administrative functions
     address public _gnosisSafe;
+
+    /// @notice The pool adapter for handling LP token deposits and withdrawals
+    IPoolAdapter public poolAdapter;
 
     /// @dev Constant for the token's decimal representation (e.g., 10^18 for 18 decimal tokens).
     uint256 private constant TOKEN_DECIMALS = 10 ** 18;
+
+    /// @notice Minimum stake amount (1,000 SAPIEN worth of LP)
+    uint256 public constant MINIMUM_STAKE = 1000 * TOKEN_DECIMALS;
+
+    /// @notice Base reward rate (7.5% APR paid daily)
+    uint256 public constant BASE_REWARD_RATE = 75; // 7.5% as basis points
 
     /**
      * @dev Struct holding staking details for each staker and their specific stake (by orderId).
@@ -78,14 +88,11 @@ contract SapienStaking is
     /// @notice Tracks the total amount of tokens staked in this contract.
     uint256 public totalStaked;
 
-    /// @notice The base stake required for minimum multiplier calculations (e.g., 1000 * 10^18).
-    uint256 public constant BASE_STAKE = 1000 * TOKEN_DECIMALS;
-
-    // Maximum multipliers for specific lock-up periods (now with 2 decimal precision)
-    uint256 public constant ONE_MONTH_MAX_MULTIPLIER = 10500;      // For 30 days (105.00%)
-    uint256 public constant THREE_MONTHS_MAX_MULTIPLIER = 11000;   // For 90 days (110.00%)
-    uint256 public constant SIX_MONTHS_MAX_MULTIPLIER = 12500;     // For 180 days (125.00%)
-    uint256 public constant TWELVE_MONTHS_MAX_MULTIPLIER = 15000;  // For 365 days (150.00%)
+    // Maximum multipliers for specific lock-up periods (with 2 decimal precision)
+    uint256 public constant ONE_MONTH_MAX_MULTIPLIER = 11000;      // For 30 days (110.00%)
+    uint256 public constant THREE_MONTHS_MAX_MULTIPLIER = 12500;   // For 90 days (125.00%)
+    uint256 public constant SIX_MONTHS_MAX_MULTIPLIER = 15000;     // For 180 days (150.00%)
+    uint256 public constant TWELVE_MONTHS_MAX_MULTIPLIER = 20000;  // For 365 days (200.00%)
 
     /// @notice The cooldown period before a user can finalize their unstake.
     uint256 public constant COOLDOWN_PERIOD = 2 days;
@@ -169,11 +176,13 @@ contract SapienStaking is
      * @param sapienToken_ The ERC20 token contract for Sapien.
      * @param sapienAddress_ The address authorized to sign stake actions.
      * @param gnosisSafe_ The address of the Gnosis Safe.
+     * @param poolAdapter_ The address of the pool adapter.
      */
     function initialize(
       IERC20Upgradeable sapienToken_,
       address sapienAddress_,
-      address gnosisSafe_
+      address gnosisSafe_,
+      IPoolAdapter poolAdapter_
     )
         public
         initializer
@@ -181,11 +190,12 @@ contract SapienStaking is
         require(address(sapienToken_) != address(0), "Zero address not allowed for token");
         require(sapienAddress_ != address(0), "Zero address not allowed for signer");
         require(gnosisSafe_ != address(0), "Zero address not allowed for Gnosis Safe");
+        require(address(poolAdapter_) != address(0), "Zero address not allowed for pool adapter");
 
         _gnosisSafe = gnosisSafe_;
-        
         _sapienToken = sapienToken_;
         _sapienAddress = sapienAddress_;
+        poolAdapter = poolAdapter_;
 
         __Pausable_init();
         __Ownable_init();
@@ -252,10 +262,10 @@ contract SapienStaking is
     // -------------------------------------------------------------
 
     /**
-     * @notice Stake a specified `amount` of tokens for a given `lockUpPeriod`, 
+     * @notice Stake a specified `amount` of LP tokens for a given `lockUpPeriod`, 
      *         identified by a unique `orderId` and validated by an EIP-712 signature.
-     * @dev Users must approve this contract to spend their tokens before calling `stake`.
-     * @param amount The amount of tokens to stake.
+     * @dev Users must approve this contract to spend their LP tokens before calling `stake`.
+     * @param amount The amount of LP tokens to stake.
      * @param lockUpPeriod The lock-up duration in seconds (30/90/180/365 days).
      * @param orderId A unique identifier for this stake request.
      * @param signature The EIP-712 signature from the authorized signer.
@@ -270,7 +280,7 @@ contract SapienStaking is
         whenNotPaused
         nonReentrant
     {
-        require(amount > 0, "Amount must be greater than 0");
+        require(amount >= MINIMUM_STAKE, "Minimum 1,000 SAPIEN worth of LP required");
         require(
             lockUpPeriod == 30 days ||
                 lockUpPeriod == 90 days ||
@@ -300,10 +310,7 @@ contract SapienStaking is
         totalStaked += amount;
         _markOrderAsUsed(orderId);
 
-        require(
-            _sapienToken.transferFrom(msg.sender, address(this), amount),
-            "Token transfer failed"
-        );
+        poolAdapter.depositLP(msg.sender, amount);
 
         emit Staked(msg.sender, amount, multiplier, lockUpPeriod, orderId);
     }
@@ -364,7 +371,7 @@ contract SapienStaking is
         whenNotPaused
         nonReentrant
     {
-        require(amount > 0, "Amount must be greater than 0");
+        require(amount >= MINIMUM_STAKE, "Minimum 1,000 SAPIEN worth of LP required");
         
         StakingInfo storage info = stakers[msg.sender][stakeOrderId];
         require(info.isActive, "Staking position not active");
@@ -387,11 +394,8 @@ contract SapienStaking is
             "Lock period not completed"
         );
 
-        // Transfer the exact amount (no multiplier bonus applied to tokens)
-        require(
-            _sapienToken.transfer(msg.sender, amount),
-            "Token transfer failed"
-        );
+        poolAdapter.withdrawLP(msg.sender, amount);
+        
         info.amount -= amount;
         info.cooldownAmount -= amount; // Reduce the approved cooldown amount
         
@@ -425,6 +429,8 @@ contract SapienStaking is
         whenNotPaused
         nonReentrant
     {
+        require(amount >= MINIMUM_STAKE, "Minimum 1,000 SAPIEN worth of LP required");
+        
         StakingInfo storage info = stakers[msg.sender][stakeOrderId];
         require(info.isActive, "Staking position not active");
         require(!usedOrders[newOrderId], "Order already used");
@@ -450,18 +456,20 @@ contract SapienStaking is
         totalStaked -= amount;
 
         // Transfer net amount to user, penalty to owner
-        require(
-            _sapienToken.transfer(msg.sender, payout),
-            "Token transfer to user failed"
-        );
-        require(
-            _sapienToken.transfer(owner(), penalty),
-            "Token transfer of penalty failed"
-        );
+        poolAdapter.withdrawLP(msg.sender, payout);
+        poolAdapter.withdrawLP(owner(), penalty);
 
         _markOrderAsUsed(newOrderId);
 
         emit InstantUnstake(msg.sender, payout, newOrderId);
+    }
+
+    /**
+     * @notice Returns the base reward rate (7.5% APR)
+     * @return The base reward rate in basis points (750 = 7.5%)
+     */
+    function getBaseRewardRate() public pure returns (uint256) {
+        return BASE_REWARD_RATE;
     }
 
     // -------------------------------------------------------------
@@ -487,19 +495,19 @@ contract SapienStaking is
         
         // Create tiers for more granular multiplier calculation
         // Each tier represents 25% of BASE_STAKE
-        uint256 tier1 = BASE_STAKE / 4;     // 250 tokens
-        uint256 tier2 = BASE_STAKE / 2;     // 500 tokens
-        uint256 tier3 = (BASE_STAKE * 3) / 4; // 750 tokens
+        uint256 tier1 = MINIMUM_STAKE / 4;     // 250 tokens
+        uint256 tier2 = MINIMUM_STAKE / 2;     // 500 tokens
+        uint256 tier3 = (MINIMUM_STAKE * 3) / 4; // 750 tokens
         
         // Calculate the bonus range (difference between max and base multiplier)
         uint256 bonusRange = maxMultiplier - baseMultiplier;
         
-        if (amount >= BASE_STAKE) {
+        if (amount >= MINIMUM_STAKE) {
             return maxMultiplier;
         } else if (amount >= tier3) {
             // 75-100% of bonus range
             return baseMultiplier + (bonusRange * 75 / 100) + 
-                   (bonusRange * 25 * (amount - tier3) / (BASE_STAKE - tier3) / 100);
+                   (bonusRange * 25 * (amount - tier3) / (MINIMUM_STAKE - tier3) / 100);
         } else if (amount >= tier2) {
             // 50-75% of bonus range
             return baseMultiplier + (bonusRange * 50 / 100) +
