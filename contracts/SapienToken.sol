@@ -9,7 +9,7 @@ import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "hardhat/console.sol";
 /**
- * @title SapTestToken
+ * @title SapienToken
  * @dev An upgradeable ERC20 token with vesting schedules for different allocation types.
  *      Supports UUPS upgrades and includes pause functionality.
  *
@@ -18,7 +18,7 @@ import "hardhat/console.sol";
  *      - Supports pausing and upgrading via UUPS pattern
  *      - Includes reentrancy protection for token releases
  */
-contract SapTestToken is
+contract SapienToken is
     Initializable,
     ERC20Upgradeable,
     PausableUpgradeable,
@@ -95,7 +95,10 @@ contract SapTestToken is
     uint256 public constant COMMUNITY_TREASURY_ALLOCATION = 100000000 * 10 ** DECIMALS;
 
     /// @notice Total allocation for liquidity incentives
-    uint256 public constant LIQUIDITY_ALLOCATION = 50_000_000 * 10**18; // 50 million tokens (includes former staking incentives)
+    uint256 public constant LIQUIDITY_ALLOCATION = 25_000_000 * 10**18; // 25 million tokens
+
+    /// @notice Total allocation for staking incentives
+    uint256 public constant STAKING_ALLOCATION = 25_000_000 * 10**18; // 25 million tokens
 
     // -------------------------------------------------------------
     // State Variables
@@ -111,7 +114,8 @@ contract SapTestToken is
         REWARDS,
         AIRDROP,
         COMMUNITY_TREASURY,
-        LIQUIDITY_INCENTIVES
+        LIQUIDITY_INCENTIVES,
+        STAKING_INCENTIVES
     }
 
     /// @notice Mapping of allocation types to their vesting schedules
@@ -159,12 +163,13 @@ contract SapTestToken is
             LABELING_REWARDS_ALLOCATION +
             AIRDROPS_ALLOCATION +
             COMMUNITY_TREASURY_ALLOCATION +
-            LIQUIDITY_ALLOCATION;
+            LIQUIDITY_ALLOCATION +
+            STAKING_ALLOCATION;
         
         require(_totalSupply == expectedSupply, "Total supply must match sum of allocations");
         
         _gnosisSafe = _gnosisSafeAddress;
-        __ERC20_init("SapTestToken", "PTSPN");
+        __ERC20_init("SapienToken", "SPN");
         __Pausable_init();
         __Ownable_init();
         _transferOwnership(_gnosisSafe);
@@ -233,6 +238,14 @@ contract SapTestToken is
             start: _vestingStartTimestamp,
             duration: 48 * 30 days, // 48 months
             amount: LIQUIDITY_ALLOCATION,
+            released: 0,
+            safe: _gnosisSafe
+        });
+        vestingSchedules[AllocationType.STAKING_INCENTIVES] = VestingSchedule({
+            cliff: 0, // No cliff for staking incentives
+            start: _vestingStartTimestamp,
+            duration: 48 * 30 days, // 48 months
+            amount: STAKING_ALLOCATION,
             released: 0,
             safe: _gnosisSafe
         });
