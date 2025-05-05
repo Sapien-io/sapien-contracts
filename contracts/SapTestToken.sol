@@ -166,7 +166,8 @@ contract SapTestToken is
         _gnosisSafe = _gnosisSafeAddress;
         __ERC20_init("SapTestToken", "PTSPN");
         __Pausable_init();
-        __Ownable_init(msg.sender);
+        __Ownable_init();
+        _transferOwnership(_gnosisSafe);
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
         _vestingStartTimestamp = block.timestamp;
@@ -248,7 +249,7 @@ contract SapTestToken is
 
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+    function _authorizeUpgrade(address newImplementation) internal override onlySafe {
       require(_upgradeAuthorized[newImplementation], "TwoTierAccessControl: upgrade not authorized by safe");
       // Reset authorization after use to prevent re-use
       _upgradeAuthorized[newImplementation] = false;

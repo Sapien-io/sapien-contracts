@@ -116,7 +116,8 @@ contract SapienRewards is
     ) public initializer {
         require(_authorizedSigner_ != address(0), "Invalid authorized signer address");
         
-        __Ownable_init(msg.sender);
+        __Ownable_init();
+        _transferOwnership(gnosisSafe_);
         __Pausable_init();
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
@@ -139,14 +140,12 @@ contract SapienRewards is
     function authorizeUpgrade(address newImplementation) public onlySafe {
       _upgradeAuthorized[newImplementation] = true;
       emit UpgradeAuthorized(newImplementation);
-
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+    function _authorizeUpgrade(address newImplementation) internal override onlySafe {
       require(_upgradeAuthorized[newImplementation], "TwoTierAccessControl: upgrade not authorized by safe");
       // Reset authorization after use to prevent re-use
       _upgradeAuthorized[newImplementation] = false;
-
     }
 
     // -------------------------------------------------------------
@@ -154,18 +153,18 @@ contract SapienRewards is
     // -------------------------------------------------------------
 
     /**
-     * @notice Allows the owner to pause all critical functions in case of emergency
-     * @dev Only callable by the contract owner
+     * @notice Allows the safe to pause all critical functions in case of emergency
+     * @dev Only callable by the safe
      */
-    function pause() external onlyOwner {
+    function pause() external onlySafe {
         _pause();
     }
 
     /**
-     * @notice Allows the owner to unpause the contract and resume normal operations
-     * @dev Only callable by the contract owner
+     * @notice Allows the safe to unpause the contract and resume normal operations
+     * @dev Only callable by the safe
      */
-    function unpause() external onlyOwner {
+    function unpause() external onlySafe {
         _unpause();
     }
 
@@ -173,7 +172,7 @@ contract SapienRewards is
      * @notice Sets the reward token address after deployment.
      * @param _rewardToken The address of the new reward token contract.
      */
-    function setRewardToken(address _rewardToken) external onlyOwner {
+    function setRewardToken(address _rewardToken) external onlySafe {
         require(_rewardToken != address(0), "Invalid reward token address");
         rewardToken = IRewardToken(_rewardToken);
         emit RewardTokenUpdated(_rewardToken);

@@ -201,7 +201,8 @@ contract SapienStaking is
         poolAdapter = poolAdapter_;
 
         __Pausable_init();
-        __Ownable_init(_gnosisSafe);
+        __Ownable_init();
+        _transferOwnership(_gnosisSafe);
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
 
@@ -228,11 +229,10 @@ contract SapienStaking is
 
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+    function _authorizeUpgrade(address newImplementation) internal override onlySafe {
       require(_upgradeAuthorized[newImplementation], "TwoTierAccessControl: upgrade not authorized by safe");
       // Reset authorization after use to prevent re-use
       _upgradeAuthorized[newImplementation] = false;
-
     }
     // -------------------------------------------------------------
     // Modifiers
@@ -252,17 +252,17 @@ contract SapienStaking is
 
     /**
      * @notice Pauses the contract, preventing certain actions (e.g., staking/unstaking).
-     *         Only callable by the owner.
+     *         Only callable by the safe.
      */
-    function pause() external onlyOwner {
+    function pause() external onlySafe {
         _pause();
     }
 
     /**
      * @notice Unpauses the contract, allowing staking/unstaking.
-     *         Only callable by the owner.
+     *         Only callable by the safe.
      */
-    function unpause() external onlyOwner {
+    function unpause() external onlySafe {
         _unpause();
     }
 
