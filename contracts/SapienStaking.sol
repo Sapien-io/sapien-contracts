@@ -2,13 +2,12 @@
 pragma solidity 0.8.24;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/cryptography/ECDSAUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./interfaces/IPoolAdapter.sol";
 
 /**
@@ -27,7 +26,6 @@ contract SapienStaking is
     UUPSUpgradeable,
     ReentrancyGuardUpgradeable
 {
-    using ECDSAUpgradeable for bytes32;
 
     /// @dev Constructor that disables initializers
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -41,7 +39,7 @@ contract SapienStaking is
 
     /// @notice The Sapien token interface for staking/unstaking (IERC20).
     /// @dev Effectively immutable, but can't use immutable keyword due to upgradeability
-    IERC20Upgradeable private _sapienToken;
+    ERC20Upgradeable private _sapienToken;
 
     /// @notice The authorized Sapien signer address (for verifying signatures).
     /// @dev Effectively immutable, but can't use immutable keyword due to upgradeability
@@ -179,7 +177,7 @@ contract SapienStaking is
      * @param poolAdapter_ The address of the pool adapter.
      */
     function initialize(
-      IERC20Upgradeable sapienToken_,
+      ERC20Upgradeable sapienToken_,
       address sapienAddress_,
       address gnosisSafe_,
       IPoolAdapter poolAdapter_
@@ -198,7 +196,7 @@ contract SapienStaking is
         poolAdapter = poolAdapter_;
 
         __Pausable_init();
-        __Ownable_init();
+        __Ownable_init(_gnosisSafe);
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
 
@@ -585,7 +583,7 @@ contract SapienStaking is
             abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash)
         );
 
-        address signer = hash.recover(signature);
+        address signer = ECDSA.recover(hash, signature);
         return (signer == _sapienAddress);
     }
 
