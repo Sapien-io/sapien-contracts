@@ -80,25 +80,22 @@ contract SapienToken is
     uint8 public constant DECIMALS = 18;
 
     /// @notice Total allocation for investors
-    uint256 public constant INVESTORS_ALLOCATION = 300000000 * 10 ** DECIMALS;
+    uint256 public constant INVESTORS_ALLOCATION = 304500000 * 10 ** DECIMALS;
 
     /// @notice Total allocation for team and advisors
-    uint256 public constant TEAM_ADVISORS_ALLOCATION = 200000000 * 10 ** DECIMALS;
+    uint256 public constant TEAM_ADVISORS_ALLOCATION = 165500000 * 10 ** DECIMALS;
 
-    /// @notice Total allocation for labeling rewards
-    uint256 public constant LABELING_REWARDS_ALLOCATION = 150000000 * 10 ** DECIMALS;
+    /// @notice Total allocation for trainer compensation
+    uint256 public constant TRAINER_COMP_ALLOCATION = 175000000 * 10 ** DECIMALS;
 
     /// @notice Total allocation for airdrops
-    uint256 public constant AIRDROPS_ALLOCATION = 150000000 * 10 ** DECIMALS;
+    uint256 public constant AIRDROPS_ALLOCATION = 130000000 * 10 ** DECIMALS;
 
-    /// @notice Total allocation for community treasury
-    uint256 public constant COMMUNITY_TREASURY_ALLOCATION = 100000000 * 10 ** DECIMALS;
+    /// @notice Total allocation for foundation treasury
+    uint256 public constant FOUNDATION_TREASURY_ALLOCATION = 130000000 * 10 ** DECIMALS;
 
     /// @notice Total allocation for liquidity incentives
-    uint256 public constant LIQUIDITY_ALLOCATION = 25_000_000 * 10**18; // 25 million tokens
-
-    /// @notice Total allocation for staking incentives
-    uint256 public constant STAKING_ALLOCATION = 25_000_000 * 10**18; // 25 million tokens
+    uint256 public constant LIQUIDITY_ALLOCATION = 95000000 * 10 ** DECIMALS;
 
     // -------------------------------------------------------------
     // State Variables
@@ -111,11 +108,10 @@ contract SapienToken is
     enum AllocationType {
         INVESTORS,
         TEAM,
-        REWARDS,
+        TRAINER_COMP,
         AIRDROP,
-        COMMUNITY_TREASURY,
-        LIQUIDITY_INCENTIVES,
-        STAKING_INCENTIVES
+        FOUNDATION_TREASURY,
+        LIQUIDITY_INCENTIVES
     }
 
     /// @notice Mapping of allocation types to their vesting schedules
@@ -160,11 +156,10 @@ contract SapienToken is
         // Calculate total expected supply from all allocations
         uint256 expectedSupply = INVESTORS_ALLOCATION +
             TEAM_ADVISORS_ALLOCATION +
-            LABELING_REWARDS_ALLOCATION +
+            TRAINER_COMP_ALLOCATION +
             AIRDROPS_ALLOCATION +
-            COMMUNITY_TREASURY_ALLOCATION +
-            LIQUIDITY_ALLOCATION +
-            STAKING_ALLOCATION;
+            FOUNDATION_TREASURY_ALLOCATION +
+            LIQUIDITY_ALLOCATION;
         
         require(_totalSupply == expectedSupply, "Total supply must match sum of allocations");
         
@@ -209,11 +204,11 @@ contract SapienToken is
             released: 0,
             safe: _gnosisSafe
         });
-        vestingSchedules[AllocationType.REWARDS] = VestingSchedule({
-            cliff: 0, // No cliff for rewards
+        vestingSchedules[AllocationType.TRAINER_COMP] = VestingSchedule({
+            cliff: 0, // No cliff for trainer comp
             start: _vestingStartTimestamp,
             duration: 48 * 30 days, // 48 months
-            amount: LABELING_REWARDS_ALLOCATION,
+            amount: TRAINER_COMP_ALLOCATION,
             released: 0,
             safe: _gnosisSafe
         });
@@ -225,11 +220,11 @@ contract SapienToken is
             released: 0,
             safe: _gnosisSafe
         });
-        vestingSchedules[AllocationType.COMMUNITY_TREASURY] = VestingSchedule({
-            cliff: 0, // No cliff for community treasury
+        vestingSchedules[AllocationType.FOUNDATION_TREASURY] = VestingSchedule({
+            cliff: 0, // No cliff for foundation treasury
             start: _vestingStartTimestamp,
             duration: 48 * 30 days, // 48 months
-            amount: COMMUNITY_TREASURY_ALLOCATION,
+            amount: FOUNDATION_TREASURY_ALLOCATION,
             released: 0,
             safe: _gnosisSafe
         });
@@ -238,14 +233,6 @@ contract SapienToken is
             start: _vestingStartTimestamp,
             duration: 48 * 30 days, // 48 months
             amount: LIQUIDITY_ALLOCATION,
-            released: 0,
-            safe: _gnosisSafe
-        });
-        vestingSchedules[AllocationType.STAKING_INCENTIVES] = VestingSchedule({
-            cliff: 0, // No cliff for staking incentives
-            start: _vestingStartTimestamp,
-            duration: 48 * 30 days, // 48 months
-            amount: STAKING_ALLOCATION,
             released: 0,
             safe: _gnosisSafe
         });
@@ -364,7 +351,12 @@ contract SapienToken is
         if (schedule.duration == 0) {
             releasableAmount = schedule.amount - schedule.released;
         } else {
-            uint256 vestingPeriod = elapsedTime > schedule.duration ? schedule.duration : elapsedTime;
+            // Calculate vesting period starting from cliff end
+            uint256 vestingStartTime = schedule.start + schedule.cliff;
+            uint256 vestingElapsedTime = currentTime > vestingStartTime ? currentTime - vestingStartTime : 0;
+            uint256 vestingPeriod = vestingElapsedTime > schedule.duration ? schedule.duration : vestingElapsedTime;
+            
+            // Calculate vested amount based on time after cliff
             uint256 vestedAmount = (schedule.amount * vestingPeriod) / schedule.duration;
             releasableAmount = vestedAmount - schedule.released;
         }

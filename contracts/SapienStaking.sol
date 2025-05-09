@@ -8,11 +8,10 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "./interfaces/IPoolAdapter.sol";
 
 /**
  * @title SapienStaking
- * @notice This contract enables users to stake LP tokens for specific lock-up periods
+ * @notice This contract enables users to stake tokens for specific lock-up periods
  *         to potentially earn multipliers. It supports the following features:
  *         - Different lock-up periods (1/3/6/12 months) with corresponding maximum multipliers.
  *         - EIP-712 signature verification for stake actions (STAKE, INITIATE_UNSTAKE, UNSTAKE, INSTANT_UNSTAKE).
@@ -48,13 +47,10 @@ contract SapienStaking is
     /// @notice Address of the Gnosis Safe that controls administrative functions
     address public _gnosisSafe;
 
-    /// @notice The pool adapter for handling LP token deposits and withdrawals
-    IPoolAdapter public poolAdapter;
-
     /// @dev Constant for the token's decimal representation (e.g., 10^18 for 18 decimal tokens).
     uint256 private constant TOKEN_DECIMALS = 10 ** 18;
 
-    /// @notice Minimum stake amount (1,000 SAPIEN worth of LP)
+    /// @notice Minimum stake amount (1,000 SAPIEN)
     uint256 public constant MINIMUM_STAKE = 1000 * TOKEN_DECIMALS;
 
     /// @notice Base reward rate (7.5% APR paid daily)
@@ -179,13 +175,11 @@ contract SapienStaking is
      * @param sapienToken_ The ERC20 token contract for Sapien.
      * @param sapienAddress_ The address authorized to sign stake actions.
      * @param gnosisSafe_ The address of the Gnosis Safe.
-     * @param poolAdapter_ The address of the pool adapter.
      */
     function initialize(
       ERC20Upgradeable sapienToken_,
       address sapienAddress_,
-      address gnosisSafe_,
-      IPoolAdapter poolAdapter_
+      address gnosisSafe_
     )
         public
         initializer
@@ -193,12 +187,10 @@ contract SapienStaking is
         require(address(sapienToken_) != address(0), "Zero address not allowed for token");
         require(sapienAddress_ != address(0), "Zero address not allowed for signer");
         require(gnosisSafe_ != address(0), "Zero address not allowed for Gnosis Safe");
-        require(address(poolAdapter_) != address(0), "Zero address not allowed for pool adapter");
 
         _gnosisSafe = gnosisSafe_;
         _sapienToken = sapienToken_;
         _sapienAddress = sapienAddress_;
-        poolAdapter = poolAdapter_;
 
         __Pausable_init();
         __Ownable_init();
@@ -271,10 +263,9 @@ contract SapienStaking is
     // -------------------------------------------------------------
 
     /**
-     * @notice Stake a specified `amount` of LP tokens for a given `lockUpPeriod`, 
+     * @notice Stake a specified `amount` of tokens for a given `lockUpPeriod`, 
      *         identified by a unique `orderId` and validated by an EIP-712 signature.
-     * @dev Users must approve this contract to spend their LP tokens before calling `stake`.
-     * @param amount The amount of LP tokens to stake.
+     * @param amount The amount of tokens to stake.
      * @param lockUpPeriod The lock-up duration in seconds (30/90/180/365 days).
      * @param orderId A unique identifier for this stake request.
      * @param signature The EIP-712 signature from the authorized signer.
@@ -289,7 +280,7 @@ contract SapienStaking is
         whenNotPaused
         nonReentrant
     {
-        require(amount >= MINIMUM_STAKE, "Minimum 1,000 SAPIEN worth of LP required");
+        require(amount >= MINIMUM_STAKE, "Minimum 1,000 SAPIEN required");
         require(
             lockUpPeriod == 30 days ||
                 lockUpPeriod == 90 days ||
@@ -318,8 +309,6 @@ contract SapienStaking is
 
         totalStaked += amount;
         _markOrderAsUsed(orderId);
-
-        poolAdapter.depositLP(msg.sender, amount);
 
         emit Staked(msg.sender, amount, multiplier, lockUpPeriod, orderId);
     }
@@ -380,7 +369,7 @@ contract SapienStaking is
         whenNotPaused
         nonReentrant
     {
-        require(amount >= MINIMUM_STAKE, "Minimum 1,000 SAPIEN worth of LP required");
+        require(amount >= MINIMUM_STAKE, "Minimum 1,000 SAPIEN required");
         
         StakingInfo storage info = stakers[msg.sender][stakeOrderId];
         require(info.isActive, "Staking position not active");
@@ -402,8 +391,6 @@ contract SapienStaking is
             block.timestamp >= info.startTime + info.lockUpPeriod,
             "Lock period not completed"
         );
-
-        poolAdapter.withdrawLP(msg.sender, amount);
         
         info.amount -= amount;
         info.cooldownAmount -= amount; // Reduce the approved cooldown amount
@@ -438,7 +425,7 @@ contract SapienStaking is
         whenNotPaused
         nonReentrant
     {
-        require(amount >= MINIMUM_STAKE, "Minimum 1,000 SAPIEN worth of LP required");
+        require(amount >= MINIMUM_STAKE, "Minimum 1,000 SAPIEN required");
         
         StakingInfo storage info = stakers[msg.sender][stakeOrderId];
         require(info.isActive, "Staking position not active");
@@ -463,10 +450,6 @@ contract SapienStaking is
             info.isActive = false;
         }
         totalStaked -= amount;
-
-        // Transfer net amount to user, penalty to owner
-        poolAdapter.withdrawLP(msg.sender, payout);
-        poolAdapter.withdrawLP(owner(), penalty);
 
         _markOrderAsUsed(newOrderId);
 
