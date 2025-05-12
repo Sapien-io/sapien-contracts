@@ -53,9 +53,6 @@ contract SapienStaking is
     /// @notice Minimum stake amount (1,000 SAPIEN)
     uint256 public constant MINIMUM_STAKE = 1000 * TOKEN_DECIMALS;
 
-    /// @notice Base reward rate (7.5% APR paid daily)
-    uint256 public constant BASE_REWARD_RATE = 75; // 7.5% as basis points
-
     /**
      * @dev Struct holding staking details for each staker and their specific stake (by orderId).
      * @param amount The amount of tokens staked.
@@ -83,10 +80,10 @@ contract SapienStaking is
     uint256 public totalStaked;
 
     // Maximum multipliers for specific lock-up periods (with 2 decimal precision)
-    uint256 public constant ONE_MONTH_MAX_MULTIPLIER = 11000;      // For 30 days (110.00%)
-    uint256 public constant THREE_MONTHS_MAX_MULTIPLIER = 12500;   // For 90 days (125.00%)
-    uint256 public constant SIX_MONTHS_MAX_MULTIPLIER = 15000;     // For 180 days (150.00%)
-    uint256 public constant TWELVE_MONTHS_MAX_MULTIPLIER = 20000;  // For 365 days (200.00%)
+    uint256 public constant ONE_MONTH_MAX_MULTIPLIER = 10500;      // For 30 days (105.00%)
+    uint256 public constant THREE_MONTHS_MAX_MULTIPLIER = 11000;   // For 90 days (110.00%)
+    uint256 public constant SIX_MONTHS_MAX_MULTIPLIER = 12500;     // For 180 days (125.00%)
+    uint256 public constant TWELVE_MONTHS_MAX_MULTIPLIER = 15000;  // For 365 days (150.00%)
 
     /// @notice The cooldown period before a user can finalize their unstake.
     uint256 public constant COOLDOWN_PERIOD = 2 days;
@@ -294,8 +291,7 @@ contract SapienStaking is
             "Invalid signature or mismatched parameters"
         );
 
-        uint256 maxMultiplier = getMaxMultiplier(lockUpPeriod);
-        uint256 multiplier = calculateMultiplier(amount, maxMultiplier);
+        uint256 multiplier = calculateMultiplier(lockUpPeriod);
 
         stakers[msg.sender][orderId] = StakingInfo({
             amount: amount,
@@ -456,89 +452,33 @@ contract SapienStaking is
         emit InstantUnstake(msg.sender, payout, newOrderId);
     }
 
-    /**
-     * @notice Returns the base reward rate (7.5% APR)
-     * @return The base reward rate in basis points (750 = 7.5%)
-     */
-    function getBaseRewardRate() public pure returns (uint256) {
-        return BASE_REWARD_RATE;
-    }
-
     // -------------------------------------------------------------
     // Internal/Private Functions
     // -------------------------------------------------------------
 
     /**
-     * @notice Calculates the multiplier for a given `amount` based on the `maxMultiplier`.
-     * @dev If `amount` >= BASE_STAKE, the multiplier is `maxMultiplier`.
-     *      Otherwise, it linearly scales from 10000 (100.00%) up to `maxMultiplier`.
-     *      Multipliers use 2 decimal places of precision (e.g., 14950 = 149.50%)
-     * @param amount The amount staked.
-     * @param maxMultiplier The maximum possible multiplier for the given lock-up period.
-     * @return The calculated multiplier (clamped at `maxMultiplier` if needed).
-     */
-    function calculateMultiplier(uint256 amount, uint256 maxMultiplier)
-        private
-        pure
-        returns (uint256)
-    {
-        // Base multiplier (100%) when no bonus is applied
-        uint256 baseMultiplier = 10000;
-        
-        // Create tiers for more granular multiplier calculation
-        // Each tier represents 25% of BASE_STAKE
-        uint256 tier1 = MINIMUM_STAKE / 4;     // 250 tokens
-        uint256 tier2 = MINIMUM_STAKE / 2;     // 500 tokens
-        uint256 tier3 = (MINIMUM_STAKE * 3) / 4; // 750 tokens
-        
-        // Calculate the bonus range (difference between max and base multiplier)
-        uint256 bonusRange = maxMultiplier - baseMultiplier;
-        
-        if (amount >= MINIMUM_STAKE) {
-            return maxMultiplier;
-        } else if (amount >= tier3) {
-            // 75-100% of bonus range
-            return baseMultiplier + (bonusRange * 75 / 100) + 
-                   (bonusRange * 25 * (amount - tier3) / (MINIMUM_STAKE - tier3) / 100);
-        } else if (amount >= tier2) {
-            // 50-75% of bonus range
-            return baseMultiplier + (bonusRange * 50 / 100) +
-                   (bonusRange * 25 * (amount - tier2) / (tier3 - tier2) / 100);
-        } else if (amount >= tier1) {
-            // 25-50% of bonus range
-            return baseMultiplier + (bonusRange * 25 / 100) +
-                   (bonusRange * 25 * (amount - tier1) / (tier2 - tier1) / 100);
-        } else {
-            // 0-25% of bonus range
-            return baseMultiplier +
-                   (bonusRange * 25 * amount / tier1 / 100);
-        }
-    }
-
-    /**
-     * @notice Returns the max multiplier based on the lock-up period.
-     * @dev Assumes the lockUpPeriod has already been validated.
+     * @notice Returns the multiplier based on the lock-up period.
      * @param lockUpPeriod The duration of lock-up in seconds.
-     * @return The maximum multiplier for the specified lock-up period.
+     * @return The multiplier for the specified lock-up period.
      */
-    function getMaxMultiplier(uint256 lockUpPeriod)
+    function calculateMultiplier(uint256 lockUpPeriod)
         private
         pure
         returns (uint256)
     {
         if (lockUpPeriod == 30 days) {
-            return ONE_MONTH_MAX_MULTIPLIER;
+            return ONE_MONTH_MAX_MULTIPLIER;      // 1.05x
         }
         if (lockUpPeriod == 90 days) {
-            return THREE_MONTHS_MAX_MULTIPLIER;
+            return THREE_MONTHS_MAX_MULTIPLIER;   // 1.10x
         }
         if (lockUpPeriod == 180 days) {
-            return SIX_MONTHS_MAX_MULTIPLIER;
+            return SIX_MONTHS_MAX_MULTIPLIER;     // 1.25x
         }
         if (lockUpPeriod == 365 days) {
-            return TWELVE_MONTHS_MAX_MULTIPLIER;
+            return TWELVE_MONTHS_MAX_MULTIPLIER;  // 1.50x
         }
-        return 0; // This line should never be reached due to validation in stake()
+        revert("Invalid lock-up period");
     }
 
     /**
