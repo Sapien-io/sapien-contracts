@@ -103,21 +103,20 @@ describe("SapienStaking", function () {
       expect(stakerInfo.isActive).to.be.true;
     });
 
-    it("Should allow staking with amount less than base stake and calculate correct multiplier", async function () {
-      const amount = BASE_STAKE / BigInt(2);
+    it("Should reject staking with amount less than minimum stake", async function () {
+      const amount = BASE_STAKE / BigInt(2); // Less than 1,000 SAPIEN
       const lockUpPeriod = BigInt(30) * ONE_DAY;
       const orderId = "order2";
       const signature = await signStakeMessage(await user.getAddress(), amount, orderId, 0);
 
-      await sapienStaking.connect(user).stake(
-        amount, 
-        lockUpPeriod, 
-        ethers.id(orderId),
-        signature
-      );
-      
-      const stakingInfo = await sapienStaking.stakers(await user.getAddress(), ethers.id(orderId));
-      expect(stakingInfo.multiplier).to.equal(10250);
+      await expect(
+        sapienStaking.connect(user).stake(
+          amount,
+          lockUpPeriod,
+          ethers.id(orderId),
+          signature
+        )
+      ).to.be.revertedWith("Minimum 1,000 SAPIEN required");
     });
   });
 
@@ -179,10 +178,8 @@ describe("SapienStaking", function () {
       stakedAmount = BASE_STAKE;
       const lockUpPeriod = BigInt(30) * ONE_DAY;
       
-      // Fund the staking contract with additional tokens to cover multiplier bonuses
-      // For 30-day stake, multiplier is 10500 (105%), so we need at least 5% extra tokens
-      const bonusTokens = (stakedAmount * BigInt(500)) / BigInt(10000); // 5% of stake
-      await sapienToken.mint(await sapienStaking.getAddress(), bonusTokens);
+      // Fund the staking contract with enough tokens to cover all payouts
+      await sapienToken.mint(await sapienStaking.getAddress(), ethers.parseUnits("10000", 18));
       
       const signature = await signStakeMessage(await user.getAddress(), stakedAmount, stakeOrderId, 0);
       await sapienStaking.connect(user).stake(
@@ -251,7 +248,7 @@ describe("SapienStaking", function () {
 
     it("Should allow partial unstaking and reset cooldown state", async function () {
       // Initial stake
-      const stakeAmount = BASE_STAKE;
+      const stakeAmount = BASE_STAKE * BigInt(2); // Double the minimum stake to allow partial unstake
       const lockUpPeriod = BigInt(30) * ONE_DAY;
       const stakeOrderId = "partial_stake";
       const initiatePartialUnstakeOrderId = "partial_unstake_init";
@@ -339,6 +336,11 @@ describe("SapienStaking", function () {
   });
 
   describe("Instant Unstake", function () {
+    beforeEach(async function () {
+      // Fund the staking contract with enough tokens to cover all payouts
+      await sapienToken.mint(await sapienStaking.getAddress(), ethers.parseUnits("10000", 18));
+    });
+
     it("Should allow instant unstake with penalty", async function () {
       const stakeAmount = BASE_STAKE;
       const lockUpPeriod = BigInt(30) * ONE_DAY;
@@ -474,10 +476,9 @@ describe("SapienStaking", function () {
   });
 
   describe("Owner Functions", function () {
-    it("Should allow owner to pause and unpause contract", async function () {
+    it("Should allow Gnosis Safe to pause and unpause contract", async function () {
       // Pause the contract
-
-      await sapienStaking.connect(owner).pause();
+      await sapienStaking.connect(gnosisSafe).pause();
       expect(await sapienStaking.paused()).to.be.true;
       
       // Verify staking is not possible when paused
@@ -491,7 +492,7 @@ describe("SapienStaking", function () {
       ).to.be.reverted;
       
       // Unpause and verify staking works again
-      await sapienStaking.connect(owner).unpause();
+      await sapienStaking.connect(gnosisSafe).unpause();
       expect(await sapienStaking.paused()).to.be.false;
       
       await expect(
@@ -502,11 +503,28 @@ describe("SapienStaking", function () {
     it("Should not allow non-safe to pause or unpause", async function () {
       await expect(
         sapienStaking.connect(user).pause()
-      ).to.be.reverted;
+      ).to.be.revertedWith("Only the Safe can perform this");
       
       await expect(
         sapienStaking.connect(user).unpause()
-      ).to.be.reverted;
+      ).to.be.revertedWith("Only the Safe can perform this");
+    });
+
+    it("Should allow Gnosis Safe to transfer ownership", async function () {
+      const [_, __, ___, ____, newOwner] = await ethers.getSigners();
+      
+      await expect(
+        sapienStaking.connect(gnosisSafe).transferOwnership(await newOwner.getAddress())
+      ).to.emit(sapienStaking, "OwnershipTransferred")
+        .withArgs(await gnosisSafe.getAddress(), await newOwner.getAddress());
+    });
+
+    it("Should not allow non-safe to transfer ownership", async function () {
+      const [_, __, ___, ____, newOwner] = await ethers.getSigners();
+      
+      await expect(
+        sapienStaking.connect(user).transferOwnership(await newOwner.getAddress())
+      ).to.be.revertedWith("Only the Safe can perform this");
     });
   });
 
@@ -613,6 +631,11 @@ describe("SapienStaking", function () {
   });
 
   describe("Instant Unstake Restrictions", function () {
+    beforeEach(async function () {
+      // Fund the staking contract with enough tokens to cover all payouts
+      await sapienToken.mint(await sapienStaking.getAddress(), ethers.parseUnits("10000", 18));
+    });
+
     it("Should reject instant unstake after lock period", async function () {
       const stakeAmount = BASE_STAKE;
       const lockUpPeriod = BigInt(30) * ONE_DAY;
@@ -676,8 +699,8 @@ describe("SapienStaking", function () {
         stakeSignature
       );
       
-      // Get owner balance before
-      const ownerBalanceBefore = await sapienToken.balanceOf(await owner.getAddress());
+      // Get gnosis safe balance before
+      const safeBalanceBefore = await sapienToken.balanceOf(await gnosisSafe.getAddress());
       
       // Perform instant unstake
       const unstakeSignature = await signStakeMessage(
@@ -694,11 +717,11 @@ describe("SapienStaking", function () {
         unstakeSignature
       );
       
-      // Check penalty was transferred to owner (20% of stakeAmount)
+      // Check penalty was transferred to gnosis safe (20% of stakeAmount)
       const expectedPenalty = (stakeAmount * BigInt(20)) / BigInt(100);
-      const ownerBalanceAfter = await sapienToken.balanceOf(await owner.getAddress());
+      const safeBalanceAfter = await sapienToken.balanceOf(await gnosisSafe.getAddress());
       
-      expect(ownerBalanceAfter - ownerBalanceBefore).to.equal(expectedPenalty);
+      expect(safeBalanceAfter - safeBalanceBefore).to.equal(expectedPenalty);
     });
   });
 
@@ -733,33 +756,38 @@ describe("SapienStaking", function () {
     let SapienStakingV2: any;
     let sapienStakingV2: any;
     
+    beforeEach(async function () {
+      // Fund the staking contract with enough tokens to cover all payouts
+      await sapienToken.mint(await sapienStaking.getAddress(), ethers.parseUnits("10000", 18));
+    });
+    
     it("Should allow upgrading to a new implementation", async function () {
-      // Deploy a new implementation (mock for test)
-      //
-      //
-      //
-      const oldTotalSupply = await sapienStaking.totalStaked()
+      const oldTotalSupply = await sapienStaking.totalStaked();
       const SapienStakingV2Factory = await ethers.getContractFactory("SapienStakingV2Mock");
 
       const sapienStakingV2Address = await upgrades.prepareUpgrade(
         await sapienStaking.getAddress(),
-        SapienStakingV2Factory.connect(owner),
-        {
-          constructorArgs: [
-            //await authorizedSigner.getAddress(),
-            //await gnosisSafe.getAddress() 
-          ]
-        }
+        SapienStakingV2Factory
       );
 
-      console.log(sapienStaking)
-      const authorizeUpgrade = await sapienStaking.connect(gnosisSafe).authorizeUpgrade(sapienStakingV2Address);
+      // Authorize the upgrade with Gnosis Safe
+      await sapienStaking.connect(gnosisSafe).authorizeUpgrade(sapienStakingV2Address);
 
-      // Upgrade to new implementation
+      // Impersonate the Gnosis Safe
+      await ethers.provider.send("hardhat_impersonateAccount", [await gnosisSafe.getAddress()]);
+      const impersonatedSafe = await ethers.getImpersonatedSigner(await gnosisSafe.getAddress());
+
+      // Create a new factory instance with the impersonated signer
+      const SapienStakingV2FactoryWithSafe = await ethers.getContractFactory("SapienStakingV2Mock", impersonatedSafe);
+
+      // Perform the upgrade as the Safe
       sapienStakingV2 = await upgrades.upgradeProxy(
         await sapienStaking.getAddress(),
-        SapienStakingV2Factory.connect(owner)
+        SapienStakingV2FactoryWithSafe
       );
+
+      // Stop impersonating
+      await ethers.provider.send("hardhat_stopImpersonatingAccount", [await gnosisSafe.getAddress()]);
       
       // Check that state is preserved
       expect(await sapienStakingV2.totalStaked()).to.equal(oldTotalSupply);

@@ -166,8 +166,7 @@ contract SapienToken is
         _gnosisSafe = _gnosisSafeAddress;
         __ERC20_init("SapienToken", "SPN");
         __Pausable_init();
-        __Ownable_init();
-        _transferOwnership(_gnosisSafe);
+        __Ownable_init(_gnosisSafe);
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
         _vestingStartTimestamp = block.timestamp;

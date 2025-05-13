@@ -44,9 +44,6 @@ contract SapienRewards is
     // State Variables
     // -------------------------------------------------------------
 
-    /// @dev The address of the Gnosis Safe that controls administrative functions (effectively immutable, but can't use immutable keyword due to upgradeability)
-    address public _gnosisSafe;
-
     /// @dev The reward token interface used for transfers and release calls.
     IRewardToken public rewardToken;
 
@@ -54,6 +51,8 @@ contract SapienRewards is
     /// @dev Effectively immutable, but can't use immutable keyword due to upgradeability
     address private _authorizedSigner;
 
+    /// @dev The address of the Gnosis Safe that controls administrative functions (effectively immutable, but can't use immutable keyword due to upgradeability)
+    address public _gnosisSafe;
 
     /// @notice Mapping of wallet addresses to their redeemed order IDs.
     mapping(address => mapping(bytes32 => bool)) private redeemedOrders;
@@ -115,15 +114,15 @@ contract SapienRewards is
       address gnosisSafe_
     ) public initializer {
         require(_authorizedSigner_ != address(0), "Invalid authorized signer address");
+        require(gnosisSafe_ != address(0), "Invalid gnosis safe address");
         
-        __Ownable_init();
-        _transferOwnership(gnosisSafe_);
+        _authorizedSigner = _authorizedSigner_;
+        _gnosisSafe = gnosisSafe_;
+
+        __Ownable_init(_gnosisSafe);
         __Pausable_init();
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
-
-        _authorizedSigner = _authorizedSigner_;
-        _gnosisSafe = gnosisSafe_;
 
         // Initialize domain separator for EIP-712
         DOMAIN_SEPARATOR = keccak256(

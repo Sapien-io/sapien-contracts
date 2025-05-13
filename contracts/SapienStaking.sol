@@ -190,8 +190,7 @@ contract SapienStaking is
         _sapienAddress = sapienAddress_;
 
         __Pausable_init();
-        __Ownable_init();
-        _transferOwnership(_gnosisSafe);
+        __Ownable_init(_gnosisSafe);
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
 
@@ -388,6 +387,9 @@ contract SapienStaking is
             "Lock period not completed"
         );
         
+        // Transfer tokens to user
+        require(_sapienToken.transfer(msg.sender, amount), "Token transfer failed");
+        
         info.amount -= amount;
         info.cooldownAmount -= amount; // Reduce the approved cooldown amount
         
@@ -439,6 +441,10 @@ contract SapienStaking is
         // Calculate penalty
         uint256 penalty = (amount * EARLY_WITHDRAWAL_PENALTY) / 100;
         uint256 payout = amount - penalty;
+
+        // Transfer payout to user and penalty to Gnosis Safe
+        require(_sapienToken.transfer(msg.sender, payout), "Token transfer failed");
+        require(_sapienToken.transfer(_gnosisSafe, penalty), "Penalty transfer failed");
 
         // Update staked amount
         info.amount -= amount;

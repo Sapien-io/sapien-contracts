@@ -53,24 +53,10 @@ const config: HardhatUserConfig = {
     hardhat: {
       gas: 12000000,
       blockGasLimit: 12000000,
-			chainId: 1,
-      forking: {
-        url: `${process.env.ALCHEMY_API_URL}${process.env.ALCHEMY_API_KEY}`,
-        //blockNumber: 24137840,
-      },
-      accounts: {
-        mnemonic: process.env.MNEMONIC,
-      }
+      chainId: 31337,
     },
     localhost: {
-			chainId: 1337,
-      forking: {
-        url: `${process.env.ALCHEMY_API_URL}${process.env.ALCHEMY_API_KEY}`,
-        //blockNumber: 24137840,
-      },
-      accounts: {
-        mnemonic: process.env.MNEMONIC,
-      }
+      chainId: 1337,
     },
     "base-sepolia": {
       url: ALCHEMY_API_KEY 
