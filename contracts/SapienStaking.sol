@@ -290,6 +290,9 @@ contract SapienStaking is
             "Invalid signature or mismatched parameters"
         );
 
+        // Transfer tokens from user to contract
+        require(_sapienToken.transferFrom(msg.sender, address(this), amount), "Token transfer failed");
+
         uint256 multiplier = calculateMultiplier(lockUpPeriod);
 
         stakers[msg.sender][orderId] = StakingInfo({

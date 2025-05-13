@@ -90,6 +90,10 @@ describe("SapienStaking", function () {
       const orderId = "order1";
       const signature = await signStakeMessage(await user.getAddress(), amount, orderId, 0);
 
+      // Get balances before staking
+      const userBalanceBefore = await sapienToken.balanceOf(await user.getAddress());
+      const contractBalanceBefore = await sapienToken.balanceOf(await sapienStaking.getAddress());
+
       await expect(sapienStaking.connect(user).stake(
         amount,
         lockUpPeriod,
@@ -97,6 +101,13 @@ describe("SapienStaking", function () {
         signature
       )).to.emit(sapienStaking, "Staked")
         .withArgs(await user.getAddress(), amount, BigInt(10500), lockUpPeriod, ethers.id(orderId));
+
+      // Verify token transfers
+      const userBalanceAfter = await sapienToken.balanceOf(await user.getAddress());
+      const contractBalanceAfter = await sapienToken.balanceOf(await sapienStaking.getAddress());
+      
+      expect(userBalanceBefore - userBalanceAfter).to.equal(amount);
+      expect(contractBalanceAfter - contractBalanceBefore).to.equal(amount);
 
       const stakerInfo = await sapienStaking.stakers(await user.getAddress(), ethers.id(orderId));
       expect(stakerInfo.amount).to.equal(amount);
@@ -177,9 +188,6 @@ describe("SapienStaking", function () {
     beforeEach(async function () {
       stakedAmount = BASE_STAKE;
       const lockUpPeriod = BigInt(30) * ONE_DAY;
-      
-      // Fund the staking contract with enough tokens to cover all payouts
-      await sapienToken.mint(await sapienStaking.getAddress(), ethers.parseUnits("10000", 18));
       
       const signature = await signStakeMessage(await user.getAddress(), stakedAmount, stakeOrderId, 0);
       await sapienStaking.connect(user).stake(
@@ -337,8 +345,7 @@ describe("SapienStaking", function () {
 
   describe("Instant Unstake", function () {
     beforeEach(async function () {
-      // Fund the staking contract with enough tokens to cover all payouts
-      await sapienToken.mint(await sapienStaking.getAddress(), ethers.parseUnits("10000", 18));
+      // No need to mint tokens to contract anymore
     });
 
     it("Should allow instant unstake with penalty", async function () {
@@ -346,6 +353,10 @@ describe("SapienStaking", function () {
       const lockUpPeriod = BigInt(30) * ONE_DAY;
       const stakeOrderId = "stake2";
       const instantUnstakeOrderId = "instant_unstake2";
+      
+      // Get initial balances
+      const userBalanceBefore = await sapienToken.balanceOf(await user.getAddress());
+      const safeBalanceBefore = await sapienToken.balanceOf(await gnosisSafe.getAddress());
       
       const stakeSignature = await signStakeMessage(await user.getAddress(), stakeAmount, stakeOrderId, 0);
       await sapienStaking.connect(user).stake(
@@ -360,6 +371,7 @@ describe("SapienStaking", function () {
 
       const unstakeSignature = await signStakeMessage(await user.getAddress(), stakeAmount, instantUnstakeOrderId, 3);
       const expectedPayout = (stakeAmount * BigInt(80)) / BigInt(100);
+      const expectedPenalty = (stakeAmount * BigInt(20)) / BigInt(100);
       
       await expect(
         sapienStaking.connect(user).instantUnstake(
@@ -374,6 +386,15 @@ describe("SapienStaking", function () {
           expectedPayout, 
           ethers.id(instantUnstakeOrderId)
         );
+
+      // Verify token transfers
+      const userBalanceAfter = await sapienToken.balanceOf(await user.getAddress());
+      const safeBalanceAfter = await sapienToken.balanceOf(await gnosisSafe.getAddress());
+      
+      // User should receive 80% of their stake back
+      expect(userBalanceAfter - userBalanceBefore).to.equal(expectedPayout - stakeAmount);
+      // Safe should receive 20% penalty
+      expect(safeBalanceAfter - safeBalanceBefore).to.equal(expectedPenalty);
     });
   });
 
@@ -632,8 +653,7 @@ describe("SapienStaking", function () {
 
   describe("Instant Unstake Restrictions", function () {
     beforeEach(async function () {
-      // Fund the staking contract with enough tokens to cover all payouts
-      await sapienToken.mint(await sapienStaking.getAddress(), ethers.parseUnits("10000", 18));
+      // No need to mint tokens to contract anymore
     });
 
     it("Should reject instant unstake after lock period", async function () {
@@ -757,8 +777,7 @@ describe("SapienStaking", function () {
     let sapienStakingV2: any;
     
     beforeEach(async function () {
-      // Fund the staking contract with enough tokens to cover all payouts
-      await sapienToken.mint(await sapienStaking.getAddress(), ethers.parseUnits("10000", 18));
+      // No need to mint tokens to contract anymore
     });
     
     it("Should allow upgrading to a new implementation", async function () {
