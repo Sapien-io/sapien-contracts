@@ -45,13 +45,13 @@ contract SapienToken is ISapienToken, AccessControl, ERC20Permit, Pausable {
         _unpause();
     }
 
-    ///@dev Override _update to add pausable functionality
-    function _update(address from, address to, uint256 value) internal override whenNotPaused {
-        super._update(from, to, value);
-    }
-
     /// @dev Override supportsInterface to handle multiple inheritance
     function supportsInterface(bytes4 interfaceId) public view virtual override(AccessControl) returns (bool) {
         return super.supportsInterface(interfaceId);
+    }
+
+    ///@dev Override _update to add pausable functionality
+    function _update(address from, address to, uint256 value) internal override whenNotPaused {
+        super._update(from, to, value);
     }
 }
