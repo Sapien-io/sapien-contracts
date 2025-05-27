@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity 0.8.30;
 
-import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 
 /**
  * @title ISapienToken
  * @dev Interface for the Sapien Token contract
  */
-
 interface ISapienToken is IERC20 {
-   
-   /// @dev Custom errors
+    /// @dev Custom errors
     error ZeroAddressOwner();
 
     /// @dev Returns the PAUSER_ROLE identifier

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity 0.8.30;
 
-import { ISapienToken } from "src/interfaces/ISapienToken.sol";
-import { AccessControl } from "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
-import { ERC20Permit, ERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC20Permit.sol";
-import { Pausable }  from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
+import {ISapienToken} from "src/interfaces/ISapienToken.sol";
+import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
+import {ERC20Permit, ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import {Pausable} from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
 
 /**
  * @title SapienToken
@@ -44,7 +44,7 @@ contract SapienToken is ISapienToken, AccessControl, ERC20Permit, Pausable {
     function unpause() external onlyRole(PAUSER_ROLE) {
         _unpause();
     }
-    
+
     ///@dev Override _update to add pausable functionality
     function _update(address from, address to, uint256 value) internal override whenNotPaused {
         super._update(from, to, value);
