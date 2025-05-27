@@ -1,0 +1,105 @@
+# SapienRewards Contract - Flow Diagram
+
+title: "SapienRewards Contract - Flow Diagram" {
+  near: top-center
+  shape: text
+  style.font-size: 24
+  style.underline: true
+}
+
+# Main Actors and Components
+User: {
+  shape: person
+  label: "User"
+}
+
+Signer: {
+  shape: person
+  label: "Authorized Signer"
+}
+
+Safe: {
+  shape: cylinder
+  label: "Gnosis Safe\\n(Admin)"
+}
+
+SapienRewards: {
+  shape: rectangle
+  label: "SapienRewards Contract"
+  style.stroke-width: 2
+}
+
+RewardToken: {
+  shape: cylinder
+  label: "Reward Token\\n(IRewardToken)"
+}
+
+# Reward Claiming Process
+claiming: {
+  style.opacity: 0.9
+  style.fill: "#e6f7ff"
+  style.stroke: "#69c0ff"
+  label: "Reward Claiming Process"
+  
+  User -> Signer: "1. Request signature"
+  Signer -> User: "2. Sign reward claim"
+  User -> SapienRewards: "3. claimReward(amount, orderId, signature)"
+  SapienRewards -> SapienRewards: "4. verifyOrder() & validate signature"
+  SapienRewards -> SapienRewards: "5. Check if order already redeemed"
+  SapienRewards -> SapienRewards: "6. Mark order as redeemed"
+  SapienRewards -> RewardToken: "7. transfer(user, amount)"
+  RewardToken -> User: "8. Tokens transferred"
+  SapienRewards -> User: "9. Return success & emit RewardClaimed"
+}
+
+# Admin Functions
+admin: {
+  style.opacity: 0.9
+  style.fill: "#f6ffed"
+  style.stroke: "#95de64"
+  label: "Admin Functions"
+  
+  Safe -> SapienRewards: "setRewardToken()"
+  Safe -> SapienRewards: "depositTokens()"
+  Safe -> SapienRewards: "withdrawTokens()"
+  Safe -> SapienRewards: "pause()/unpause()"
+  Safe -> SapienRewards: "authorizeUpgrade()"
+  Safe -> SapienRewards: "transferOwnership()"
+}
+
+# Deposit Flow
+deposit: {
+  style.opacity: 0.9
+  style.fill: "#fff2e8"
+  style.stroke: "#ffbb96"
+  label: "Token Deposit Flow"
+  
+  Safe -> RewardToken: "approve(SapienRewards, amount)"
+  Safe -> SapienRewards: "depositTokens(amount)"
+  SapienRewards -> RewardToken: "transferFrom(safe, this, amount)"
+  RewardToken -> SapienRewards: "Tokens deposited"
+}
+
+# Contract State
+state: {
+  style.opacity: 0.9
+  style.fill: "#f9f0ff"
+  style.stroke: "#d3adf7"
+  label: "Contract State"
+  
+  variables: "- rewardToken: IRewardToken\\n- _authorizedSigner: address\\n- _gnosisSafe: address\\n- redeemedOrders: mapping\\n- DOMAIN_SEPARATOR: bytes32\\n- _upgradeAuthorized: mapping"
+}
+
+# Security Mechanisms
+security: {
+  style.opacity: 0.9
+  style.fill: "#fcffe6"
+  style.stroke: "#d3f261"
+  label: "Security Mechanisms"
+  
+  nonReentrant: "ReentrancyGuard"
+  pausable: "Pausable"
+  upgradeable: "UUPSUpgradeable"
+  ownership: "Ownable2Step"
+  eip712: "EIP-712 Signatures"
+} 

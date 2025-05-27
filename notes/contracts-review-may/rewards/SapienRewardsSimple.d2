@@ -1,0 +1,55 @@
+# SapienRewards Contract - Simplified Flow
+
+title: "SapienRewards - Core Flows" {
+  near: top-center
+  shape: text
+  style.font-size: 20
+}
+
+# Main Components
+User: {
+  shape: person
+}
+
+Signer: {
+  shape: person
+  label: "Authorized\nSigner"
+}
+
+Safe: {
+  shape: cylinder
+  label: "Gnosis Safe"
+}
+
+SapienRewards: {
+  shape: rectangle
+  label: "SapienRewards\nContract"
+}
+
+RewardToken: {
+  shape: cylinder
+  label: "Reward Token"
+}
+
+# Core Flows with Simplified Connections
+User -> Signer: "1. Request signature"
+Signer -> User: "2. Sign claim"
+User -> SapienRewards: "3. claimReward()"
+SapienRewards -> RewardToken: "4. transfer()"
+RewardToken -> User: "5. Tokens"
+
+# Admin Connections
+Safe -> SapienRewards: "Admin\nFunctions"
+Safe -> RewardToken: "Manage\nTokens"
+
+# State
+state: {
+  shape: rectangle
+  style.stroke-dash: 5
+  label: "Contract State"
+  
+  variables: {
+    shape: text
+    label: "• rewardToken\n• authorizedSigner\n• redeemedOrders\n• domainSeparator"
+  }
+} 
