@@ -902,7 +902,7 @@ contract SapienVaultOverflowTest is Test {
 
         // Define user profiles
         UserProfile[] memory profiles = new UserProfile[](8);
-        
+
         // Small retail investors
         profiles[0] = UserProfile({
             name: "Small Retail (Min)",
@@ -910,7 +910,7 @@ contract SapienVaultOverflowTest is Test {
             lockup: LOCK_30_DAYS,
             description: "Minimum stake, short term"
         });
-        
+
         profiles[1] = UserProfile({
             name: "Small Retail (Long)",
             amount: MINIMUM_STAKE, // 1,000 tokens
@@ -975,7 +975,8 @@ contract SapienVaultOverflowTest is Test {
         }
 
         // Show final network state
-        (uint256 finalStaked, uint256 totalSupply, uint256 finalRatio, uint256 finalCoeff) = sapienVault.getGlobalStakingStats();
+        (uint256 finalStaked, uint256 totalSupply, uint256 finalRatio, uint256 finalCoeff) =
+            sapienVault.getGlobalStakingStats();
         console.log("\n=== FINAL NETWORK STATE ===");
         console.log("Total Staked: %s tokens", finalStaked / 1e18);
         console.log("Total Supply: %s tokens", totalSupply / 1e18);
@@ -1005,17 +1006,17 @@ contract SapienVaultOverflowTest is Test {
 
         for (uint256 round = 0; round < rounds.length; round++) {
             console.log("\n--- %s ---", rounds[round].description);
-            
+
             // Add users until we reach the target count for this round
             uint256 currentUsers = round == 0 ? 0 : rounds[round - 1].userCount;
             uint256 targetUsers = rounds[round].userCount;
-            
+
             for (uint256 i = currentUsers; i < targetUsers; i++) {
                 address user = makeAddr(string(abi.encodePacked("progressiveUser", i)));
-                
+
                 // Mint tokens
                 sapienToken.mint(user, testStake);
-                
+
                 // Stake
                 vm.startPrank(user);
                 sapienToken.approve(address(sapienVault), testStake);
@@ -1025,14 +1026,18 @@ contract SapienVaultOverflowTest is Test {
 
             // Show network state after this round
             (uint256 totalStaked,, uint256 stakingRatio,) = sapienVault.getGlobalStakingStats();
-            
+
             // Get multiplier for our test stake
-            (uint256 individual, uint256 coefficient, uint256 finalMult,) = 
+            (uint256 individual, uint256 coefficient, uint256 finalMult,) =
                 sapienVault.getMultiplierBreakdown(testStake, testLockup);
-            
+
             console.log("Users: %s | Network: %s%% | Coeff: %sx", targetUsers, stakingRatio / 100, coefficient);
-            console.log("50K @ 365d Multiplier: %s%% (Individual: %s%%, Global: %sx)", 
-                finalMult / 100, individual / 100, coefficient);
+            console.log(
+                "50K @ 365d Multiplier: %s%% (Individual: %s%%, Global: %sx)",
+                finalMult / 100,
+                individual / 100,
+                coefficient
+            );
             console.log("Total Network Stake: %s tokens", totalStaked / 1e18);
         }
     }
@@ -1059,9 +1064,9 @@ contract SapienVaultOverflowTest is Test {
         console.log("Format: [Lockup] -> [Individual] x [Global] = [Final] multiplier\n");
 
         for (uint256 i = 0; i < lockupPeriods.length; i++) {
-            (uint256 individual, uint256 global, uint256 finalMult,) = 
+            (uint256 individual, uint256 global, uint256 finalMult,) =
                 sapienVault.getMultiplierBreakdown(testAmount, lockupPeriods[i]);
-            
+
             console.log("Lockup period results:");
             console.log("Individual:", individual / 100);
             console.log("Global:", global);
@@ -1100,9 +1105,9 @@ contract SapienVaultOverflowTest is Test {
         console.log("Format: [Amount] -> [Individual] x [Global] = [Final] multiplier\n");
 
         for (uint256 i = 0; i < amounts.length; i++) {
-            (uint256 individual, uint256 global, uint256 finalMult,) = 
+            (uint256 individual, uint256 global, uint256 finalMult,) =
                 sapienVault.getMultiplierBreakdown(amounts[i], LOCK_365_DAYS);
-            
+
             console.log("Amount scaling results:");
             console.log("Individual:", individual / 100);
             console.log("Global:", global);
@@ -1129,29 +1134,29 @@ contract SapienVaultOverflowTest is Test {
     function _processUserProfile(UserProfile memory profile, uint256 userNumber) private {
         // Create user address
         address user = makeAddr(string(abi.encodePacked("realWorldUser", userNumber)));
-        
+
         // Mint tokens to user
         sapienToken.mint(user, profile.amount);
-        
+
         // Get network state before staking
         (,, uint256 preLatio, uint256 preCoeff) = sapienVault.getGlobalStakingStats();
-        
+
         // Get multiplier breakdown before staking
-        (uint256 preIndividual, uint256 preGlobal, uint256 preFinalMult,) = 
+        (uint256 preIndividual, uint256 preGlobal, uint256 preFinalMult,) =
             sapienVault.getMultiplierBreakdown(profile.amount, profile.lockup);
-        
+
         // Execute stake
         vm.startPrank(user);
         sapienToken.approve(address(sapienVault), profile.amount);
         sapienVault.stake(profile.amount, profile.lockup);
         vm.stopPrank();
-        
+
         // Get actual multiplier from stake
-        (,,,,,uint256 actualMultiplier,,) = sapienVault.getUserStakingSummary(user);
-        
+        (,,,,, uint256 actualMultiplier,,) = sapienVault.getUserStakingSummary(user);
+
         // Get network state after staking
         (,, uint256 postRatio, uint256 postCoeff) = sapienVault.getGlobalStakingStats();
-        
+
         // Log comprehensive results
         console.log("User %s: %s", userNumber, profile.name);
         console.log("  Stake: %s tokens @ %s days", profile.amount / 1e18, profile.lockup / 1 days);
@@ -1167,58 +1172,64 @@ contract SapienVaultOverflowTest is Test {
     /// @dev Show comparative analysis of all staking scenarios
     function _showComparativeAnalysis() private view {
         console.log("\n=== COMPARATIVE ANALYSIS ===");
-        
+
         // Compare different strategies
         console.log("\nStrategy Comparison (all with 10K tokens):");
-        
+
         uint256 baseAmount = MINIMUM_STAKE * 10;
-        
-        (uint256 short1, uint256 shortG, uint256 shortFinalMult,) = sapienVault.getMultiplierBreakdown(baseAmount, LOCK_30_DAYS);
-        (uint256 med1, uint256 medG, uint256 medFinalMult,) = sapienVault.getMultiplierBreakdown(baseAmount, LOCK_180_DAYS);
-        (uint256 long1, uint256 longG, uint256 longFinalMult,) = sapienVault.getMultiplierBreakdown(baseAmount, LOCK_365_DAYS);
-        
+
+        (uint256 short1, uint256 shortG, uint256 shortFinalMult,) =
+            sapienVault.getMultiplierBreakdown(baseAmount, LOCK_30_DAYS);
+        (uint256 med1, uint256 medG, uint256 medFinalMult,) =
+            sapienVault.getMultiplierBreakdown(baseAmount, LOCK_180_DAYS);
+        (uint256 long1, uint256 longG, uint256 longFinalMult,) =
+            sapienVault.getMultiplierBreakdown(baseAmount, LOCK_365_DAYS);
+
         console.log("Short-term (30d) results:");
         console.log("- Individual:", short1 / 100);
         console.log("- Global:", shortG);
         console.log("- Final:", shortFinalMult / 100);
-        
+
         console.log("Medium-term (180d) results:");
         console.log("- Individual:", med1 / 100);
         console.log("- Global:", medG);
         console.log("- Final:", medFinalMult / 100);
-        
+
         console.log("Long-term (365d) results:");
         console.log("- Individual:", long1 / 100);
         console.log("- Global:", longG);
         console.log("- Final:", longFinalMult / 100);
-        
+
         uint256 shortVsLong = (longFinalMult * 100) / shortFinalMult;
         console.log("Long-term advantage: %sx better than short-term", shortVsLong / 100);
-        
+
         console.log("\nAmount Comparison (all with 365d lockup):");
-        
-        (uint256 small1, uint256 smallG, uint256 smallFinalMult,) = sapienVault.getMultiplierBreakdown(MINIMUM_STAKE, LOCK_365_DAYS);
-        (uint256 big1, uint256 bigG, uint256 bigFinalMult,) = sapienVault.getMultiplierBreakdown(MINIMUM_STAKE * 100, LOCK_365_DAYS);
-        (uint256 whale1, uint256 whaleG, uint256 whaleFinalMult,) = sapienVault.getMultiplierBreakdown(MINIMUM_STAKE * 1000, LOCK_365_DAYS);
-        
+
+        (uint256 small1, uint256 smallG, uint256 smallFinalMult,) =
+            sapienVault.getMultiplierBreakdown(MINIMUM_STAKE, LOCK_365_DAYS);
+        (uint256 big1, uint256 bigG, uint256 bigFinalMult,) =
+            sapienVault.getMultiplierBreakdown(MINIMUM_STAKE * 100, LOCK_365_DAYS);
+        (uint256 whale1, uint256 whaleG, uint256 whaleFinalMult,) =
+            sapienVault.getMultiplierBreakdown(MINIMUM_STAKE * 1000, LOCK_365_DAYS);
+
         console.log("Small (1K) results:");
         console.log("- Individual:", small1 / 100);
         console.log("- Global:", smallG);
         console.log("- Final:", smallFinalMult / 100);
-        
+
         console.log("Large (100K) results:");
         console.log("- Individual:", big1 / 100);
         console.log("- Global:", bigG);
         console.log("- Final:", bigFinalMult / 100);
-        
+
         console.log("Whale (1M) results:");
         console.log("- Individual:", whale1 / 100);
         console.log("- Global:", whaleG);
         console.log("- Final:", whaleFinalMult / 100);
-        
+
         uint256 smallVsWhale = (whaleFinalMult * 100) / smallFinalMult;
         console.log("Whale advantage: %sx better than small stake", smallVsWhale / 100);
-        
+
         console.log("\nKey Takeaways:");
         console.log("1. Time commitment is highly rewarded (up to %sx better)", shortVsLong / 100);
         console.log("2. Larger stakes get bonuses but with diminishing returns");
