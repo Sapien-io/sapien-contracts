@@ -1,7 +1,0 @@
-{
-    "security.olympix.project.includePath": "/src",
-    "security.olympix.project.testsPath": "/test",
-    "makefile.configureOnOpen": false,
-    "security.olympix.project.opixTestDir": "/test",
-    "security.olympix.project.analyzeWholeProject": false
-}

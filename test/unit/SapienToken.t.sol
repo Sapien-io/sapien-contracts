@@ -33,7 +33,7 @@ contract SapienTokenTest is Test {
 
     // ============ Constructor Tests ============
 
-    function test_Constructor_Success() public view {
+    function test_Token_Constructor_Success() public view {
         // Check basic ERC20 properties
         assertEq(token.name(), "Sapien Token");
         assertEq(token.symbol(), "SAPIEN");
@@ -45,14 +45,14 @@ contract SapienTokenTest is Test {
         assertEq(token.balanceOf(treasury), MAX_SUPPLY);
     }
 
-    function test_Constructor_RevertZeroAddress() public {
+    function test_Token_Constructor_RevertZeroAddress() public {
         vm.expectRevert(ZeroAddress.selector);
         new SapienToken(zeroAddress);
     }
 
     // ============ ERC20 Basic Functionality Tests ============
 
-    function test_Transfer_Success() public {
+    function test_Token_Transfer_Success() public {
         uint256 amount = 1000 * 10 ** 18;
 
         vm.startPrank(treasury);
@@ -69,7 +69,7 @@ contract SapienTokenTest is Test {
         vm.stopPrank();
     }
 
-    function test_Approve_Success() public {
+    function test_Token_Approve_Success() public {
         uint256 amount = 1000 * 10 ** 18;
 
         vm.startPrank(treasury);
@@ -85,7 +85,7 @@ contract SapienTokenTest is Test {
         vm.stopPrank();
     }
 
-    function test_TransferFrom_Success() public {
+    function test_Token_TransferFrom_Success() public {
         uint256 amount = 1000 * 10 ** 18;
 
         // treasury approves user1 to spend tokens
@@ -110,7 +110,7 @@ contract SapienTokenTest is Test {
 
     // ============ ERC20Permit Tests ============
 
-    function test_Permit_Success() public {
+    function test_Token_Permit_Success() public {
         uint256 amount = 1000 * 10 ** 18;
         uint256 deadline = block.timestamp + 1 hours;
 
@@ -147,7 +147,7 @@ contract SapienTokenTest is Test {
         assertEq(token.nonces(owner), nonce + 1);
     }
 
-    function test_Permit_ExpiredDeadline() public {
+    function test_Token_Permit_ExpiredDeadline() public {
         uint256 amount = 1000 * 10 ** 18;
         uint256 deadline = block.timestamp - 1; // Expired
 
@@ -177,12 +177,12 @@ contract SapienTokenTest is Test {
 
     // ============ Edge Cases and Security Tests ============
 
-    function test_MaxSupply_Immutable() public view {
+    function test_Token_MaxSupply_Immutable() public view {
         assertEq(token.maxSupply(), MAX_SUPPLY);
         assertEq(token.totalSupply(), MAX_SUPPLY);
     }
 
-    function test_Transfer_InsufficientBalance() public {
+    function test_Token_Transfer_InsufficientBalance() public {
         vm.startPrank(user1);
 
         vm.expectRevert();
@@ -191,7 +191,7 @@ contract SapienTokenTest is Test {
         vm.stopPrank();
     }
 
-    function test_TransferFrom_InsufficientAllowance() public {
+    function test_Token_TransferFrom_InsufficientAllowance() public {
         vm.startPrank(user1);
 
         vm.expectRevert();
@@ -202,7 +202,7 @@ contract SapienTokenTest is Test {
 
     // ============ Fuzz Tests ============
 
-    function testFuzz_Transfer(uint256 amount) public {
+    function test_Token_Fuzz_Transfer(uint256 amount) public {
         amount = bound(amount, 0, MAX_SUPPLY);
 
         vm.startPrank(treasury);
@@ -219,7 +219,7 @@ contract SapienTokenTest is Test {
         vm.stopPrank();
     }
 
-    function testFuzz_Approve(uint256 amount) public {
+    function test_Token_Fuzz_Approve(uint256 amount) public {
         vm.startPrank(treasury);
 
         bool success = token.approve(user1, amount);

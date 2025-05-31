@@ -54,8 +54,7 @@ Diagram of [proposed architectural changes](contracts-review-may/token/contract-
 - [x] Chore: Migrate to Foundry testing framework
 - [x] Feat: Implement separated vesting architecture
   - [x] Create immutable `SapienToken` contract
-  - [ ] Build upgradeable `VestingVault` contract and migrate functionality  
-- [ ] Feat: Remove offchain Staking signatures 
+- [x] Feat: Remove offchain Staking signatures 
 
 ### Functional Issues and Fixes ( May 28th - May 30th )
 - [ ] Fix: Review items found in [May Contracts Review](contracts-review-may) 

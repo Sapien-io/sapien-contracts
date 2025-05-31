@@ -3,19 +3,20 @@ pragma solidity 0.8.30;
 
 import { Test } from "lib/forge-std/src/Test.sol";
 import { StdInvariant } from "lib/forge-std/src/StdInvariant.sol";
-import { StakingVault } from "src/StakingVault.sol";
+import { SapienVault } from "src/SapienVault.sol";
 import { ERC1967Proxy } from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { MockERC20 } from "test/mocks/MockERC20.sol";
+import { Constants as Const } from "src/utils/Constants.sol";
 
 // Handler contract for invariant testing
-contract StakingVaultHandler is Test {
-    StakingVault public stakingVault;
+contract SapienVaultHandler is Test {
+    SapienVault public sapienVault;
     MockERC20 public sapienToken;
     
     address[] public actors;
-    uint256 public constant MINIMUM_STAKE = 1000e18;
-    uint256 public constant COOLDOWN_PERIOD = 2 days;
-    uint256 public constant MINIMUM_LOCKUP_INCREASE = 7 days;
+    uint256 public constant MINIMUM_STAKE = Const.MINIMUM_STAKE_AMOUNT;
+    uint256 public constant COOLDOWN_PERIOD = Const.COOLDOWN_PERIOD;
+    uint256 public constant MINIMUM_LOCKUP_INCREASE = Const.MINIMUM_LOCKUP_INCREASE;
     
     // Track system state for invariants
     uint256 public totalStakedByUsers;
@@ -24,7 +25,12 @@ contract StakingVaultHandler is Test {
     uint256 public totalInstantUnstakes;
     
     // Valid lock periods
-    uint256[] public lockPeriods = [30 days, 90 days, 180 days, 365 days];
+    uint256[] public lockPeriods = [
+        Const.LOCKUP_30_DAYS, 
+        Const.LOCKUP_90_DAYS, 
+        Const.LOCKUP_180_DAYS, 
+        Const.LOCKUP_365_DAYS
+    ];
     
     modifier useActor(uint256 actorIndexSeed) {
         address currentActor = actors[bound(actorIndexSeed, 0, actors.length - 1)];
@@ -33,8 +39,8 @@ contract StakingVaultHandler is Test {
         vm.stopPrank();
     }
     
-    constructor(StakingVault _stakingVault, MockERC20 _sapienToken) {
-        stakingVault = _stakingVault;
+    constructor(SapienVault _sapienVault, MockERC20 _sapienToken) {
+        sapienVault = _sapienVault;
         sapienToken = _sapienToken;
         
         // Create actors
@@ -54,9 +60,9 @@ contract StakingVaultHandler is Test {
             return;
         }
         
-        sapienToken.approve(address(stakingVault), amount);
+        sapienToken.approve(address(sapienVault), amount);
         
-        try stakingVault.stake(amount, lockPeriod) {
+        try sapienVault.stake(amount, lockPeriod) {
             totalStakedByUsers += amount;
         } catch {
             // Stake failed, continue
@@ -64,7 +70,7 @@ contract StakingVaultHandler is Test {
     }
     
     function increaseAmount(uint256 actorSeed, uint256 amountSeed) public useActor(actorSeed) {
-        if (!stakingVault.hasActiveStake(msg.sender)) return;
+        if (!sapienVault.hasActiveStake(msg.sender)) return;
         
         uint256 amount = bound(amountSeed, MINIMUM_STAKE, MINIMUM_STAKE * 20);
         
@@ -73,9 +79,9 @@ contract StakingVaultHandler is Test {
             return;
         }
         
-        sapienToken.approve(address(stakingVault), amount);
+        sapienToken.approve(address(sapienVault), amount);
         
-        try stakingVault.increaseAmount(amount) {
+        try sapienVault.increaseAmount(amount) {
             totalStakedByUsers += amount;
         } catch {
             // Failed, continue
@@ -83,11 +89,11 @@ contract StakingVaultHandler is Test {
     }
     
     function increaseLockup(uint256 actorSeed, uint256 lockupIncreaseSeed) public useActor(actorSeed) {
-        if (!stakingVault.hasActiveStake(msg.sender)) return;
+        if (!sapienVault.hasActiveStake(msg.sender)) return;
         
         uint256 lockupIncrease = bound(lockupIncreaseSeed, MINIMUM_LOCKUP_INCREASE, 300 days);
         
-        try stakingVault.increaseLockup(lockupIncrease) {
+        try sapienVault.increaseLockup(lockupIncrease) {
             // Success
         } catch {
             // Failed, continue
@@ -95,12 +101,12 @@ contract StakingVaultHandler is Test {
     }
     
     function initiateUnstake(uint256 actorSeed, uint256 amountSeed) public useActor(actorSeed) {
-        uint256 totalUnlocked = stakingVault.getTotalUnlocked(msg.sender);
+        uint256 totalUnlocked = sapienVault.getTotalUnlocked(msg.sender);
         if (totalUnlocked == 0) return;
         
         uint256 amount = bound(amountSeed, 1, totalUnlocked);
         
-        try stakingVault.initiateUnstake(amount) {
+        try sapienVault.initiateUnstake(amount) {
             // Success
         } catch {
             // Failed, continue
@@ -108,14 +114,14 @@ contract StakingVaultHandler is Test {
     }
     
     function unstake(uint256 actorSeed, uint256 amountSeed) public useActor(actorSeed) {
-        uint256 totalReady = stakingVault.getTotalReadyForUnstake(msg.sender);
+        uint256 totalReady = sapienVault.getTotalReadyForUnstake(msg.sender);
         if (totalReady == 0) return;
         
         uint256 amount = bound(amountSeed, 1, totalReady);
         
         uint256 balanceBefore = sapienToken.balanceOf(msg.sender);
         
-        try stakingVault.unstake(amount) {
+        try sapienVault.unstake(amount) {
             uint256 balanceAfter = sapienToken.balanceOf(msg.sender);
             totalNormalUnstakes += (balanceAfter - balanceBefore);
             totalStakedByUsers -= amount;
@@ -125,14 +131,14 @@ contract StakingVaultHandler is Test {
     }
     
     function instantUnstake(uint256 actorSeed, uint256 amountSeed) public useActor(actorSeed) {
-        uint256 totalLocked = stakingVault.getTotalLocked(msg.sender);
+        uint256 totalLocked = sapienVault.getTotalLocked(msg.sender);
         if (totalLocked == 0) return;
         
         uint256 amount = bound(amountSeed, 1, totalLocked);
         
         uint256 balanceBefore = sapienToken.balanceOf(msg.sender);
         
-        try stakingVault.instantUnstake(amount) {
+        try sapienVault.instantUnstake(amount) {
             uint256 balanceAfter = sapienToken.balanceOf(msg.sender);
             uint256 received = balanceAfter - balanceBefore;
             uint256 penalty = amount - received;
@@ -153,7 +159,7 @@ contract StakingVaultHandler is Test {
     // Helper function to get total staked across all users
     function getTotalStakedAcrossUsers() public view returns (uint256 total) {
         for (uint256 i = 0; i < actors.length; i++) {
-            total += stakingVault.getTotalStaked(actors[i]);
+            total += sapienVault.getTotalStaked(actors[i]);
         }
     }
     
@@ -163,41 +169,41 @@ contract StakingVaultHandler is Test {
     }
 }
 
-contract StakingVaultInvariantsTest is StdInvariant, Test {
-    StakingVault public stakingVault;
+contract SapienVaultInvariantsTest is StdInvariant, Test {
+    SapienVault public sapienVault;
     MockERC20 public sapienToken;
-    StakingVaultHandler public handler;
+    SapienVaultHandler public handler;
     
     address public admin = makeAddr("admin");
-    address public treasury = makeAddr("treasury");
+    address public rewardSafe = makeAddr("rewardSafe");
     
     function setUp() public {
         sapienToken = new MockERC20("Sapien", "SAPIEN", 18);
         
-        StakingVault stakingVaultImpl = new StakingVault();
+        SapienVault sapienVaultImpl = new SapienVault();
         bytes memory initData = abi.encodeWithSelector(
-            StakingVault.initialize.selector,
+            SapienVault.initialize.selector,
             address(sapienToken),
             admin,
-            treasury
+            rewardSafe
         );
-        ERC1967Proxy stakingVaultProxy = new ERC1967Proxy(address(stakingVaultImpl), initData);
-        stakingVault = StakingVault(address(stakingVaultProxy));
+        ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), initData);
+        sapienVault = SapienVault(address(sapienVaultProxy));
         
-        handler = new StakingVaultHandler(stakingVault, sapienToken);
+        handler = new SapienVaultHandler(sapienVault, sapienToken);
         
         // Set up invariant testing
         targetContract(address(handler));
         
         // Define function selectors to call
         bytes4[] memory selectors = new bytes4[](7);
-        selectors[0] = StakingVaultHandler.stake.selector;
-        selectors[1] = StakingVaultHandler.increaseAmount.selector;
-        selectors[2] = StakingVaultHandler.increaseLockup.selector;
-        selectors[3] = StakingVaultHandler.initiateUnstake.selector;
-        selectors[4] = StakingVaultHandler.unstake.selector;
-        selectors[5] = StakingVaultHandler.instantUnstake.selector;
-        selectors[6] = StakingVaultHandler.warpTime.selector;
+        selectors[0] = SapienVaultHandler.stake.selector;
+        selectors[1] = SapienVaultHandler.increaseAmount.selector;
+        selectors[2] = SapienVaultHandler.increaseLockup.selector;
+        selectors[3] = SapienVaultHandler.initiateUnstake.selector;
+        selectors[4] = SapienVaultHandler.unstake.selector;
+        selectors[5] = SapienVaultHandler.instantUnstake.selector;
+        selectors[6] = SapienVaultHandler.warpTime.selector;
         
         targetSelector(FuzzSelector({
             addr: address(handler),
@@ -212,8 +218,8 @@ contract StakingVaultInvariantsTest is StdInvariant, Test {
     /// @dev The contract's token balance should always equal totalStaked
     function invariant_TokenBalanceEqualsStaked() public view {
         assertEq(
-            sapienToken.balanceOf(address(stakingVault)),
-            stakingVault.totalStaked(),
+            sapienToken.balanceOf(address(sapienVault)),
+            sapienVault.totalStaked(),
             "Contract token balance must equal totalStaked"
         );
     }
@@ -222,7 +228,7 @@ contract StakingVaultInvariantsTest is StdInvariant, Test {
     function invariant_TotalStakedEqualsUserStakes() public view {
         uint256 sumOfUserStakes = handler.getTotalStakedAcrossUsers();
         assertEq(
-            stakingVault.totalStaked(),
+            sapienVault.totalStaked(),
             sumOfUserStakes,
             "totalStaked must equal sum of all user stakes"
         );
@@ -232,7 +238,7 @@ contract StakingVaultInvariantsTest is StdInvariant, Test {
     function invariant_NoInvalidStakes() public view {
         address[] memory actors = handler.getActors();
         for (uint256 i = 0; i < actors.length; i++) {
-            uint256 userStaked = stakingVault.getTotalStaked(actors[i]);
+            uint256 userStaked = sapienVault.getTotalStaked(actors[i]);
             
             // If user has stake, it should be >= MINIMUM_STAKE
             if (userStaked > 0) {
@@ -243,13 +249,13 @@ contract StakingVaultInvariantsTest is StdInvariant, Test {
                 
                 // User should have active stake
                 assertTrue(
-                    stakingVault.hasActiveStake(actors[i]),
+                    sapienVault.hasActiveStake(actors[i]),
                     "User with staked amount should have active stake"
                 );
             } else {
                 // If no stake, should not have active stake
                 assertFalse(
-                    stakingVault.hasActiveStake(actors[i]),
+                    sapienVault.hasActiveStake(actors[i]),
                     "User with no staked amount should not have active stake"
                 );
             }
@@ -269,7 +275,7 @@ contract StakingVaultInvariantsTest is StdInvariant, Test {
                 uint256 effectiveMultiplier,
                 uint256 effectiveLockUpPeriod,
                 uint256 timeUntilUnlock
-            ) = stakingVault.getUserStakingSummary(actors[i]);
+            ) = sapienVault.getUserStakingSummary(actors[i]);
             
             if (userTotalStaked > 0) {
                 // Total staked should equal locked + unlocked
@@ -288,14 +294,14 @@ contract StakingVaultInvariantsTest is StdInvariant, Test {
                 
                 // Effective multiplier should be in valid range
                 assertTrue(
-                    effectiveMultiplier >= 10000 && effectiveMultiplier <= 15000,
+                    effectiveMultiplier >= Const.BASE_MULTIPLIER && effectiveMultiplier <= Const.MAX_MULTIPLIER,
                     "Effective multiplier must be in valid range"
                 );
                 
                 // Effective lockup should be <= 365 days
                 assertLe(
                     effectiveLockUpPeriod,
-                    365 days,
+                    Const.LOCKUP_365_DAYS,
                     "Effective lockup must be <= 365 days"
                 );
             } else {
@@ -312,10 +318,10 @@ contract StakingVaultInvariantsTest is StdInvariant, Test {
     /// @dev Multipliers should always be valid for base periods
     function invariant_ValidBaseMultipliers() public view {
         // Check base multipliers for standard periods
-        assertEq(stakingVault.getMultiplierForPeriod(30 days), 10500, "30-day multiplier");
-        assertEq(stakingVault.getMultiplierForPeriod(90 days), 11000, "90-day multiplier");
-        assertEq(stakingVault.getMultiplierForPeriod(180 days), 12500, "180-day multiplier");
-        assertEq(stakingVault.getMultiplierForPeriod(365 days), 15000, "365-day multiplier");
+        assertEq(sapienVault.getMultiplierForPeriod(Const.LOCKUP_30_DAYS), Const.MIN_MULTIPLIER, "30-day multiplier");
+        assertEq(sapienVault.getMultiplierForPeriod(Const.LOCKUP_90_DAYS), Const.MULTIPLIER_90_DAYS, "90-day multiplier");
+        assertEq(sapienVault.getMultiplierForPeriod(Const.LOCKUP_180_DAYS), Const.MULTIPLIER_180_DAYS, "180-day multiplier");
+        assertEq(sapienVault.getMultiplierForPeriod(Const.LOCKUP_365_DAYS), Const.MAX_MULTIPLIER, "365-day multiplier");
     }
     
     /// @dev Cooldown logic should be consistent
@@ -328,8 +334,8 @@ contract StakingVaultInvariantsTest is StdInvariant, Test {
                 uint256 totalLocked,
                 uint256 totalInCooldown,
                 uint256 totalReadyForUnstake,
-                ,,,
-            ) = stakingVault.getUserStakingSummary(actors[i]);
+                ,,
+            ) = sapienVault.getUserStakingSummary(actors[i]);
             
             if (userTotalStaked > 0) {
                 // Total unlocked + total locked should equal total staked
@@ -338,9 +344,6 @@ contract StakingVaultInvariantsTest is StdInvariant, Test {
                     userTotalStaked,
                     "Unlocked + locked must equal total staked"
                 );
-                
-                // If in cooldown, user should not be able to increase amount/lockup
-                // (This is tested implicitly through handler logic)
                 
                 // Cooldown amount should not exceed total staked
                 assertLe(
@@ -359,22 +362,22 @@ contract StakingVaultInvariantsTest is StdInvariant, Test {
         }
     }
     
-    /// @dev Treasury should only receive penalty payments
-    function invariant_TreasuryOnlyReceivesPenalties() public view {
-        uint256 treasuryBalance = sapienToken.balanceOf(treasury);
+    /// @dev Reward Safe should only receive penalty payments
+    function invariant_RewardSafeOnlyReceivesPenalties() public view {
+        uint256 rewardSafeBalance = sapienToken.balanceOf(rewardSafe);
         uint256 totalPenalties = handler.totalPenaltiesPaid();
         
         assertEq(
-            treasuryBalance,
+            rewardSafeBalance,
             totalPenalties,
-            "Treasury balance must equal total penalties paid"
+            "Reward Safe balance must equal total penalties paid"
         );
     }
     
     /// @dev Total tokens should be conserved (accounting for penalties)
     function invariant_TokenConservation() public view {
-        uint256 contractBalance = sapienToken.balanceOf(address(stakingVault));
-        uint256 treasuryBalance = sapienToken.balanceOf(treasury);
+        uint256 contractBalance = sapienToken.balanceOf(address(sapienVault));
+        uint256 rewardSafeBalance = sapienToken.balanceOf(rewardSafe);
         uint256 totalUserBalances = 0;
         
         address[] memory actors = handler.getActors();
@@ -385,7 +388,7 @@ contract StakingVaultInvariantsTest is StdInvariant, Test {
         uint256 totalSupplyToActors = actors.length * 1000000e18; // Initial mint amount
         
         assertEq(
-            contractBalance + treasuryBalance + totalUserBalances,
+            contractBalance + rewardSafeBalance + totalUserBalances,
             totalSupplyToActors,
             "Total tokens must be conserved"
         );
@@ -399,14 +402,14 @@ contract StakingVaultInvariantsTest is StdInvariant, Test {
     function invariant_SingleStakePerUser() public view {
         address[] memory actors = handler.getActors();
         for (uint256 i = 0; i < actors.length; i++) {
-            if (stakingVault.hasActiveStake(actors[i])) {
+            if (sapienVault.hasActiveStake(actors[i])) {
                 // Test getUserActiveStakes for compatibility
                 (
                     uint256[] memory stakeIds,
                     uint256[] memory amounts,
                     uint256[] memory multipliers,
                     uint256[] memory lockUpPeriods
-                ) = stakingVault.getUserActiveStakes(actors[i]);
+                ) = sapienVault.getUserActiveStakes(actors[i]);
                 
                 // Should have exactly one stake
                 assertEq(stakeIds.length, 1, "Active user should have exactly one stake");
@@ -416,18 +419,18 @@ contract StakingVaultInvariantsTest is StdInvariant, Test {
                 assertGt(lockUpPeriods[0], 0, "Lock period should be positive");
                 
                 // Test getStakeDetails
-                (,,,,,bool isActive) = stakingVault.getStakeDetails(actors[i], 1);
+                (,,,,,bool isActive) = sapienVault.getStakeDetails(actors[i], 1);
                 assertTrue(isActive, "Stake should be active");
             } else {
                 // Should have no active stakes
                 (
                     uint256[] memory stakeIds,
-                    ,,,
-                ) = stakingVault.getUserActiveStakes(actors[i]);
+                    ,,
+                ) = sapienVault.getUserActiveStakes(actors[i]);
                 assertEq(stakeIds.length, 0, "Inactive user should have no stakes");
                 
                 // Test getStakeDetails for invalid case
-                (,,,,,bool isActive) = stakingVault.getStakeDetails(actors[i], 1);
+                (,,,,,bool isActive) = sapienVault.getStakeDetails(actors[i], 1);
                 assertFalse(isActive, "Stake should not be active");
             }
         }
@@ -437,19 +440,19 @@ contract StakingVaultInvariantsTest is StdInvariant, Test {
     function invariant_WeightedAverageProperties() public view {
         address[] memory actors = handler.getActors();
         for (uint256 i = 0; i < actors.length; i++) {
-            if (stakingVault.hasActiveStake(actors[i])) {
+            if (sapienVault.hasActiveStake(actors[i])) {
                 (
                     uint256 userTotalStaked,
                     ,,,,,
                     uint256 effectiveLockUpPeriod,
                     uint256 timeUntilUnlock
-                ) = stakingVault.getUserStakingSummary(actors[i]);
+                ) = sapienVault.getUserStakingSummary(actors[i]);
                 
                 if (userTotalStaked > 0) {
                     // Effective lockup should be reasonable
                     assertLe(
                         effectiveLockUpPeriod,
-                        365 days,
+                        Const.LOCKUP_365_DAYS,
                         "Effective lockup should not exceed max period"
                     );
                     
@@ -471,9 +474,8 @@ contract StakingVaultInvariantsTest is StdInvariant, Test {
     /// @dev Instant unstake penalty should always be 20%
     function invariant_InstantUnstakePenalty() public pure {
         // This is tested implicitly through the handler tracking
-        // The penalty calculation is: penalty = amount * 20 / 100
-        // This invariant is maintained by the contract logic
-        assertTrue(true, "Penalty rate is constant at 20%");
+        // The penalty calculation is: penalty = amount * EARLY_WITHDRAWAL_PENALTY / 100
+        assertEq(Const.EARLY_WITHDRAWAL_PENALTY, 20, "Penalty rate should be constant at 20%");
     }
     
     /// @dev Stakes should only be unlocked after lock period
@@ -484,10 +486,9 @@ contract StakingVaultInvariantsTest is StdInvariant, Test {
                 uint256 userTotalStaked,
                 uint256 totalUnlocked,
                 uint256 totalLocked,
-                ,,,
-                uint256 effectiveLockUpPeriod,
+                ,,,,
                 uint256 timeUntilUnlock
-            ) = stakingVault.getUserStakingSummary(actors[i]);
+            ) = sapienVault.getUserStakingSummary(actors[i]);
             
             if (userTotalStaked > 0) {
                 if (timeUntilUnlock == 0) {
@@ -508,7 +509,7 @@ contract StakingVaultInvariantsTest is StdInvariant, Test {
     function invariant_MinimumStakeEnforced() public view {
         address[] memory actors = handler.getActors();
         for (uint256 i = 0; i < actors.length; i++) {
-            uint256 userStaked = stakingVault.getTotalStaked(actors[i]);
+            uint256 userStaked = sapienVault.getTotalStaked(actors[i]);
             
             if (userStaked > 0) {
                 assertTrue(
@@ -523,7 +524,7 @@ contract StakingVaultInvariantsTest is StdInvariant, Test {
     function invariant_NoOverflowUnderflow() public view {
         // Check that totalStaked doesn't overflow
         assertTrue(
-            stakingVault.totalStaked() <= type(uint256).max,
+            sapienVault.totalStaked() <= type(uint256).max,
             "totalStaked should not overflow"
         );
         
@@ -534,6 +535,94 @@ contract StakingVaultInvariantsTest is StdInvariant, Test {
                 sapienToken.balanceOf(actors[i]) <= type(uint256).max,
                 "User balances should not overflow"
             );
+        }
+    }
+    
+    // =============================================================================
+    // ADDITIONAL SAPIEN VAULT SPECIFIC INVARIANTS
+    // =============================================================================
+    
+    /// @dev Effective multipliers should be calculated correctly based on weighted lockup
+    function invariant_EffectiveMultiplierCalculation() public view {
+        address[] memory actors = handler.getActors();
+        for (uint256 i = 0; i < actors.length; i++) {
+            if (sapienVault.hasActiveStake(actors[i])) {
+                (
+                    ,,,,,
+                    uint256 effectiveMultiplier,
+                    uint256 effectiveLockUpPeriod,
+                    
+                ) = sapienVault.getUserStakingSummary(actors[i]);
+                
+                if (effectiveLockUpPeriod > 0) {
+                    // Check that multiplier matches expected range for lockup period
+                    if (effectiveLockUpPeriod >= Const.LOCKUP_365_DAYS) {
+                        assertEq(effectiveMultiplier, Const.MAX_MULTIPLIER, "365+ day lockup should have max multiplier");
+                    } else if (effectiveLockUpPeriod >= Const.LOCKUP_30_DAYS) {
+                        assertTrue(
+                            effectiveMultiplier >= Const.MIN_MULTIPLIER && effectiveMultiplier <= Const.MAX_MULTIPLIER,
+                            "Multiplier should be in valid range for lockup period"
+                        );
+                    } else {
+                        assertEq(effectiveMultiplier, Const.BASE_MULTIPLIER, "Short lockup should have base multiplier");
+                    }
+                }
+            }
+        }
+    }
+    
+    /// @dev User stake struct should maintain data integrity
+    function invariant_UserStakeDataIntegrity() public view {
+        address[] memory actors = handler.getActors();
+        for (uint256 i = 0; i < actors.length; i++) {
+            (uint256 amount, uint256 lockUpPeriod, uint256 startTime, uint256 multiplier, uint256 cooldownStart, bool isActive) = 
+                sapienVault.getStakeDetails(actors[i], 1);
+            
+            if (isActive) {
+                assertGt(amount, 0, "Active stake should have positive amount");
+                assertGt(lockUpPeriod, 0, "Active stake should have positive lockup");
+                assertGt(startTime, 0, "Active stake should have positive start time");
+                assertGt(multiplier, 0, "Active stake should have positive multiplier");
+                
+                // Start time should not be in the future
+                assertLe(startTime, block.timestamp, "Start time should not be in future");
+                
+                // If in cooldown, cooldown start should be valid
+                if (cooldownStart > 0) {
+                    assertLe(cooldownStart, block.timestamp, "Cooldown start should not be in future");
+                    assertGe(cooldownStart, startTime, "Cooldown start should be after stake start");
+                }
+            } else {
+                // Inactive stakes should have zero values
+                assertEq(amount, 0, "Inactive stake should have zero amount");
+                assertEq(lockUpPeriod, 0, "Inactive stake should have zero lockup");
+                assertEq(startTime, 0, "Inactive stake should have zero start time");
+                assertEq(multiplier, 0, "Inactive stake should have zero multiplier");
+                assertEq(cooldownStart, 0, "Inactive stake should have zero cooldown start");
+            }
+        }
+    }
+    
+    /// @dev Cooldown state should be consistent with unstake readiness
+    function invariant_CooldownConsistency() public view {
+        address[] memory actors = handler.getActors();
+        for (uint256 i = 0; i < actors.length; i++) {
+            uint256 totalInCooldown = sapienVault.getTotalInCooldown(actors[i]);
+            uint256 totalReadyForUnstake = sapienVault.getTotalReadyForUnstake(actors[i]);
+            
+            if (totalInCooldown > 0) {
+                // If something is in cooldown, check cooldown timing
+                (,,,,uint256 cooldownStart,) = sapienVault.getStakeDetails(actors[i], 1);
+                assertGt(cooldownStart, 0, "Cooldown amount > 0 should have cooldown start time");
+                
+                if (block.timestamp >= cooldownStart + Const.COOLDOWN_PERIOD) {
+                    assertEq(totalReadyForUnstake, totalInCooldown, "After cooldown period, all cooldown should be ready");
+                } else {
+                    assertEq(totalReadyForUnstake, 0, "Before cooldown period ends, nothing should be ready");
+                }
+            } else {
+                assertEq(totalReadyForUnstake, 0, "No cooldown means nothing ready for unstake");
+            }
         }
     }
 } 

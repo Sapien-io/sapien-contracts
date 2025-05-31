@@ -1,63 +1,45 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity 0.8.30;
 
-import "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import "lib/openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
-import "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
-import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
-import "lib/openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol";
-import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
-import "lib/openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol";
-import "src/interfaces/ISapienRewards.sol";
+import {
+    ECDSA,
+    IERC20,
+    SafeERC20,
+    PausableUpgradeable,
+    AccessControlUpgradeable,
+    ReentrancyGuardUpgradeable
+} from "src/utils/Common.sol";
+
+import {ISapienRewards} from "src/interfaces/ISapienRewards.sol";
+import {Constants as Const} from "src/utils/Constants.sol";
 
 /**
  * @title SapienRewards
- * @dev This contract manages reward token claims using EIP-712 signatures and a map
- *      to prevent duplicate claims (by tracking used order IDs). It supports upgrading via UUPS.
- *
- *      - Users can claim rewards if they have a valid signature from an authorized signer.
- *      - Orders (identified by `orderId`) are tracked in a user-specific mapping to prevent reuse.
- *      - Owners can deposit/withdraw tokens, pause the contract, and release tokens from the reward token.
- *      - Contract is upgradeable via UUPS (only owner can authorize an upgrade).
+ * @dev This contract allows users to claim rewards with an EIP-712 offchain signature from the rewards manager.
  */
-contract SapienRewards is
-    ISapienRewards,
-    Initializable,
-    Ownable2StepUpgradeable,
-    PausableUpgradeable,
-    UUPSUpgradeable,
-    ReentrancyGuardUpgradeable
-{
+contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
     using ECDSA for bytes32;
+
+    using SafeERC20 for IERC20;
 
     // -------------------------------------------------------------
     // State Variables
     // -------------------------------------------------------------
 
-    /// @dev The reward token interface used for transfers and release calls.
-    IRewardToken public rewardToken;
+    /// @dev The reward token.
+    IERC20 public rewardToken;
 
-    /// @dev The address that is authorized to sign reward claims.
-    /// @dev Effectively immutable, but can't use immutable keyword due to upgradeability
-    address private _authorizedSigner;
+    /// @notice Available reward tokens for claims (tracked locally)
+    uint256 private availableRewards;
 
-    /// @dev The address of the Gnosis Safe that controls administrative functions (effectively immutable, but can't use immutable keyword due to upgradeability)
-    address public _gnosisSafe;
-
-    /// @notice Mapping of wallet addresses to their redeemed order IDs.
+    /// @notice Mapping of wallet addresses to their redeemed orders.
     mapping(address => mapping(bytes32 => bool)) private redeemedOrders;
-
-    // EIP-712 domain separator hashes
-    bytes32 private constant EIP712_DOMAIN_TYPEHASH =
-        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-    bytes32 private constant REWARD_CLAIM_TYPEHASH =
-        keccak256("RewardClaim(address userWallet,uint256 amount,bytes32 orderId)");
 
     /// @notice EIP-712 domain separator for this contract.
     bytes32 private DOMAIN_SEPARATOR;
 
-    /// @notice Mapping of owner addresses to whether they are authorized to upgrade.
-    mapping(address => bool) private _upgradeAuthorized;
+    /// @notice Initial chain ID when contract was deployed (for fork detection)
+    uint256 private initialChainId;
 
     // -------------------------------------------------------------
     // Constructor
@@ -69,52 +51,100 @@ contract SapienRewards is
     }
 
     // -------------------------------------------------------------
-    // Initialization (UUPS-related)
+    // Modifiers
+    // -------------------------------------------------------------
+
+    /// @dev Admin Access modifier
+    modifier onlyAdmin() {
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Only the Admin can perform this");
+        _;
+    }
+
+    /// @dev Pauser Access modifier
+    modifier onlyPauser() {
+        require(hasRole(Const.PAUSER_ROLE, msg.sender), "Only the Pauser can perform this");
+        _;
+    }
+
+    /// @dev Reward Manager Access modifier
+    modifier onlyRewardSafe() {
+        require(hasRole(Const.REWARD_SAFE_ROLE, msg.sender), "Only the Reward Safe can perform this");
+        _;
+    }
+
+    /// @dev Reward Manager Access modifier
+    modifier onlyRewardManager() {
+        require(hasRole(Const.REWARD_MANAGER_ROLE, msg.sender), "Only the Reward Manager can perform this");
+        _;
+    }
+
+    // -------------------------------------------------------------
+    // Initialization
+    // -------------------------------------------------------------
+
+    /// @notice Returns the version of the contract
+    function version() public pure returns (string memory) {
+        return "0.1.2";
+    }
+
+    /**
+     * @notice Initializes the contract with the provided admin and reward manager.
+     * @param admin The address of the admin.
+     * @param rewardManager The address of the rewards manager.
+     * @param rewardSafe The address of the Safe that holds Contributor Rewards supply.
+     */
+    function initialize(address admin, address rewardManager, address rewardSafe, address newRewardToken)
+        public
+        initializer
+    {
+        if (admin == address(0)) revert ZeroAddress();
+        if (rewardManager == address(0)) revert ZeroAddress();
+        if (rewardSafe == address(0)) revert ZeroAddress();
+        if (newRewardToken == address(0)) revert ZeroAddress();
+
+        __Pausable_init();
+        __AccessControl_init();
+        __ReentrancyGuard_init();
+
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(Const.PAUSER_ROLE, admin);
+        _grantRole(Const.REWARD_SAFE_ROLE, rewardSafe);
+        _grantRole(Const.REWARD_MANAGER_ROLE, rewardManager);
+        _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
+
+        // Initialize domain separator for EIP-712
+        DOMAIN_SEPARATOR = _domainSeparator();
+
+        // Store initial chain ID for fork detection
+        initialChainId = block.chainid;
+
+        rewardToken = IERC20(newRewardToken);
+    }
+
+    // -------------------------------------------------------------
+    // Admin and Operation Functions
     // -------------------------------------------------------------
 
     /**
-     * @notice Initializes the contract with the provided authorized signer address.
-     *         Sets up the Ownable, Pausable, UUPS, and ReentrancyGuard functionalities.
-     * @param _authorizedSigner_ The address authorized to sign reward claims.
+     * @notice Sets the reward token for the contract.
+     * @param newRewardToken The address of the reward token.
      */
-    function initialize(address _authorizedSigner_, address gnosisSafe_) public initializer {
-        require(_authorizedSigner_ != address(0), "Invalid authorized signer address");
-        require(gnosisSafe_ != address(0), "Invalid gnosis safe address");
+    function setRewardToken(address newRewardToken) public onlyAdmin {
+        if (newRewardToken == address(0)) {
+            revert ZeroAddress();
+        }
+        rewardToken = IERC20(newRewardToken);
 
-        _authorizedSigner = _authorizedSigner_;
-        _gnosisSafe = gnosisSafe_;
+        availableRewards = 0;
 
-        __Ownable_init(_gnosisSafe);
-        __Pausable_init();
-        __UUPSUpgradeable_init();
-        __ReentrancyGuard_init();
-
-        // Initialize domain separator for EIP-712
-        DOMAIN_SEPARATOR = keccak256(
-            abi.encode(EIP712_DOMAIN_TYPEHASH, keccak256("SapienRewards"), keccak256("1"), block.chainid, address(this))
-        );
+        emit RewardTokenSet(newRewardToken);
     }
-
-    function authorizeUpgrade(address newImplementation) public onlySafe {
-        _upgradeAuthorized[newImplementation] = true;
-        emit UpgradeAuthorized(newImplementation);
-    }
-
-    function _authorizeUpgrade(address newImplementation) internal override onlySafe {
-        require(_upgradeAuthorized[newImplementation], "TwoTierAccessControl: upgrade not authorized by safe");
-        // Reset authorization after use to prevent re-use
-        _upgradeAuthorized[newImplementation] = false;
-    }
-
-    // -------------------------------------------------------------
-    // Owner Functions
-    // -------------------------------------------------------------
 
     /**
      * @notice Allows the safe to pause all critical functions in case of emergency
      * @dev Only callable by the safe
      */
-    function pause() external onlySafe {
+    function pause() external onlyPauser {
         _pause();
     }
 
@@ -122,34 +152,57 @@ contract SapienRewards is
      * @notice Allows the safe to unpause the contract and resume normal operations
      * @dev Only callable by the safe
      */
-    function unpause() external onlySafe {
+    function unpause() external onlyPauser {
         _unpause();
     }
 
     /**
-     * @notice Sets the reward token address after deployment.
-     * @param _rewardToken The address of the new reward token contract.
-     */
-    function setRewardToken(address _rewardToken) external onlySafe {
-        require(_rewardToken != address(0), "Invalid reward token address");
-        rewardToken = IRewardToken(_rewardToken);
-        emit RewardTokenUpdated(_rewardToken);
-    }
-
-    /**
-     * @notice Allows the contract owners to deposit tokens directly into this contract.
+     * @notice Allows for the deposit of reward tokens directly into this contract.
      * @param amount The amount of tokens to deposit.
      */
-    function depositTokens(uint256 amount) external onlySafe {
-        require(rewardToken.transferFrom(_gnosisSafe, address(this), amount), "Token deposit failed");
+    function depositRewards(uint256 amount) external onlyRewardSafe {
+        if (amount == 0) revert InvalidAmount();
+
+        rewardToken.safeTransferFrom(msg.sender, address(this), amount);
+        availableRewards += amount;
+
+        emit RewardsDeposited(msg.sender, amount, availableRewards);
     }
 
     /**
      * @notice Allows the contract owners to withdraw tokens from this contract.
      * @param amount The amount of tokens to withdraw.
      */
-    function withdrawTokens(uint256 amount) external onlySafe {
-        require(rewardToken.transfer(_gnosisSafe, amount), "Token withdrawal failed");
+    function withdrawRewards(uint256 amount) external onlyRewardSafe {
+        if (amount == 0) revert InvalidAmount();
+        if (amount > availableRewards) revert InsufficientAvailableRewards();
+
+        availableRewards -= amount;
+        rewardToken.safeTransfer(msg.sender, amount);
+
+        emit RewardsWithdrawn(msg.sender, amount, availableRewards);
+    }
+
+    /**
+     * @notice Emergency function to recover tokens sent directly to contract
+     * @param amount Amount to recover from untracked balance
+     */
+    function recoverUnaccountedTokens(uint256 amount) external onlyRewardSafe {
+        uint256 totalBalance = rewardToken.balanceOf(address(this));
+        uint256 unaccounted = totalBalance - availableRewards;
+
+        if (amount > unaccounted) revert InsufficientUnaccountedTokens();
+
+        rewardToken.safeTransfer(msg.sender, amount);
+        emit UnaccountedTokensRecovered(msg.sender, amount);
+    }
+
+    /**
+     * @notice Reconciles the balance of the reward token
+     * @dev Only callable by the reward safe
+     */
+    function reconcileBalance() external onlyRewardSafe {
+        _reconcileBalance();
     }
 
     // -------------------------------------------------------------
@@ -165,59 +218,103 @@ contract SapienRewards is
      * @return success True if the reward transfer is successful.
      */
     function claimReward(uint256 rewardAmount, bytes32 orderId, bytes memory signature)
-        external
+        public
         nonReentrant
         whenNotPaused
         returns (bool success)
     {
-        require(rewardToken.balanceOf(address(this)) >= rewardAmount, "Insufficient token balance");
+        _verifyOrder(msg.sender, rewardAmount, orderId, signature);
 
-        require(verifyOrder(msg.sender, rewardAmount, orderId, signature), "Invalid signature or mismatched parameters");
+        _markOrderAsRedeemed(msg.sender, orderId);
 
-        require(!isOrderRedeemed(msg.sender, orderId), "Order ID already used");
-
-        markOrderAsRedeemed(msg.sender, orderId);
-
-        success = rewardToken.transfer(msg.sender, rewardAmount);
-        require(success, "Token transfer failed");
+        availableRewards -= rewardAmount;
+        rewardToken.safeTransfer(msg.sender, rewardAmount);
 
         emit RewardClaimed(msg.sender, rewardAmount, orderId);
         return true;
     }
 
     /**
-     * @notice Returns the balance of reward tokens held by this contract.
-     * @return The amount of reward tokens in this contract.
+     * @notice Returns the status of an order
+     * @param user The user's wallet address
+     * @param orderId The order ID to check
+     * @return True if the order has been redeemed, false otherwise
      */
-    function getContractTokenBalance() external view returns (uint256) {
-        return rewardToken.balanceOf(address(this));
-    }
-
-    // -------------------------------------------------------------
-    // Internal Functions (Order Mapping)
-    // -------------------------------------------------------------
-
-    /**
-     * @dev Checks if a given `orderId` has been redeemed by the user.
-     * @param user The user's wallet address.
-     * @param orderId The ID of the order to check.
-     * @return True if the `orderId` is already redeemed; otherwise, false.
-     */
-    function isOrderRedeemed(address user, bytes32 orderId) internal view returns (bool) {
+    function getOrderRedeemedStatus(address user, bytes32 orderId) public view returns (bool) {
         return redeemedOrders[user][orderId];
     }
 
     /**
-     * @dev Marks an `orderId` as redeemed for the user.
-     * @param user The user's wallet address.
-     * @param orderId The ID of the order to mark as redeemed.
+     * @notice Returns the balance of reward tokens held by this contract.
+     * @return balance amount of rewards available to claim.
      */
-    function markOrderAsRedeemed(address user, bytes32 orderId) internal {
-        redeemedOrders[user][orderId] = true;
+    function getAvailableRewards() public view returns (uint256 balance) {
+        return availableRewards;
+    }
+
+    /**
+     * @notice Returns both available rewards and total contract balance
+     * @return available Amount available for rewards
+     * @return total Total tokens in contract (including direct transfers)
+     */
+    function getRewardTokenBalances() public view returns (uint256 available, uint256 total) {
+        return (availableRewards, rewardToken.balanceOf(address(this)));
     }
 
     // -------------------------------------------------------------
-    // Internal Functions (EIP-712 Verification)
+    // EIP-712 View Functions (for offchain signature generation)
+    // -------------------------------------------------------------
+
+    /**
+     * @notice Returns the domain separator for EIP-712 signatures
+     * @dev Server can use this to verify they're building signatures for the correct contract/chain
+     * @return The current domain separator
+     */
+    function getDomainSeparator() public view returns (bytes32) {
+        return _domainSeparator();
+    }
+
+    /**
+     * @notice Validates input parameters and returns the hash to sign
+     *  This is used for server-side generation of the rewards signature to provide the user to claimRewards.
+     *  This allows the server to create an attestation for the rewards a user is due based on their contributions.
+     * @dev Includes parameter validation for server-side verification
+     * @param userWallet The address of the wallet that should receive the reward
+     * @param rewardAmount The amount of the reward
+     * @param orderId The unique identifier of the order
+     * @return hashToSign The EIP-712 hash to be signed (only valid if isValid is true)
+     */
+    function validateAndGetHashToSign(address userWallet, uint256 rewardAmount, bytes32 orderId)
+        public
+        view
+        whenNotPaused
+        onlyRewardManager
+        returns (bytes32 hashToSign)
+    {
+        validateRewardParameters(userWallet, rewardAmount, orderId);
+
+        hashToSign = _getHashToSign(userWallet, rewardAmount, orderId);
+    }
+
+    /**
+     * @dev Validates the reward parameters.
+     * @param userWallet The address of the wallet that should receive the reward.
+     * @param rewardAmount The amount of the reward.
+     * @param orderId The unique identifier of the order.
+     */
+    function validateRewardParameters(address userWallet, uint256 rewardAmount, bytes32 orderId) public view {
+        if (rewardAmount == 0) revert InvalidAmount();
+        if (orderId == bytes32(0)) revert InvalidOrderId(orderId);
+        if (rewardAmount > availableRewards) revert InsufficientAvailableRewards();
+        if (redeemedOrders[userWallet][orderId]) revert OrderAlreadyUsed();
+        if (hasRole(Const.REWARD_MANAGER_ROLE, userWallet)) revert RewardsManagerCannotClaim();
+        if (rewardAmount > Const.MAX_REWARD_AMOUNT) {
+            revert RewardExceedsMaxAmount(rewardAmount, Const.MAX_REWARD_AMOUNT);
+        }
+    }
+
+    // -------------------------------------------------------------
+    // Internal / Private Functions
     // -------------------------------------------------------------
 
     /**
@@ -226,46 +323,100 @@ contract SapienRewards is
      * @param rewardAmount The amount of the reward.
      * @param orderId The unique identifier of the order.
      * @param signature The EIP-712 signature from the authorized signer.
-     * @return True if the recovered signer matches the `_authorizedSigner`.
+     * @dev Reverts with InvalidRewardParameters if parameters are invalid
+     * @dev Reverts with InvalidSignatureOrParameters if signature is malformed
+     * @dev Reverts with UnauthorizedSigner if signer lacks REWARD_MANAGER_ROLE
      */
-    function verifyOrder(address userWallet, uint256 rewardAmount, bytes32 orderId, bytes memory signature)
+    function _verifyOrder(address userWallet, uint256 rewardAmount, bytes32 orderId, bytes memory signature)
         private
         view
-        returns (bool)
     {
-        bytes32 structHash = keccak256(abi.encode(REWARD_CLAIM_TYPEHASH, userWallet, rewardAmount, orderId));
+        bytes32 hashToSign = _getHashToSign(userWallet, rewardAmount, orderId);
+        (address signer, ECDSA.RecoverError error,) = hashToSign.tryRecover(signature);
 
-        bytes32 hash = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
+        if (error != ECDSA.RecoverError.NoError) {
+            revert InvalidSignatureOrParameters("Signature recovery failed", error);
+        }
 
-        address signer = hash.recover(signature);
-        return (signer == _authorizedSigner);
+        if (!hasRole(Const.REWARD_MANAGER_ROLE, signer)) {
+            revert UnauthorizedSigner(signer);
+        }
+
+        validateRewardParameters(userWallet, rewardAmount, orderId);
     }
 
-    // -------------------------------------------------------------
-    // Modifiers
-    // -------------------------------------------------------------
-
     /**
-     * @dev Ensures the caller is the Gnosis Safe
+     * @notice Returns the current domain separator, recalculating if chainid has changed
+     * @dev This protects against signature replay attacks across chain forks
+     * @return The current domain separator
      */
-    modifier onlySafe() {
-        require(msg.sender == _gnosisSafe, "Only the Safe can perform this");
-        _;
-    }
-    /**
-     * @dev overrides ownership Transfer so onlySafe can only change onlyOwner
-     */
-
-    function getOwnable2StepStorage() private pure returns (Ownable2StepUpgradeable.Ownable2StepStorage storage $) {
-        bytes32 position = 0x237e158222e3e6968b72b9db0d8043aacf074ad9f650f0d1606b4d82ee432c00;
-        assembly {
-            $.slot := position
+    function _domainSeparator() internal view returns (bytes32) {
+        if (block.chainid == initialChainId) {
+            return DOMAIN_SEPARATOR;
+        } else {
+            // Recalculate if chain has forked
+            return keccak256(
+                abi.encode(
+                    Const.EIP712_DOMAIN_TYPEHASH, keccak256("SapienRewards"), version(), block.chainid, address(this)
+                )
+            );
         }
     }
 
-    function transferOwnership(address newOwner) public override(Ownable2StepUpgradeable) onlySafe {
-        Ownable2StepStorage storage $ = getOwnable2StepStorage();
-        $._pendingOwner = newOwner;
-        emit OwnershipTransferred(_gnosisSafe, newOwner);
+    /**
+     * @notice Returns the struct hash for the given parameters
+     * @dev First step in EIP-712 hash construction
+     * @param userWallet The address of the wallet that should receive the reward
+     * @param rewardAmount The amount of the reward
+     * @param orderId The unique identifier of the order
+     * @return The struct hash
+     */
+    function _getStructHash(address userWallet, uint256 rewardAmount, bytes32 orderId)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encode(Const.REWARD_CLAIM_TYPEHASH, userWallet, rewardAmount, orderId));
+    }
+
+    /**
+     * @notice Constructs the complete EIP-712 hash that needs to be signed for reward claims
+     * @dev This is the final hash the server should sign
+     * @param userWallet The address of the wallet that should receive the reward
+     * @param rewardAmount The amount of the reward
+     * @param orderId The unique identifier of the order
+     * @return The EIP-712 hash to be signed
+     */
+    function _getHashToSign(address userWallet, uint256 rewardAmount, bytes32 orderId)
+        internal
+        view
+        returns (bytes32)
+    {
+        bytes32 structHash = _getStructHash(userWallet, rewardAmount, orderId);
+        return keccak256(abi.encodePacked("\x19\x01", getDomainSeparator(), structHash));
+    }
+
+    /**
+     * @dev Marks an `orderId` as redeemed for the user.
+     * @param user The user's wallet address.
+     * @param orderId The ID of the order to mark as redeemed.
+     */
+    function _markOrderAsRedeemed(address user, bytes32 orderId) private {
+        redeemedOrders[user][orderId] = true;
+    }
+
+    /**
+     * @notice Automatically reconciles tracked vs actual balance
+     * @dev Adds any untracked tokens to available rewards
+     */
+    function _reconcileBalance() private {
+        uint256 actualBalance = rewardToken.balanceOf(address(this));
+
+        if (actualBalance > availableRewards) {
+            uint256 untracked = actualBalance - availableRewards;
+            availableRewards = actualBalance;
+
+            emit RewardsReconciled(untracked, availableRewards);
+        }
     }
 }
