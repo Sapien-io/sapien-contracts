@@ -15,5 +15,6 @@ docs/
 
 coverage/
 lcov.info
+coverage.lcov
 
 .vscode
