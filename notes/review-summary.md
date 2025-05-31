@@ -57,19 +57,19 @@ Diagram of [proposed architectural changes](contracts-review-may/token/contract-
 - [x] Feat: Remove offchain Staking signatures 
 
 ### Functional Issues and Fixes ( May 28th - May 30th )
-- [ ] Fix: Review items found in [May Contracts Review](contracts-review-may) 
-  - [ ] [Staking](contracts-review-may/staking)
-  - [ ] [Rewards](contracts-review-may/rewards)
-  - [ ] [Token ](contracts-review-may/token)
+- [x] Fix: Review items found in [May Contracts Review](contracts-review-may) 
+  - [x] [Staking](contracts-review-may/staking)
+  - [x] [Rewards](contracts-review-may/rewards)
+  - [x] [Token ](contracts-review-may/token)
 - [ ] Chore: Ensure flow of funds compliance with Business requirements
-- [ ] Feat: Implement input validations where neccessary
-- [ ] Feat: Update the Access Control / Roles
+- [x] Feat: Implement input validations where neccessary
+- [x] Feat: Update the Access Control / Roles
 - [ ] Chore: Ensure inline Natspec documentation is updated
-- [ ] Test: 100% unit test coverage with forge
+- [x] Test: 100% unit test coverage with forge
 - [ ] Test: integration tests with Tenderly vNET(and/or) Base Sepolia
 - [ ] Test: scenario tests for product UX flows
-- [ ] Test: invariant tests for fund flows with fuzzing
-- [ ] Test: CI/CD and repo docs for release process
+- [x] Test: invariant tests for fund flows with fuzzing
+- [x] Test: CI/CD and repo docs for release process
 
 
 ### Offchain Implementation ( June 2nd - June 6th )

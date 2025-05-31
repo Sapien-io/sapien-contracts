@@ -96,7 +96,9 @@ contract SapienVaultScenariosTest is Test {
         // Verify the lockup was extended and multiplier updated
         (,,,,, effectiveMultiplier, effectiveLockUpPeriod,) = sapienVault.getUserStakingSummary(alice);
         assertGt(effectiveLockUpPeriod, LOCK_30_DAYS); // Should be longer than 30 days
-        assertGt(effectiveMultiplier, 10500); // Should have better multiplier
+        // In new Linear Weighted Multiplier System: effective multipliers are much lower due to global coefficient
+        // 6K tokens with extended lockup should get better multiplier than initial 30-day stake
+        assertGt(effectiveMultiplier, 5352); // Should be better than the 5352 from phase 2
 
         // Phase 4: Alice adds more to her stake near the end
         vm.warp(block.timestamp + 30 days);
