@@ -40,7 +40,7 @@ interface ISapienVault {
     struct WeightedValues {
         uint256 weightedStartTime;
         uint256 effectiveLockup;
-    }    
+    }
 
     // -------------------------------------------------------------
     // Events
@@ -329,5 +329,5 @@ interface ISapienVault {
      * @param user The user address
      * @return Whether the user has an active stake
      */
-    function hasActiveStake(address user) external view returns (bool);        
+    function hasActiveStake(address user) external view returns (bool);
 }

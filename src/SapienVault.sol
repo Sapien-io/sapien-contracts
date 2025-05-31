@@ -18,12 +18,7 @@ using SafeCast for uint256;
 
 /// @title SapienVault - Sapien AI Staking Vault
 /// @notice Sapien protocol reputation system with simplified single stake per user.
-contract SapienVault is
-    ISapienVault,
-    AccessControlUpgradeable,
-    PausableUpgradeable,
-    ReentrancyGuardUpgradeable
-{
+contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
 
     // -------------------------------------------------------------
@@ -43,7 +38,7 @@ contract SapienVault is
     mapping(address => UserStake) public userStakes;
 
     // -------------------------------------------------------------
-    // Initialization 
+    // Initialization
     // -------------------------------------------------------------
 
     /**
@@ -127,16 +122,16 @@ contract SapienVault is
      */
     function emergencyWithdraw(address token, address to, uint256 amount) external onlyAdmin whenPaused {
         if (to == address(0)) revert ZeroAddress();
-        
+
         if (token == address(0)) {
             // Withdraw ETH
-            (bool success, ) = to.call{value: amount}("");
+            (bool success,) = to.call{value: amount}("");
             if (!success) revert InvalidAmount();
         } else {
             // Withdraw ERC20 token
             IERC20(token).safeTransfer(to, amount);
         }
-        
+
         emit EmergencyWithdraw(token, to, amount);
     }
 
@@ -154,10 +149,10 @@ contract SapienVault is
         if (msg.sender == address(0)) {
             revert ZeroAddress();
         }
-        
+
         // Validate inputs and user state
         _validateStakeInputs(amount, lockUpPeriod);
-        
+
         UserStake storage userStake = userStakes[msg.sender];
         uint256 baseMultiplier = _getMultiplierForPeriod(lockUpPeriod);
 
@@ -204,11 +199,10 @@ contract SapienVault is
      * @param amount The amount to stake
      * @param lockUpPeriod The lockup period
      */
-    function _preValidateStakeOperation(
-        UserStake storage userStake, 
-        uint256 amount, 
-        uint256 lockUpPeriod
-    ) private view {
+    function _preValidateStakeOperation(UserStake storage userStake, uint256 amount, uint256 lockUpPeriod)
+        private
+        view
+    {
         // Prevent staking while in cooldown
         if (userStake.hasStake && userStake.cooldownStart != 0) {
             revert CannotIncreaseStakeInCooldown();
@@ -226,11 +220,10 @@ contract SapienVault is
      * @param amount The new amount to add
      * @param lockUpPeriod The new lockup period
      */
-    function _validateWeightedCalculations(
-        UserStake storage userStake,
-        uint256 amount,
-        uint256 lockUpPeriod
-    ) private view {
+    function _validateWeightedCalculations(UserStake storage userStake, uint256 amount, uint256 lockUpPeriod)
+        private
+        view
+    {
         uint256 newTotalAmount = uint256(userStake.amount) + amount;
         if (newTotalAmount > type(uint128).max) {
             revert StakeAmountTooLarge();
@@ -278,20 +271,11 @@ contract SapienVault is
      * @param amount The amount to add
      * @param lockUpPeriod The new lockup period
      */
-    function _processCombineStake(
-        UserStake storage userStake,
-        uint256 amount,
-        uint256 lockUpPeriod
-    ) private {
+    function _processCombineStake(UserStake storage userStake, uint256 amount, uint256 lockUpPeriod) private {
         uint256 newTotalAmount = uint256(userStake.amount) + amount;
 
         // Calculate new weighted values
-        WeightedValues memory newValues = _calculateWeightedValues(
-            userStake,
-            amount,
-            lockUpPeriod,
-            newTotalAmount
-        );
+        WeightedValues memory newValues = _calculateWeightedValues(userStake, amount, lockUpPeriod, newTotalAmount);
 
         // Update stake with new values
         userStake.amount = newTotalAmount.toUint128();
@@ -319,7 +303,7 @@ contract SapienVault is
         uint256 existingWeight = uint256(userStake.weightedStartTime) * uint256(userStake.amount);
         uint256 newWeight = block.timestamp * amount;
         newValues.weightedStartTime = (existingWeight + newWeight) / newTotalAmount;
-        
+
         // Apply precision rounding for start time
         uint256 startTimePrecision = (existingWeight + newWeight) % newTotalAmount;
         if (startTimePrecision > newTotalAmount / 2) {
@@ -330,7 +314,7 @@ contract SapienVault is
         uint256 existingLockupWeight = uint256(userStake.effectiveLockUpPeriod) * uint256(userStake.amount);
         uint256 newLockupWeight = lockUpPeriod * amount;
         newValues.effectiveLockup = (existingLockupWeight + newLockupWeight) / newTotalAmount;
-        
+
         // Apply precision rounding for lockup
         uint256 lockupPrecision = (existingLockupWeight + newLockupWeight) % newTotalAmount;
         if (lockupPrecision > newTotalAmount / 2) {
@@ -352,11 +336,11 @@ contract SapienVault is
         _validateIncreaseAmount(additionalAmount);
 
         UserStake storage userStake = userStakes[msg.sender];
-        
+
         if (!userStake.hasStake) {
             revert NoStakeFound();
         }
-        
+
         if (userStake.cooldownStart != 0) {
             revert CannotIncreaseStakeInCooldown();
         }
@@ -379,10 +363,7 @@ contract SapienVault is
 
         // Calculate new weighted start time with precision handling
         uint256 newWeightedStartTime = _calculateWeightedStartTime(
-            uint256(userStake.weightedStartTime),
-            uint256(userStake.amount),
-            additionalAmount,
-            newTotalAmount
+            uint256(userStake.weightedStartTime), uint256(userStake.amount), additionalAmount, newTotalAmount
         );
 
         // Update state
@@ -484,7 +465,7 @@ contract SapienVault is
         if (!userStake.hasStake) {
             revert NoStakeFound();
         }
-        
+
         if (!_isReadyForUnstake(userStake)) {
             revert NotReadyForUnstake();
         }
@@ -519,11 +500,11 @@ contract SapienVault is
         if (amount == 0) revert InvalidAmount();
 
         UserStake storage userStake = userStakes[msg.sender];
-        
+
         if (!userStake.hasStake) {
             revert NoStakeFound();
         }
-        
+
         if (amount > uint256(userStake.amount) - uint256(userStake.cooldownAmount)) {
             revert AmountExceedsAvailableBalance();
         }
@@ -537,12 +518,12 @@ contract SapienVault is
         if (Const.EARLY_WITHDRAWAL_PENALTY > 100) {
             revert InvalidAmount(); // Prevent penalty > 100%
         }
-        
+
         uint256 penalty = (amount * Const.EARLY_WITHDRAWAL_PENALTY) / 100;
         if (penalty >= amount) {
             revert InvalidAmount(); // Ensure payout is always positive
         }
-        
+
         uint256 payout = amount - penalty;
 
         userStake.amount -= amount.toUint128();
@@ -588,21 +569,21 @@ contract SapienVault is
             // Linear interpolation between 180 days and 365 days
             uint256 denominator = Const.LOCKUP_365_DAYS - Const.LOCKUP_180_DAYS;
             if (denominator == 0) return Const.MULTIPLIER_180_DAYS; // Safety check
-            
+
             uint256 ratio = (effectiveLockup - Const.LOCKUP_180_DAYS) * 10000 / denominator;
             return Const.MULTIPLIER_180_DAYS + ((Const.MAX_MULTIPLIER - Const.MULTIPLIER_180_DAYS) * ratio / 10000);
         } else if (effectiveLockup >= Const.LOCKUP_90_DAYS) {
             // Linear interpolation between 90 days and 180 days
             uint256 denominator = Const.LOCKUP_180_DAYS - Const.LOCKUP_90_DAYS;
             if (denominator == 0) return Const.MULTIPLIER_90_DAYS; // Safety check
-            
+
             uint256 ratio = (effectiveLockup - Const.LOCKUP_90_DAYS) * 10000 / denominator;
             return Const.MULTIPLIER_90_DAYS + ((Const.MULTIPLIER_180_DAYS - Const.MULTIPLIER_90_DAYS) * ratio / 10000);
         } else if (effectiveLockup >= Const.LOCKUP_30_DAYS) {
             // Linear interpolation between 30 days and 90 days
             uint256 denominator = Const.LOCKUP_90_DAYS - Const.LOCKUP_30_DAYS;
             if (denominator == 0) return Const.MIN_MULTIPLIER; // Safety check
-            
+
             uint256 ratio = (effectiveLockup - Const.LOCKUP_30_DAYS) * 10000 / denominator;
             return Const.MIN_MULTIPLIER + ((Const.MULTIPLIER_90_DAYS - Const.MIN_MULTIPLIER) * ratio / 10000);
         } else {
@@ -638,7 +619,7 @@ contract SapienVault is
         if (additionalAmount == 0) {
             revert InvalidAmount();
         }
-        
+
         // Prevent potential DOS attacks with extremely large stakes
         if (additionalAmount > 10_000_000 * Const.TOKEN_DECIMALS) {
             revert StakeAmountTooLarge();
@@ -663,17 +644,17 @@ contract SapienVault is
         if (newAmount < Const.MINIMUM_STAKE_AMOUNT / 100) {
             revert InvalidAmount();
         }
-        
+
         uint256 existingWeight = currentStartTime * currentAmount;
         uint256 newWeight = block.timestamp * newAmount;
-        
+
         // Check for overflow
         if (existingWeight > type(uint256).max - newWeight) {
             revert StakeAmountTooLarge();
         }
-        
+
         newWeightedStartTime = (existingWeight + newWeight) / totalAmount;
-        
+
         // Apply precision rounding
         uint256 precision = (existingWeight + newWeight) % totalAmount;
         if (precision > totalAmount / 2) {

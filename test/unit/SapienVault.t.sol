@@ -774,7 +774,7 @@ contract SapienVaultTest is Test {
     function test_Vault_PauserRoleGrantedToAdmin() public {
         // Verify admin has PAUSER_ROLE
         assertTrue(sapienVault.hasRole(Const.PAUSER_ROLE, admin));
-        
+
         // Verify users don't have PAUSER_ROLE
         assertFalse(sapienVault.hasRole(Const.PAUSER_ROLE, user1));
         assertFalse(sapienVault.hasRole(Const.PAUSER_ROLE, user2));
@@ -782,15 +782,15 @@ contract SapienVaultTest is Test {
 
     function test_Vault_GrantPauserRoleToOther() public {
         address newPauser = makeAddr("newPauser");
-        
+
         // Grant PAUSER_ROLE to new address
         vm.prank(admin);
         sapienVault.grantRole(Const.PAUSER_ROLE, newPauser);
-        
+
         // Verify new pauser can pause
         vm.prank(newPauser);
         sapienVault.pause();
-        
+
         // Verify new pauser can unpause
         vm.prank(newPauser);
         sapienVault.unpause();
@@ -824,14 +824,8 @@ contract SapienVaultTest is Test {
         sapienVault.emergencyWithdraw(address(sapienToken), emergencyRecipient, withdrawAmount);
 
         // Verify balances
-        assertEq(
-            sapienToken.balanceOf(emergencyRecipient), 
-            recipientBalanceBefore + withdrawAmount
-        );
-        assertEq(
-            sapienToken.balanceOf(address(sapienVault)), 
-            contractBalanceBefore - withdrawAmount
-        );
+        assertEq(sapienToken.balanceOf(emergencyRecipient), recipientBalanceBefore + withdrawAmount);
+        assertEq(sapienToken.balanceOf(address(sapienVault)), contractBalanceBefore - withdrawAmount);
     }
 
     function test_Vault_EmergencyWithdrawETH() public {
@@ -959,7 +953,7 @@ contract SapienVaultTest is Test {
 
     function test_Vault_EmergencyWithdrawScenario() public {
         // Comprehensive scenario test
-        
+
         // Phase 1: Normal operations - users stake tokens
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), MINIMUM_STAKE * 5);
@@ -985,7 +979,7 @@ contract SapienVaultTest is Test {
 
         // Phase 4: Admin recovers malicious tokens
         address recoveryAddress = makeAddr("recoveryAddress");
-        
+
         vm.prank(admin);
         vm.expectEmit(true, true, false, true);
         emit EmergencyWithdraw(address(maliciousToken), recoveryAddress, maliciousAmount);
@@ -1003,7 +997,7 @@ contract SapienVaultTest is Test {
         // (This would be a last resort to protect user funds)
         address userFundSafeAddress = makeAddr("userFundSafe");
         uint256 partialRecovery = MINIMUM_STAKE * 2;
-        
+
         vm.prank(admin);
         vm.expectEmit(true, true, false, true);
         emit EmergencyWithdraw(address(sapienToken), userFundSafeAddress, partialRecovery);
@@ -1016,7 +1010,7 @@ contract SapienVaultTest is Test {
 
     function test_Vault_EmergencyWithdrawWithETHAndERC20() public {
         // Test withdrawing both ETH and ERC20 tokens in emergency
-        
+
         // Setup: Pause contract
         vm.prank(admin);
         sapienVault.pause();
@@ -1028,7 +1022,7 @@ contract SapienVaultTest is Test {
         sapienToken.mint(address(sapienVault), tokenAmount);
 
         address emergencyRecipient = makeAddr("emergencyRecipient");
-        
+
         // Withdraw ETH first
         uint256 ethWithdrawAmount = 1 ether;
         vm.prank(admin);
