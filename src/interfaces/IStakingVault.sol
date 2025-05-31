@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity 0.8.30;
 
-import { IERC20 } from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 
 interface IStakingVault {
     // -------------------------------------------------------------
@@ -50,7 +50,9 @@ interface IStakingVault {
      * @param newTotalAmount The new total staked amount.
      * @param newEffectiveMultiplier The new effective multiplier.
      */
-    event AmountIncreased(address indexed user, uint256 additionalAmount, uint256 newTotalAmount, uint256 newEffectiveMultiplier);
+    event AmountIncreased(
+        address indexed user, uint256 additionalAmount, uint256 newTotalAmount, uint256 newEffectiveMultiplier
+    );
 
     /**
      * @notice Emitted when a user increases their lockup period.
@@ -59,7 +61,9 @@ interface IStakingVault {
      * @param newEffectiveLockup The new effective lockup period.
      * @param newEffectiveMultiplier The new effective multiplier.
      */
-    event LockupIncreased(address indexed user, uint256 additionalLockup, uint256 newEffectiveLockup, uint256 newEffectiveMultiplier);
+    event LockupIncreased(
+        address indexed user, uint256 additionalLockup, uint256 newEffectiveLockup, uint256 newEffectiveMultiplier
+    );
 
     /**
      * @notice Emitted when a user initiates the unstaking process (starts cooldown).
@@ -235,9 +239,9 @@ interface IStakingVault {
      * @return effectiveLockUpPeriod Current effective lockup period.
      * @return timeUntilUnlock Time remaining until unlock.
      */
-    function getUserStakingSummary(address user) 
-        external 
-        view 
+    function getUserStakingSummary(address user)
+        external
+        view
         returns (
             uint256 userTotalStaked,
             uint256 totalUnlocked,
@@ -278,9 +282,9 @@ interface IStakingVault {
      * @return cooldownStart When cooldown was initiated
      * @return isActive Whether the stake is active
      */
-    function getStakeDetails(address user, uint256 stakeId) 
-        external 
-        view 
+    function getStakeDetails(address user, uint256 stakeId)
+        external
+        view
         returns (
             uint256 amount,
             uint256 lockUpPeriod,
@@ -298,9 +302,9 @@ interface IStakingVault {
      * @return multipliers Array of multipliers (single element: [user's effective multiplier])
      * @return lockUpPeriods Array of lock periods (single element: [user's effective lockup])
      */
-    function getUserActiveStakes(address user) 
-        external 
-        view 
+    function getUserActiveStakes(address user)
+        external
+        view
         returns (
             uint256[] memory stakeIds,
             uint256[] memory amounts,

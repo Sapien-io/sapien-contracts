@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity 0.8.30;
 
-import { ISapienToken } from "src/interfaces/ISapienToken.sol";
-import { ERC20Permit, ERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import {ISapienToken} from "src/interfaces/ISapienToken.sol";
+import {ERC20Permit, ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC20Permit.sol";
 
 /// @title SapienToken
 contract SapienToken is ISapienToken, ERC20Permit {
@@ -13,7 +13,7 @@ contract SapienToken is ISapienToken, ERC20Permit {
     /// @param treasury The foundation treasury multisig
     constructor(address treasury) ERC20("Sapien Token", "SAPIEN") ERC20Permit("Sapien Token") {
         if (treasury == address(0)) revert ZeroAddress();
-    
+
         _mint(treasury, _MAX_SUPPLY);
     }
 

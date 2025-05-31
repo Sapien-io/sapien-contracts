@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity 0.8.30;
 
-import { Test } from "lib/forge-std/src/Test.sol";
-import { SapienToken } from "src/SapienToken.sol";
+import {Test} from "lib/forge-std/src/Test.sol";
+import {SapienToken} from "src/SapienToken.sol";
 
 contract SapienTokenIntegrationTest is Test {
     SapienToken public token;

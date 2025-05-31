@@ -91,7 +91,10 @@ interface IRewardsDistributor {
      * @param stakeId The stake ID
      * @return details Detailed reward information for the stake
      */
-    function getStakeRewardDetails(address user, uint256 stakeId) external view returns (StakeRewardDetails memory details);
+    function getStakeRewardDetails(address user, uint256 stakeId)
+        external
+        view
+        returns (StakeRewardDetails memory details);
 
     // -------------------------------------------------------------
     // Admin Functions
@@ -120,4 +123,4 @@ interface IRewardsDistributor {
      * @return rate Current base reward rate per second
      */
     function baseRewardRate() external view returns (uint256 rate);
-} 
+}

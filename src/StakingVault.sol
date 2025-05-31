@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity 0.8.30;
 
-import { IStakingVault } from "src/interfaces/IStakingVault.sol";
-import { IERC20 } from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
-import { SafeERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
-import { PausableUpgradeable } from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
-import { Initializable } from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
-import { UUPSUpgradeable } from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
-import { ReentrancyGuardUpgradeable } from "lib/openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol";
-import { AccessControlUpgradeable } from "lib/openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
+import {IStakingVault} from "src/interfaces/IStakingVault.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
+import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
+import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from
+    "lib/openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol";
+import {AccessControlUpgradeable} from
+    "lib/openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 
 /// @title StakingVault - Sapien AI Staking Vault
 /// @notice Sapien protocol reputation system with simplified single stake per user.
@@ -38,7 +40,7 @@ contract StakingVault is
     /// @dev Minimum multiplier (1.05x at 30 days) - basis points: 10000 = 1.0x
     uint256 private constant MIN_MULTIPLIER = 10500;
 
-    /// @dev Maximum multiplier (1.50x at 365 days) - basis points: 10000 = 1.0x  
+    /// @dev Maximum multiplier (1.50x at 365 days) - basis points: 10000 = 1.0x
     uint256 private constant MAX_MULTIPLIER = 15000;
 
     /// @dev Multiplier for 90 days lockup period - basis points: 10000 = 1.0x
@@ -78,10 +80,7 @@ contract StakingVault is
      * @param admin The address of the admin multisig.
      * @param treasury The address of the Treasury multisig for penalty collection.
      */
-    function initialize(address token, address admin, address treasury)
-        public
-        initializer
-    {
+    function initialize(address token, address admin, address treasury) public initializer {
         require(token != address(0), "Zero address not allowed for token");
         require(admin != address(0), "Zero address not allowed for Admin");
         require(treasury != address(0), "Zero address not allowed for Treasury");
@@ -90,7 +89,7 @@ contract StakingVault is
         __AccessControl_init();
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
-        
+
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(PAUSER_ROLE, admin);
         _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -136,7 +135,7 @@ contract StakingVault is
      * @notice Updates the base multiplier for a given lock-up period.
      * @dev This function is deprecated as multipliers are now constants.
      */
-    function updateMultiplier(uint256 /* lockUpPeriod */, uint256 /* multiplier */) external view onlyAdmin {
+    function updateMultiplier(uint256, /* lockUpPeriod */ uint256 /* multiplier */ ) external view onlyAdmin {
         revert("Multipliers are now constants and cannot be updated");
     }
 
@@ -173,20 +172,16 @@ contract StakingVault is
      * @param amount The amount of tokens to stake.
      * @param lockUpPeriod The lock-up duration in seconds (30/90/180/365 days).
      */
-    function stake(uint256 amount, uint256 lockUpPeriod)
-        public
-        whenNotPaused
-        nonReentrant 
-    {
+    function stake(uint256 amount, uint256 lockUpPeriod) public whenNotPaused nonReentrant {
         require(amount >= MINIMUM_STAKE, "Minimum 1,000 SAPIEN required");
-        
+
         uint256 baseMultiplier = _getMultiplierForPeriod(lockUpPeriod);
         require(baseMultiplier > 0, "Invalid lock-up period");
-        
+
         UserStake storage userStake = userStakes[msg.sender];
-        
+
         SafeERC20.safeTransferFrom(sapienToken, msg.sender, address(this), amount);
-        
+
         if (!userStake.hasStake) {
             // First stake for this user
             userStake.amount = amount;
@@ -198,24 +193,26 @@ contract StakingVault is
         } else {
             // Combine with existing stake using weighted averages
             uint256 newTotalAmount = userStake.amount + amount;
-            
+
             // Calculate new weighted start time
-            userStake.weightedStartTime = (userStake.weightedStartTime * userStake.amount + block.timestamp * amount) / newTotalAmount;
-            
+            userStake.weightedStartTime =
+                (userStake.weightedStartTime * userStake.amount + block.timestamp * amount) / newTotalAmount;
+
             // Calculate new effective lockup period (weighted by amount)
-            userStake.effectiveLockUpPeriod = (userStake.effectiveLockUpPeriod * userStake.amount + lockUpPeriod * amount) / newTotalAmount;
-            
+            userStake.effectiveLockUpPeriod =
+                (userStake.effectiveLockUpPeriod * userStake.amount + lockUpPeriod * amount) / newTotalAmount;
+
             // Update amount
             userStake.amount = newTotalAmount;
-            
+
             // Recalculate effective multiplier
             userStake.effectiveMultiplier = _calculateEffectiveMultiplier(userStake.effectiveLockUpPeriod);
-            
+
             userStake.lastUpdateTime = block.timestamp;
         }
-        
+
         totalStaked += amount;
-        
+
         emit Staked(msg.sender, amount, userStake.effectiveMultiplier, userStake.effectiveLockUpPeriod);
     }
 
@@ -223,31 +220,28 @@ contract StakingVault is
      * @notice Increase the staked amount without changing lockup period.
      * @param additionalAmount The additional amount to stake.
      */
-    function increaseAmount(uint256 additionalAmount)
-        public
-        whenNotPaused
-        nonReentrant
-    {
+    function increaseAmount(uint256 additionalAmount) public whenNotPaused nonReentrant {
         require(additionalAmount > 0, "Amount must be greater than 0");
-        
+
         UserStake storage userStake = userStakes[msg.sender];
         require(userStake.hasStake, "No existing stake found");
         require(userStake.cooldownStart == 0, "Cannot increase during cooldown");
-        
+
         SafeERC20.safeTransferFrom(sapienToken, msg.sender, address(this), additionalAmount);
-        
+
         uint256 newTotalAmount = userStake.amount + additionalAmount;
-        
+
         // When increasing amount, we maintain the current effective lockup period
         // but recalculate the weighted start time
-        userStake.weightedStartTime = (userStake.weightedStartTime * userStake.amount + block.timestamp * additionalAmount) / newTotalAmount;
+        userStake.weightedStartTime =
+            (userStake.weightedStartTime * userStake.amount + block.timestamp * additionalAmount) / newTotalAmount;
         userStake.amount = newTotalAmount;
         userStake.lastUpdateTime = block.timestamp;
-        
+
         // Effective multiplier stays the same since lockup period doesn't change
-        
+
         totalStaked += additionalAmount;
-        
+
         emit AmountIncreased(msg.sender, additionalAmount, newTotalAmount, userStake.effectiveMultiplier);
     }
 
@@ -255,37 +249,33 @@ contract StakingVault is
      * @notice Increase the lockup period for existing stake.
      * @param additionalLockup The additional lockup time in seconds.
      */
-    function increaseLockup(uint256 additionalLockup)
-        public
-        whenNotPaused
-        nonReentrant
-    {
+    function increaseLockup(uint256 additionalLockup) public whenNotPaused nonReentrant {
         require(additionalLockup >= MINIMUM_LOCKUP_INCREASE, "Minimum 7 days increase required");
-        
+
         UserStake storage userStake = userStakes[msg.sender];
         require(userStake.hasStake, "No existing stake found");
         require(userStake.cooldownStart == 0, "Cannot increase during cooldown");
-        
+
         // Calculate remaining lockup time
         uint256 timeElapsed = block.timestamp - userStake.weightedStartTime;
-        uint256 remainingLockup = userStake.effectiveLockUpPeriod > timeElapsed ? 
-            userStake.effectiveLockUpPeriod - timeElapsed : 0;
-        
+        uint256 remainingLockup =
+            userStake.effectiveLockUpPeriod > timeElapsed ? userStake.effectiveLockUpPeriod - timeElapsed : 0;
+
         // New effective lockup is remaining time plus additional lockup
         uint256 newEffectiveLockup = remainingLockup + additionalLockup;
-        
+
         // Cap at maximum lockup period
         if (newEffectiveLockup > 365 days) {
             newEffectiveLockup = 365 days;
         }
-        
+
         userStake.effectiveLockUpPeriod = newEffectiveLockup;
         userStake.effectiveMultiplier = _calculateEffectiveMultiplier(newEffectiveLockup);
-        
+
         // Reset the weighted start time to now since we're extending lockup
         userStake.weightedStartTime = block.timestamp;
         userStake.lastUpdateTime = block.timestamp;
-        
+
         emit LockupIncreased(msg.sender, additionalLockup, newEffectiveLockup, userStake.effectiveMultiplier);
     }
 
@@ -295,18 +285,18 @@ contract StakingVault is
      */
     function initiateUnstake(uint256 amount) public whenNotPaused nonReentrant {
         require(amount > 0, "Amount must be greater than 0");
-        
+
         UserStake storage userStake = userStakes[msg.sender];
         require(userStake.hasStake, "No stake found");
         require(_isUnlocked(userStake), "Stake is still locked");
         require(amount <= userStake.amount - userStake.cooldownAmount, "Amount exceeds available balance");
-        
+
         if (userStake.cooldownStart == 0) {
             userStake.cooldownStart = block.timestamp;
         }
-        
+
         userStake.cooldownAmount += amount;
-        
+
         emit UnstakingInitiated(msg.sender, amount);
     }
 
@@ -316,26 +306,26 @@ contract StakingVault is
      */
     function unstake(uint256 amount) public whenNotPaused nonReentrant {
         require(amount > 0, "Amount must be greater than 0");
-        
+
         UserStake storage userStake = userStakes[msg.sender];
         require(userStake.hasStake, "No stake found");
         require(_isReadyForUnstake(userStake), "Not ready for unstake");
         require(amount <= userStake.cooldownAmount, "Amount exceeds cooldown amount");
-        
+
         userStake.amount -= amount;
         userStake.cooldownAmount -= amount;
         totalStaked -= amount;
-        
+
         if (userStake.cooldownAmount == 0) {
             userStake.cooldownStart = 0;
         }
-        
+
         if (userStake.amount == 0) {
             userStake.hasStake = false;
         }
-        
+
         SafeERC20.safeTransfer(sapienToken, msg.sender, amount);
-        
+
         emit Unstaked(msg.sender, amount);
     }
 
@@ -345,29 +335,29 @@ contract StakingVault is
      */
     function instantUnstake(uint256 amount) public whenNotPaused nonReentrant {
         require(amount > 0, "Amount must be greater than 0");
-        
+
         UserStake storage userStake = userStakes[msg.sender];
         require(userStake.hasStake, "No stake found");
         require(amount <= userStake.amount - userStake.cooldownAmount, "Amount exceeds available balance");
-        
+
         // Add check to ensure instant unstake is only possible during lock period
         require(!_isUnlocked(userStake), "Lock period completed, use regular unstake");
-        
+
         uint256 penalty = (amount * EARLY_WITHDRAWAL_PENALTY) / 100;
         uint256 payout = amount - penalty;
-        
+
         userStake.amount -= amount;
         totalStaked -= amount;
-        
+
         if (userStake.amount == 0) {
             userStake.hasStake = false;
         }
-        
+
         SafeERC20.safeTransfer(sapienToken, msg.sender, payout);
         if (penalty > 0) {
             SafeERC20.safeTransfer(sapienToken, sapienTreasury, penalty);
         }
-        
+
         emit InstantUnstake(msg.sender, payout, penalty);
     }
 
@@ -380,10 +370,8 @@ contract StakingVault is
     }
 
     function _isReadyForUnstake(UserStake memory userStake) private view returns (bool) {
-        return userStake.hasStake && 
-               userStake.cooldownStart > 0 && 
-               block.timestamp >= userStake.cooldownStart + COOLDOWN_PERIOD &&
-               userStake.cooldownAmount > 0;
+        return userStake.hasStake && userStake.cooldownStart > 0
+            && block.timestamp >= userStake.cooldownStart + COOLDOWN_PERIOD && userStake.cooldownAmount > 0;
     }
 
     /**
@@ -442,8 +430,7 @@ contract StakingVault is
     function getTotalUnlocked(address user) public view returns (uint256) {
         UserStake memory userStake = userStakes[user];
         if (!_isUnlocked(userStake)) return 0;
-        return userStake.amount > userStake.cooldownAmount ? 
-               userStake.amount - userStake.cooldownAmount : 0;
+        return userStake.amount > userStake.cooldownAmount ? userStake.amount - userStake.cooldownAmount : 0;
     }
 
     function getTotalLocked(address user) public view returns (uint256) {
@@ -463,9 +450,9 @@ contract StakingVault is
         return (userStake.hasStake && userStake.cooldownStart > 0) ? userStake.cooldownAmount : 0;
     }
 
-    function getUserStakingSummary(address user) 
-        public 
-        view 
+    function getUserStakingSummary(address user)
+        public
+        view
         returns (
             uint256 userTotalStaked,
             uint256 totalUnlocked,
@@ -475,10 +462,10 @@ contract StakingVault is
             uint256 effectiveMultiplier,
             uint256 effectiveLockUpPeriod,
             uint256 timeUntilUnlock
-        ) 
+        )
     {
         UserStake memory userStake = userStakes[user];
-        
+
         userTotalStaked = userStake.amount;
         totalUnlocked = getTotalUnlocked(user);
         totalLocked = getTotalLocked(user);
@@ -486,7 +473,7 @@ contract StakingVault is
         totalReadyForUnstake = getTotalReadyForUnstake(user);
         effectiveMultiplier = userStake.effectiveMultiplier;
         effectiveLockUpPeriod = userStake.effectiveLockUpPeriod;
-        
+
         if (userStake.hasStake) {
             uint256 unlockTime = userStake.weightedStartTime + userStake.effectiveLockUpPeriod;
             timeUntilUnlock = block.timestamp >= unlockTime ? 0 : unlockTime - block.timestamp;
@@ -526,9 +513,9 @@ contract StakingVault is
      * @return cooldownStart When cooldown was initiated
      * @return isActive Whether the stake is active
      */
-    function getStakeDetails(address user, uint256 stakeId) 
-        external 
-        view 
+    function getStakeDetails(address user, uint256 stakeId)
+        external
+        view
         returns (
             uint256 amount,
             uint256 lockUpPeriod,
@@ -536,7 +523,7 @@ contract StakingVault is
             uint256 multiplier,
             uint256 cooldownStart,
             bool isActive
-        ) 
+        )
     {
         if (stakeId != 1) {
             return (0, 0, 0, 0, 0, false);
@@ -561,18 +548,18 @@ contract StakingVault is
      * @return multipliers Array of multipliers (single element: [user's effective multiplier])
      * @return lockUpPeriods Array of lock periods (single element: [user's effective lockup])
      */
-    function getUserActiveStakes(address user) 
-        external 
-        view 
+    function getUserActiveStakes(address user)
+        external
+        view
         returns (
             uint256[] memory stakeIds,
             uint256[] memory amounts,
             uint256[] memory multipliers,
             uint256[] memory lockUpPeriods
-        ) 
+        )
     {
         UserStake memory userStake = userStakes[user];
-        
+
         if (!userStake.hasStake) {
             // Return empty arrays
             stakeIds = new uint256[](0);
@@ -585,7 +572,7 @@ contract StakingVault is
             amounts = new uint256[](1);
             multipliers = new uint256[](1);
             lockUpPeriods = new uint256[](1);
-            
+
             stakeIds[0] = 1;
             amounts[0] = userStake.amount;
             multipliers[0] = userStake.effectiveMultiplier;
@@ -593,4 +580,3 @@ contract StakingVault is
         }
     }
 }
-
