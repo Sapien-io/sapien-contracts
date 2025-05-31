@@ -1,14 +1,13 @@
-// SPDX-License-Identifier: BSD-3-Clause
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
-import "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
-import "lib/openzeppelin-contracts-upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
-import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
-import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
-import "lib/openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol";
-import "lib/openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol";
-import "src/interfaces/ISapienStaking.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /**
  * @title SapienStaking
@@ -20,13 +19,13 @@ import "src/interfaces/ISapienStaking.sol";
  *         - Contract pausing, upgradeability (UUPS), and reentrancy guard.
  */
 contract SapienStaking is
-    ISapienStaking,
     Initializable,
     PausableUpgradeable,
     Ownable2StepUpgradeable,
     UUPSUpgradeable,
     ReentrancyGuardUpgradeable
 {
+
     /// @dev Constructor that disables initializers
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -44,7 +43,7 @@ contract SapienStaking is
     /// @notice The authorized Sapien signer address (for verifying signatures).
     /// @dev Effectively immutable, but can't use immutable keyword due to upgradeability
     address private _sapienAddress;
-
+    
     /// @notice Address of the Gnosis Safe that controls administrative functions
     address public _gnosisSafe;
 
@@ -54,6 +53,26 @@ contract SapienStaking is
     /// @notice Minimum stake amount (1,000 SAPIEN)
     uint256 public constant MINIMUM_STAKE = 1000 * TOKEN_DECIMALS;
 
+    /**
+     * @dev Struct holding staking details for each staker and their specific stake (by orderId).
+     * @param amount The amount of tokens staked.
+     * @param lockUpPeriod The duration of the lock-up in seconds.
+     * @param startTime The timestamp when the stake started.
+     * @param multiplier The multiplier applicable to the stake.
+     * @param cooldownStart The timestamp when the user initiated unstaking.
+     * @param cooldownAmount The amount approved for unstaking during cooldown.
+     * @param isActive Indicates if this stake is currently active.
+     */
+    struct StakingInfo {
+        uint256 amount;
+        uint256 lockUpPeriod;
+        uint256 startTime;
+        uint256 multiplier;
+        uint256 cooldownStart;
+        uint256 cooldownAmount;
+        bool isActive;
+    }
+
     /// @notice Mapping of user addresses and their `orderId` to a StakingInfo struct.
     mapping(address => mapping(bytes32 => StakingInfo)) public stakers;
 
@@ -61,10 +80,10 @@ contract SapienStaking is
     uint256 public totalStaked;
 
     // Maximum multipliers for specific lock-up periods (with 2 decimal precision)
-    uint256 public constant ONE_MONTH_MAX_MULTIPLIER = 10500; // For 30 days (105.00%)
-    uint256 public constant THREE_MONTHS_MAX_MULTIPLIER = 11000; // For 90 days (110.00%)
-    uint256 public constant SIX_MONTHS_MAX_MULTIPLIER = 12500; // For 180 days (125.00%)
-    uint256 public constant TWELVE_MONTHS_MAX_MULTIPLIER = 15000; // For 365 days (150.00%)
+    uint256 public constant ONE_MONTH_MAX_MULTIPLIER = 10500;      // For 30 days (105.00%)
+    uint256 public constant THREE_MONTHS_MAX_MULTIPLIER = 11000;   // For 90 days (110.00%)
+    uint256 public constant SIX_MONTHS_MAX_MULTIPLIER = 12500;     // For 180 days (125.00%)
+    uint256 public constant TWELVE_MONTHS_MAX_MULTIPLIER = 15000;  // For 365 days (150.00%)
 
     /// @notice The cooldown period before a user can finalize their unstake.
     uint256 public constant COOLDOWN_PERIOD = 2 days;
@@ -73,19 +92,76 @@ contract SapienStaking is
     uint256 private constant EARLY_WITHDRAWAL_PENALTY = 20;
 
     // EIP-712 domain separator constants
-    bytes32 private constant EIP712_DOMAIN_TYPEHASH =
-        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-    bytes32 private constant STAKE_TYPEHASH =
-        keccak256("Stake(address userWallet,uint256 amount,bytes32 orderId,uint8 actionType)");
+    bytes32 private constant EIP712_DOMAIN_TYPEHASH = keccak256(
+        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+    );
+    bytes32 private constant STAKE_TYPEHASH = keccak256(
+        "Stake(address userWallet,uint256 amount,bytes32 orderId,uint8 actionType)"
+    );
 
     /// @notice EIP-712 domain separator for this contract.
     bytes32 private DOMAIN_SEPARATOR;
+
+    /**
+     * @dev Action types for EIP-712 signatures.
+     * STAKE: Stake tokens;
+     * INITIATE_UNSTAKE: Start the cooldown;
+     * UNSTAKE: Finalize after cooldown;
+     * INSTANT_UNSTAKE: Immediately unstake with a penalty.
+     */
+    enum ActionType { STAKE, INITIATE_UNSTAKE, UNSTAKE, INSTANT_UNSTAKE }
 
     /// @notice Mapping to track used orders to prevent reuse.
     mapping(bytes32 => bool) private usedOrders;
 
     /// @notice Mapping of owner addresses to whether they are authorized to upgrade.
     mapping(address => bool) private _upgradeAuthorized;
+    // -------------------------------------------------------------
+    // Events
+    // -------------------------------------------------------------
+
+    /**
+     * @notice Emitted when a user stakes tokens.
+     * @param user The user's address.
+     * @param amount The amount staked.
+     * @param multiplier The applied multiplier for this stake.
+     * @param lockUpPeriod The lock-up duration in seconds.
+     * @param orderId The unique identifier for this stake request.
+     */
+    event Staked(
+        address indexed user,
+        uint256 amount,
+        uint256 multiplier,
+        uint256 lockUpPeriod,
+        bytes32 orderId
+    );
+
+    /**
+     * @notice Emitted when a user initiates the unstaking process (starts cooldown).
+     * @param user The user's address initiating unstake.
+     * @param amount The staked amount associated with the stake.
+     * @param orderId The unique identifier for the original stake.
+     */
+    event UnstakingInitiated(address indexed user, uint256 amount, bytes32 orderId);
+
+    /**
+     * @notice Emitted when a user completes unstaking after the cooldown.
+     * @param user The user's address.
+     * @param amount The amount unstaked.
+     * @param orderId The unique identifier for the original stake.
+     */
+    event Unstaked(address indexed user, uint256 amount, bytes32 orderId);
+
+    /**
+     * @notice Emitted when a user performs an instant unstake (penalty applied).
+     * @param user The user's address.
+     * @param amount The amount actually received by the user (penalty deducted).
+     * @param orderId The unique identifier for the original stake.
+     */
+    event InstantUnstake(address indexed user, uint256 amount, bytes32 orderId);
+
+    /// @notice Emitted when an upgrade is authorized.
+    event UpgradeAuthorized(address indexed implementation);
 
     // -------------------------------------------------------------
     // Initialization (UUPS)
@@ -97,7 +173,11 @@ contract SapienStaking is
      * @param sapienAddress_ The address authorized to sign stake actions.
      * @param gnosisSafe_ The address of the Gnosis Safe.
      */
-    function initialize(ERC20Upgradeable sapienToken_, address sapienAddress_, address gnosisSafe_)
+    function initialize(
+      ERC20Upgradeable sapienToken_,
+      address sapienAddress_,
+      address gnosisSafe_
+    )
         public
         initializer
     {
@@ -116,7 +196,13 @@ contract SapienStaking is
 
         // Initialize the EIP-712 domain separator
         DOMAIN_SEPARATOR = keccak256(
-            abi.encode(EIP712_DOMAIN_TYPEHASH, keccak256("SapienStaking"), keccak256("1"), block.chainid, address(this))
+            abi.encode(
+                EIP712_DOMAIN_TYPEHASH,
+                keccak256("SapienStaking"),
+                keccak256("1"),
+                block.chainid,
+                address(this)
+            )
         );
     }
 
@@ -126,14 +212,15 @@ contract SapienStaking is
      * @param newImplementation The address of the new contract implementation.
      */
     function authorizeUpgrade(address newImplementation) public onlySafe {
-        _upgradeAuthorized[newImplementation] = true;
-        emit UpgradeAuthorized(newImplementation);
+      _upgradeAuthorized[newImplementation] = true;
+      emit UpgradeAuthorized(newImplementation);
+
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlySafe {
-        require(_upgradeAuthorized[newImplementation], "TwoTierAccessControl: upgrade not authorized by safe");
-        // Reset authorization after use to prevent re-use
-        _upgradeAuthorized[newImplementation] = false;
+      require(_upgradeAuthorized[newImplementation], "TwoTierAccessControl: upgrade not authorized by safe");
+      // Reset authorization after use to prevent re-use
+      _upgradeAuthorized[newImplementation] = false;
     }
     // -------------------------------------------------------------
     // Modifiers
@@ -172,21 +259,29 @@ contract SapienStaking is
     // -------------------------------------------------------------
 
     /**
-     * @notice Stake a specified `amount` of tokens for a given `lockUpPeriod`,
+     * @notice Stake a specified `amount` of tokens for a given `lockUpPeriod`, 
      *         identified by a unique `orderId` and validated by an EIP-712 signature.
      * @param amount The amount of tokens to stake.
      * @param lockUpPeriod The lock-up duration in seconds (30/90/180/365 days).
      * @param orderId A unique identifier for this stake request.
      * @param signature The EIP-712 signature from the authorized signer.
      */
-    function stake(uint256 amount, uint256 lockUpPeriod, bytes32 orderId, bytes memory signature)
+    function stake(
+        uint256 amount,
+        uint256 lockUpPeriod,
+        bytes32 orderId,
+        bytes memory signature
+    )
         public
         whenNotPaused
         nonReentrant
     {
         require(amount >= MINIMUM_STAKE, "Minimum 1,000 SAPIEN required");
         require(
-            lockUpPeriod == 30 days || lockUpPeriod == 90 days || lockUpPeriod == 180 days || lockUpPeriod == 365 days,
+            lockUpPeriod == 30 days ||
+                lockUpPeriod == 90 days ||
+                lockUpPeriod == 180 days ||
+                lockUpPeriod == 365 days,
             "Invalid lock-up period"
         );
         require(!usedOrders[orderId], "Order already used");
@@ -223,7 +318,12 @@ contract SapienStaking is
      * @param stakeOrderId The original stake `orderId` that the user wants to unstake from.
      * @param signature The EIP-712 signature from the authorized signer.
      */
-    function initiateUnstake(uint256 amount, bytes32 newOrderId, bytes32 stakeOrderId, bytes memory signature)
+    function initiateUnstake(
+        uint256 amount,
+        bytes32 newOrderId,
+        bytes32 stakeOrderId,
+        bytes memory signature
+    )
         public
         whenNotPaused
         nonReentrant
@@ -238,7 +338,10 @@ contract SapienStaking is
             "Invalid signature or mismatched parameters"
         );
         // Add check for lock period completion
-        require(block.timestamp >= info.startTime + info.lockUpPeriod, "Lock period not completed");
+        require(
+            block.timestamp >= info.startTime + info.lockUpPeriod,
+            "Lock period not completed"
+        );
 
         info.cooldownStart = block.timestamp;
         info.cooldownAmount = amount; // Store the amount approved for unstaking
@@ -254,13 +357,18 @@ contract SapienStaking is
      * @param stakeOrderId The original stake `orderId` the user is unstaking from.
      * @param signature The EIP-712 signature from the authorized signer.
      */
-    function unstake(uint256 amount, bytes32 newOrderId, bytes32 stakeOrderId, bytes memory signature)
+    function unstake(
+        uint256 amount,
+        bytes32 newOrderId,
+        bytes32 stakeOrderId,
+        bytes memory signature
+    )
         public
         whenNotPaused
         nonReentrant
     {
         require(amount >= MINIMUM_STAKE, "Minimum 1,000 SAPIEN required");
-
+        
         StakingInfo storage info = stakers[msg.sender][stakeOrderId];
         require(info.isActive, "Staking position not active");
         require(info.cooldownStart > 0, "Cooldown not initiated");
@@ -271,23 +379,29 @@ contract SapienStaking is
             verifyOrder(msg.sender, amount, newOrderId, ActionType.UNSTAKE, signature),
             "Invalid signature or mismatched parameters"
         );
-        require(block.timestamp >= info.cooldownStart + COOLDOWN_PERIOD, "Cooldown period not completed");
-
+        require(
+            block.timestamp >= info.cooldownStart + COOLDOWN_PERIOD,
+            "Cooldown period not completed"
+        );
+        
         // Add check for lock period completion
-        require(block.timestamp >= info.startTime + info.lockUpPeriod, "Lock period not completed");
-
+        require(
+            block.timestamp >= info.startTime + info.lockUpPeriod,
+            "Lock period not completed"
+        );
+        
         // Transfer tokens to user
         require(_sapienToken.transfer(msg.sender, amount), "Token transfer failed");
-
+        
         info.amount -= amount;
         info.cooldownAmount -= amount; // Reduce the approved cooldown amount
-
+        
         // If this is a partial unstake, reset cooldown to allow future unstaking
         if (info.amount > 0) {
             info.cooldownStart = 0;
             info.cooldownAmount = 0;
         }
-
+        
         info.isActive = info.amount > 0;
         totalStaked -= amount;
         _markOrderAsUsed(newOrderId);
@@ -302,13 +416,18 @@ contract SapienStaking is
      * @param stakeOrderId The original stake `orderId` the user is instantly unstaking from.
      * @param signature The EIP-712 signature from the authorized signer.
      */
-    function instantUnstake(uint256 amount, bytes32 newOrderId, bytes32 stakeOrderId, bytes memory signature)
+    function instantUnstake(
+        uint256 amount,
+        bytes32 newOrderId,
+        bytes32 stakeOrderId,
+        bytes memory signature
+    )
         public
         whenNotPaused
         nonReentrant
     {
         require(amount >= MINIMUM_STAKE, "Minimum 1,000 SAPIEN required");
-
+        
         StakingInfo storage info = stakers[msg.sender][stakeOrderId];
         require(info.isActive, "Staking position not active");
         require(!usedOrders[newOrderId], "Order already used");
@@ -317,7 +436,10 @@ contract SapienStaking is
             "Invalid signature or mismatched parameters"
         );
         // Add check to ensure instant unstake is only possible during lock period
-        require(block.timestamp < info.startTime + info.lockUpPeriod, "Lock period completed, use regular unstake");
+        require(
+            block.timestamp < info.startTime + info.lockUpPeriod,
+            "Lock period completed, use regular unstake"
+        );
 
         // Calculate penalty
         uint256 penalty = (amount * EARLY_WITHDRAWAL_PENALTY) / 100;
@@ -348,18 +470,22 @@ contract SapienStaking is
      * @param lockUpPeriod The duration of lock-up in seconds.
      * @return The multiplier for the specified lock-up period.
      */
-    function calculateMultiplier(uint256 lockUpPeriod) private pure returns (uint256) {
+    function calculateMultiplier(uint256 lockUpPeriod)
+        private
+        pure
+        returns (uint256)
+    {
         if (lockUpPeriod == 30 days) {
-            return ONE_MONTH_MAX_MULTIPLIER; // 1.05x
+            return ONE_MONTH_MAX_MULTIPLIER;      // 1.05x
         }
         if (lockUpPeriod == 90 days) {
-            return THREE_MONTHS_MAX_MULTIPLIER; // 1.10x
+            return THREE_MONTHS_MAX_MULTIPLIER;   // 1.10x
         }
         if (lockUpPeriod == 180 days) {
-            return SIX_MONTHS_MAX_MULTIPLIER; // 1.25x
+            return SIX_MONTHS_MAX_MULTIPLIER;     // 1.25x
         }
         if (lockUpPeriod == 365 days) {
-            return TWELVE_MONTHS_MAX_MULTIPLIER; // 1.50x
+            return TWELVE_MONTHS_MAX_MULTIPLIER;  // 1.50x
         }
         revert("Invalid lock-up period");
     }
@@ -379,12 +505,26 @@ contract SapienStaking is
         bytes32 orderId,
         ActionType actionType,
         bytes memory signature
-    ) private view returns (bool) {
+    )
+        private
+        view
+        returns (bool)
+    {
         require(!usedOrders[orderId], "Order already used");
 
-        bytes32 structHash = keccak256(abi.encode(STAKE_TYPEHASH, userWallet, amount, orderId, uint8(actionType)));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                STAKE_TYPEHASH,
+                userWallet,
+                amount,
+                orderId,
+                uint8(actionType)
+            )
+        );
 
-        bytes32 hash = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
+        bytes32 hash = keccak256(
+            abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash)
+        );
 
         address signer = ECDSA.recover(hash, signature);
         return (signer == _sapienAddress);
@@ -402,15 +542,17 @@ contract SapienStaking is
      * @dev overrides ownership Transfer so onlySafe can only change onlyOwner
      */
     function getOwnable2StepStorage() private pure returns (Ownable2StepUpgradeable.Ownable2StepStorage storage $) {
-        bytes32 position = 0x237e158222e3e6968b72b9db0d8043aacf074ad9f650f0d1606b4d82ee432c00;
-        assembly {
-            $.slot := position
-        }
+      bytes32 position = 0x237e158222e3e6968b72b9db0d8043aacf074ad9f650f0d1606b4d82ee432c00;
+      assembly {
+        $.slot := position
+      }
     }
 
-    function transferOwnership(address newOwner) public override onlySafe {
-        Ownable2StepStorage storage $ = getOwnable2StepStorage();
-        $._pendingOwner = newOwner;
-        emit OwnershipTransferred(_gnosisSafe, newOwner);
+    function transferOwnership(
+        address newOwner
+    ) public override onlySafe {
+      Ownable2StepStorage storage $ = getOwnable2StepStorage();
+      $._pendingOwner = newOwner;
+      emit OwnershipTransferred(_gnosisSafe, newOwner);
     }
 }

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity 0.8.30;
 
-import {Script, console} from "forge-std/Script.sol";
+import {Script, console} from "lib/forge-std/src/Script.sol";
 import {SapienToken} from "../src/SapienToken.sol";
 
 contract DeploySapienToken is Script {
-    // Network-specific admin addresses
-    mapping(uint256 => address) public adminAddresses;
+    // Network-specific treasury addresses
+    mapping(uint256 => address) public treasuryAddresses;
 
     // Chain IDs
     uint256 constant LOCALHOST = 31337;
@@ -14,31 +14,31 @@ contract DeploySapienToken is Script {
     uint256 constant BASE_SEPOLIA = 84532;
 
     function setUp() public {
-        // Set admin addresses for each network
+        // Set treasury addresses for each network
         // For localhost, we'll use a deterministic address
-        adminAddresses[LOCALHOST] = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266; // Default Anvil account
+        treasuryAddresses[LOCALHOST] = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266; // Default Anvil account
 
         // For Base networks, set your actual multisig addresses
         // These should be replaced with actual multisig addresses before mainnet deployment
-        adminAddresses[BASE_MAINNET] = 0x0000000000000000000000000000000000000000; // REPLACE WITH ACTUAL MULTISIG
-        adminAddresses[BASE_SEPOLIA] = 0x0000000000000000000000000000000000000000; // REPLACE WITH ACTUAL MULTISIG
+        treasuryAddresses[BASE_MAINNET] = 0x0000000000000000000000000000000000000000; // REPLACE WITH ACTUAL MULTISIG
+        treasuryAddresses[BASE_SEPOLIA] = 0x0000000000000000000000000000000000000000; // REPLACE WITH ACTUAL MULTISIG
     }
 
     function run() external {
         uint256 chainId = block.chainid;
-        address admin = getAdminAddress(chainId);
+        address treasury = getTreasuryAddress(chainId);
 
         console.log("Deploying SapienToken to chain ID:", chainId);
-        console.log("Admin address:", admin);
+        console.log("Treasury address:", treasury);
 
-        // Validate admin address
-        require(admin != address(0), "Admin address not set for this chain");
+        // Validate treasury address
+        require(treasury != address(0), "Treasury address not set for this chain");
 
         // Start broadcasting transactions
         vm.startBroadcast();
 
         // Deploy SapienToken
-        SapienToken token = new SapienToken(admin);
+        SapienToken token = new SapienToken(treasury);
 
         vm.stopBroadcast();
 
@@ -48,39 +48,37 @@ contract DeploySapienToken is Script {
         console.log("Token symbol:", token.symbol());
         console.log("Total supply:", token.totalSupply());
         console.log("Max supply:", token.maxSupply());
-        console.log("Admin balance:", token.balanceOf(admin));
-        console.log("Admin has DEFAULT_ADMIN_ROLE:", token.hasRole(0x00, admin));
-        console.log("Admin has PAUSER_ROLE:", token.hasRole(token.PAUSER_ROLE(), admin));
+        console.log("Treasury balance:", token.balanceOf(treasury));
 
         // Save deployment info to file
-        saveDeploymentInfo(chainId, address(token), admin);
+        saveDeploymentInfo(chainId, address(token), treasury);
     }
 
-    function getAdminAddress(uint256 chainId) internal view returns (address) {
-        address admin = adminAddresses[chainId];
+    function getTreasuryAddress(uint256 chainId) internal view returns (address) {
+        address treasury = treasuryAddresses[chainId];
 
         // If not set in mapping, try environment variables
-        if (admin == address(0)) {
+        if (treasury == address(0)) {
             if (chainId == BASE_MAINNET) {
-                admin = vm.envAddress("BASE_MAINNET_ADMIN");
+                treasury = vm.envAddress("BASE_MAINNET_TREASURY");
             } else if (chainId == BASE_SEPOLIA) {
-                admin = vm.envAddress("BASE_SEPOLIA_ADMIN");
+                treasury = vm.envAddress("BASE_SEPOLIA_TREASURY");
             } else if (chainId == LOCALHOST) {
-                admin = adminAddresses[LOCALHOST]; // Use default Anvil account
+                treasury = treasuryAddresses[LOCALHOST]; // Use default Anvil account
             }
         }
 
-        return admin;
+        return treasury;
     }
 
-    function saveDeploymentInfo(uint256 chainId, address tokenAddress, address admin) internal {
+    function saveDeploymentInfo(uint256 chainId, address tokenAddress, address treasury) internal {
         string memory chainName = getChainName(chainId);
 
         console.log("\n=== DEPLOYMENT SUMMARY ===");
         console.log("Network:", chainName);
         console.log("Chain ID:", chainId);
         console.log("SapienToken Address:", tokenAddress);
-        console.log("Admin Address:", admin);
+        console.log("Treasury Address:", treasury);
         console.log("Block Number:", block.number);
         console.log("Block Timestamp:", block.timestamp);
         console.log("==========================\n");
@@ -98,8 +96,8 @@ contract DeploySapienToken is Script {
                 '  "sapienToken": "',
                 vm.toString(tokenAddress),
                 '",\n',
-                '  "admin": "',
-                vm.toString(admin),
+                '  "treasury": "',
+                vm.toString(treasury),
                 '",\n',
                 '  "blockNumber": ',
                 vm.toString(block.number),
@@ -136,15 +134,15 @@ contract DeploySapienToken is Script {
 // Separate script for localhost deployment with additional setup
 contract DeployLocalhostSapienToken is Script {
     function run() external {
-        // Use the first Anvil account as admin
-        address admin = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
+        // Use the first Anvil account as treasury
+        address treasury = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
 
         console.log("Deploying SapienToken to localhost (Anvil)");
-        console.log("Admin address:", admin);
+        console.log("Treasury address:", treasury);
 
         vm.startBroadcast();
 
-        SapienToken token = new SapienToken(admin);
+        SapienToken token = new SapienToken(treasury);
 
         vm.stopBroadcast();
 

@@ -51,9 +51,9 @@ This is a design and security review of Sapien's smart contracts for pre-launch 
 Diagram of [proposed architectural changes](contracts-review-may/token/contract-relationships.svg)
 
 ### Architectural Updates ( May 26th - May 28th )
-- [ ] Chore: Migrate to Foundry testing framework
-- [ ] Feat: Implement separated vesting architecture
-  - [ ] Create immutable `SapienToken` contract
+- [x] Chore: Migrate to Foundry testing framework
+- [x] Feat: Implement separated vesting architecture
+  - [x] Create immutable `SapienToken` contract
   - [ ] Build upgradeable `VestingVault` contract and migrate functionality  
 - [ ] Feat: Remove offchain Staking signatures 
 

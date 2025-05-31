@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity 0.8.30;
 
-import {Test, console} from "forge-std/Test.sol";
-import {SapienToken} from "../src/SapienToken.sol";
+import { Test } from "lib/forge-std/src/Test.sol";
+import { SapienToken } from "src/SapienToken.sol";
 
 contract SapienTokenIntegrationTest is Test {
     SapienToken public token;
 
-    address public admin;
-    address public multisig;
-    address public pauser1;
-    address public pauser2;
+    address public treasury;
     address public user1;
     address public user2;
     address public user3;
@@ -24,26 +21,20 @@ contract SapienTokenIntegrationTest is Test {
     uint256 public constant LIQUIDITY_ALLOCATION = 120_000_000 * 10 ** 18;
     uint256 public constant MAX_SUPPLY = 1_000_000_000 * 10 ** 18;
 
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-    bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
-
     function setUp() public {
-        admin = makeAddr("admin");
-        multisig = makeAddr("multisig");
-        pauser1 = makeAddr("pauser1");
-        pauser2 = makeAddr("pauser2");
+        treasury = makeAddr("treasury");
         user1 = makeAddr("user1");
         user2 = makeAddr("user2");
         user3 = makeAddr("user3");
 
-        // Deploy token with admin
-        token = new SapienToken(admin);
+        // Deploy token with treasury
+        token = new SapienToken(treasury);
     }
 
     // ============ Token Distribution Simulation ============
 
     function test_TokenDistribution_Simulation() public {
-        vm.startPrank(admin);
+        vm.startPrank(treasury);
 
         // Simulate token distribution according to allocations
         address investorsWallet = makeAddr("investors");
@@ -69,89 +60,13 @@ contract SapienTokenIntegrationTest is Test {
         assertEq(token.balanceOf(foundationWallet), FOUNDATION_TREASURY_ALLOCATION);
         assertEq(token.balanceOf(liquidityWallet), LIQUIDITY_ALLOCATION);
 
-        // Admin should have no tokens left
-        assertEq(token.balanceOf(admin), 0);
+        // treasury should have no tokens left
+        assertEq(token.balanceOf(treasury), 0);
 
         // Total supply should remain constant
         assertEq(token.totalSupply(), MAX_SUPPLY);
 
         vm.stopPrank();
-    }
-
-    // ============ Multi-Role Management ============
-
-    function test_MultiRoleManagement() public {
-        vm.startPrank(admin);
-
-        // Grant PAUSER_ROLE to multiple addresses
-        token.grantRole(PAUSER_ROLE, pauser1);
-        token.grantRole(PAUSER_ROLE, pauser2);
-
-        // Verify roles
-        assertTrue(token.hasRole(PAUSER_ROLE, admin));
-        assertTrue(token.hasRole(PAUSER_ROLE, pauser1));
-        assertTrue(token.hasRole(PAUSER_ROLE, pauser2));
-
-        vm.stopPrank();
-
-        // Test that any pauser can pause
-        vm.prank(pauser1);
-        token.pause();
-        assertTrue(token.paused());
-
-        // Test that any pauser can unpause
-        vm.prank(pauser2);
-        token.unpause();
-        assertFalse(token.paused());
-
-        // Test role revocation
-        vm.prank(admin);
-        token.revokeRole(PAUSER_ROLE, pauser1);
-        assertFalse(token.hasRole(PAUSER_ROLE, pauser1));
-
-        // Revoked pauser can't pause anymore
-        vm.startPrank(pauser1);
-        vm.expectRevert();
-        token.pause();
-        vm.stopPrank();
-    }
-
-    // ============ Emergency Scenarios ============
-
-    function test_EmergencyPause_DuringTransfers() public {
-        uint256 amount = 1000 * 10 ** 18;
-
-        // Setup: Admin transfers some tokens to user1
-        vm.prank(admin);
-        token.transfer(user1, amount);
-
-        // User1 approves user2 to spend tokens
-        vm.prank(user1);
-        token.approve(user2, amount);
-
-        // Admin pauses the contract
-        vm.prank(admin);
-        token.pause();
-
-        // All transfers should fail when paused
-        vm.startPrank(user1);
-        vm.expectRevert();
-        token.transfer(user2, 100);
-        vm.stopPrank();
-
-        vm.startPrank(user2);
-        vm.expectRevert();
-        token.transferFrom(user1, user3, 100);
-        vm.stopPrank();
-
-        // Unpause and transfers should work again
-        vm.prank(admin);
-        token.unpause();
-
-        vm.prank(user1);
-        bool success = token.transfer(user2, 100);
-        assertTrue(success);
-        assertEq(token.balanceOf(user2), 100);
     }
 
     // ============ Permit Integration Tests ============
@@ -165,7 +80,7 @@ contract SapienTokenIntegrationTest is Test {
         address owner = vm.addr(privateKey);
 
         // Give owner some tokens
-        vm.prank(admin);
+        vm.prank(treasury);
         token.transfer(owner, amount);
 
         uint256 nonce = token.nonces(owner);
@@ -208,17 +123,12 @@ contract SapienTokenIntegrationTest is Test {
         recipients[3] = makeAddr("user4");
         recipients[4] = makeAddr("user5");
 
-        vm.startPrank(admin);
-
-        uint256 gasBefore = gasleft();
+        vm.startPrank(treasury);
 
         // Simulate batch transfers
         for (uint256 i = 0; i < recipients.length; i++) {
             token.transfer(recipients[i], amount);
         }
-
-        uint256 gasUsed = gasBefore - gasleft();
-        console.log("Gas used for 5 transfers:", gasUsed);
 
         // Verify all transfers
         for (uint256 i = 0; i < recipients.length; i++) {
@@ -228,52 +138,21 @@ contract SapienTokenIntegrationTest is Test {
         vm.stopPrank();
     }
 
-    // ============ Role Transition Scenarios ============
-
-    function test_AdminRoleTransition() public {
-        address newAdmin = makeAddr("newAdmin");
-
-        vm.startPrank(admin);
-
-        // Grant admin role to new admin
-        token.grantRole(DEFAULT_ADMIN_ROLE, newAdmin);
-
-        // New admin can now grant roles
-        vm.stopPrank();
-        vm.startPrank(newAdmin);
-
-        token.grantRole(PAUSER_ROLE, user1);
-        assertTrue(token.hasRole(PAUSER_ROLE, user1));
-
-        // Original admin can renounce their role
-        vm.stopPrank();
-        vm.startPrank(admin);
-
-        token.renounceRole(DEFAULT_ADMIN_ROLE, admin);
-        assertFalse(token.hasRole(DEFAULT_ADMIN_ROLE, admin));
-
-        // Original admin can no longer grant roles
-        vm.expectRevert();
-        token.grantRole(PAUSER_ROLE, user2);
-
-        vm.stopPrank();
-    }
-
     // ============ Edge Cases ============
 
     function test_MaxApproval() public {
-        vm.startPrank(admin);
+        vm.startPrank(treasury);
 
         // Test maximum uint256 approval
         bool success = token.approve(user1, type(uint256).max);
         assertTrue(success);
-        assertEq(token.allowance(admin, user1), type(uint256).max);
+        assertEq(token.allowance(treasury, user1), type(uint256).max);
 
         vm.stopPrank();
     }
 
     function test_ZeroValueTransfers() public {
-        vm.startPrank(admin);
+        vm.startPrank(treasury);
 
         // Zero value transfers should succeed
         bool success = token.transfer(user1, 0);
@@ -285,7 +164,7 @@ contract SapienTokenIntegrationTest is Test {
         vm.stopPrank();
 
         vm.startPrank(user1);
-        success = token.transferFrom(admin, user2, 0);
+        success = token.transferFrom(treasury, user2, 0);
         assertTrue(success);
         vm.stopPrank();
     }
@@ -293,14 +172,14 @@ contract SapienTokenIntegrationTest is Test {
     function test_SelfTransfer() public {
         uint256 amount = 1000 * 10 ** 18;
 
-        vm.startPrank(admin);
+        vm.startPrank(treasury);
 
-        uint256 balanceBefore = token.balanceOf(admin);
-        bool success = token.transfer(admin, amount);
+        uint256 balanceBefore = token.balanceOf(treasury);
+        bool success = token.transfer(treasury, amount);
         assertTrue(success);
 
         // Balance should remain the same
-        assertEq(token.balanceOf(admin), balanceBefore);
+        assertEq(token.balanceOf(treasury), balanceBefore);
 
         vm.stopPrank();
     }
@@ -310,7 +189,7 @@ contract SapienTokenIntegrationTest is Test {
     function test_ManySmallTransfers() public {
         uint256 smallAmount = 1 * 10 ** 18; // 1 token
 
-        vm.startPrank(admin);
+        vm.startPrank(treasury);
 
         // Make 100 small transfers
         for (uint256 i = 0; i < 100; i++) {
@@ -322,27 +201,12 @@ contract SapienTokenIntegrationTest is Test {
         vm.stopPrank();
     }
 
-    function test_PauseUnpauseCycle() public {
-        vm.startPrank(admin);
-
-        // Rapid pause/unpause cycles
-        for (uint256 i = 0; i < 10; i++) {
-            token.pause();
-            assertTrue(token.paused());
-
-            token.unpause();
-            assertFalse(token.paused());
-        }
-
-        vm.stopPrank();
-    }
-
     // ============ Invariant Tests ============
 
     function test_TotalSupplyInvariant() public {
         uint256 amount = 1000 * 10 ** 18;
 
-        vm.startPrank(admin);
+        vm.startPrank(treasury);
 
         // Initial total supply
         uint256 initialSupply = token.totalSupply();

@@ -102,8 +102,8 @@ fi
 
 # Validate required environment variables for non-localhost deployments
 if [ "$NETWORK" != "localhost" ]; then
-    if [ -z "$PRIVATE_KEY" ] || [ "$PRIVATE_KEY" = "0x0000000000000000000000000000000000000000000000000000000000000000" ]; then
-        print_error "PRIVATE_KEY not set in .env file"
+    if [ -z "$ACCOUNT" ]; then
+        print_error "ACCOUNT not set in .env file"
         exit 1
     fi
 fi
@@ -130,7 +130,7 @@ else
         print_status "Contract verification enabled"
         forge script script/DeploySapienToken.s.sol:$SCRIPT_CONTRACT \
             --rpc-url $RPC_URL \
-            --private-key $PRIVATE_KEY \
+            --account $ACCOUNT \
             --broadcast \
             --verify \
             --etherscan-api-key $BASESCAN_API_KEY \
@@ -139,7 +139,7 @@ else
         print_warning "Contract verification disabled (BASESCAN_API_KEY not set)"
         forge script script/DeploySapienToken.s.sol:$SCRIPT_CONTRACT \
             --rpc-url $RPC_URL \
-            --private-key $PRIVATE_KEY \
+            --account $ACCOUNT \
             --broadcast \
             -vvvv
     fi

@@ -1,21 +1,12 @@
 # Deployment Configuration Example
 # Copy this file to .env and fill in your actual values
 
-# Private Keys (DO NOT COMMIT REAL KEYS)
-PRIVATE_KEY=0x0000000000000000000000000000000000000000000000000000000000000000
-
 # Admin Addresses (Multisig addresses for production)
 BASE_MAINNET_ADMIN=0x0000000000000000000000000000000000000000
 BASE_SEPOLIA_ADMIN=0x0000000000000000000000000000000000000000
 
 # RPC URLs
-BASE_MAINNET_RPC_URL=https://mainnet.base.org
-BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
-LOCALHOST_RPC_URL=http://127.0.0.1:8545
+RPC_URL=http://127.0.0.1:8545
 
 # Etherscan API Keys (for verification)
 BASESCAN_API_KEY=your_basescan_api_key
-
-# Optional: Alchemy/Infura URLs
-ALCHEMY_API_KEY=your_alchemy_api_key
-INFURA_API_KEY=your_infura_api_key 
