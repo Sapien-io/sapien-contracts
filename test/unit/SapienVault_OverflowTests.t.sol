@@ -838,13 +838,13 @@ contract SapienVaultOverflowTest is Test {
         uint256 userDuration = LOCK_365_DAYS; // 365 days
 
         // Get multiplier breakdown
-        (uint256 individual, uint256 globalCoeff, uint256 finalMultiplier, uint256 currentRatio) =
+        (uint256 individual, uint256 globalCoeff, uint256 finalMult, uint256 currentRatio) =
             sapienVault.getMultiplierBreakdown(userAmount, userDuration);
 
         console.log("User Stake: 100,000 tokens for 365 days");
         console.log("Individual Multiplier: %s%% (before global effects)", individual / 100);
         console.log("Global Coefficient: %sx (based on %s%% network participation)", globalCoeff, currentRatio / 100);
-        console.log("Final Multiplier: %s%%", finalMultiplier / 100);
+        console.log("Final Multiplier: %s%%", finalMult / 100);
 
         // Actually stake the tokens to test the system
         vm.startPrank(user1);
@@ -856,7 +856,7 @@ contract SapienVaultOverflowTest is Test {
         (uint256 totalStaked,,,,, uint256 effectiveMultiplier,,) = sapienVault.getUserStakingSummary(user1);
 
         assertEq(totalStaked, userAmount, "Stake amount should match");
-        assertEq(effectiveMultiplier, finalMultiplier, "Effective multiplier should match calculated final multiplier");
+        assertEq(effectiveMultiplier, finalMult, "Effective multiplier should match calculated final multiplier");
 
         console.log("SUCCESS: Stake created successfully with multiplier: %s%%", effectiveMultiplier / 100);
     }
@@ -893,5 +893,336 @@ contract SapienVaultOverflowTest is Test {
         }
 
         console.log("\nFinal: All stakers benefit from improved network coefficient!");
+    }
+
+    /// @dev Comprehensive real-world staking scenarios test
+    function test_RealWorldStakingScenarios() public {
+        console.log("=== REAL WORLD STAKING SCENARIOS ===");
+        console.log("Testing various user profiles with different amounts and lockup periods\n");
+
+        // Define user profiles
+        UserProfile[] memory profiles = new UserProfile[](8);
+        
+        // Small retail investors
+        profiles[0] = UserProfile({
+            name: "Small Retail (Min)",
+            amount: MINIMUM_STAKE, // 1,000 tokens
+            lockup: LOCK_30_DAYS,
+            description: "Minimum stake, short term"
+        });
+        
+        profiles[1] = UserProfile({
+            name: "Small Retail (Long)",
+            amount: MINIMUM_STAKE, // 1,000 tokens
+            lockup: LOCK_365_DAYS,
+            description: "Minimum stake, maximum lockup"
+        });
+
+        // Medium retail investors
+        profiles[2] = UserProfile({
+            name: "Medium Retail",
+            amount: MINIMUM_STAKE * 10, // 10,000 tokens
+            lockup: LOCK_90_DAYS,
+            description: "10K tokens, medium lockup"
+        });
+
+        profiles[3] = UserProfile({
+            name: "Committed Retail",
+            amount: MINIMUM_STAKE * 25, // 25,000 tokens
+            lockup: LOCK_365_DAYS,
+            description: "25K tokens, full commitment"
+        });
+
+        // Small institutional/whale
+        profiles[4] = UserProfile({
+            name: "Small Institution",
+            amount: MINIMUM_STAKE * 100, // 100,000 tokens
+            lockup: LOCK_180_DAYS,
+            description: "100K tokens, conservative lockup"
+        });
+
+        profiles[5] = UserProfile({
+            name: "Medium Institution",
+            amount: MINIMUM_STAKE * 500, // 500,000 tokens
+            lockup: LOCK_365_DAYS,
+            description: "500K tokens, maximum lockup"
+        });
+
+        // Large institutional/whale
+        profiles[6] = UserProfile({
+            name: "Large Whale",
+            amount: MINIMUM_STAKE * 2000, // 2,000,000 tokens
+            lockup: LOCK_365_DAYS,
+            description: "2M tokens, maximum commitment"
+        });
+
+        profiles[7] = UserProfile({
+            name: "Mega Whale",
+            amount: MINIMUM_STAKE * 5000, // 5,000,000 tokens
+            lockup: LOCK_365_DAYS,
+            description: "5M tokens, maximum commitment"
+        });
+
+        // Log initial network state
+        (,, uint256 initialRatio, uint256 initialCoeff) = sapienVault.getGlobalStakingStats();
+        console.log("Initial Network State:");
+        console.log("  Staking Ratio: %s%%", initialRatio / 100);
+        console.log("  Global Coefficient: %sx\n", initialCoeff);
+
+        // Process each user profile
+        for (uint256 i = 0; i < profiles.length; i++) {
+            _processUserProfile(profiles[i], i + 1);
+        }
+
+        // Show final network state
+        (uint256 finalStaked, uint256 totalSupply, uint256 finalRatio, uint256 finalCoeff) = sapienVault.getGlobalStakingStats();
+        console.log("\n=== FINAL NETWORK STATE ===");
+        console.log("Total Staked: %s tokens", finalStaked / 1e18);
+        console.log("Total Supply: %s tokens", totalSupply / 1e18);
+        console.log("Staking Ratio: %s%%", finalRatio / 100);
+        console.log("Global Coefficient: %sx", finalCoeff);
+        console.log("Network Participation Improved: %sx -> %sx", initialCoeff, finalCoeff);
+
+        // Show comparative analysis
+        _showComparativeAnalysis();
+    }
+
+    /// @dev Test progressive network effects as users join
+    function test_ProgressiveNetworkEffects() public {
+        console.log("=== PROGRESSIVE NETWORK EFFECTS ===");
+        console.log("Watching multipliers improve as network participation grows\n");
+
+        // Define a consistent stake for comparison
+        uint256 testStake = MINIMUM_STAKE * 50; // 50K tokens
+        uint256 testLockup = LOCK_365_DAYS;
+
+        StakingRound[] memory rounds = new StakingRound[](5);
+        rounds[0] = StakingRound({description: "First User (Cold Start)", userCount: 1});
+        rounds[1] = StakingRound({description: "Small Network", userCount: 3});
+        rounds[2] = StakingRound({description: "Growing Network", userCount: 8});
+        rounds[3] = StakingRound({description: "Healthy Network", userCount: 15});
+        rounds[4] = StakingRound({description: "Mature Network", userCount: 25});
+
+        for (uint256 round = 0; round < rounds.length; round++) {
+            console.log("\n--- %s ---", rounds[round].description);
+            
+            // Add users until we reach the target count for this round
+            uint256 currentUsers = round == 0 ? 0 : rounds[round - 1].userCount;
+            uint256 targetUsers = rounds[round].userCount;
+            
+            for (uint256 i = currentUsers; i < targetUsers; i++) {
+                address user = makeAddr(string(abi.encodePacked("progressiveUser", i)));
+                
+                // Mint tokens
+                sapienToken.mint(user, testStake);
+                
+                // Stake
+                vm.startPrank(user);
+                sapienToken.approve(address(sapienVault), testStake);
+                sapienVault.stake(testStake, testLockup);
+                vm.stopPrank();
+            }
+
+            // Show network state after this round
+            (uint256 totalStaked,, uint256 stakingRatio,) = sapienVault.getGlobalStakingStats();
+            
+            // Get multiplier for our test stake
+            (uint256 individual, uint256 coefficient, uint256 finalMult,) = 
+                sapienVault.getMultiplierBreakdown(testStake, testLockup);
+            
+            console.log("Users: %s | Network: %s%% | Coeff: %sx", targetUsers, stakingRatio / 100, coefficient);
+            console.log("50K @ 365d Multiplier: %s%% (Individual: %s%%, Global: %sx)", 
+                finalMult / 100, individual / 100, coefficient);
+            console.log("Total Network Stake: %s tokens", totalStaked / 1e18);
+        }
+    }
+
+    /// @dev Test lockup period comparison with same amount
+    function test_LockupPeriodComparison() public view {
+        console.log("=== LOCKUP PERIOD COMPARISON ===");
+        console.log("Same stake amount (10K tokens) with different lockup periods\n");
+
+        uint256 testAmount = MINIMUM_STAKE * 10; // 10K tokens
+        uint256[] memory lockupPeriods = new uint256[](4);
+        lockupPeriods[0] = LOCK_30_DAYS;
+        lockupPeriods[1] = LOCK_90_DAYS;
+        lockupPeriods[2] = LOCK_180_DAYS;
+        lockupPeriods[3] = LOCK_365_DAYS;
+
+        string[] memory periodNames = new string[](4);
+        periodNames[0] = "30 days";
+        periodNames[1] = "90 days";
+        periodNames[2] = "180 days";
+        periodNames[3] = "365 days";
+
+        console.log("Amount: 10,000 tokens");
+        console.log("Format: [Lockup] -> [Individual] x [Global] = [Final] multiplier\n");
+
+        for (uint256 i = 0; i < lockupPeriods.length; i++) {
+            (uint256 individual, uint256 global, uint256 finalMult,) = 
+                sapienVault.getMultiplierBreakdown(testAmount, lockupPeriods[i]);
+            
+            console.log("Lockup period results:");
+            console.log("Individual:", individual / 100);
+            console.log("Global:", global);
+            console.log("Final:", finalMult / 100);
+        }
+
+        console.log("\nKey Insight: Longer lockups provide significantly better individual multipliers!");
+    }
+
+    /// @dev Test amount scaling comparison with same lockup
+    function test_AmountScalingComparison() public view {
+        console.log("=== AMOUNT SCALING COMPARISON ===");
+        console.log("Same lockup period (365 days) with different stake amounts\n");
+
+        uint256[] memory amounts = new uint256[](8);
+        amounts[0] = MINIMUM_STAKE; // 1K
+        amounts[1] = MINIMUM_STAKE * 2; // 2K
+        amounts[2] = MINIMUM_STAKE * 5; // 5K
+        amounts[3] = MINIMUM_STAKE * 10; // 10K
+        amounts[4] = MINIMUM_STAKE * 50; // 50K
+        amounts[5] = MINIMUM_STAKE * 100; // 100K
+        amounts[6] = MINIMUM_STAKE * 500; // 500K
+        amounts[7] = MINIMUM_STAKE * 1000; // 1M
+
+        string[] memory amountNames = new string[](8);
+        amountNames[0] = "1K tokens";
+        amountNames[1] = "2K tokens";
+        amountNames[2] = "5K tokens";
+        amountNames[3] = "10K tokens";
+        amountNames[4] = "50K tokens";
+        amountNames[5] = "100K tokens";
+        amountNames[6] = "500K tokens";
+        amountNames[7] = "1M tokens";
+
+        console.log("Lockup: 365 days (maximum)");
+        console.log("Format: [Amount] -> [Individual] x [Global] = [Final] multiplier\n");
+
+        for (uint256 i = 0; i < amounts.length; i++) {
+            (uint256 individual, uint256 global, uint256 finalMult,) = 
+                sapienVault.getMultiplierBreakdown(amounts[i], LOCK_365_DAYS);
+            
+            console.log("Amount scaling results:");
+            console.log("Individual:", individual / 100);
+            console.log("Global:", global);
+            console.log("Final:", finalMult / 100);
+        }
+
+        console.log("\nKey Insight: Logarithmic scaling rewards larger stakes but with diminishing returns!");
+    }
+
+    // Helper structs for organizing test data
+    struct UserProfile {
+        string name;
+        uint256 amount;
+        uint256 lockup;
+        string description;
+    }
+
+    struct StakingRound {
+        string description;
+        uint256 userCount;
+    }
+
+    /// @dev Process a single user profile and log results
+    function _processUserProfile(UserProfile memory profile, uint256 userNumber) private {
+        // Create user address
+        address user = makeAddr(string(abi.encodePacked("realWorldUser", userNumber)));
+        
+        // Mint tokens to user
+        sapienToken.mint(user, profile.amount);
+        
+        // Get network state before staking
+        (,, uint256 preLatio, uint256 preCoeff) = sapienVault.getGlobalStakingStats();
+        
+        // Get multiplier breakdown before staking
+        (uint256 preIndividual, uint256 preGlobal, uint256 preFinalMult,) = 
+            sapienVault.getMultiplierBreakdown(profile.amount, profile.lockup);
+        
+        // Execute stake
+        vm.startPrank(user);
+        sapienToken.approve(address(sapienVault), profile.amount);
+        sapienVault.stake(profile.amount, profile.lockup);
+        vm.stopPrank();
+        
+        // Get actual multiplier from stake
+        (,,,,,uint256 actualMultiplier,,) = sapienVault.getUserStakingSummary(user);
+        
+        // Get network state after staking
+        (,, uint256 postRatio, uint256 postCoeff) = sapienVault.getGlobalStakingStats();
+        
+        // Log comprehensive results
+        console.log("User %s: %s", userNumber, profile.name);
+        console.log("  Stake: %s tokens @ %s days", profile.amount / 1e18, profile.lockup / 1 days);
+        console.log("  Description: %s", profile.description);
+        console.log("  Individual Multiplier: %s%%", preIndividual / 100);
+        console.log("  Global Coefficient: %sx (was %sx)", preGlobal, preCoeff);
+        console.log("  Final Multiplier: %s%% (actual: %s%%)", preFinalMult / 100, actualMultiplier / 100);
+        console.log("  Network Impact: %s%% -> %s%% staked", preLatio / 100, postRatio / 100);
+        console.log("  Coefficient Change: %sx -> %sx", preCoeff, postCoeff);
+        console.log("");
+    }
+
+    /// @dev Show comparative analysis of all staking scenarios
+    function _showComparativeAnalysis() private view {
+        console.log("\n=== COMPARATIVE ANALYSIS ===");
+        
+        // Compare different strategies
+        console.log("\nStrategy Comparison (all with 10K tokens):");
+        
+        uint256 baseAmount = MINIMUM_STAKE * 10;
+        
+        (uint256 short1, uint256 shortG, uint256 shortFinalMult,) = sapienVault.getMultiplierBreakdown(baseAmount, LOCK_30_DAYS);
+        (uint256 med1, uint256 medG, uint256 medFinalMult,) = sapienVault.getMultiplierBreakdown(baseAmount, LOCK_180_DAYS);
+        (uint256 long1, uint256 longG, uint256 longFinalMult,) = sapienVault.getMultiplierBreakdown(baseAmount, LOCK_365_DAYS);
+        
+        console.log("Short-term (30d) results:");
+        console.log("- Individual:", short1 / 100);
+        console.log("- Global:", shortG);
+        console.log("- Final:", shortFinalMult / 100);
+        
+        console.log("Medium-term (180d) results:");
+        console.log("- Individual:", med1 / 100);
+        console.log("- Global:", medG);
+        console.log("- Final:", medFinalMult / 100);
+        
+        console.log("Long-term (365d) results:");
+        console.log("- Individual:", long1 / 100);
+        console.log("- Global:", longG);
+        console.log("- Final:", longFinalMult / 100);
+        
+        uint256 shortVsLong = (longFinalMult * 100) / shortFinalMult;
+        console.log("Long-term advantage: %sx better than short-term", shortVsLong / 100);
+        
+        console.log("\nAmount Comparison (all with 365d lockup):");
+        
+        (uint256 small1, uint256 smallG, uint256 smallFinalMult,) = sapienVault.getMultiplierBreakdown(MINIMUM_STAKE, LOCK_365_DAYS);
+        (uint256 big1, uint256 bigG, uint256 bigFinalMult,) = sapienVault.getMultiplierBreakdown(MINIMUM_STAKE * 100, LOCK_365_DAYS);
+        (uint256 whale1, uint256 whaleG, uint256 whaleFinalMult,) = sapienVault.getMultiplierBreakdown(MINIMUM_STAKE * 1000, LOCK_365_DAYS);
+        
+        console.log("Small (1K) results:");
+        console.log("- Individual:", small1 / 100);
+        console.log("- Global:", smallG);
+        console.log("- Final:", smallFinalMult / 100);
+        
+        console.log("Large (100K) results:");
+        console.log("- Individual:", big1 / 100);
+        console.log("- Global:", bigG);
+        console.log("- Final:", bigFinalMult / 100);
+        
+        console.log("Whale (1M) results:");
+        console.log("- Individual:", whale1 / 100);
+        console.log("- Global:", whaleG);
+        console.log("- Final:", whaleFinalMult / 100);
+        
+        uint256 smallVsWhale = (whaleFinalMult * 100) / smallFinalMult;
+        console.log("Whale advantage: %sx better than small stake", smallVsWhale / 100);
+        
+        console.log("\nKey Takeaways:");
+        console.log("1. Time commitment is highly rewarded (up to %sx better)", shortVsLong / 100);
+        console.log("2. Larger stakes get bonuses but with diminishing returns");
+        console.log("3. Network effects help everyone - more participation = better multipliers");
+        console.log("4. Sweet spot: Large stakes + Long lockups + Healthy network participation");
     }
 }

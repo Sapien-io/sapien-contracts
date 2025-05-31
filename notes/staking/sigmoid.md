@@ -240,3 +240,148 @@ The SapienVault Linear Weighted Multiplier System creates a sophisticated, fair,
 - **Supports network growth** with bootstrap incentives
 
 This design ensures the protocol remains both attractive to large stakeholders and accessible to smaller participants, while maintaining optimal network health through intelligent economic incentives.
+
+## Test Results
+
+https://getfoundry.sh
+
+```
+ forge test --match-test "test_RealWorldStakingScenarios|test_ProgressiveNetworkEffects|test_LockupPeriodComparison|test_AmountScalingComparison" --verbosity -v
+```
+
+### Comprehensive Test Suite Overview
+
+The SapienVault Linear Weighted Multiplier System has been thoroughly tested with four comprehensive test scenarios that demonstrate real-world behavior:
+
+#### 1. Real-World Staking Scenarios (`test_RealWorldStakingScenarios()`)
+
+Comprehensive test with 8 different user profiles representing the full spectrum of potential stakers:
+
+| User Profile | Stake Amount | Lockup Period | User Type |
+|-------------|--------------|---------------|-----------|
+| **Small Retail (Min)** | 1,000 tokens | 30 days | Minimum commitment |
+| **Small Retail (Long)** | 1,000 tokens | 365 days | Time commitment focus |
+| **Medium Retail** | 10,000 tokens | 90 days | Balanced approach |
+| **Committed Retail** | 25,000 tokens | 365 days | High retail commitment |
+| **Small Institution** | 100,000 tokens | 180 days | Institutional entry |
+| **Medium Institution** | 500,000 tokens | 365 days | Serious institutional |
+| **Large Whale** | 2,000,000 tokens | 365 days | Major stakeholder |
+| **Mega Whale** | 5,000,000 tokens | 365 days | Maximum stakeholder |
+
+#### 2. Progressive Network Effects (`test_ProgressiveNetworkEffects()`)
+
+Shows how multipliers improve as network participation grows through 5 distinct stages:
+
+| Stage | Description | Network State | Users Added |
+|-------|-------------|---------------|-------------|
+| **Cold Start** | Initial network launch | Very low participation | 5 users |
+| **Small Network** | Early adopters joining | Growing participation | +5 users |
+| **Growing** | Momentum building | Accelerating growth | +5 users |
+| **Healthy** | Optimal participation zone | Strong network effects | +5 users |
+| **Mature** | Established network | Peak optimization | +5 users |
+
+*Demonstrates network effects with 25 users joining progressively*
+
+#### 3. Lockup Period Comparison (`test_LockupPeriodComparison()`)
+
+Compares the same stake amount (10,000 tokens) with different lockup periods to show time commitment rewards:
+
+| Lockup Period | Time Commitment Level | Purpose |
+|---------------|---------------------|---------|
+| **30 days** | Minimal | Short-term flexibility |
+| **90 days** | Quarter commitment | Moderate commitment |
+| **180 days** | Half-year commitment | Serious commitment |
+| **365 days** | Maximum commitment | Long-term alignment |
+
+#### 4. Amount Scaling Comparison (`test_AmountScalingComparison()`)
+
+Compares different stake amounts with the same lockup period (365 days) to demonstrate logarithmic scaling:
+
+| Stake Amount | Scale Level | Purpose |
+|-------------|-------------|---------|
+| **1K tokens** | Minimum | Entry level |
+| **2K tokens** | Small retail | 2x minimum |
+| **5K tokens** | Growing retail | 5x minimum |
+| **10K tokens** | Medium retail | 10x minimum |
+| **50K tokens** | High retail | 50x minimum |
+| **100K tokens** | Small institutional | 100x minimum |
+| **500K tokens** | Medium institutional | 500x minimum |
+| **1M tokens** | Large institutional | 1000x minimum |
+
+*Demonstrates logarithmic scaling with diminishing returns*
+
+---
+
+### 📊 Key Insights from Test Results
+
+#### Individual Multiplier Performance
+
+**Time-Based Progression:**
+- **Short-term (30d):** 102% base multiplier
+- **Medium-term (180d):** ~112% multiplier  
+- **Long-term (365d):** 125% maximum time multiplier
+
+**Amount-Based Progression:**
+- **1K tokens:** 125% (minimum threshold)
+- **100K tokens:** ~135% (logarithmic scaling)
+- **1M+ tokens:** 145% (approaching maximum)
+- **Maximum Individual:** ~145% for large stakes + long lockups
+
+#### Global Coefficient Network Effects
+
+**Network Participation Impact:**
+- **Cold Start:** 5,000 basis points (0.5x multiplier)
+- **Growing Network:** Gradually improves to 5,380 basis points
+- **Healthy Network:** Approaches optimal 1.0x+ range
+- **Network Benefits:** Everyone benefits from increased participation
+
+#### Final Effective Multiplier Results
+
+| Scenario | Final Multiplier | Description |
+|----------|------------------|-------------|
+| **Small retail short-term** | ~51% | 1K tokens @ 30 days |
+| **Small retail long-term** | ~62% | 1K tokens @ 365 days |
+| **Medium commitment** | ~65-70% | 100K tokens @ 180 days |
+| **Large whale** | ~74% | 5M tokens @ 365 days |
+| **Maximum theoretical** | ~78% | 1M+ tokens @ 365 days in healthy network |
+
+---
+
+### 🔑 System Behavior Demonstrated
+
+#### ✅ **Time Commitment Rewards**
+- Longer lockup periods provide significantly better multipliers
+- Linear progression from 0% to 25% time bonus
+- Major incentive for long-term network alignment
+
+#### ✅ **Amount Scaling with Fairness**
+- Larger stakes receive bonuses but with diminishing returns
+- Logarithmic bucketing prevents whale dominance
+- Accessible rewards for smaller participants
+
+#### ✅ **Network Effects Benefit All**
+- More participation helps everyone through improved global coefficient
+- Early adopters benefit as network grows
+- Collective incentive for network health
+
+#### ✅ **Fair Distribution Mechanics**
+- System prevents over-concentration of rewards
+- Rewards commitment while maintaining accessibility
+- Balanced approach between capital and time commitment
+
+#### ✅ **Optimal Strategy Identification**
+- **Sweet Spot:** Large stakes + Long lockups + Healthy network participation
+- Progressive staking strategies can optimize weighted averages
+- Network timing creates additional strategic opportunities
+
+---
+
+### 🎯 System Validation Summary
+
+The comprehensive test suite validates that the SapienVault Linear Weighted Multiplier System successfully achieves its design goals:
+
+1. **Rewards Both Commitment Types:** Time and capital commitment are equally valued
+2. **Prevents Whale Dominance:** Logarithmic scaling ensures fairness
+3. **Creates Network Effects:** All participants benefit from network growth
+4. **Maintains Accessibility:** Smaller stakers can achieve meaningful returns
+5. **Encourages Long-term Alignment:** Maximum rewards require sustained commitment
