@@ -21,7 +21,6 @@ using SafeERC20 for IERC20;
 /// @title SapienVault - Sapien AI Staking Vault
 /// @notice Sapien protocol reputation system with simplified single stake per user.
 contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
-
     // -------------------------------------------------------------
     // State Variables
     // -------------------------------------------------------------
@@ -29,8 +28,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     /// @dev The Sapien token interface for staking/unstaking (IERC20).
     IERC20 public sapienToken;
 
-    /// @dev Address of the Rewards Safe
-    address public rewardSafe;
+    /// @dev Address of the Rewards Treasury
+    address public treasury;
 
     /// @dev The Multiplier contract for calculating staking multipliers
     IMultiplier public multiplier;
@@ -49,15 +48,15 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @notice Initializes the SapienVault contract.
      * @param token The IERC20 token contract for Sapien.
      * @param admin The address of the admin multisig.
-     * @param newRewardsSafe The address of the Rewards Safe multisig for penalty collection.
+     * @param newTreasury The address of the Rewards Safe multisig for penalty collection.
      */
-    function initialize(address token, address admin, address newRewardsSafe, address newMultiplierContract)
+    function initialize(address token, address admin, address newTreasury, address newMultiplierContract)
         public
         initializer
     {
         if (token == address(0)) revert ZeroAddress();
         if (admin == address(0)) revert ZeroAddress();
-        if (newRewardsSafe == address(0)) revert ZeroAddress();
+        if (newTreasury == address(0)) revert ZeroAddress();
         if (newMultiplierContract == address(0)) revert ZeroAddress();
 
         __Pausable_init();
@@ -69,7 +68,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         sapienToken = IERC20(token);
-        rewardSafe = newRewardsSafe;
+        treasury = newTreasury;
         multiplier = IMultiplier(newMultiplierContract);
     }
 
@@ -87,6 +86,13 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     modifier onlyPauser() {
         if (!hasRole(Const.PAUSER_ROLE, msg.sender)) {
             revert AccessControlUnauthorizedAccount(msg.sender, Const.PAUSER_ROLE);
+        }
+        _;
+    }
+
+    modifier onlyQAManager() {
+        if (!hasRole(Const.QA_MANAGER_ROLE, msg.sender)) {
+            revert AccessControlUnauthorizedAccount(msg.sender, Const.QA_MANAGER_ROLE);
         }
         _;
     }
@@ -119,15 +125,15 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
     /**
      * @notice Updates the Safe address for penalty collection.
-     * @param newRewardSafe The new Reward Safe address.
+     * @param newTreasury The new Reward Safe address.
      */
-    function setRewardSafe(address newRewardSafe) external onlyAdmin {
-        if (newRewardSafe == address(0)) {
+    function setTreasury(address newTreasury) external onlyAdmin {
+        if (newTreasury == address(0)) {
             revert ZeroAddress();
         }
 
-        rewardSafe = newRewardSafe;
-        emit SapienTreasuryUpdated(newRewardSafe);
+        treasury = newTreasury;
+        emit SapienTreasuryUpdated(newTreasury);
     }
 
     /**
@@ -141,6 +147,23 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         multiplier = IMultiplier(newMultiplierContract);
         emit MultiplierUpdated(0, 0); // Emit with zero values to indicate contract update
+    }
+
+    /**
+     * @notice Grant QA_MANAGER_ROLE to a QA contract
+     * @param qaContract The address of the QA contract to grant role to
+     */
+    function grantQAManagerRole(address qaContract) external onlyAdmin {
+        if (qaContract == address(0)) revert ZeroAddress();
+        _grantRole(Const.QA_MANAGER_ROLE, qaContract);
+    }
+
+    /**
+     * @notice Revoke QA_MANAGER_ROLE from a QA contract
+     * @param qaContract The address of the QA contract to revoke role from
+     */
+    function revokeQAManagerRole(address qaContract) external onlyAdmin {
+        _revokeRole(Const.QA_MANAGER_ROLE, qaContract);
     }
 
     /**
@@ -576,7 +599,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         sapienToken.safeTransfer(msg.sender, payout);
 
         if (penalty > 0) {
-            sapienToken.safeTransfer(rewardSafe, penalty);
+            sapienToken.safeTransfer(treasury, penalty);
         }
 
         emit EarlyUnstake(msg.sender, payout, penalty);
@@ -668,24 +691,17 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         if (lockUpPeriod < Const.LOCKUP_30_DAYS || lockUpPeriod > Const.LOCKUP_365_DAYS) {
             revert InvalidLockupPeriod();
         }
-        
+
         // Calculate weighted start time
         newValues.weightedStartTime = _calculateWeightedStartTimeValue(
-            uint256(userStake.weightedStartTime),
-            uint256(userStake.amount),
-            amount,
-            newTotalAmount
+            uint256(userStake.weightedStartTime), uint256(userStake.amount), amount, newTotalAmount
         );
-        
+
         // Calculate weighted lockup period
         newValues.effectiveLockup = _calculateWeightedLockupPeriod(
-            uint256(userStake.effectiveLockUpPeriod),
-            uint256(userStake.amount),
-            lockUpPeriod,
-            amount,
-            newTotalAmount
+            uint256(userStake.effectiveLockUpPeriod), uint256(userStake.amount), lockUpPeriod, amount, newTotalAmount
         );
-        
+
         // Ensure lockup period doesn't exceed maximum
         if (newValues.effectiveLockup > Const.LOCKUP_365_DAYS) {
             newValues.effectiveLockup = Const.LOCKUP_365_DAYS;
@@ -714,18 +730,18 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         if (newAmount != 0 && block.timestamp > type(uint256).max / newAmount) {
             revert WeightedCalculationOverflow();
         }
-        
+
         uint256 existingWeight = existingStartTime * existingAmount;
         uint256 newWeight = block.timestamp * newAmount;
-        
+
         // Check for overflow in addition
         if (existingWeight > type(uint256).max - newWeight) {
             revert WeightedCalculationOverflow();
         }
-        
+
         uint256 totalWeight = existingWeight + newWeight;
         weightedStartTime = totalWeight / totalAmount;
-        
+
         // Apply banker's rounding: round up if remainder > 50%
         uint256 remainder = totalWeight % totalAmount;
         if (remainder > totalAmount / 2) {
@@ -757,18 +773,18 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         if (newAmount != 0 && newLockupPeriod > type(uint256).max / newAmount) {
             revert LockupWeightCalculationOverflow();
         }
-        
+
         uint256 existingLockupWeight = existingLockupPeriod * existingAmount;
         uint256 newLockupWeight = newLockupPeriod * newAmount;
-        
+
         // Check for overflow in addition
         if (existingLockupWeight > type(uint256).max - newLockupWeight) {
             revert LockupWeightCalculationOverflow();
         }
-        
+
         uint256 totalLockupWeight = existingLockupWeight + newLockupWeight;
         weightedLockup = totalLockupWeight / totalAmount;
-        
+
         // Apply banker's rounding: round up if remainder > 50%
         uint256 remainder = totalLockupWeight % totalAmount;
         if (remainder > totalAmount / 2) {
@@ -836,12 +852,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         }
 
         // Use the refactored helper function for consistency
-        return _calculateWeightedStartTimeValue(
-            currentStartTime,
-            currentAmount,
-            newAmount,
-            totalAmount
-        );
+        return _calculateWeightedStartTimeValue(currentStartTime, currentAmount, newAmount, totalAmount);
     }
 
     /**
@@ -857,5 +868,135 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         userStake.effectiveMultiplier = 0;
         userStake.lastUpdateTime = 0;
         userStake.cooldownStart = 0;
+    }
+
+    // -------------------------------------------------------------
+    // QA Functions
+    // -------------------------------------------------------------
+
+    /**
+     * @notice Process a QA penalty by transferring user's percentage of stake to Rewards Treasury
+     * @param userAddress The user being penalized
+     * @param penaltyAmount The amount to transfer as penalty
+     * @return actualPenalty The actual amount processed (may be less than requested if insufficient stake)
+     * @dev Can only be called by QA_MANAGER_ROLE
+     */
+    function processQAPenalty(address userAddress, uint256 penaltyAmount)
+        external
+        nonReentrant
+        whenNotPaused
+        onlyQAManager
+        returns (uint256 actualPenalty)
+    {
+        if (userAddress == address(0)) revert ZeroAddress();
+        if (penaltyAmount == 0) revert InvalidAmount();
+
+        UserStake storage userStake = userStakes[userAddress];
+
+        // Calculate how much penalty can actually be applied
+        actualPenalty = _calculateApplicablePenalty(userStake, penaltyAmount);
+        if (actualPenalty == 0) revert InsufficientStakeForPenalty();
+
+        // Emit event if penalty was reduced due to insufficient stake
+        if (actualPenalty < penaltyAmount) {
+            emit QAPenaltyPartial(userAddress, penaltyAmount, actualPenalty);
+        }
+
+        // Apply the penalty to user's stakes
+        _applyPenaltyToUserStake(userStake, actualPenalty, userAddress);
+
+        // Update user stake state after penalty
+        _updateUserStakeAfterPenalty(userStake, userAddress);
+
+        // Transfer penalty to treasury
+        sapienToken.safeTransfer(treasury, actualPenalty);
+
+        emit QAPenaltyProcessed(userAddress, actualPenalty, msg.sender);
+    }
+
+    /**
+     * @dev Calculate the maximum penalty that can be applied given available stake
+     */
+    function _calculateApplicablePenalty(UserStake storage userStake, uint256 requestedPenalty)
+        internal
+        view
+        returns (uint256)
+    {
+        uint256 totalAvailable = uint256(userStake.amount) + uint256(userStake.cooldownAmount);
+        return requestedPenalty > totalAvailable ? totalAvailable : requestedPenalty;
+    }
+
+    /**
+     * @dev Apply penalty by reducing stake amounts in priority order (active stake first, then cooldown)
+     */
+    function _applyPenaltyToUserStake(UserStake storage userStake, uint256 penaltyAmount, address userAddress)
+        internal
+    {
+        uint256 remainingPenalty = penaltyAmount;
+
+        // Take from active stake first
+        uint256 fromActiveStake = _reducePrimaryStake(userStake, remainingPenalty);
+        remainingPenalty -= fromActiveStake;
+
+        // Take from cooldown if needed
+        uint256 fromCooldownStake = 0;
+        if (remainingPenalty > 0) {
+            fromCooldownStake = _reduceCooldownStake(userStake, remainingPenalty);
+        }
+
+        // Emit detailed breakdown of where penalty was taken from
+        if (fromActiveStake > 0 || fromCooldownStake > 0) {
+            emit QAStakeReduced(userAddress, fromActiveStake, fromCooldownStake);
+        }
+    }
+
+    /**
+     * @dev Reduce active stake amount and update total staked tracking
+     */
+    function _reducePrimaryStake(UserStake storage userStake, uint256 maxReduction)
+        internal
+        returns (uint256 actualReduction)
+    {
+        uint256 availableStake = uint256(userStake.amount);
+        if (availableStake == 0) return 0;
+
+        actualReduction = maxReduction > availableStake ? availableStake : maxReduction;
+        userStake.amount = (availableStake - actualReduction).toUint128();
+        totalStaked -= actualReduction;
+    }
+
+    /**
+     * @dev Reduce cooldown stake amount
+     */
+    function _reduceCooldownStake(UserStake storage userStake, uint256 reductionAmount)
+        internal
+        returns (uint256 actualReduction)
+    {
+        uint256 availableCooldown = uint256(userStake.cooldownAmount);
+        actualReduction = reductionAmount > availableCooldown ? availableCooldown : reductionAmount;
+        userStake.cooldownAmount = (availableCooldown - actualReduction).toUint128();
+    }
+
+    /**
+     * @dev Update user stake state after penalty application (reset if empty, recalculate multiplier if not)
+     */
+    function _updateUserStakeAfterPenalty(UserStake storage userStake, address userAddress) internal {
+        bool _hasActiveStake = userStake.amount > 0;
+        bool _hasCooldownStake = userStake.cooldownAmount > 0;
+
+        if (!_hasActiveStake && !_hasCooldownStake) {
+            _resetUserStake(userStake);
+            emit QAUserStakeReset(userAddress);
+            return;
+        }
+
+        // Recalculate multiplier for remaining active stake
+        if (_hasActiveStake) {
+            userStake.effectiveMultiplier = multiplier.calculateMultiplier(
+                uint256(userStake.amount), uint256(userStake.effectiveLockUpPeriod)
+            ).toUint32();
+        }
+
+        userStake.lastUpdateTime = block.timestamp.toUint64();
     }
 }

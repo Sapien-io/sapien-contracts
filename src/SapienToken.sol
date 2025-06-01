@@ -7,18 +7,18 @@ import {ERC20Permit, ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC
 /// @title SapienToken
 contract SapienToken is ISapienToken, ERC20Permit {
     /// @dev Maximum supply of tokens (1 Billion tokens with 18 decimals)
-    uint256 private immutable _MAX_SUPPLY = 1_000_000_000 * 10 ** 18;
+    uint256 private immutable MAX_SUPPLY = 1_000_000_000 * 10 ** 18;
 
     /// @dev Constructor
     /// @param treasury The foundation treasury multisig
     constructor(address treasury) ERC20("Sapien Token", "SAPIEN") ERC20Permit("Sapien Token") {
         if (treasury == address(0)) revert ZeroAddress();
 
-        _mint(treasury, _MAX_SUPPLY);
+        _mint(treasury, MAX_SUPPLY);
     }
 
     /// @inheritdoc ISapienToken
     function maxSupply() external pure returns (uint256) {
-        return _MAX_SUPPLY;
+        return MAX_SUPPLY;
     }
 }

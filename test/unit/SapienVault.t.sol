@@ -78,7 +78,7 @@ contract SapienVaultBasicTest is Test {
 
     function test_Vault_Initialization() public view {
         assertEq(address(sapienVault.sapienToken()), address(sapienToken));
-        assertEq(sapienVault.rewardSafe(), treasury);
+        assertEq(sapienVault.treasury(), treasury);
         assertEq(sapienVault.totalStaked(), 0);
         assertTrue(sapienVault.hasRole(sapienVault.DEFAULT_ADMIN_ROLE(), admin));
     }
@@ -741,21 +741,21 @@ contract SapienVaultBasicTest is Test {
         vm.prank(admin);
         vm.expectEmit(true, false, false, false);
         emit SapienTreasuryUpdated(newTreasury);
-        sapienVault.setRewardSafe(newTreasury);
+        sapienVault.setTreasury(newTreasury);
 
-        assertEq(sapienVault.rewardSafe(), newTreasury);
+        assertEq(sapienVault.treasury(), newTreasury);
     }
 
     function test_Vault_RevertUpdateTreasuryZeroAddress() public {
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSignature("ZeroAddress()"));
-        sapienVault.setRewardSafe(address(0));
+        sapienVault.setTreasury(address(0));
     }
 
     function test_Vault_RevertUpdateTreasuryUnauthorized() public {
         vm.prank(user1);
         vm.expectRevert(); // AccessControl error
-        sapienVault.setRewardSafe(makeAddr("newTreasury"));
+        sapienVault.setTreasury(makeAddr("newTreasury"));
     }
 
     function test_Vault_PauseUnpause() public {
@@ -1092,24 +1092,24 @@ contract SapienVaultBasicTest is Test {
     /// Access Control Tests
     /// =============================================================
 
-    function test_Vault_SetRewardSafe() public {
-        address newRewardSafe = makeAddr("newRewardSafe");
+    function test_Vault_SetRewardTreasurySafe() public {
+        address newTreasury = makeAddr("newTreasury");
 
         // Test successful update
         vm.prank(admin);
         vm.expectEmit(true, true, false, true);
-        emit SapienTreasuryUpdated(newRewardSafe);
-        sapienVault.setRewardSafe(newRewardSafe);
+        emit SapienTreasuryUpdated(newTreasury);
+        sapienVault.setTreasury(newTreasury);
 
         // Verify update
-        assertEq(sapienVault.rewardSafe(), newRewardSafe);
+        assertEq(sapienVault.treasury(), newTreasury);
     }
 
     function test_Vault_RevertSetRewardSafeZeroAddress() public {
         // Test reverting with zero address
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSignature("ZeroAddress()"));
-        sapienVault.setRewardSafe(address(0));
+        sapienVault.setTreasury(address(0));
     }
 
     function test_Vault_RevertSetRewardSafeNotAdmin() public {
@@ -1122,7 +1122,7 @@ contract SapienVaultBasicTest is Test {
                 sapienVault.DEFAULT_ADMIN_ROLE()
             )
         );
-        sapienVault.setRewardSafe(makeAddr("newRewardSafe"));
+        sapienVault.setTreasury(makeAddr("newRewardSafe"));
     }
 
     function test_Vault_SetMultiplierContract() public {

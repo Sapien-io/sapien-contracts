@@ -21,7 +21,6 @@ using SafeERC20 for IERC20;
  * @dev This contract allows users to claim rewards with an EIP-712 offchain signature from the rewards manager.
  */
 contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
-
     // -------------------------------------------------------------
     // State Variables
     // -------------------------------------------------------------
@@ -56,25 +55,33 @@ contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgr
 
     /// @dev Admin Access modifier
     modifier onlyAdmin() {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Only the Admin can perform this");
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
+            revert AccessControlUnauthorizedAccount(msg.sender, DEFAULT_ADMIN_ROLE);
+        }
         _;
     }
 
     /// @dev Pauser Access modifier
     modifier onlyPauser() {
-        require(hasRole(Const.PAUSER_ROLE, msg.sender), "Only the Pauser can perform this");
+        if (!hasRole(Const.PAUSER_ROLE, msg.sender)) {
+            revert AccessControlUnauthorizedAccount(msg.sender, Const.PAUSER_ROLE);
+        }
         _;
     }
 
     /// @dev Reward Manager Access modifier
     modifier onlyRewardSafe() {
-        require(hasRole(Const.REWARD_SAFE_ROLE, msg.sender), "Only the Reward Safe can perform this");
+        if (!hasRole(Const.REWARD_SAFE_ROLE, msg.sender)) {
+            revert AccessControlUnauthorizedAccount(msg.sender, Const.REWARD_SAFE_ROLE);
+        }
         _;
     }
 
     /// @dev Reward Manager Access modifier
     modifier onlyRewardManager() {
-        require(hasRole(Const.REWARD_MANAGER_ROLE, msg.sender), "Only the Reward Manager can perform this");
+        if (!hasRole(Const.REWARD_MANAGER_ROLE, msg.sender)) {
+            revert AccessControlUnauthorizedAccount(msg.sender, Const.REWARD_MANAGER_ROLE);
+        }
         _;
     }
 

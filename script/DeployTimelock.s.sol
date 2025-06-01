@@ -11,6 +11,7 @@ import {Actors} from "script/Actors.sol";
 
 contract DeployRewardsSystem is Script {
     function run() external {
+        // TODO: Validate the actors
         (address FOUNDATION_SAFE_1, address FOUNDATION_SAFE_2, address SECURITY_COUNCIL,,) = Actors.getActors();
 
         vm.startBroadcast();

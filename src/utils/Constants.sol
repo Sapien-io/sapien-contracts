@@ -36,6 +36,12 @@ library Constants {
     /// @notice Role for managing the reward safe
     bytes32 internal constant REWARD_SAFE_ROLE = keccak256("REWARD_SAFE_ROLE");
 
+    /// @notice Role for managing quality assurance decisions
+    bytes32 internal constant QA_MANAGER_ROLE = keccak256("QA_MANAGER_ROLE");
+
+    /// @notice Role for managing quality assurance decisions
+    bytes32 internal constant QA_ADMIN_ROLE = keccak256("QA_ADMIN_ROLE");
+
     // -------------------------------------------------------------
     // EIP-712 Constants
     // -------------------------------------------------------------
@@ -120,4 +126,11 @@ library Constants {
 
     /// @notice Minimum lockup increase period
     uint256 internal constant MINIMUM_LOCKUP_INCREASE = 7 days;
+
+    // -------------------------------------------------------------
+    // QA Constants
+    // -------------------------------------------------------------
+
+    string internal constant INSUFFICIENT_STAKE_REASON = "Insufficient stake for full penalty";
+    string internal constant UNKNOWN_PENALTY_ERROR = "Unknown error processing penalty";
 }

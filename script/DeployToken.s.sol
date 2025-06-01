@@ -7,6 +7,7 @@ import {Actors} from "script/Actors.sol";
 
 contract DeployToken is Script {
     function run() external {
+        // TODO: Validate the actors
         (address FOUNDATION_SAFE_1,,,,) = Actors.getActors();
 
         vm.startBroadcast();

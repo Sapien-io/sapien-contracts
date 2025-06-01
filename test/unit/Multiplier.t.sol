@@ -47,7 +47,7 @@ contract MultiplierTest is Test {
     // BASIC FUNCTIONALITY TESTS
     // =============================================================================
 
-    function test_CalculateMultiplier_ExactDiscretePeriods() public view {
+    function test_Multiplier_CalculateMultiplier_ExactDiscretePeriods() public view {
         uint256 amount = MINIMUM_STAKE;
 
         // Test exact discrete periods with minimum stake
@@ -57,7 +57,7 @@ contract MultiplierTest is Test {
         assertEq(multiplier.calculateMultiplier(amount, LOCK_365_DAYS), 15000); // 1.50x
     }
 
-    function test_CalculateMultiplier_AmountTiers() public view {
+    function test_Multiplier_CalculateMultiplier_AmountTiers() public view {
         uint256 lockup = LOCK_365_DAYS; // Use max duration to see full tier effect
 
         // Test all amount tiers
@@ -69,7 +69,7 @@ contract MultiplierTest is Test {
         assertEq(multiplier.calculateMultiplier(15000 * TOKEN_DECIMALS, lockup), 19500); // 10K+: 1.95x
     }
 
-    function test_CalculateMultiplier_Matrix() public view {
+    function test_Multiplier_CalculateMultiplier_Matrix() public view {
         // Test the complete multiplier matrix as documented in the contract
 
         // 30 days row
@@ -103,7 +103,7 @@ contract MultiplierTest is Test {
     // INTERPOLATION TESTS
     // =============================================================================
 
-    function test_DurationMultiplier_InterpolationBetween30And90Days() public view {
+    function test_Multiplier_DurationMultiplier_InterpolationBetween30And90Days() public view {
         uint256 amount = MINIMUM_STAKE; // Use minimum to isolate duration effect
 
         // Test interpolation at 60 days (midpoint between 30 and 90)
@@ -115,7 +115,7 @@ contract MultiplierTest is Test {
         assertEq(multiplier.calculateMultiplier(amount, 45 days), expected);
     }
 
-    function test_DurationMultiplier_InterpolationBetween90And180Days() public view {
+    function test_Multiplier_DurationMultiplier_InterpolationBetween90And180Days() public view {
         uint256 amount = MINIMUM_STAKE;
 
         // Test interpolation at 135 days (midpoint between 90 and 180)
@@ -123,7 +123,7 @@ contract MultiplierTest is Test {
         assertEq(multiplier.calculateMultiplier(amount, 135 days), expected);
     }
 
-    function test_DurationMultiplier_InterpolationBetween180And365Days() public view {
+    function test_Multiplier_DurationMultiplier_InterpolationBetween180And365Days() public view {
         uint256 amount = MINIMUM_STAKE;
 
         // Test interpolation at 272.5 days (midpoint between 180 and 365)
@@ -136,7 +136,7 @@ contract MultiplierTest is Test {
     // EDGE CASES AND VALIDATION TESTS
     // =============================================================================
 
-    function test_CalculateMultiplier_InvalidLockupPeriods() public view {
+    function test_Multiplier_CalculateMultiplier_InvalidLockupPeriods() public view {
         uint256 amount = MINIMUM_STAKE;
 
         // Test below minimum lockup
@@ -149,7 +149,7 @@ contract MultiplierTest is Test {
         assertEq(multiplier.calculateMultiplier(amount, 0), 0);
     }
 
-    function test_CalculateMultiplier_InvalidAmounts() public view {
+    function test_Multiplier_CalculateMultiplier_InvalidAmounts() public view {
         uint256 lockup = LOCK_30_DAYS;
 
         // Test below minimum stake
@@ -159,7 +159,7 @@ contract MultiplierTest is Test {
         assertEq(multiplier.calculateMultiplier(0, lockup), 0);
     }
 
-    function test_CalculateMultiplier_BoundaryAmounts() public view {
+    function test_Multiplier_CalculateMultiplier_BoundaryAmounts() public view {
         uint256 lockup = LOCK_365_DAYS;
 
         // Test exact tier boundaries
@@ -177,7 +177,7 @@ contract MultiplierTest is Test {
         assertEq(multiplier.calculateMultiplier(9999 * TOKEN_DECIMALS, lockup), 18600); // Just below T5
     }
 
-    function test_CalculateMultiplier_LargeAmounts() public view {
+    function test_Multiplier_CalculateMultiplier_LargeAmounts() public view {
         uint256 lockup = LOCK_365_DAYS;
 
         // Test very large amounts (should cap at max tier)
@@ -189,7 +189,7 @@ contract MultiplierTest is Test {
     // INTERNAL FUNCTION TESTS (via public interface)
     // =============================================================================
 
-    function test_GetAmountTierFactor_AllTiers() public view {
+    function test_Multiplier_GetAmountTierFactor_AllTiers() public view {
         // We can test this indirectly through calculateMultiplier with fixed duration
         uint256 baseDuration = LOCK_30_DAYS; // 1.05x base
         uint256 baseMult = 10500;
@@ -219,7 +219,7 @@ contract MultiplierTest is Test {
         assertEq(result, baseMult + 4500); // +0.45x
     }
 
-    function test_IsValidLockupPeriod() public view {
+    function test_Multiplier_IsValidLockupPeriod() public view {
         // Test valid lockup periods
         assertTrue(multiplier.isValidLockupPeriod(LOCK_30_DAYS));
         assertTrue(multiplier.isValidLockupPeriod(LOCK_90_DAYS));
@@ -237,7 +237,7 @@ contract MultiplierTest is Test {
     // FUZZ TESTS
     // =============================================================================
 
-    function testFuzz_CalculateMultiplier_ValidInputs(uint256 amount, uint256 lockup) public view {
+    function testFuzz_Multiplier_CalculateMultiplier_ValidInputs(uint256 amount, uint256 lockup) public view {
         // Bound inputs to valid ranges
         amount = bound(amount, MINIMUM_STAKE, 1000000 * TOKEN_DECIMALS);
         lockup = bound(lockup, LOCK_30_DAYS, LOCK_365_DAYS);
@@ -252,7 +252,7 @@ contract MultiplierTest is Test {
         assertLe(result, 19500); // Maximum multiplier
     }
 
-    function testFuzz_CalculateMultiplier_InvalidInputs(uint256 amount, uint256 lockup) public view {
+    function testFuzz_Multiplier_CalculateMultiplier_InvalidInputs(uint256 amount, uint256 lockup) public view {
         // Test invalid amounts
         if (amount < MINIMUM_STAKE) {
             assertEq(multiplier.calculateMultiplier(amount, LOCK_30_DAYS), 0);
@@ -268,7 +268,7 @@ contract MultiplierTest is Test {
     // INTEGRATION TESTS
     // =============================================================================
 
-    function test_CalculateMultiplier_MonotonicIncrease() public view {
+    function test_Multiplier_CalculateMultiplier_MonotonicIncrease() public view {
         // Test that multiplier increases with both amount and duration
 
         // Fixed duration, increasing amounts
@@ -290,7 +290,7 @@ contract MultiplierTest is Test {
         assertLt(mult2, mult3);
     }
 
-    function test_CalculateMultiplier_ConsistentWithMatrix() public view {
+    function test_Multiplier_CalculateMultiplier_ConsistentWithMatrix() public view {
         // Verify that our implementation matches the documented matrix exactly
 
         TestCase[] memory testCases = new TestCase[](24);

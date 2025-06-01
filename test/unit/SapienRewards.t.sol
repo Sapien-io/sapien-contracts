@@ -145,7 +145,11 @@ contract SapienRewardsTest is Test {
         MockERC20 newToken = new MockERC20("New Reward Token", "NEWREWARD", 18);
 
         vm.prank(unauthorizedUser);
-        vm.expectRevert("Only the Admin can perform this");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)")), unauthorizedUser, bytes32(0)
+            )
+        );
         sapienRewards.setRewardToken(address(newToken));
     }
 
@@ -169,7 +173,13 @@ contract SapienRewardsTest is Test {
 
     function test_Rewards_NonPauserCannotPause() public {
         vm.prank(unauthorizedUser);
-        vm.expectRevert("Only the Pauser can perform this");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)")),
+                unauthorizedUser,
+                Const.PAUSER_ROLE
+            )
+        );
         sapienRewards.pause();
     }
 
@@ -180,7 +190,13 @@ contract SapienRewardsTest is Test {
 
         // Unauthorized user cannot unpause
         vm.prank(unauthorizedUser);
-        vm.expectRevert("Only the Pauser can perform this");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)")),
+                unauthorizedUser,
+                Const.PAUSER_ROLE
+            )
+        );
         sapienRewards.unpause();
     }
 
@@ -193,7 +209,13 @@ contract SapienRewardsTest is Test {
 
     function test_Rewards_NonRewardSafeCannotDeposit() public {
         vm.prank(unauthorizedUser);
-        vm.expectRevert("Only the Reward Safe can perform this");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)")),
+                unauthorizedUser,
+                Const.REWARD_SAFE_ROLE
+            )
+        );
         sapienRewards.depositRewards(REWARD_AMOUNT);
     }
 
@@ -456,7 +478,13 @@ contract SapienRewardsTest is Test {
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         vm.prank(unauthorizedUser);
-        vm.expectRevert("Only the Reward Manager can perform this");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)")),
+                unauthorizedUser,
+                Const.REWARD_MANAGER_ROLE
+            )
+        );
         sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, ORDER_ID);
     }
 
@@ -655,13 +683,25 @@ contract SapienRewardsTest is Test {
         rewardToken.mint(address(sapienRewards), 100 * 10 ** 18);
 
         vm.prank(unauthorizedUser);
-        vm.expectRevert("Only the Reward Safe can perform this");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)")),
+                unauthorizedUser,
+                Const.REWARD_SAFE_ROLE
+            )
+        );
         sapienRewards.recoverUnaccountedTokens(50 * 10 ** 18);
     }
 
     function test_Rewards_ReconcileBalanceOnlyByRewardSafe() public {
         vm.prank(unauthorizedUser);
-        vm.expectRevert("Only the Reward Safe can perform this");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)")),
+                unauthorizedUser,
+                Const.REWARD_SAFE_ROLE
+            )
+        );
         sapienRewards.reconcileBalance();
     }
 
