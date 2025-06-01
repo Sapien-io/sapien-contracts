@@ -909,6 +909,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     // -------------------------------------------------------------
 
     /**
+     * TODO: Remove this function
      * @notice Get stake details for rewards calculation - adapted for single stake system
      * @param user The user address
      * @param stakeId The stake ID (should be 1 for compatibility)
@@ -947,6 +948,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     }
 
     /**
+     * TODO: Remove this function
      * @notice Get active stakes for a user - adapted for single stake system
      * @param user The user address
      * @return stakeIds Array of stake IDs (single element: [1])
