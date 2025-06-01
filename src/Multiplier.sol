@@ -4,34 +4,55 @@ pragma solidity 0.8.30;
 import {Constants as Const} from "src/utils/Constants.sol";
 import {IMultiplier} from "src/interfaces/IMultiplier.sol";
 
-/// @title Multiplier - Sapien AI Staking Multiplier Calculator
-/// @notice Handles all multiplier calculations for the Sapien staking system
+/**
+ * @title Multiplier - Sapien AI Staking Multiplier Calculator
+ * @notice Handles all multiplier calculations for the Sapien staking system
+ * @dev Multiplier Matrix (Amount vs Time):
+ * ┌─────────────┬──────┬─────────┬─────────┬─────────┬──────────┬──────┐
+ * │ Time Period │ ≤1K  │ 1K-2.5K │ 2.5K-5K │ 5K-7.5K │ 7.5K-10K │ 10K+ │
+ * ├─────────────┼──────┼─────────┼─────────┼─────────┼──────────┼──────┤
+ * │ 30 days     │ 1.05x│ 1.14x   │ 1.23x   │ 1.32x   │ 1.41x    │ 1.50x│
+ * │ 90 days     │ 1.10x│ 1.19x   │ 1.28x   │ 1.37x   │ 1.46x    │ 1.55x│
+ * │ 180 days    │ 1.25x│ 1.34x   │ 1.43x   │ 1.52x   │ 1.61x    │ 1.70x│
+ * │ 365 days    │ 1.50x│ 1.59x   │ 1.68x   │ 1.77x   │ 1.86x    │ 1.95x│
+ * └─────────────┴──────┴─────────┴─────────┴─────────┴──────────┴──────┘
+ * Formula: Duration Multiplier + (Tier Factor × 0.45x)
+ */
 contract Multiplier is IMultiplier {
-    
     // -------------------------------------------------------------
     // Core Multiplier Functions
     // -------------------------------------------------------------
 
-    /**
-     * @notice Get base multiplier for a specific lock-up period
-     * @param lockUpPeriod The lock-up period in seconds
-     * @return multiplier The base multiplier for the period
-     */
-    function getMultiplierForPeriod(uint256 lockUpPeriod) external pure returns (uint256 multiplier) {
-        return _getMultiplierForPeriod(lockUpPeriod);
-    }
-
-    /**
-     * @notice Internal function to get base multiplier for a specific lock-up period
-     * @param lockUpPeriod The lock-up period in seconds
-     * @return multiplier The base multiplier for the period
-     */
-    function _getMultiplierForPeriod(uint256 lockUpPeriod) internal pure returns (uint256 multiplier) {
-        // Validate lockup period is within bounds
+    function calculateMultiplier(uint256 amount, uint256 lockUpPeriod) external pure returns (uint256) {
+        // Validate inputs
         if (lockUpPeriod < Const.LOCKUP_30_DAYS || lockUpPeriod > Const.LOCKUP_365_DAYS) {
             return 0;
         }
+        if (amount < Const.MINIMUM_STAKE_AMOUNT) {
+            return 0;
+        }
 
+        // Get base duration multiplier using existing discrete values
+        uint256 durationMultiplier = getDurationMultiplier(lockUpPeriod);
+
+        // Get amount tier factor (0 to 10000 basis points)
+        uint256 amountTierFactor = getAmountTierFactor(amount);
+
+        // Combine duration and amount factors
+        // Formula: base_duration_multiplier + (amount_tier_factor * additional_multiplier_range / BASIS_POINTS)
+        // This adds up to 4500 basis points (0.45x) based on amount tier
+        uint256 additionalMultiplier =
+            (amountTierFactor * (Const.MAX_MULTIPLIER - Const.MIN_MULTIPLIER)) / Const.BASIS_POINTS;
+
+        return durationMultiplier + additionalMultiplier;
+    }
+
+    /**
+     * @notice Get duration-based multiplier using existing discrete values
+     * @param lockUpPeriod The lock-up period in seconds
+     * @return multiplier The base multiplier for the duration
+     */
+    function getDurationMultiplier(uint256 lockUpPeriod) internal pure returns (uint256 multiplier) {
         // Check for exact discrete periods first
         if (lockUpPeriod == Const.LOCKUP_30_DAYS) {
             return Const.MIN_MULTIPLIER; // 10500 (1.05x)
@@ -43,145 +64,67 @@ contract Multiplier is IMultiplier {
             return Const.MAX_MULTIPLIER; // 15000 (1.50x)
         }
 
-        // For non-discrete periods, use linear interpolation
-        // Formula: min + (period - minPeriod) * (max - min) / (maxPeriod - minPeriod)
-        uint256 numerator = (lockUpPeriod - Const.LOCKUP_30_DAYS) * 
-            (Const.MAX_MULTIPLIER - Const.MIN_MULTIPLIER);
-        uint256 denominator = Const.LOCKUP_365_DAYS - Const.LOCKUP_30_DAYS;
-        
-        return Const.MIN_MULTIPLIER + (numerator / denominator);
-    }
-
-    /**
-     * @notice Calculate linear weighted multiplier that includes both time and amount factors plus global coefficient
-     * @param amount The total staked amount
-     * @param effectiveLockup The effective lockup period
-     * @param totalStaked Total amount staked in the vault
-     * @param totalSupply Total supply of tokens
-     * @return The calculated final multiplier including global effects
-     */
-    function calculateLinearWeightedMultiplier(
-        uint256 amount, 
-        uint256 effectiveLockup,
-        uint256 totalStaked,
-        uint256 totalSupply
-    ) external pure returns (uint256) {
-        // Calculate individual multiplier (base + time bonus + amount bonus)
-        uint256 individualMultiplier = calculateIndividualMultiplier(amount, effectiveLockup);
-
-        // Calculate global staking coefficient based on network participation
-        uint256 globalCoefficient = calculateGlobalCoefficient(totalStaked, totalSupply);
-
-        // Apply global coefficient to individual multiplier
-        return (individualMultiplier * globalCoefficient) / 10000;
-    }
-
-    /**
-     * @notice Calculate individual multiplier based on time and amount factors
-     * @param amount The staked amount
-     * @param effectiveLockup The effective lockup period
-     * @return The individual multiplier before global effects
-     */
-    function calculateIndividualMultiplier(uint256 amount, uint256 effectiveLockup) public pure returns (uint256) {
-        uint256 base = Const.BASE_MULTIPLIER; // 10000 (100%)
-
-        // Time factor: Linear from 0 to 1 based on duration (max 365 days)
-        uint256 timeFactor = (effectiveLockup * 10000) / Const.LOCKUP_365_DAYS;
-        if (timeFactor > 10000) timeFactor = 10000; // Cap at 1.0
-
-        // Time bonus: 0% to 25% based on duration
-        uint256 timeBonus = (timeFactor * 2500) / 10000; // Max 2500 basis points (25%)
-
-        // Amount factor: Logarithmic from 0 to 1 based on stake size
-        uint256 amountFactor = calculateAmountFactor(amount);
-
-        // Amount bonus: 0% to 25% based on stake size
-        uint256 amountBonus = (amountFactor * 2500) / 10000; // Max 2500 basis points (25%)
-
-        return base + timeBonus + amountBonus;
-    }
-
-    /**
-     * @notice Approximate log10 function for integer values
-     * @param value The input value
-     * @return The approximate log10 * 1000 for precision
-     */
-    function approximateLog10(uint256 value) public pure returns (uint256) {
-        if (value <= 1) return 0;
-        if (value < 10) return 1000; // log10(1-9) ≈ 0-1
-        if (value < 100) return 2000; // log10(10-99) ≈ 1-2
-        if (value < 1000) return 3000; // log10(100-999) ≈ 2-3
-        if (value < 10000) return 4000; // log10(1000-9999) ≈ 3-4
-        if (value < 100000) return 5000; // log10(10000+) ≈ 4+
-        return 6000; // Cap for very large values
-    }
-
-    /**
-     * @notice Calculate global staking coefficient based on network participation
-     * @param totalStaked Total amount staked in the vault
-     * @param totalSupply Total supply of tokens
-     * @return The global coefficient (5000-15000, representing 0.5x to 1.5x)
-     */
-    function calculateGlobalCoefficient(uint256 totalStaked, uint256 totalSupply) public pure returns (uint256) {
-        if (totalSupply == 0) return 10000; // Safety check
-
-        // Calculate staking ratio in basis points (0-10000)
-        uint256 stakingRatio = (totalStaked * 10000) / totalSupply;
-
-        return calculateSigmoidCoefficient(stakingRatio);
-    }
-
-    /**
-     * @notice Calculate sigmoid-based coefficient for optimal staking participation
-     * @param stakingRatio The ratio of staked tokens to total supply (in basis points)
-     * @return The coefficient (5000-15000, representing 0.5x to 1.5x)
-     */
-    function calculateSigmoidCoefficient(uint256 stakingRatio) public pure returns (uint256) {
-        if (stakingRatio <= 1000) {
-            // 0-10% staked: Linear growth from 0.5x to 1.0x
-            // Coefficient = 5000 + (stakingRatio * 5000) / 1000
-            return 5000 + (stakingRatio * 5000) / 1000;
-        } else if (stakingRatio <= 5000) {
-            // 10-50% staked: Optimal zone, 1.0x to 1.5x
-            // Coefficient = 10000 + ((stakingRatio - 1000) * 5000) / 4000
-            return 10000 + ((stakingRatio - 1000) * 5000) / 4000;
+        // For non-discrete periods, use linear interpolation between known points
+        if (lockUpPeriod < Const.LOCKUP_90_DAYS) {
+            // Interpolate between 30 and 90 days
+            return interpolate(
+                lockUpPeriod, Const.LOCKUP_30_DAYS, Const.LOCKUP_90_DAYS, Const.MIN_MULTIPLIER, Const.MULTIPLIER_90_DAYS
+            );
+        } else if (lockUpPeriod < Const.LOCKUP_180_DAYS) {
+            // Interpolate between 90 and 180 days
+            return interpolate(
+                lockUpPeriod,
+                Const.LOCKUP_90_DAYS,
+                Const.LOCKUP_180_DAYS,
+                Const.MULTIPLIER_90_DAYS,
+                Const.MULTIPLIER_180_DAYS
+            );
         } else {
-            // 50%+ staked: Diminishing returns, 1.5x down to 1.0x
-            // Coefficient = 15000 - ((stakingRatio - 5000) * 5000) / 5000
-            uint256 excess = stakingRatio - 5000;
-            if (excess >= 5000) {
-                return 10000; // Cap at 1.0x when 100% staked
-            }
-            return 15000 - (excess * 5000) / 5000;
+            // Interpolate between 180 and 365 days
+            return interpolate(
+                lockUpPeriod,
+                Const.LOCKUP_180_DAYS,
+                Const.LOCKUP_365_DAYS,
+                Const.MULTIPLIER_180_DAYS,
+                Const.MAX_MULTIPLIER
+            );
         }
     }
 
     /**
-     * @notice Get detailed multiplier breakdown for a given amount and duration
-     * @param amount The stake amount
-     * @param duration The lockup duration
-     * @param totalStaked Total amount staked in the vault
-     * @param totalSupply Total supply of tokens
-     * @return individualMultiplier The multiplier before global effects
-     * @return globalCoefficient The current global coefficient
-     * @return finalMultiplier The final multiplier after global effects
-     * @return stakingRatio Current network staking ratio (basis points)
+     * @notice Get amount tier factor based on stake amount
+     * @param amount The staked amount
+     * @return factor The tier factor (0 to 10000 basis points)
      */
-    function getMultiplierBreakdown(
-        uint256 amount, 
-        uint256 duration,
-        uint256 totalStaked,
-        uint256 totalSupply
-    ) external pure returns (
-        uint256 individualMultiplier, 
-        uint256 globalCoefficient, 
-        uint256 finalMultiplier, 
-        uint256 stakingRatio
-    ) {
-        individualMultiplier = calculateIndividualMultiplier(amount, duration);
-        globalCoefficient = calculateGlobalCoefficient(totalStaked, totalSupply);
-        finalMultiplier = (individualMultiplier * globalCoefficient) / 10000;
-        stakingRatio = (totalStaked * 10000) / totalSupply;
+    function getAmountTierFactor(uint256 amount) internal pure returns (uint256 factor) {
+        uint256 tierAmount = amount / Const.TOKEN_DECIMALS;
+
+        if (tierAmount <= Const.T1_FACTOR) {
+            return 0; // Tier 0: 0% (up to and including 1000 tokens)
+        } else if (tierAmount < Const.T2_FACTOR) {
+            return 2000; // Tier 1: 20% (1001-2499 tokens)
+        } else if (tierAmount < Const.T3_FACTOR) {
+            return 4000; // Tier 2: 40% (2500-4999 tokens)
+        } else if (tierAmount < Const.T4_FACTOR) {
+            return 6000; // Tier 3: 60% (5000-7499 tokens)
+        } else if (tierAmount < Const.T5_FACTOR) {
+            return 8000; // Tier 4: 80% (7500-9999 tokens)
+        } else {
+            return 10000; // Tier 5: 100% (10000+ tokens)
+        }
+    }
+
+    /**
+     * @notice Linear interpolation helper function
+     * @param x The input value
+     * @param x1 The lower bound input
+     * @param x2 The upper bound input
+     * @param y1 The lower bound output
+     * @param y2 The upper bound output
+     * @return The interpolated value
+     */
+    function interpolate(uint256 x, uint256 x1, uint256 x2, uint256 y1, uint256 y2) internal pure returns (uint256) {
+        return y1 + ((x - x1) * (y2 - y1)) / (x2 - x1);
     }
 
     /**
@@ -190,55 +133,6 @@ contract Multiplier is IMultiplier {
      * @return isValid Whether the lockup period is valid
      */
     function isValidLockupPeriod(uint256 lockUpPeriod) external pure returns (bool isValid) {
-        return _getMultiplierForPeriod(lockUpPeriod) > 0;
-    }
-
-    /**
-     * @notice Calculate amount factor using logarithmic scaling
-     * @param amount The staked amount
-     * @return The amount factor (0 to 10000, representing 0.0 to 1.0)
-     */
-    function calculateAmountFactor(uint256 amount) public pure returns (uint256) {
-        if (amount <= Const.MINIMUM_STAKE_AMOUNT) {
-            return 0;
-        }
-
-        uint256 minStake = Const.MINIMUM_STAKE_AMOUNT;
-        uint256 maxAmount = 10_000_000 * Const.TOKEN_DECIMALS; // 10M tokens cap
-
-        // Prevent overflow and ensure we're within reasonable bounds
-        if (amount >= maxAmount) {
-            return 10000; // 1.0
-        }
-
-        // Logarithmic calculation: log10(amount/minStake) / log10(maxAmount/minStake)
-        // Since we can't do floating point math, we use integer approximation
-
-        // Calculate ratio = amount / minStake
-        uint256 ratio = amount / minStake;
-
-        // Approximate log10 using lookup table for common values
-        uint256 logRatio = approximateLog10(ratio);
-        uint256 logMax = approximateLog10(maxAmount / minStake); // log10(10000) = 4.0
-
-        // Return factor as basis points (0-10000)
-        return (logRatio * 10000) / logMax;
-    }
-
-    function calculateMultiplier(uint256 amount, uint256 effectiveLockup) public pure returns (uint256) {
-        // Calculate base multiplier from lockup period (amount_from_duration)
-        uint256 baseMultiplier = _getMultiplierForPeriod(effectiveLockup);
-        
-        // Calculate amount scaling factor: max(1, user_staked_amount / MAX_STAKE_TIER_AMOUNT)
-        // Using basis points for precision: multiply by 10000, then divide by 10000 at the end
-        uint256 amountScalingFactor = (amount * 10000) / Const.MAX_STAKE_TIER_AMOUNT;
-        
-        // Ensure minimum scaling factor of 1.0 (10000 basis points)
-        if (amountScalingFactor < 10000) {
-            amountScalingFactor = 10000;
-        }
-        
-        // Apply formula: multiplier = amount_from_duration * max(1, (user_staked_amount / MAX_STAKE_TIER_AMOUNT))
-        return (baseMultiplier * amountScalingFactor) / 10000;
+        return lockUpPeriod >= Const.LOCKUP_30_DAYS && lockUpPeriod <= Const.LOCKUP_365_DAYS;
     }
 }

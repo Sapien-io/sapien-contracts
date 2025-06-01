@@ -72,8 +72,9 @@ contract SapienVaultCooldownBugTest is Test {
         IMultiplier multiplierContract = IMultiplier(address(multiplierImpl));
 
         SapienVault sapienVaultImpl = new SapienVault();
-        bytes memory initData =
-            abi.encodeWithSelector(SapienVault.initialize.selector, address(mockToken), admin, treasury, address(multiplierContract));
+        bytes memory initData = abi.encodeWithSelector(
+            SapienVault.initialize.selector, address(mockToken), admin, treasury, address(multiplierContract)
+        );
         ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), initData);
         sapienVault = SapienVault(address(sapienVaultProxy));
 
@@ -136,7 +137,7 @@ contract SapienVaultCooldownBugTest is Test {
         // Since the lock period is completed, instant unstake should fail
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSignature("LockPeriodCompleted()"));
-        sapienVault.instantUnstake(MINIMUM_STAKE);
+        sapienVault.earlyUnstake(MINIMUM_STAKE);
 
         // But we should be able to initiate more cooldown on remaining unlocked amounts
         vm.prank(alice);
@@ -166,7 +167,7 @@ contract SapienVaultCooldownBugTest is Test {
         uint256 treasuryBalanceBefore = mockToken.balanceOf(treasury);
 
         vm.prank(alice);
-        sapienVault.instantUnstake(instantAmount);
+        sapienVault.earlyUnstake(instantAmount);
 
         // Verify instant unstake worked with penalty
         assertEq(mockToken.balanceOf(alice), aliceBalanceBefore + expectedPayout, "Alice should receive reduced amount");

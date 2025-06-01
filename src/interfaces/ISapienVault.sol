@@ -92,12 +92,12 @@ interface ISapienVault {
     event Unstaked(address indexed user, uint256 amount);
 
     /**
-     * @notice Emitted when a user performs an instant unstake (penalty applied).
+     * @notice Emitted when a user performs an early unstake (penalty applied).
      * @param user The user's address.
      * @param amount The amount actually received by the user (penalty deducted).
      * @param penalty The penalty amount sent to treasury.
      */
-    event InstantUnstake(address indexed user, uint256 amount, uint256 penalty);
+    event EarlyUnstake(address indexed user, uint256 amount, uint256 penalty);
 
     /// @notice Emitted when the Treasury address is updated.
     event SapienTreasuryUpdated(address indexed newSapienTreasury);
@@ -112,8 +112,6 @@ interface ISapienVault {
     // Errors
     // -------------------------------------------------------------
 
-    error NotAdmin();
-    error NotPauser();
     error ZeroAddress();
     error MinimumStakeAmountRequired();
     error InvalidLockupPeriod();
@@ -127,6 +125,12 @@ interface ISapienVault {
     error NotReadyForUnstake();
     error AmountExceedsCooldownAmount();
     error LockPeriodCompleted();
+
+    // Weighted calculation specific errors
+    error AmountMustBePositive();
+    error TotalAmountMustBePositive();
+    error WeightedCalculationOverflow();
+    error LockupWeightCalculationOverflow();
 
     // -------------------------------------------------------------
     // Initialization Functions
@@ -144,6 +148,12 @@ interface ISapienVault {
     // -------------------------------------------------------------
     // Administrative Functions
     // -------------------------------------------------------------
+
+    /**
+     * @notice Returns the pauser role identifier
+     * @return bytes32 The keccak256 hash of "PAUSER_ROLE"
+     */
+    function PAUSER_ROLE() external view returns (bytes32);
 
     /**
      * @notice Pauses the contract, preventing certain actions (e.g., staking/unstaking).
@@ -197,10 +207,10 @@ interface ISapienVault {
     function unstake(uint256 amount) external;
 
     /**
-     * @notice Instantly unstakes a specified `amount`, incurring a penalty.
-     * @param amount The amount to unstake instantly.
+     * @notice Early unstakes a specified `amount`, incurring a penalty.
+     * @param amount The amount to unstake early.
      */
-    function instantUnstake(uint256 amount) external;
+    function earlyUnstake(uint256 amount) external;
 
     // -------------------------------------------------------------
     // View Functions
@@ -271,58 +281,6 @@ interface ISapienVault {
             uint256 effectiveMultiplier,
             uint256 effectiveLockUpPeriod,
             uint256 timeUntilUnlock
-        );
-
-    /**
-     * @notice Get multiplier for a specific lock-up period
-     * @param lockUpPeriod The lock-up period in seconds
-     * @return multiplier The multiplier for the period
-     */
-    function getMultiplierForPeriod(uint256 lockUpPeriod) external view returns (uint256 multiplier);
-
-    // -------------------------------------------------------------
-    // Additional Methods for RewardsDistributor Compatibility
-    // -------------------------------------------------------------
-
-    /**
-     * @notice Get stake details for rewards calculation - adapted for single stake system
-     * @param user The user address
-     * @param stakeId The stake ID (should be 1 for compatibility)
-     * @return amount The staked amount
-     * @return lockUpPeriod The lock-up period
-     * @return startTime The weighted start time
-     * @return multiplier The effective multiplier
-     * @return cooldownStart When cooldown was initiated
-     * @return isActive Whether the stake is active
-     */
-    function getStakeDetails(address user, uint256 stakeId)
-        external
-        view
-        returns (
-            uint256 amount,
-            uint256 lockUpPeriod,
-            uint256 startTime,
-            uint256 multiplier,
-            uint256 cooldownStart,
-            bool isActive
-        );
-
-    /**
-     * @notice Get active stakes for a user - adapted for single stake system
-     * @param user The user address
-     * @return stakeIds Array of stake IDs (single element: [1])
-     * @return amounts Array of amounts (single element: [user's total stake])
-     * @return multipliers Array of multipliers (single element: [user's effective multiplier])
-     * @return lockUpPeriods Array of lock periods (single element: [user's effective lockup])
-     */
-    function getUserActiveStakes(address user)
-        external
-        view
-        returns (
-            uint256[] memory stakeIds,
-            uint256[] memory amounts,
-            uint256[] memory multipliers,
-            uint256[] memory lockUpPeriods
         );
 
     /**

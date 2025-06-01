@@ -34,8 +34,9 @@ contract SapienVaultScenariosTest is Test {
         Multiplier multiplierImpl = new Multiplier();
         IMultiplier multiplierContract = IMultiplier(address(multiplierImpl));
 
-        bytes memory initData =
-            abi.encodeWithSelector(SapienVault.initialize.selector, address(sapienToken), admin, treasury, address(multiplierContract));
+        bytes memory initData = abi.encodeWithSelector(
+            SapienVault.initialize.selector, address(sapienToken), admin, treasury, address(multiplierContract)
+        );
         ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), initData);
         sapienVault = SapienVault(address(sapienVaultProxy));
 
@@ -143,7 +144,7 @@ contract SapienVaultScenariosTest is Test {
 
         // Bob performs emergency withdrawal
         vm.prank(bob);
-        sapienVault.instantUnstake(emergencyAmount);
+        sapienVault.earlyUnstake(emergencyAmount);
 
         // Verify penalty was applied
         assertEq(sapienToken.balanceOf(bob), bobBalanceBefore + expectedPayout);
@@ -424,26 +425,5 @@ contract SapienVaultScenariosTest is Test {
         assertEq(graceStaked, MINIMUM_STAKE * 8); // 15 - 7
         assertEq(frankStaked, MINIMUM_STAKE * 20);
         assertEq(sapienVault.totalStaked(), MINIMUM_STAKE * 28); // 35 - 7
-    }
-
-    // =============================================================================
-    // HELPER FUNCTIONS
-    // =============================================================================
-
-    function _calculateExpectedMultiplier(uint256 lockupPeriod) internal pure returns (uint256) {
-        if (lockupPeriod >= 365 days) {
-            return 15000;
-        } else if (lockupPeriod >= 180 days) {
-            uint256 ratio = (lockupPeriod - 180 days) * 10000 / (365 days - 180 days);
-            return 12500 + ((15000 - 12500) * ratio / 10000);
-        } else if (lockupPeriod >= 90 days) {
-            uint256 ratio = (lockupPeriod - 90 days) * 10000 / (180 days - 90 days);
-            return 11000 + ((12500 - 11000) * ratio / 10000);
-        } else if (lockupPeriod >= 30 days) {
-            uint256 ratio = (lockupPeriod - 30 days) * 10000 / (90 days - 30 days);
-            return 10500 + ((11000 - 10500) * ratio / 10000);
-        } else {
-            return 10000; // Base multiplier
-        }
     }
 }

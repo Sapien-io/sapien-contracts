@@ -13,14 +13,14 @@ import {
 import {ISapienRewards} from "src/interfaces/ISapienRewards.sol";
 import {Constants as Const} from "src/utils/Constants.sol";
 
+using ECDSA for bytes32;
+using SafeERC20 for IERC20;
+
 /**
  * @title SapienRewards
  * @dev This contract allows users to claim rewards with an EIP-712 offchain signature from the rewards manager.
  */
 contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
-    using ECDSA for bytes32;
-
-    using SafeERC20 for IERC20;
 
     // -------------------------------------------------------------
     // State Variables
