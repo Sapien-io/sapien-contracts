@@ -7,6 +7,17 @@ pragma solidity 0.8.30;
  * @dev Centralizes constants for better maintainability and consistency
  */
 library Constants {
+
+    // -------------------------------------------------------------
+    // Token Constants
+    // -------------------------------------------------------------
+
+    /// @notice Token decimals (18 for most ERC20 tokens)
+    uint256 internal constant TOKEN_DECIMALS = 10 ** 18;
+    
+    /// @notice Token Supply 1B
+    uint256 public constant TOTAL_SUPPLY = 1_000_000_000 * TOKEN_DECIMALS;
+
     // -------------------------------------------------------------
     // Role Constants
     // -------------------------------------------------------------
@@ -67,15 +78,15 @@ library Constants {
     // Staking Constants
     // -------------------------------------------------------------
 
-    /// @notice Token decimals (18 for most ERC20 tokens)
-    uint256 internal constant TOKEN_DECIMALS = 10 ** 18;
-
     /// @notice Multiplier constants in basis points
     uint256 internal constant BASE_MULTIPLIER = 10000; // 1.00x
     uint256 internal constant MIN_MULTIPLIER = 10500; // 1.05x at 30 days
     uint256 internal constant MULTIPLIER_90_DAYS = 11000; // 1.10x at 90 days
     uint256 internal constant MULTIPLIER_180_DAYS = 12500; // 1.25x at 180 days
     uint256 internal constant MAX_MULTIPLIER = 15000; // 1.50x at 365 days
+
+    /// @notice Maximum stake tier amount for multiplier calculations (1M tokens)
+    uint256 internal constant MAX_STAKE_TIER_AMOUNT = 1_000_000 * TOKEN_DECIMALS;
 
     // -------------------------------------------------------------
     // Reward Constants

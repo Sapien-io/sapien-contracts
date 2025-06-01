@@ -4,6 +4,7 @@ pragma solidity 0.8.30;
 import {Test} from "lib/forge-std/src/Test.sol";
 import {SapienVault} from "src/SapienVault.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {Multiplier, IMultiplier} from "src/Multiplier.sol";
 
 // Simple mock ERC20 token for testing
 contract MockToken {
@@ -66,9 +67,13 @@ contract SapienVaultCooldownBugTest is Test {
     function setUp() public {
         mockToken = new MockToken();
 
+        // Deploy multiplier contract
+        Multiplier multiplierImpl = new Multiplier();
+        IMultiplier multiplierContract = IMultiplier(address(multiplierImpl));
+
         SapienVault sapienVaultImpl = new SapienVault();
         bytes memory initData =
-            abi.encodeWithSelector(SapienVault.initialize.selector, address(mockToken), admin, treasury);
+            abi.encodeWithSelector(SapienVault.initialize.selector, address(mockToken), admin, treasury, address(multiplierContract));
         ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), initData);
         sapienVault = SapienVault(address(sapienVaultProxy));
 

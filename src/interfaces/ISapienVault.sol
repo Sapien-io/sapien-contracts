@@ -137,8 +137,9 @@ interface ISapienVault {
      * @param token The IERC20 token contract for Sapien.
      * @param admin The contract admin and owner.
      * @param treasury The address of the Treasury for penalty collection.
+     * @param newMultiplierContract The address of the new multiplier contract.
      */
-    function initialize(address token, address admin, address treasury) external;
+    function initialize(address token, address admin, address treasury, address newMultiplierContract) external;
 
     // -------------------------------------------------------------
     // Administrative Functions

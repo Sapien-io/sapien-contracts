@@ -13,6 +13,7 @@ import {
 import {SafeCast} from "src/utils/SafeCast.sol";
 import {Constants as Const} from "src/utils/Constants.sol";
 import {ISapienVault} from "src/interfaces/ISapienVault.sol";
+import {IMultiplier} from "src/interfaces/IMultiplier.sol";
 
 using SafeCast for uint256;
 
@@ -31,11 +32,11 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     /// @dev Address of the Rewards Safe
     address public rewardSafe;
 
+    /// @dev The Multiplier contract for calculating staking multipliers
+    IMultiplier public multiplierContract;
+
     /// @dev Tracks the total amount of tokens staked in this contract.
     uint256 public totalStaked;
-
-    /// @dev Total supply of Sapien tokens for global coefficient calculation (1B tokens)
-    uint256 public constant TOTAL_SUPPLY = 1_000_000_000 * Const.TOKEN_DECIMALS;
 
     /// @notice Mapping of user addresses to their aggregated stake data.
     mapping(address => UserStake) public userStakes;
@@ -50,7 +51,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param admin The address of the admin multisig.
      * @param newRewardsSafe The address of the Rewards Safe multisig for penalty collection.
      */
-    function initialize(address token, address admin, address newRewardsSafe) public initializer {
+    function initialize(address token, address admin, address newRewardsSafe, address newMultiplierContract) public initializer {
         if (token == address(0)) revert ZeroAddress();
         if (admin == address(0)) revert ZeroAddress();
         if (newRewardsSafe == address(0)) revert ZeroAddress();
@@ -65,6 +66,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         sapienToken = IERC20(token);
         rewardSafe = newRewardsSafe;
+        multiplierContract = IMultiplier(newMultiplierContract);
     }
 
     // -------------------------------------------------------------
@@ -117,6 +119,19 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     }
 
     /**
+     * @notice Sets the multiplier contract address.
+     * @param newMultiplierContract The new Multiplier contract address.
+     */
+    function setMultiplierContract(address newMultiplierContract) external onlyAdmin {
+        if (newMultiplierContract == address(0)) {
+            revert ZeroAddress();
+        }
+
+        multiplierContract = IMultiplier(newMultiplierContract);
+        emit MultiplierUpdated(0, 0); // Emit with zero values to indicate contract update
+    }
+
+    /**
      * @notice Emergency withdrawal function for admin use only in critical situations
      * @param token The token to withdraw (use address(0) for ETH)
      * @param to The address to withdraw to
@@ -157,7 +172,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         _validateStakeInputs(amount, lockUpPeriod);
 
         UserStake storage userStake = userStakes[msg.sender];
-        uint256 baseMultiplier = _getMultiplierForPeriod(lockUpPeriod);
+        uint256 baseMultiplier = _calculateEffectiveMultiplier(amount, lockUpPeriod);
 
         // Pre-validate state changes before token transfer
         _preValidateStakeOperation(userStake, amount, lockUpPeriod);
@@ -181,7 +196,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param amount The amount to stake
      * @param lockUpPeriod The lockup period
      */
-    function _validateStakeInputs(uint256 amount, uint256 lockUpPeriod) private pure {
+    function _validateStakeInputs(uint256 amount, uint256 lockUpPeriod) private view {
         if (amount < Const.MINIMUM_STAKE_AMOUNT) {
             revert MinimumStakeAmountRequired();
         }
@@ -191,7 +206,12 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             revert StakeAmountTooLarge();
         }
 
-        if (_getMultiplierForPeriod(lockUpPeriod) == 0) {
+        if (!multiplierContract.isValidLockupPeriod(lockUpPeriod)) {
+            revert InvalidLockupPeriod();
+        }
+        
+        // TODO: Check if this is needed below
+        if (multiplierContract.getMultiplierForPeriod(lockUpPeriod) == 0) {
             revert InvalidLockupPeriod();
         }
     }
@@ -262,7 +282,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         userStake.amount = amount.toUint128();
         userStake.weightedStartTime = block.timestamp.toUint64();
         userStake.effectiveLockUpPeriod = lockUpPeriod.toUint64();
-        userStake.effectiveMultiplier = _calculateLinearWeightedMultiplier(amount, lockUpPeriod).toUint32();
+        userStake.effectiveMultiplier = _calculateEffectiveMultiplier(amount, lockUpPeriod).toUint32();
         userStake.lastUpdateTime = block.timestamp.toUint64();
         userStake.hasStake = true;
     }
@@ -284,7 +304,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         userStake.weightedStartTime = newValues.weightedStartTime.toUint64();
         userStake.effectiveLockUpPeriod = newValues.effectiveLockup.toUint64();
         userStake.effectiveMultiplier =
-            _calculateLinearWeightedMultiplier(newTotalAmount, newValues.effectiveLockup).toUint32();
+            _calculateEffectiveMultiplier(newTotalAmount, newValues.effectiveLockup).toUint32();
         userStake.lastUpdateTime = block.timestamp.toUint64();
     }
 
@@ -376,7 +396,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         // Recalculate linear weighted multiplier based on new total amount
         userStake.effectiveMultiplier =
-            _calculateLinearWeightedMultiplier(newTotalAmount, uint256(userStake.effectiveLockUpPeriod)).toUint32();
+            _calculateEffectiveMultiplier(newTotalAmount, uint256(userStake.effectiveLockUpPeriod)).toUint32();
 
         totalStaked += additionalAmount;
 
@@ -416,7 +436,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         userStake.effectiveLockUpPeriod = newEffectiveLockup.toUint64();
         userStake.effectiveMultiplier =
-            _calculateLinearWeightedMultiplier(uint256(userStake.amount), newEffectiveLockup).toUint32();
+            _calculateEffectiveMultiplier(uint256(userStake.amount), newEffectiveLockup).toUint32();
 
         // Reset the weighted start time to now since we're extending lockup
         userStake.weightedStartTime = block.timestamp.toUint64();
@@ -565,156 +585,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     }
 
     /**
-     * @notice Get base multiplier for a specific lock-up period
-     * @param lockUpPeriod The lock-up period in seconds
-     * @return multiplier The base multiplier for the period
-     */
-    function _getMultiplierForPeriod(uint256 lockUpPeriod) private pure returns (uint256 multiplier) {
-        if (lockUpPeriod == Const.LOCKUP_30_DAYS) {
-            return Const.MIN_MULTIPLIER; // 10500 (1.05x)
-        } else if (lockUpPeriod == Const.LOCKUP_90_DAYS) {
-            return Const.MULTIPLIER_90_DAYS; // 11000 (1.10x)
-        } else if (lockUpPeriod == Const.LOCKUP_180_DAYS) {
-            return Const.MULTIPLIER_180_DAYS; // 12500 (1.25x)
-        } else if (lockUpPeriod == Const.LOCKUP_365_DAYS) {
-            return Const.MAX_MULTIPLIER; // 15000 (1.50x)
-        } else {
-            return 0; // Invalid period
-        }
-    }
-
-    /**
-     * @notice Calculate linear weighted multiplier that includes both time and amount factors plus global coefficient
-     * @param amount The total staked amount
-     * @param effectiveLockup The effective lockup period
-     * @return The calculated final multiplier including global effects
-     */
-    function _calculateLinearWeightedMultiplier(uint256 amount, uint256 effectiveLockup)
-        private
-        view
-        returns (uint256)
-    {
-        // Calculate individual multiplier (base + time bonus + amount bonus)
-        uint256 individualMultiplier = _calculateIndividualMultiplier(amount, effectiveLockup);
-
-        // Calculate global staking coefficient based on network participation
-        uint256 globalCoefficient = _calculateGlobalCoefficient();
-
-        // Apply global coefficient to individual multiplier
-        return (individualMultiplier * globalCoefficient) / 10000;
-    }
-
-    /**
-     * @notice Calculate individual multiplier based on time and amount factors
-     * @param amount The staked amount
-     * @param effectiveLockup The effective lockup period
-     * @return The individual multiplier before global effects
-     */
-    function _calculateIndividualMultiplier(uint256 amount, uint256 effectiveLockup) private pure returns (uint256) {
-        uint256 base = Const.BASE_MULTIPLIER; // 10000 (100%)
-
-        // Time factor: Linear from 0 to 1 based on duration (max 365 days)
-        uint256 timeFactor = (effectiveLockup * 10000) / Const.LOCKUP_365_DAYS;
-        if (timeFactor > 10000) timeFactor = 10000; // Cap at 1.0
-
-        // Time bonus: 0% to 25% based on duration
-        uint256 timeBonus = (timeFactor * 2500) / 10000; // Max 2500 basis points (25%)
-
-        // Amount factor: Logarithmic from 0 to 1 based on stake size
-        uint256 amountFactor = _calculateAmountFactor(amount);
-
-        // Amount bonus: 0% to 25% based on stake size
-        uint256 amountBonus = (amountFactor * 2500) / 10000; // Max 2500 basis points (25%)
-
-        return base + timeBonus + amountBonus;
-    }
-
-    /**
-     * @notice Calculate amount factor using logarithmic scaling
-     * @param amount The staked amount
-     * @return The amount factor (0 to 10000, representing 0.0 to 1.0)
-     */
-    function _calculateAmountFactor(uint256 amount) private pure returns (uint256) {
-        if (amount <= Const.MINIMUM_STAKE_AMOUNT) {
-            return 0;
-        }
-
-        uint256 minStake = Const.MINIMUM_STAKE_AMOUNT;
-        uint256 maxAmount = 10_000_000 * Const.TOKEN_DECIMALS; // 10M tokens cap
-
-        // Prevent overflow and ensure we're within reasonable bounds
-        if (amount >= maxAmount) {
-            return 10000; // 1.0
-        }
-
-        // Logarithmic calculation: log10(amount/minStake) / log10(maxAmount/minStake)
-        // Since we can't do floating point math, we use integer approximation
-
-        // Calculate ratio = amount / minStake
-        uint256 ratio = amount / minStake;
-
-        // Approximate log10 using lookup table for common values
-        uint256 logRatio = _approximateLog10(ratio);
-        uint256 logMax = _approximateLog10(maxAmount / minStake); // log10(10000) = 4.0
-
-        // Return factor as basis points (0-10000)
-        return (logRatio * 10000) / logMax;
-    }
-
-    /**
-     * @notice Approximate log10 function for integer values
-     * @param value The input value
-     * @return The approximate log10 * 1000 for precision
-     */
-    function _approximateLog10(uint256 value) private pure returns (uint256) {
-        if (value <= 1) return 0;
-        if (value < 10) return 1000; // log10(1-9) ≈ 0-1
-        if (value < 100) return 2000; // log10(10-99) ≈ 1-2
-        if (value < 1000) return 3000; // log10(100-999) ≈ 2-3
-        if (value < 10000) return 4000; // log10(1000-9999) ≈ 3-4
-        if (value < 100000) return 5000; // log10(10000+) ≈ 4+
-        return 6000; // Cap for very large values
-    }
-
-    /**
-     * @notice Calculate global staking coefficient based on network participation
-     * @return The global coefficient (5000-15000, representing 0.5x to 1.5x)
-     */
-    function _calculateGlobalCoefficient() private view returns (uint256) {
-        if (TOTAL_SUPPLY == 0) return 10000; // Safety check
-
-        // Calculate staking ratio in basis points (0-10000)
-        uint256 stakingRatio = (totalStaked * 10000) / TOTAL_SUPPLY;
-
-        return _calculateSigmoidCoefficient(stakingRatio);
-    }
-
-    /**
-     * @notice Calculate sigmoid-based coefficient for optimal staking participation
-     * @param stakingRatio The ratio of staked tokens to total supply (in basis points)
-     * @return The coefficient (5000-15000, representing 0.5x to 1.5x)
-     */
-    function _calculateSigmoidCoefficient(uint256 stakingRatio) private pure returns (uint256) {
-        if (stakingRatio <= 1000) {
-            // 0-10% staked: Linear growth from 0.5x to 1.0x
-            // Coefficient = 5000 + (stakingRatio * 5000) / 1000
-            return 5000 + (stakingRatio * 5000) / 1000;
-        } else if (stakingRatio <= 5000) {
-            // 10-50% staked: Optimal zone, 1.0x to 1.5x
-            // Coefficient = 10000 + ((stakingRatio - 1000) * 5000) / 4000
-            return 10000 + ((stakingRatio - 1000) * 5000) / 4000;
-        } else {
-            // 50%+ staked: Diminishing returns, 1.5x down to 1.0x
-            // Coefficient = 15000 - ((stakingRatio - 5000) * 5000) / 5000
-            uint256 excess = stakingRatio - 5000;
-            if (excess >= 5000) {
-                return 10000; // Cap at 1.0x when 100% staked
-            }
-            return 15000 - (excess * 5000) / 5000;
-        }
-    }
-
-    /**
      * @notice Validates amount for increase operations
      * @param additionalAmount The amount to validate
      */
@@ -848,8 +718,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param lockUpPeriod The lock-up period in seconds
      * @return multiplier The base multiplier for the period
      */
-    function getMultiplierForPeriod(uint256 lockUpPeriod) external pure returns (uint256 multiplier) {
-        return _getMultiplierForPeriod(lockUpPeriod);
+    function getMultiplierForPeriod(uint256 lockUpPeriod) external view returns (uint256 multiplier) {
+        return multiplierContract.getMultiplierForPeriod(lockUpPeriod);
     }
 
     /**
@@ -866,19 +736,16 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param amount The stake amount
      * @param duration The lockup duration
      * @return individualMultiplier The multiplier before global effects
-     * @param globalCoefficient The current global coefficient
-     * @param finalMultiplier The final multiplier after global effects
-     * @param stakingRatio Current network staking ratio (basis points)
+     * @return globalCoefficient The current global coefficient
+     * @return finalMultiplier The final multiplier after global effects
+     * @return stakingRatio Current network staking ratio (basis points)
      */
     function getMultiplierBreakdown(uint256 amount, uint256 duration)
         external
         view
         returns (uint256 individualMultiplier, uint256 globalCoefficient, uint256 finalMultiplier, uint256 stakingRatio)
     {
-        individualMultiplier = _calculateIndividualMultiplier(amount, duration);
-        globalCoefficient = _calculateGlobalCoefficient();
-        finalMultiplier = (individualMultiplier * globalCoefficient) / 10000;
-        stakingRatio = (totalStaked * 10000) / TOTAL_SUPPLY;
+            return multiplierContract.getMultiplierBreakdown(amount, duration, totalStaked, Const.TOTAL_SUPPLY);
     }
 
     /**
@@ -899,9 +766,10 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         )
     {
         totalStakedAmount = totalStaked;
-        totalSupplyAmount = TOTAL_SUPPLY;
-        stakingRatioBasisPoints = (totalStaked * 10000) / TOTAL_SUPPLY;
-        globalCoefficient = _calculateGlobalCoefficient();
+        totalSupplyAmount = Const.TOTAL_SUPPLY;
+        stakingRatioBasisPoints = (totalStaked * 10000) / Const.TOTAL_SUPPLY;
+        
+        globalCoefficient = multiplierContract.calculateGlobalCoefficient(totalStaked, Const.TOTAL_SUPPLY);
     }
 
     // -------------------------------------------------------------
@@ -986,5 +854,25 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             multipliers[0] = uint256(userStake.effectiveMultiplier);
             lockUpPeriods[0] = uint256(userStake.effectiveLockUpPeriod);
         }
+    }
+
+    // -------------------------------------------------------------
+    // Multiplier Calculation Helpers
+    // -------------------------------------------------------------
+
+    /**
+     * @notice Calculate the effective multiplier using the multiplier contract if available
+     * @param amount The staked amount
+     * @param effectiveLockup The effective lockup period
+     * @return The calculated multiplier
+     */
+    function _calculateEffectiveMultiplier(uint256 amount, uint256 effectiveLockup) private view returns (uint256) {
+        return multiplierContract.calculateLinearWeightedMultiplier(
+            amount, 
+            effectiveLockup, 
+            totalStaked, 
+            Const.TOTAL_SUPPLY
+        );
+
     }
 }
