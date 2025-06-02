@@ -34,7 +34,7 @@ contract SapienQA is ISapienQA, AccessControl, EIP712 {
     uint256 public totalWarnings;
 
     mapping(address => QARecord[]) private userQAHistory;
-    mapping(bytes32 => bool) private processedDecisions;    
+    mapping(bytes32 => bool) private processedDecisions;
 
     // -------------------------------------------------------------
     // Constructor

@@ -50,10 +50,13 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param admin The address of the admin multisig.
      * @param newTreasury The address of the Rewards Safe multisig for penalty collection.
      */
-    function initialize(address token, address admin, address newTreasury, address newMultiplierContract, address sapienQA)
-        public
-        initializer
-    {
+    function initialize(
+        address token,
+        address admin,
+        address newTreasury,
+        address newMultiplierContract,
+        address sapienQA
+    ) public initializer {
         if (token == address(0)) revert ZeroAddress();
         if (admin == address(0)) revert ZeroAddress();
         if (newTreasury == address(0)) revert ZeroAddress();

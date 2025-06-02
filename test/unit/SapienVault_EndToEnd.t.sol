@@ -64,7 +64,12 @@ contract SapienVaultEndToEndTest is Test {
         // Deploy SapienVault with proxy
         SapienVault sapienVaultImpl = new SapienVault();
         bytes memory initData = abi.encodeWithSelector(
-            SapienVault.initialize.selector, address(sapienToken), admin, treasury, address(multiplier), makeAddr("dummySapienQA")
+            SapienVault.initialize.selector,
+            address(sapienToken),
+            admin,
+            treasury,
+            address(multiplier),
+            makeAddr("dummySapienQA")
         );
         ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), initData);
         sapienVault = SapienVault(address(sapienVaultProxy));

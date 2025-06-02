@@ -63,7 +63,7 @@ contract SapienQATest is Test {
         // Deploy QA contract from admin to ensure proper role setup
         vm.startPrank(admin);
         qaContract = new SapienQA(treasury, address(vault), qaManager, admin);
-        
+
         // Grant QA_ADMIN_ROLE to qaManager so they can sign decisions
         qaContract.grantRole(Constants.QA_ADMIN_ROLE, qaManager);
         vm.stopPrank();

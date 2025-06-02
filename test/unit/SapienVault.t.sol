@@ -62,7 +62,12 @@ contract SapienVaultBasicTest is Test {
         SapienVault sapienVaultImpl = new SapienVault();
         address dummySapienQA = makeAddr("dummySapienQA");
         bytes memory initData = abi.encodeWithSelector(
-            SapienVault.initialize.selector, address(sapienToken), admin, treasury, address(multiplierContract), dummySapienQA
+            SapienVault.initialize.selector,
+            address(sapienToken),
+            admin,
+            treasury,
+            address(multiplierContract),
+            dummySapienQA
         );
         ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), initData);
         sapienVault = SapienVault(address(sapienVaultProxy));
