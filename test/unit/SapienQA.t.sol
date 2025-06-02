@@ -60,17 +60,16 @@ contract SapienQATest is Test {
 
         vm.stopPrank();
 
-        // Initialize vault with admin role (called from this contract)
-        vault.initialize(address(token), admin, treasury, address(multiplier));
-
         // Deploy QA contract from admin to ensure proper role setup
         vm.startPrank(admin);
         qaContract = new SapienQA(treasury, address(vault), qaManager, admin);
-
-        // Grant QA manager role to QA contract
-        vault.grantQAManagerRole(address(qaContract));
-
+        
+        // Grant QA_ADMIN_ROLE to qaManager so they can sign decisions
+        qaContract.grantRole(Constants.QA_ADMIN_ROLE, qaManager);
         vm.stopPrank();
+
+        // Initialize vault with admin role and QA contract address (called from this contract)
+        vault.initialize(address(token), admin, treasury, address(multiplier), address(qaContract));
 
         // Transfer tokens for testing (admin has all tokens from constructor)
         vm.startPrank(admin);
@@ -282,6 +281,10 @@ contract SapienQATest is Test {
         // Admin grants QA manager role to second manager
         vm.prank(admin);
         qaContract.grantRole(Constants.QA_MANAGER_ROLE, qaManager2);
+
+        // Grant QA_ADMIN_ROLE to qaManager2 so they can sign decisions
+        vm.prank(admin);
+        qaContract.grantRole(Constants.QA_ADMIN_ROLE, qaManager2);
 
         // Create user stake
         _createUserStake(user1, 5000 * 1e18, Constants.LOCKUP_90_DAYS);

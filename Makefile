@@ -1,4 +1,8 @@
+
+# Runs the unit tests
 unit    :; FOUNDRY_PROFILE=default forge test
+
+# Runs the invariant tests
 invar   :; FOUNDRY_PROFILE=invariant forge test
 
 fmt     :;  FOUNDRY_PROFILE=default forge fmt && FOUNDRY_PROFILE=mainnet forge fmt
@@ -7,6 +11,7 @@ lint    :;  solhint --fix --noPrompt test/**/*.sol && \
             solhint --fix --noPrompt src/**/*.sol && \
             solhint --fix --noPrompt script/**/*.sol
 
+# Create the coverage report
 # Coverage https://github.com/linux-test-project/lcov (brew install lcov)
 cover   :;  FOUNDRY_PROFILE=default forge coverage --report lcov \
             --no-match-coverage "(test|script)" \
@@ -16,4 +21,8 @@ cover   :;  FOUNDRY_PROFILE=default forge coverage --report lcov \
             rm default_coverage.info && \
             genhtml lcov.info -o coverage/
 
+# Show the coverage report
 show    :;  npx http-server ./coverage
+
+# Clean the coverage report
+clean   :;  rm -rf coverage/

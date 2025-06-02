@@ -33,14 +33,17 @@ library Constants {
     /// @notice Role for managing the reward token
     bytes32 internal constant REWARD_MANAGER_ROLE = keccak256("REWARD_MANAGER_ROLE");
 
-    /// @notice Role for managing the reward safe
-    bytes32 internal constant REWARD_SAFE_ROLE = keccak256("REWARD_SAFE_ROLE");
+    /// @notice Role for managing the reward admin / safe
+    bytes32 internal constant REWARD_ADMIN_ROLE = keccak256("REWARD_ADMIN_ROLE");
 
     /// @notice Role for managing quality assurance decisions
     bytes32 internal constant QA_MANAGER_ROLE = keccak256("QA_MANAGER_ROLE");
 
     /// @notice Role for managing quality assurance decisions
     bytes32 internal constant QA_ADMIN_ROLE = keccak256("QA_ADMIN_ROLE");
+
+    /// @notice Role for managing quality assurance decisions
+    bytes32 internal constant SAPIEN_QA_ROLE = keccak256("SAPIEN_QA_ROLE");
 
     // -------------------------------------------------------------
     // EIP-712 Constants

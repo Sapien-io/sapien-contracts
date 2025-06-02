@@ -19,7 +19,7 @@ contract SapienRewardsHandler is Test {
     uint256[] public rewardManagerKeys;
     
     address public admin;
-    address public rewardSafe;
+    address public rewardAdmin;
     
     uint256 public constant INITIAL_REWARD_POOL = 1000000e18; // 1M tokens
     uint256 public constant MAX_INDIVIDUAL_REWARD = 10000e18; // 10K tokens
@@ -53,11 +53,11 @@ contract SapienRewardsHandler is Test {
         vm.stopPrank();
     }
     
-    constructor(SapienRewards _sapienRewards, MockERC20 _rewardToken, address _admin, address _rewardSafe) {
+    constructor(SapienRewards _sapienRewards, MockERC20 _rewardToken, address _admin, address _rewardAdmin) {
         sapienRewards = _sapienRewards;
         rewardToken = _rewardToken;
         admin = _admin;
-        rewardSafe = _rewardSafe;
+        rewardAdmin = _rewardAdmin;
         
         // Create regular actors (reward claimers)
         for (uint256 i = 0; i < 10; i++) {
@@ -78,11 +78,11 @@ contract SapienRewardsHandler is Test {
         }
         
         // Initial reward deposit
-        rewardToken.mint(rewardSafe, INITIAL_REWARD_POOL);
-        initialRewardSafeBalance = rewardToken.balanceOf(rewardSafe); // Capture before deposit
+        rewardToken.mint(rewardAdmin, INITIAL_REWARD_POOL);
+        initialRewardSafeBalance = rewardToken.balanceOf(rewardAdmin); // Capture before deposit
         totalMinted = INITIAL_REWARD_POOL; // Track initial mint
         
-        vm.startPrank(rewardSafe);
+        vm.startPrank(rewardAdmin);
         rewardToken.approve(address(sapienRewards), INITIAL_REWARD_POOL);
         sapienRewards.depositRewards(INITIAL_REWARD_POOL);
         vm.stopPrank();
@@ -133,10 +133,10 @@ contract SapienRewardsHandler is Test {
         uint256 amount = bound(amountSeed, 1e18, 100000e18); // 1 to 100K tokens
         
         // Mint tokens to reward safe and deposit
-        rewardToken.mint(rewardSafe, amount);
+        rewardToken.mint(rewardAdmin, amount);
         totalMinted += amount; // Track additional mints
         
-        vm.startPrank(rewardSafe);
+        vm.startPrank(rewardAdmin);
         rewardToken.approve(address(sapienRewards), amount);
         
         try sapienRewards.depositRewards(amount) {
@@ -154,7 +154,7 @@ contract SapienRewardsHandler is Test {
         // Ensure we don't try to withdraw more than available
         uint256 amount = bound(amountSeed, 1, availableRewards);
         
-        vm.startPrank(rewardSafe);
+        vm.startPrank(rewardAdmin);
         try sapienRewards.withdrawRewards(amount) {
             totalRewardsWithdrawn += amount;
         } catch {
@@ -165,7 +165,7 @@ contract SapienRewardsHandler is Test {
     }
     
     function reconcileBalance() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         try sapienRewards.reconcileBalance() {
             // Reconciliation attempted
         } catch {
@@ -181,7 +181,7 @@ contract SapienRewardsHandler is Test {
         uint256 unaccounted = totalBalance - availableRewards;
         uint256 amount = bound(amountSeed, 1, unaccounted);
         
-        vm.startPrank(rewardSafe);
+        vm.startPrank(rewardAdmin);
         try sapienRewards.recoverUnaccountedTokens(amount) {
             totalRecovered += amount; // Track recovered tokens
         } catch {
@@ -249,7 +249,7 @@ contract SapienRewardsInvariantsTest is StdInvariant, Test {
     SapienRewardsHandler public handler;
     
     address public admin = makeAddr("admin");
-    address public rewardSafe = makeAddr("rewardSafe");
+    address public rewardAdmin = makeAddr("rewardAdmin");
     address public rewardManager = makeAddr("rewardManager");
     
     function setUp() public {
@@ -260,13 +260,13 @@ contract SapienRewardsInvariantsTest is StdInvariant, Test {
             SapienRewards.initialize.selector,
             admin,
             rewardManager,
-            rewardSafe,
+            rewardAdmin,
             address(rewardToken)
         );
         ERC1967Proxy sapienRewardsProxy = new ERC1967Proxy(address(sapienRewardsImpl), initData);
         sapienRewards = SapienRewards(address(sapienRewardsProxy));
         
-        handler = new SapienRewardsHandler(sapienRewards, rewardToken, admin, rewardSafe);
+        handler = new SapienRewardsHandler(sapienRewards, rewardToken, admin, rewardAdmin);
         
         // Set up invariant testing
         targetContract(address(handler));
@@ -324,7 +324,7 @@ contract SapienRewardsInvariantsTest is StdInvariant, Test {
     function invariant_TokenConservation() public view {
         // Get all current balances
         uint256 contractBalance = rewardToken.balanceOf(address(sapienRewards));
-        uint256 currentRewardSafeBalance = rewardToken.balanceOf(rewardSafe);
+        uint256 currentRewardSafeBalance = rewardToken.balanceOf(rewardAdmin);
         
         // Get user balances
         uint256 totalUserBalances = 0;
@@ -395,13 +395,13 @@ contract SapienRewardsInvariantsTest is StdInvariant, Test {
     
     /// @dev Only reward safe should be able to deposit/withdraw rewards
     function invariant_RewardSafeExclusiveAccess() public view {
-        // This is tested implicitly through the handler - only rewardSafe calls these functions
+        // This is tested implicitly through the handler - only rewardAdmin calls these functions
         // If any other address could call them, the handler would fail
         
         // Verify reward safe has the correct role
         assertTrue(
-            sapienRewards.hasRole(Const.REWARD_SAFE_ROLE, rewardSafe),
-            "Reward safe should have REWARD_SAFE_ROLE"
+            sapienRewards.hasRole(Const.REWARD_ADMIN_ROLE, rewardAdmin),
+            "Reward safe should have REWARD_ADMIN_ROLE"
         );
         
         // Verify admin has admin role

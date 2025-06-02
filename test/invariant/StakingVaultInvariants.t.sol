@@ -178,6 +178,7 @@ contract SapienVaultInvariantsTest is StdInvariant, Test {
     
     address public admin = makeAddr("admin");
     address public rewardSafe = makeAddr("rewardSafe");
+    address public sapienQA = makeAddr("sapienQA");
     
     function setUp() public {
         sapienToken = new MockERC20("Sapien", "SAPIEN", 18);
@@ -192,7 +193,8 @@ contract SapienVaultInvariantsTest is StdInvariant, Test {
             address(sapienToken),
             admin,
             rewardSafe,
-            address(multiplierContract)
+            address(multiplierContract),
+            sapienQA
         );
         ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), initData);
         sapienVault = SapienVault(address(sapienVaultProxy));

@@ -20,7 +20,7 @@ contract SapienRewardsTest is Test {
     // Test accounts
     address public admin = makeAddr("admin");
     address public rewardManager = makeAddr("rewardManager");
-    address public rewardSafe = makeAddr("rewardSafe");
+    address public rewardAdmin = makeAddr("rewardAdmin");
     address public user1 = makeAddr("user1");
     address public user2 = makeAddr("user2");
     address public unauthorizedUser = makeAddr("unauthorizedUser");
@@ -52,16 +52,16 @@ contract SapienRewardsTest is Test {
 
         // Deploy proxy with initialization
         bytes memory initData = abi.encodeWithSelector(
-            SapienRewards.initialize.selector, admin, rewardManagerSigner, rewardSafe, address(rewardToken)
+            SapienRewards.initialize.selector, admin, rewardManagerSigner, rewardAdmin, address(rewardToken)
         );
         ERC1967Proxy sapienRewardsProxy = new ERC1967Proxy(address(sapienRewardsImpl), initData);
         sapienRewards = SapienRewards(address(sapienRewardsProxy));
 
         // Mint tokens to reward safe
-        rewardToken.mint(rewardSafe, INITIAL_REWARD_BALANCE);
+        rewardToken.mint(rewardAdmin, INITIAL_REWARD_BALANCE);
 
         // Approve contract to spend tokens from reward safe
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         rewardToken.approve(address(sapienRewards), INITIAL_REWARD_BALANCE);
     }
 
@@ -73,7 +73,7 @@ contract SapienRewardsTest is Test {
         // Deploy new implementation and proxy for testing initialization
         SapienRewards newImpl = new SapienRewards();
         bytes memory initData = abi.encodeWithSelector(
-            SapienRewards.initialize.selector, admin, rewardManagerSigner, rewardSafe, address(rewardToken)
+            SapienRewards.initialize.selector, admin, rewardManagerSigner, rewardAdmin, address(rewardToken)
         );
         ERC1967Proxy newProxy = new ERC1967Proxy(address(newImpl), initData);
         SapienRewards newContract = SapienRewards(address(newProxy));
@@ -81,7 +81,7 @@ contract SapienRewardsTest is Test {
         // Check roles
         assertTrue(newContract.hasRole(newContract.DEFAULT_ADMIN_ROLE(), admin));
         assertTrue(newContract.hasRole(Const.PAUSER_ROLE, admin));
-        assertTrue(newContract.hasRole(Const.REWARD_SAFE_ROLE, rewardSafe));
+        assertTrue(newContract.hasRole(Const.REWARD_ADMIN_ROLE, rewardAdmin));
         assertTrue(newContract.hasRole(Const.REWARD_MANAGER_ROLE, rewardManagerSigner));
 
         // Check token is set
@@ -96,14 +96,14 @@ contract SapienRewardsTest is Test {
 
         // Test zero admin
         bytes memory initData = abi.encodeWithSelector(
-            SapienRewards.initialize.selector, address(0), rewardManagerSigner, rewardSafe, address(rewardToken)
+            SapienRewards.initialize.selector, address(0), rewardManagerSigner, rewardAdmin, address(rewardToken)
         );
         vm.expectRevert(ISapienRewards.ZeroAddress.selector);
         new ERC1967Proxy(address(newImpl), initData);
 
         // Test zero reward manager
         initData = abi.encodeWithSelector(
-            SapienRewards.initialize.selector, admin, address(0), rewardSafe, address(rewardToken)
+            SapienRewards.initialize.selector, admin, address(0), rewardAdmin, address(rewardToken)
         );
         vm.expectRevert(ISapienRewards.ZeroAddress.selector);
         new ERC1967Proxy(address(newImpl), initData);
@@ -117,7 +117,7 @@ contract SapienRewardsTest is Test {
 
         // Test zero reward token
         initData = abi.encodeWithSelector(
-            SapienRewards.initialize.selector, admin, rewardManagerSigner, rewardSafe, address(0)
+            SapienRewards.initialize.selector, admin, rewardManagerSigner, rewardAdmin, address(0)
         );
         vm.expectRevert(ISapienRewards.ZeroAddress.selector);
         new ERC1967Proxy(address(newImpl), initData);
@@ -125,7 +125,7 @@ contract SapienRewardsTest is Test {
 
     function test_Rewards_CannotInitializeTwice() public {
         vm.expectRevert();
-        sapienRewards.initialize(admin, rewardManagerSigner, rewardSafe, address(rewardToken));
+        sapienRewards.initialize(admin, rewardManagerSigner, rewardAdmin, address(rewardToken));
     }
 
     // ============================================
@@ -201,7 +201,7 @@ contract SapienRewardsTest is Test {
     }
 
     function test_Rewards_OnlyRewardSafeCanDeposit() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         assertEq(sapienRewards.getAvailableRewards(), REWARD_AMOUNT);
@@ -213,7 +213,7 @@ contract SapienRewardsTest is Test {
             abi.encodeWithSelector(
                 bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)")),
                 unauthorizedUser,
-                Const.REWARD_SAFE_ROLE
+                Const.REWARD_ADMIN_ROLE
             )
         );
         sapienRewards.depositRewards(REWARD_AMOUNT);
@@ -225,9 +225,9 @@ contract SapienRewardsTest is Test {
 
     function test_Rewards_DepositRewards() public {
         vm.expectEmit(true, false, false, true);
-        emit RewardsDeposited(rewardSafe, REWARD_AMOUNT, REWARD_AMOUNT);
+        emit RewardsDeposited(rewardAdmin, REWARD_AMOUNT, REWARD_AMOUNT);
 
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         assertEq(sapienRewards.getAvailableRewards(), REWARD_AMOUNT);
@@ -235,39 +235,39 @@ contract SapienRewardsTest is Test {
     }
 
     function test_Rewards_DepositRevertsOnZeroAmount() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         vm.expectRevert(ISapienRewards.InvalidAmount.selector);
         sapienRewards.depositRewards(0);
     }
 
     function test_Rewards_WithdrawRewards() public {
         // First deposit
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         uint256 withdrawAmount = REWARD_AMOUNT / 2;
 
         vm.expectEmit(true, false, false, true);
-        emit RewardsWithdrawn(rewardSafe, withdrawAmount, REWARD_AMOUNT - withdrawAmount);
+        emit RewardsWithdrawn(rewardAdmin, withdrawAmount, REWARD_AMOUNT - withdrawAmount);
 
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.withdrawRewards(withdrawAmount);
 
         assertEq(sapienRewards.getAvailableRewards(), REWARD_AMOUNT - withdrawAmount);
     }
 
     function test_Rewards_WithdrawRevertsOnInsufficientBalance() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         vm.expectRevert(ISapienRewards.InsufficientAvailableRewards.selector);
         sapienRewards.withdrawRewards(REWARD_AMOUNT + 1);
     }
 
     function test_Rewards_ReconcileBalance() public {
         // Deposit rewards normally
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         // Send tokens directly to contract (simulating untracked deposit)
@@ -279,7 +279,7 @@ contract SapienRewardsTest is Test {
         vm.expectEmit(false, false, false, true);
         emit RewardsReconciled(untrackedAmount, expectedTotal);
 
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.reconcileBalance();
 
         assertEq(sapienRewards.getAvailableRewards(), expectedTotal);
@@ -287,7 +287,7 @@ contract SapienRewardsTest is Test {
 
     function test_Rewards_RecoverUnaccountedTokens() public {
         // Deposit normally
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         // Send tokens directly
@@ -297,12 +297,12 @@ contract SapienRewardsTest is Test {
         uint256 recoverAmount = 200 * 10 ** 18;
 
         vm.expectEmit(true, false, false, true);
-        emit UnaccountedTokensRecovered(rewardSafe, recoverAmount);
+        emit UnaccountedTokensRecovered(rewardAdmin, recoverAmount);
 
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.recoverUnaccountedTokens(recoverAmount);
 
-        assertEq(rewardToken.balanceOf(rewardSafe), INITIAL_REWARD_BALANCE - REWARD_AMOUNT + recoverAmount);
+        assertEq(rewardToken.balanceOf(rewardAdmin), INITIAL_REWARD_BALANCE - REWARD_AMOUNT + recoverAmount);
     }
 
     // ============================================
@@ -311,7 +311,7 @@ contract SapienRewardsTest is Test {
 
     function test_Rewards_ClaimRewardWithValidSignature() public {
         // Deposit rewards
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT * 2);
 
         // Create signature
@@ -330,7 +330,7 @@ contract SapienRewardsTest is Test {
     }
 
     function test_Rewards_ClaimRewardRevertsOnInvalidSignature() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         // Create signature with wrong private key
@@ -343,7 +343,7 @@ contract SapienRewardsTest is Test {
     }
 
     function test_Rewards_ClaimRewardRevertsOnMalformedSignature() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         // Create malformed signature (wrong length)
@@ -355,7 +355,7 @@ contract SapienRewardsTest is Test {
     }
 
     function test_Rewards_ClaimRewardRevertsOnInvalidSignatureFormat() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         // Create signature with invalid format (all zeros)
@@ -367,7 +367,7 @@ contract SapienRewardsTest is Test {
     }
 
     function test_Rewards_ClaimRewardRevertsOnECDSARecoveryError() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         // Create a signature with invalid s value (too high)
@@ -383,7 +383,7 @@ contract SapienRewardsTest is Test {
     }
 
     function test_Rewards_ClaimRewardRevertsOnDoubleSpend() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT * 2);
 
         bytes memory signature = _createSignature(user1, REWARD_AMOUNT, ORDER_ID);
@@ -399,7 +399,7 @@ contract SapienRewardsTest is Test {
     }
 
     function test_Rewards_ClaimRewardRevertsWhenPaused() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         vm.prank(admin);
@@ -413,7 +413,7 @@ contract SapienRewardsTest is Test {
     }
 
     function test_Rewards_RewardManagerCannotClaim() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         bytes memory signature = _createSignature(rewardManagerSigner, REWARD_AMOUNT, ORDER_ID);
@@ -428,7 +428,7 @@ contract SapienRewardsTest is Test {
     // ============================================
 
     function test_Rewards_ValidateRewardParameters() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         // Valid parameters should not revert
@@ -451,7 +451,7 @@ contract SapienRewardsTest is Test {
     }
 
     function test_Rewards_ValidateRewardParametersRevertsOnAlreadyRedeemed() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT * 2);
 
         bytes memory signature = _createSignature(user1, REWARD_AMOUNT, ORDER_ID);
@@ -464,7 +464,7 @@ contract SapienRewardsTest is Test {
     }
 
     function test_Rewards_ValidateAndGetHashToSign() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         vm.prank(rewardManagerSigner);
@@ -474,7 +474,7 @@ contract SapienRewardsTest is Test {
     }
 
     function test_Rewards_ValidateAndGetHashToSignRevertsForNonManager() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         vm.prank(unauthorizedUser);
@@ -489,7 +489,7 @@ contract SapienRewardsTest is Test {
     }
 
     function test_Rewards_ValidateAndGetHashToSignRevertsWhenPaused() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         vm.prank(admin);
@@ -507,14 +507,14 @@ contract SapienRewardsTest is Test {
     function test_Rewards_GetAvailableRewards() public {
         assertEq(sapienRewards.getAvailableRewards(), 0);
 
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         assertEq(sapienRewards.getAvailableRewards(), REWARD_AMOUNT);
     }
 
     function test_Rewards_GetRewardTokenBalances() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         (uint256 available, uint256 total) = sapienRewards.getRewardTokenBalances();
@@ -534,7 +534,7 @@ contract SapienRewardsTest is Test {
     function test_Rewards_GetOrderRedeemedStatus() public {
         assertFalse(sapienRewards.getOrderRedeemedStatus(user1, ORDER_ID));
 
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         bytes memory signature = _createSignature(user1, REWARD_AMOUNT, ORDER_ID);
@@ -559,7 +559,7 @@ contract SapienRewardsTest is Test {
     // ============================================
 
     function test_Rewards_MultipleUsersCanClaimDifferentOrders() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT * 2);
 
         bytes memory signature1 = _createSignature(user1, REWARD_AMOUNT, ORDER_ID);
@@ -577,7 +577,7 @@ contract SapienRewardsTest is Test {
     }
 
     function test_Rewards_ClaimExactlyAllAvailableRewards() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         bytes memory signature = _createSignature(user1, REWARD_AMOUNT, ORDER_ID);
@@ -590,7 +590,7 @@ contract SapienRewardsTest is Test {
     }
 
     function test_Rewards_SetRewardTokenResetsAvailableRewards() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         assertEq(sapienRewards.getAvailableRewards(), REWARD_AMOUNT);
@@ -617,13 +617,13 @@ contract SapienRewardsTest is Test {
         uint256 excessiveAmount = Const.MAX_REWARD_AMOUNT + 1;
 
         // Mint extra tokens to reward safe to cover the excessive amount
-        rewardToken.mint(rewardSafe, excessiveAmount);
+        rewardToken.mint(rewardAdmin, excessiveAmount);
 
         // Approve the excessive amount
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         rewardToken.approve(address(sapienRewards), excessiveAmount);
 
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(excessiveAmount);
 
         bytes memory signature = _createSignature(user1, excessiveAmount, ORDER_ID);
@@ -634,22 +634,22 @@ contract SapienRewardsTest is Test {
     }
 
     function test_Rewards_RecoverTokensRevertsOnInsufficientUnaccounted() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         // Try to recover more than available untracked tokens
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         vm.expectRevert(ISapienRewards.InsufficientUnaccountedTokens.selector);
         sapienRewards.recoverUnaccountedTokens(1);
     }
 
     function test_Rewards_ReconcileBalanceDoesNothingWhenBalancesMatch() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         uint256 balanceBefore = sapienRewards.getAvailableRewards();
 
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.reconcileBalance();
 
         // Should remain the same
@@ -673,7 +673,7 @@ contract SapienRewardsTest is Test {
     // ============================================
 
     function test_Rewards_WithdrawRevertsOnZeroAmount() public {
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         vm.expectRevert(ISapienRewards.InvalidAmount.selector);
         sapienRewards.withdrawRewards(0);
     }
@@ -687,7 +687,7 @@ contract SapienRewardsTest is Test {
             abi.encodeWithSelector(
                 bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)")),
                 unauthorizedUser,
-                Const.REWARD_SAFE_ROLE
+                Const.REWARD_ADMIN_ROLE
             )
         );
         sapienRewards.recoverUnaccountedTokens(50 * 10 ** 18);
@@ -699,7 +699,7 @@ contract SapienRewardsTest is Test {
             abi.encodeWithSelector(
                 bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)")),
                 unauthorizedUser,
-                Const.REWARD_SAFE_ROLE
+                Const.REWARD_ADMIN_ROLE
             )
         );
         sapienRewards.reconcileBalance();
@@ -713,7 +713,7 @@ contract SapienRewardsTest is Test {
         vm.assume(amount > 0 && amount <= Const.MAX_REWARD_AMOUNT && amount <= INITIAL_REWARD_BALANCE);
         vm.assume(orderId != bytes32(0));
 
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(amount);
 
         bytes memory signature = _createSignature(user1, amount, orderId);
@@ -730,12 +730,12 @@ contract SapienRewardsTest is Test {
         vm.assume(depositAmount > 0 && depositAmount <= INITIAL_REWARD_BALANCE);
         vm.assume(withdrawAmount > 0 && withdrawAmount <= depositAmount);
 
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.depositRewards(depositAmount);
 
         assertEq(sapienRewards.getAvailableRewards(), depositAmount);
 
-        vm.prank(rewardSafe);
+        vm.prank(rewardAdmin);
         sapienRewards.withdrawRewards(withdrawAmount);
 
         assertEq(sapienRewards.getAvailableRewards(), depositAmount - withdrawAmount);

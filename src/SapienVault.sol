@@ -50,7 +50,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param admin The address of the admin multisig.
      * @param newTreasury The address of the Rewards Safe multisig for penalty collection.
      */
-    function initialize(address token, address admin, address newTreasury, address newMultiplierContract)
+    function initialize(address token, address admin, address newTreasury, address newMultiplierContract, address sapienQA)
         public
         initializer
     {
@@ -58,6 +58,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         if (admin == address(0)) revert ZeroAddress();
         if (newTreasury == address(0)) revert ZeroAddress();
         if (newMultiplierContract == address(0)) revert ZeroAddress();
+        if (sapienQA == address(0)) revert ZeroAddress();
 
         __Pausable_init();
         __AccessControl_init();
@@ -65,11 +66,12 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(Const.PAUSER_ROLE, admin);
+        _grantRole(Const.SAPIEN_QA_ROLE, sapienQA);
         _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         sapienToken = IERC20(token);
-        treasury = newTreasury;
         multiplier = IMultiplier(newMultiplierContract);
+        treasury = newTreasury;
     }
 
     // -------------------------------------------------------------
@@ -90,13 +92,12 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         _;
     }
 
-    modifier onlyQAManager() {
-        if (!hasRole(Const.QA_MANAGER_ROLE, msg.sender)) {
-            revert AccessControlUnauthorizedAccount(msg.sender, Const.QA_MANAGER_ROLE);
+    modifier onlySapienQA() {
+        if (!hasRole(Const.SAPIEN_QA_ROLE, msg.sender)) {
+            revert AccessControlUnauthorizedAccount(msg.sender, Const.SAPIEN_QA_ROLE);
         }
         _;
     }
-
     // -------------------------------------------------------------
     // Role-Based Functions
     // -------------------------------------------------------------
@@ -147,23 +148,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         multiplier = IMultiplier(newMultiplierContract);
         emit MultiplierUpdated(0, 0); // Emit with zero values to indicate contract update
-    }
-
-    /**
-     * @notice Grant QA_MANAGER_ROLE to a QA contract
-     * @param qaContract The address of the QA contract to grant role to
-     */
-    function grantQAManagerRole(address qaContract) external onlyAdmin {
-        if (qaContract == address(0)) revert ZeroAddress();
-        _grantRole(Const.QA_MANAGER_ROLE, qaContract);
-    }
-
-    /**
-     * @notice Revoke QA_MANAGER_ROLE from a QA contract
-     * @param qaContract The address of the QA contract to revoke role from
-     */
-    function revokeQAManagerRole(address qaContract) external onlyAdmin {
-        _revokeRole(Const.QA_MANAGER_ROLE, qaContract);
     }
 
     /**
@@ -879,13 +863,13 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param userAddress The user being penalized
      * @param penaltyAmount The amount to transfer as penalty
      * @return actualPenalty The actual amount processed (may be less than requested if insufficient stake)
-     * @dev Can only be called by QA_MANAGER_ROLE
+     * @dev Can only be called by SapienQA contract
      */
     function processQAPenalty(address userAddress, uint256 penaltyAmount)
         external
         nonReentrant
         whenNotPaused
-        onlyQAManager
+        onlySapienQA
         returns (uint256 actualPenalty)
     {
         if (userAddress == address(0)) revert ZeroAddress();

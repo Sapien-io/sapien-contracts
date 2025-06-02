@@ -20,6 +20,18 @@ The SAPIEN protocol bridges the gap between human wisdom and machine learning by
 
 ---
 
+## 📚 Contract Documentation
+
+Detailed technical documentation for each smart contract:
+
+- **[SapienVault](notes/SapienVault.md)** - Staking, lockup management, and vault operations
+- **[SapienQA](notes/SapienQA.md)** - Quality assurance system and penalty enforcement  
+- **[SapienRewards](notes/SapienRewards.md)** - Off-chain signed reward claims and distribution
+- **[Multiplier](notes/Multiplier.md)** - Reward calculation and multiplier mechanics
+- **[SAPIEN Whitepaper](notes/whitepaper.md)** - Complete tokenomics and protocol design
+
+---
+
 ## 🔬 Comprehensive Testing Suite
 
 The SAPIEN protocol features one of the most comprehensive smart contract testing suites in DeFi, with **extensive end-to-end testing** that validates complete user journeys and real-world scenarios.
@@ -72,9 +84,14 @@ forge test --match-test "test_QA_EndToEndScenario" -vv
 forge test --match-test "test_EndToEnd_CompleteStakingJourney" -v
 forge test --match-test "test_EndToEnd_CompleteUserJourney" -v
 
+make unit
+make var
+
+make cover
+make show
+
 # Generate gas snapshots
 forge snapshot
 
----
-- **Documentation**: [docs.sapien.network](https://docs.sapien.io)
-- **Whitepaper**: [SAPIEN Tokenomics](notes/whitepaper.md)
+```
+

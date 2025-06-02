@@ -70,9 +70,9 @@ contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgr
     }
 
     /// @dev Reward Manager Access modifier
-    modifier onlyRewardSafe() {
-        if (!hasRole(Const.REWARD_SAFE_ROLE, msg.sender)) {
-            revert AccessControlUnauthorizedAccount(msg.sender, Const.REWARD_SAFE_ROLE);
+    modifier onlyRewardAdmin() {
+        if (!hasRole(Const.REWARD_ADMIN_ROLE, msg.sender)) {
+            revert AccessControlUnauthorizedAccount(msg.sender, Const.REWARD_ADMIN_ROLE);
         }
         _;
     }
@@ -98,15 +98,16 @@ contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgr
      * @notice Initializes the contract with the provided admin and reward manager.
      * @param admin The address of the admin.
      * @param rewardManager The address of the rewards manager.
-     * @param rewardSafe The address of the Safe that holds Contributor Rewards supply.
+     * @param rewardAdmin The address of the Safe that holds Contributor Rewards supply.
+     * @param newRewardToken The address of the reward token.
      */
-    function initialize(address admin, address rewardManager, address rewardSafe, address newRewardToken)
+    function initialize(address admin, address rewardManager, address rewardAdmin, address newRewardToken)
         public
         initializer
     {
         if (admin == address(0)) revert ZeroAddress();
         if (rewardManager == address(0)) revert ZeroAddress();
-        if (rewardSafe == address(0)) revert ZeroAddress();
+        if (rewardAdmin == address(0)) revert ZeroAddress();
         if (newRewardToken == address(0)) revert ZeroAddress();
 
         __Pausable_init();
@@ -115,7 +116,7 @@ contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgr
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(Const.PAUSER_ROLE, admin);
-        _grantRole(Const.REWARD_SAFE_ROLE, rewardSafe);
+        _grantRole(Const.REWARD_ADMIN_ROLE, rewardAdmin);
         _grantRole(Const.REWARD_MANAGER_ROLE, rewardManager);
         _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
@@ -167,7 +168,7 @@ contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgr
      * @notice Allows for the deposit of reward tokens directly into this contract.
      * @param amount The amount of tokens to deposit.
      */
-    function depositRewards(uint256 amount) external onlyRewardSafe {
+    function depositRewards(uint256 amount) external onlyRewardAdmin {
         if (amount == 0) revert InvalidAmount();
 
         rewardToken.safeTransferFrom(msg.sender, address(this), amount);
@@ -180,7 +181,7 @@ contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgr
      * @notice Allows the contract owners to withdraw tokens from this contract.
      * @param amount The amount of tokens to withdraw.
      */
-    function withdrawRewards(uint256 amount) external onlyRewardSafe {
+    function withdrawRewards(uint256 amount) external onlyRewardAdmin {
         if (amount == 0) revert InvalidAmount();
         if (amount > availableRewards) revert InsufficientAvailableRewards();
 
@@ -194,7 +195,7 @@ contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgr
      * @notice Emergency function to recover tokens sent directly to contract
      * @param amount Amount to recover from untracked balance
      */
-    function recoverUnaccountedTokens(uint256 amount) external onlyRewardSafe {
+    function recoverUnaccountedTokens(uint256 amount) external onlyRewardAdmin {
         uint256 totalBalance = rewardToken.balanceOf(address(this));
         uint256 unaccounted = totalBalance - availableRewards;
 
@@ -208,7 +209,7 @@ contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgr
      * @notice Reconciles the balance of the reward token
      * @dev Only callable by the reward safe
      */
-    function reconcileBalance() external onlyRewardSafe {
+    function reconcileBalance() external onlyRewardAdmin {
         _reconcileBalance();
     }
 

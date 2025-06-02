@@ -63,10 +63,10 @@ contract SapienVaultEndToEndTest is Test {
 
         // Deploy SapienVault with proxy
         SapienVault sapienVaultImpl = new SapienVault();
-        bytes memory vaultInitData = abi.encodeWithSelector(
-            SapienVault.initialize.selector, address(sapienToken), admin, treasury, address(multiplier)
+        bytes memory initData = abi.encodeWithSelector(
+            SapienVault.initialize.selector, address(sapienToken), admin, treasury, address(multiplier), makeAddr("dummySapienQA")
         );
-        ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), vaultInitData);
+        ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), initData);
         sapienVault = SapienVault(address(sapienVaultProxy));
 
         // Deploy SapienQA
@@ -75,6 +75,10 @@ contract SapienVaultEndToEndTest is Test {
         // Grant QA manager role to QA contract
         vm.prank(admin);
         sapienVault.grantRole(Const.QA_MANAGER_ROLE, address(sapienQA));
+
+        // Grant SAPIEN_QA_ROLE to QA contract so it can call processQAPenalty
+        vm.prank(admin);
+        sapienVault.grantRole(Const.SAPIEN_QA_ROLE, address(sapienQA));
 
         // Setup user balances
         address[8] memory users = [

@@ -30,11 +30,11 @@ contract SapienQA is ISapienQA, AccessControl, EIP712 {
     address public treasury;
     address public vaultContract;
 
-    mapping(address => QARecord[]) private userQAHistory;
-    mapping(bytes32 => bool) private processedDecisions;
-
     uint256 public totalPenalties;
     uint256 public totalWarnings;
+
+    mapping(address => QARecord[]) private userQAHistory;
+    mapping(bytes32 => bool) private processedDecisions;    
 
     // -------------------------------------------------------------
     // Constructor
@@ -58,7 +58,7 @@ contract SapienQA is ISapienQA, AccessControl, EIP712 {
     }
 
     modifier onlyQaAdmin() {
-        if (!hasRole(Const.QA_MANAGER_ROLE, msg.sender)) {
+        if (!hasRole(Const.QA_ADMIN_ROLE, msg.sender)) {
             revert AccessControlUnauthorizedAccount(msg.sender, Const.QA_ADMIN_ROLE);
         }
         _;
@@ -337,7 +337,7 @@ contract SapienQA is ISapienQA, AccessControl, EIP712 {
      * @param penaltyAmount The penalty amount
      * @param decisionId The unique decision identifier
      * @param reason The reason for the assessment
-     * @param signature The signature to verify
+     * @param signature The signature to verify from the QA admin
      */
     function _verifySignature(
         address userAddress,
@@ -363,6 +363,6 @@ contract SapienQA is ISapienQA, AccessControl, EIP712 {
         bytes32 hash = _hashTypedDataV4(structHash);
         address signer = hash.recover(signature);
 
-        if (!hasRole(Const.QA_MANAGER_ROLE, signer)) revert UnauthorizedSigner(signer);
+        if (!hasRole(Const.QA_ADMIN_ROLE, signer)) revert UnauthorizedSigner(signer);
     }
 }
