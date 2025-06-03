@@ -188,9 +188,13 @@ contract SapienVaultBasicTest is Test {
 
         assertEq(userTotalStaked, MINIMUM_STAKE * 3);
 
-        // Effective lockup should be weighted average: (30 * 1000 + 90 * 2000) / 3000 = 70 days
-        uint256 expectedLockup = (LOCK_30_DAYS * MINIMUM_STAKE + LOCK_90_DAYS * MINIMUM_STAKE * 2) / (MINIMUM_STAKE * 3);
-        assertEq(effectiveLockUpPeriod, expectedLockup);
+        // NEW BEHAVIOR: With proper lockup floor protection, the effective lockup should be
+        // the maximum of:
+        // 1. Remaining time on existing stake (30-10 = 20 days)  
+        // 2. New stake period (90 days)
+        // 3. Weighted average would be (20 * 1000 + 90 * 2000) / 3000 = 66.67 days
+        // Result should be max(20, 90, 66.67) = 90 days (new stake period)
+        assertEq(effectiveLockUpPeriod, LOCK_90_DAYS); // Should be new stake period (90 days)
 
         assertEq(sapienVault.totalStaked(), MINIMUM_STAKE * 3);
     }
@@ -723,18 +727,20 @@ contract SapienVaultBasicTest is Test {
 
         (,,,,, uint256 effectiveMultiplier, uint256 effectiveLockUpPeriod,) = sapienVault.getUserStakingSummary(user1);
 
-        // The effective multiplier should be interpolated based on the weighted average lockup period
-        // Expected lockup: (30 * 1000 + 90 * 2000) / 3000 = 70 days
-        uint256 expectedLockup = (LOCK_30_DAYS * MINIMUM_STAKE + LOCK_90_DAYS * MINIMUM_STAKE * 2) / (MINIMUM_STAKE * 3);
-
-        // In new system: 3K tokens @ ~70 days should get interpolated multiplier around 1.26x
-        // 3K tokens falls in 2.5K-5K tier, so base multipliers are 1.23x @ 30 days and 1.28x @ 90 days
-        // Interpolating between them for ~70 days should give around 1.26x = 12600
+        // NEW BEHAVIOR: With proper lockup floor protection, the effective lockup should be
+        // the maximum of:
+        // 1. Remaining time on existing stake (30-5 = 25 days)  
+        // 2. New stake period (90 days)
+        // 3. Weighted average would be (25 * 1000 + 90 * 2000) / 3000 = 68.33 days
+        // Result should be max(25, 90, 68.33) = 90 days (new stake period)
+        
+        // In new system: 3K tokens @ 90 days should get interpolated multiplier around 1.28x
+        // 3K tokens falls in 2.5K-5K tier, so multiplier at 90 days should be around 1.28x = 12800
         assertGt(effectiveMultiplier, 12000, "Should be better than 30-day multiplier for 3K tokens");
-        assertLt(effectiveMultiplier, 13000, "Should be reasonable interpolated value for 3K @ ~70 days");
+        assertLt(effectiveMultiplier, 13000, "Should be reasonable interpolated value for 3K @ 90 days");
 
-        // Check that the effective lockup is approximately what we expect
-        assertApproxEqAbs(effectiveLockUpPeriod, expectedLockup, 1 days);
+        // Check that the effective lockup is the new stake period (90 days)
+        assertEq(effectiveLockUpPeriod, LOCK_90_DAYS, "Should use new stake period due to security fix");
     }
 
     // =============================================================================
@@ -1893,10 +1899,14 @@ contract SapienVaultBasicTest is Test {
         sapienVault.stake(stakeAmount2, LOCK_365_DAYS);
         vm.stopPrank();
 
-        // Verify the stake was processed (precision rounding was applied)
+        // NEW BEHAVIOR: With proper lockup floor protection, the effective lockup should be
+        // the maximum of:
+        // 1. Remaining time on existing stake (30 days)  
+        // 2. New stake period (365 days)
+        // 3. Weighted average would be weighted between 30 and 365 days
+        // Result should be max(30, 365, weighted_avg) = 365 days (new stake period)
         (,,,,,, uint256 effectiveLockup,) = sapienVault.getUserStakingSummary(user1);
-        assertGt(effectiveLockup, LOCK_30_DAYS); // Should be weighted between 30 and 365 days
-        assertLt(effectiveLockup, LOCK_365_DAYS);
+        assertEq(effectiveLockup, LOCK_365_DAYS, "Should use new stake period due to security fix");
     }
 
     function test_Vault_PrecisionRounding_CalculateWeightedStartTime() public {
@@ -2142,5 +2152,88 @@ contract SapienVaultBasicTest is Test {
         // Verify full unstake completed
         assertFalse(sapienVault.hasActiveStake(user1)); // No more stake
         assertEq(sapienVault.getTotalStaked(user1), 0);
+    }
+
+    /**
+     * @notice Test proper lockup floor protection against reduction attacks
+     * @dev Verifies users cannot reduce their lockup commitment by adding new stakes
+     */
+    function test_Vault_ProperLockupFloorProtection() public {
+        // Scenario 1: User commits to long-term staking
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), MINIMUM_STAKE);
+        sapienVault.stake(MINIMUM_STAKE, LOCK_365_DAYS);
+        vm.stopPrank();
+
+        (,,,,,, uint256 initialLockup, uint256 initialTimeRemaining) = sapienVault.getUserStakingSummary(user1);
+        assertEq(initialLockup, LOCK_365_DAYS, "Initial lockup should be 365 days");
+        assertEq(initialTimeRemaining, LOCK_365_DAYS, "Initially should have full time remaining");
+        
+        // Scenario 2: Time passes (300 days), 65 days remaining
+        vm.warp(block.timestamp + 300 days);
+        
+        (,,,,,, uint256 lockupPeriod, uint256 timeRemaining) = sapienVault.getUserStakingSummary(user1);
+        assertEq(lockupPeriod, LOCK_365_DAYS, "Lockup period should still be 365 days");
+        assertEq(timeRemaining, 65 days, "Should have 65 days remaining");
+        
+        // Scenario 3: User tries to "escape" with large short-term stake (90x larger!)
+        uint256 escapeStake = MINIMUM_STAKE * 90; // Large dilution attempt but within token limits
+        
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), escapeStake);
+        sapienVault.stake(escapeStake, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        (uint256 totalStaked,,,,,, uint256 finalLockup,) = sapienVault.getUserStakingSummary(user1);
+        
+        assertEq(totalStaked, MINIMUM_STAKE * 91, "Should have combined total stake");
+        
+        // 🛡️ PROPER FIX VERIFICATION:
+        // Final lockup should be the MAXIMUM of:
+        // 1. Weighted average: (65 * 1000 + 30 * 90000) / 91000 ≈ 30.4 days
+        // 2. Remaining commitment: 65 days  
+        // 3. New stake period: 30 days
+        // Result should be max(30.4, 65, 30) = 65 days (remaining commitment)
+        
+        assertEq(finalLockup, 65 days, 
+            "SECURITY FIX: Cannot reduce lockup below remaining commitment");
+        
+        // Verify user cannot escape their commitment with capital
+        assertGe(finalLockup, timeRemaining, 
+            "SECURITY FIX: Must honor remaining commitment time");
+    }
+
+    /**
+     * @notice Test that legitimate lockup extensions still work
+     * @dev Ensures the fix doesn't break legitimate functionality
+     */
+    function test_Vault_LockupExtensionsStillWork() public {
+        // User starts with short-term stake
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), MINIMUM_STAKE);
+        sapienVault.stake(MINIMUM_STAKE, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Time passes (20 days), 10 days remaining
+        vm.warp(block.timestamp + 20 days);
+        
+        (,,,,,, uint256 lockupPeriod, uint256 timeRemaining) = sapienVault.getUserStakingSummary(user1);
+        assertEq(lockupPeriod, LOCK_30_DAYS, "Lockup period should be 30 days");
+        assertEq(timeRemaining, 10 days, "Should have 10 days remaining");
+        
+        // User wants to extend commitment to long-term
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), MINIMUM_STAKE);
+        sapienVault.stake(MINIMUM_STAKE, LOCK_365_DAYS);
+        vm.stopPrank();
+
+        (uint256 totalStaked,,,,,, uint256 finalLockup,) = sapienVault.getUserStakingSummary(user1);
+        
+        assertEq(totalStaked, MINIMUM_STAKE * 2, "Should have doubled stake");
+        
+        // Should be the longer period (365 days) since:
+        // max(weighted_average, 10_days, 365_days) = 365 days
+        assertEq(finalLockup, LOCK_365_DAYS, 
+            "Should allow extension to longer period");
     }
 }

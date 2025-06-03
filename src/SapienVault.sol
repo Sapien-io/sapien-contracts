@@ -684,9 +684,15 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             uint256(userStake.weightedStartTime), uint256(userStake.amount), amount, newTotalAmount
         );
 
-        // Calculate weighted lockup period
+        // Calculate remaining lockup time for existing stake
+        uint256 timeElapsed = block.timestamp - uint256(userStake.weightedStartTime);
+        uint256 remainingExistingLockup = uint256(userStake.effectiveLockUpPeriod) > timeElapsed
+            ? uint256(userStake.effectiveLockUpPeriod) - timeElapsed
+            : 0;
+
+        // Calculate weighted lockup period using remaining time
         newValues.effectiveLockup = _calculateWeightedLockupPeriod(
-            uint256(userStake.effectiveLockUpPeriod), uint256(userStake.amount), lockUpPeriod, amount, newTotalAmount
+            remainingExistingLockup, uint256(userStake.amount), lockUpPeriod, amount, newTotalAmount
         );
 
         // Ensure lockup period doesn't exceed maximum
@@ -737,14 +743,18 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     }
 
     /**
-     * @notice Calculates weighted lockup period for combining stakes
-     * @dev Formula: (existingAmount * existingLockup + newAmount * newLockup) / totalAmount
-     * @param existingLockupPeriod The current effective lockup period
+     * @notice Calculates weighted lockup period for combining stakes with proper lockup floor protection
+     * @dev This implementation ensures users cannot reduce their existing lockup commitments by adding new stakes
+     *      The effective lockup is calculated as the maximum of:
+     *      1. The weighted average of existing and new lockup periods
+     *      2. The remaining lockup time on existing committed tokens
+     *      3. The lockup period of the new stake being added
+     * @param existingLockupPeriod The remaining lockup time for existing stake (already calculated by caller)
      * @param existingAmount The current stake amount
      * @param newLockupPeriod The lockup period for the new amount
      * @param newAmount The new amount being added
      * @param totalAmount The total amount after addition
-     * @return weightedLockup The calculated weighted lockup period
+     * @return weightedLockup The calculated weighted lockup period with proper protection
      */
     function _calculateWeightedLockupPeriod(
         uint256 existingLockupPeriod,
@@ -776,6 +786,23 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         uint256 remainder = totalLockupWeight % totalAmount;
         if (remainder > totalAmount / 2) {
             weightedLockup += 1;
+        }
+
+        // 🛡️ PROPER LOCKUP FLOOR PROTECTION:
+        // Users cannot reduce their lockup period below their existing commitment
+        // Take the maximum of:
+        // 1. Weighted average calculation (calculated above)
+        // 2. Remaining lockup time on existing tokens (existingLockupPeriod)
+        // 3. Lockup period of new stake (newLockupPeriod)
+        
+        // Cannot reduce below remaining commitment of existing tokens
+        if (weightedLockup < existingLockupPeriod) {
+            weightedLockup = existingLockupPeriod;
+        }
+        
+        // Cannot reduce below new stake's lockup period
+        if (weightedLockup < newLockupPeriod) {
+            weightedLockup = newLockupPeriod;
         }
     }
 
