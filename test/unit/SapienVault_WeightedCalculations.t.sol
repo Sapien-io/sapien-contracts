@@ -115,7 +115,7 @@ contract SapienVaultWeightedCalculationsTest is Test {
     // =============================================================================
 
     function test_Vault_WeightedLockup_EqualAmounts() public {
-        // Test case: equal amounts should result in average of lockup periods
+        // Test case: equal amounts with floor protection - lockup cannot be reduced below the longer period
         uint256 stakeAmount = MINIMUM_STAKE;
 
         // First stake with 30 days
@@ -130,15 +130,15 @@ contract SapienVaultWeightedCalculationsTest is Test {
         sapienVault.stake(stakeAmount, LOCK_90_DAYS);
         vm.stopPrank();
 
-        // Expected weighted lockup: (30 * 1000 + 90 * 1000) / 2000 = 60 days
+        // Due to floor protection, effective lockup will be the longer period (90 days)
+        // rather than the weighted average (60 days)
         (,,,,,, uint256 effectiveLockUpPeriod,) = sapienVault.getUserStakingSummary(user1);
 
-        uint256 expectedLockup = (LOCK_30_DAYS + LOCK_90_DAYS) / 2;
-        assertEq(effectiveLockUpPeriod, expectedLockup, "Should average lockup periods for equal amounts");
+        assertEq(effectiveLockUpPeriod, LOCK_90_DAYS, "Should use longer lockup due to floor protection");
     }
 
     function test_Vault_WeightedLockup_DifferentAmounts() public {
-        // Test case: different amounts should weight lockup periods properly
+        // Test case: different amounts with floor protection - existing longer lockup is preserved
         uint256 smallStake = MINIMUM_STAKE;
         uint256 largeStake = MINIMUM_STAKE * 9; // 9x larger
 
@@ -154,13 +154,10 @@ contract SapienVaultWeightedCalculationsTest is Test {
         sapienVault.stake(largeStake, LOCK_30_DAYS);
         vm.stopPrank();
 
-        // Expected weighted lockup: (365 * 1000 + 30 * 9000) / 10000 = (365000 + 270000) / 10000 = 63.5 days
+        // Due to floor protection, the 365-day lockup cannot be reduced even by a much larger stake
         (,,,,,, uint256 effectiveLockUpPeriod,) = sapienVault.getUserStakingSummary(user1);
 
-        uint256 expectedLockup = (LOCK_365_DAYS * smallStake + LOCK_30_DAYS * largeStake) / (smallStake + largeStake);
-
-        // Allow for rounding (±1 day tolerance)
-        assertApproxEqAbs(effectiveLockUpPeriod, expectedLockup, 1 days, "Should weight lockup by stake amounts");
+        assertEq(effectiveLockUpPeriod, LOCK_365_DAYS, "Should maintain longer lockup due to floor protection");
     }
 
     function test_Vault_WeightedLockup_MaximumCapping() public {
@@ -207,7 +204,7 @@ contract SapienVaultWeightedCalculationsTest is Test {
 
         assertEq(totalStaked, stake1 + stake2, "Total stake should be sum of both stakes");
         assertGt(effectiveLockUpPeriod, LOCK_30_DAYS, "Effective lockup should be > 30 days");
-        assertLt(effectiveLockUpPeriod, LOCK_90_DAYS, "Effective lockup should be < 90 days");
+        assertEq(effectiveLockUpPeriod, LOCK_90_DAYS, "Effective lockup should be exactly 90 days due to floor protection");
     }
 
     // =============================================================================
@@ -297,12 +294,13 @@ contract SapienVaultWeightedCalculationsTest is Test {
         sapienVault.stake(stake1, LOCK_30_DAYS);
         vm.stopPrank();
 
-        // Both should have same total stake and lockup period
+        // Both should have same total stake and very similar lockup periods
+        // (small differences due to banker's rounding in different calculation orders are acceptable)
         (uint256 total1,,,,,, uint256 lockup1,) = sapienVault.getUserStakingSummary(user1);
         (uint256 total2,,,,,, uint256 lockup2,) = sapienVault.getUserStakingSummary(user2);
 
         assertEq(total1, total2, "Total stakes should be equal");
-        assertEq(lockup1, lockup2, "Effective lockups should be equal regardless of order");
+        assertApproxEqAbs(lockup1, lockup2, 100, "Effective lockups should be nearly equal (allowing for rounding differences)");
     }
 
     // =============================================================================

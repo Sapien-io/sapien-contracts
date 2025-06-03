@@ -290,20 +290,20 @@ contract SapienVaultScenariosTest is Test {
         sapienVault.stake(MINIMUM_STAKE * 3, LOCK_180_DAYS); // 3000 tokens, 180 days
         vm.stopPrank();
 
-        // Calculate expected weighted average lockup:
-        // Original: 1000 tokens with 20 days remaining (30-10)
+        // Due to floor protection, the effective lockup will be 180 days (the longer period)
+        // rather than the theoretical weighted average of ~140 days
+        // Original: 1000 tokens with ~20 days remaining (30-10)  
         // New: 3000 tokens with 180 days
-        // Weighted average: (1000 * 20 + 3000 * 180) / 4000 = 560000 / 4000 = 140 days
+        // Floor protection ensures lockup >= max(20 days remaining, 180 days new) = 180 days
 
         (uint256 totalStaked,,,,,, uint256 effectiveLockUpPeriod,) = sapienVault.getUserStakingSummary(david);
 
         assertEq(totalStaked, MINIMUM_STAKE * 4);
 
-        // The effective lockup should be around 140 days (allowing for some precision)
-        // uint256 expectedLockup = (20 days * MINIMUM_STAKE + 180 days * MINIMUM_STAKE * 3) / (MINIMUM_STAKE * 4);
-        assertApproxEqAbs(effectiveLockUpPeriod, 12312000, 1 days); // Use actual calculated value
+        // The effective lockup should be 180 days due to floor protection
+        assertEq(effectiveLockUpPeriod, LOCK_180_DAYS, "Should use longer lockup due to floor protection");
 
-        // Add one more stake to further test weighted averaging
+        // Add one more stake to further test floor protection
         vm.warp(block.timestamp + 20 days); // Total elapsed: 30 days
 
         vm.startPrank(david);
@@ -311,15 +311,15 @@ contract SapienVaultScenariosTest is Test {
         sapienVault.stake(MINIMUM_STAKE * 2, LOCK_365_DAYS); // 2000 tokens, 365 days
         vm.stopPrank();
 
-        // New calculation:
-        // Existing: 4000 tokens with ~120 days remaining effective
-        // New: 2000 tokens with 365 days
-        // Weighted average: (4000 * 120 + 2000 * 365) / 6000
+        // New calculation with floor protection:
+        // Existing: 4000 tokens with ~150 days remaining effective (180 - 30)
+        // New: 2000 tokens with 365 days  
+        // Floor protection ensures lockup >= max(150 days remaining, 365 days new) = 365 days
 
         (totalStaked,,,,,, effectiveLockUpPeriod,) = sapienVault.getUserStakingSummary(david);
 
         assertEq(totalStaked, MINIMUM_STAKE * 6);
-        assertGt(effectiveLockUpPeriod, 140 days); // Should be higher due to 365-day addition
+        assertEq(effectiveLockUpPeriod, LOCK_365_DAYS, "Should use longest lockup due to floor protection");
     }
 
     // =============================================================================
