@@ -7,27 +7,28 @@ import {Script} from "lib/forge-std/src/Script.sol";
 import {console} from "lib/forge-std/src/console.sol";
 import {SapienRewards} from "src/SapienRewards.sol";
 import {Actors} from "script/Actors.sol";
+import {Contracts} from "script/Contracts.sol";
 
 contract DeployRewards is Script {
     function run() external {
-        // TODO: Validate the actors
-        (,,, address REWARDS_SAFE, address REWARDS_MANAGER) = Actors.getActors();
+        (,, address SECURITY_COUNCIL_SAFE, address REWARDS_SAFE, address REWARDS_MANAGER,,,,,) = Actors.get();
+
+        (address SAPIEN_TOKEN,,,, address MULTIPLIER, address TIMELOCK) = Contracts.get();
 
         vm.startBroadcast();
 
-        address TIMELOCK = vm.envAddress("TIMELOCK");
-        if (TIMELOCK == address(0)) revert("TIMELOCK address not set in .env");
         console.log("Timelock:", TIMELOCK);
-
-        address SAPIEN_TOKEN = vm.envAddress("SAPIEN_TOKEN");
-        if (SAPIEN_TOKEN == address(0)) revert("SAPIEN_TOKEN address not set in .env");
         console.log("SapienToken:", SAPIEN_TOKEN);
+        console.log("Multiplier:", MULTIPLIER);
+        console.log("RewardsSafe:", REWARDS_SAFE);
+        console.log("RewardsManager:", REWARDS_MANAGER);
+        console.log("SecurityCouncilSafe:", SECURITY_COUNCIL_SAFE);
 
         SapienRewards rewardsImpl = new SapienRewards();
         console.log("SapienRewards deployed at:", address(rewardsImpl));
 
         bytes memory rewardsInitData = abi.encodeWithSelector(
-            SapienRewards.initialize.selector, TIMELOCK, REWARDS_MANAGER, REWARDS_SAFE, SAPIEN_TOKEN
+            SapienRewards.initialize.selector, SECURITY_COUNCIL_SAFE, REWARDS_MANAGER, REWARDS_SAFE, SAPIEN_TOKEN
         );
 
         TUP rewardsProxy = new TUP(address(rewardsImpl), address(TIMELOCK), rewardsInitData);

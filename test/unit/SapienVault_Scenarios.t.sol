@@ -292,7 +292,7 @@ contract SapienVaultScenariosTest is Test {
 
         // Due to floor protection, the effective lockup will be 180 days (the longer period)
         // rather than the theoretical weighted average of ~140 days
-        // Original: 1000 tokens with ~20 days remaining (30-10)  
+        // Original: 1000 tokens with ~20 days remaining (30-10)
         // New: 3000 tokens with 180 days
         // Floor protection ensures lockup >= max(20 days remaining, 180 days new) = 180 days
 
@@ -313,7 +313,7 @@ contract SapienVaultScenariosTest is Test {
 
         // New calculation with floor protection:
         // Existing: 4000 tokens with ~150 days remaining effective (180 - 30)
-        // New: 2000 tokens with 365 days  
+        // New: 2000 tokens with 365 days
         // Floor protection ensures lockup >= max(150 days remaining, 365 days new) = 365 days
 
         (totalStaked,,,,,, effectiveLockUpPeriod,) = sapienVault.getUserStakingSummary(david);

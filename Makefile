@@ -1,4 +1,3 @@
-
 # Runs the unit tests
 unit    :; FOUNDRY_PROFILE=default forge test
 
@@ -26,3 +25,31 @@ show    :;  npx http-server ./coverage
 
 # Clean the coverage report
 clean   :;  rm -rf coverage/
+
+
+# CONTRACT=
+# ACCOUNT=
+# TENDERLY_VIRTUAL_TESTNET_RPC_URL=
+# TENDERLY_ACCESS_KEY=
+deploy-tenderly    :; forge script script/$(CONTRACT).s.sol:$(CONTRACT) \
+                    --slow \
+                    --verifier etherscan \
+                    --verifier-url $(TENDERLY_VIRTUAL_TESTNET_RPC_URL)/verify/etherscan \
+                    --account $(ACCOUNT) \
+                    --rpc-url  $(TENDERLY_VIRTUAL_TESTNET_RPC_URL) \
+                    --etherscan-api-key $(TENDERLY_ACCESS_KEY) \
+                    --broadcast \
+                    --verify
+
+# # Deploy without verification (for when verification fails)
+# deploy-tenderly-no-verify    :; forge script script/$(CONTRACT).s.sol:$(CONTRACT) \
+#                     --slow \
+#                     --account $(ACCOUNT) \
+#                     --rpc-url  $(TENDERLY_VIRTUAL_TESTNET_RPC_URL) \
+#                     --broadcast
+
+# # Verify an already deployed contract on Tenderly
+# verify-tenderly    :; forge verify-contract $(CONTRACT_ADDRESS) $(CONTRACT_NAME) \
+#                     --verifier etherscan \
+#                     --verifier-url $(TENDERLY_VIRTUAL_TESTNET_RPC_URL)/verify/etherscan \
+#                     --etherscan-api-key $(TENDERLY_ACCESS_KEY)

@@ -204,7 +204,9 @@ contract SapienVaultWeightedCalculationsTest is Test {
 
         assertEq(totalStaked, stake1 + stake2, "Total stake should be sum of both stakes");
         assertGt(effectiveLockUpPeriod, LOCK_30_DAYS, "Effective lockup should be > 30 days");
-        assertEq(effectiveLockUpPeriod, LOCK_90_DAYS, "Effective lockup should be exactly 90 days due to floor protection");
+        assertEq(
+            effectiveLockUpPeriod, LOCK_90_DAYS, "Effective lockup should be exactly 90 days due to floor protection"
+        );
     }
 
     // =============================================================================
@@ -300,7 +302,9 @@ contract SapienVaultWeightedCalculationsTest is Test {
         (uint256 total2,,,,,, uint256 lockup2,) = sapienVault.getUserStakingSummary(user2);
 
         assertEq(total1, total2, "Total stakes should be equal");
-        assertApproxEqAbs(lockup1, lockup2, 100, "Effective lockups should be nearly equal (allowing for rounding differences)");
+        assertApproxEqAbs(
+            lockup1, lockup2, 100, "Effective lockups should be nearly equal (allowing for rounding differences)"
+        );
     }
 
     // =============================================================================

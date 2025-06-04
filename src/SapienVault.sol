@@ -794,12 +794,12 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         // 1. Weighted average calculation (calculated above)
         // 2. Remaining lockup time on existing tokens (existingLockupPeriod)
         // 3. Lockup period of new stake (newLockupPeriod)
-        
+
         // Cannot reduce below remaining commitment of existing tokens
         if (weightedLockup < existingLockupPeriod) {
             weightedLockup = existingLockupPeriod;
         }
-        
+
         // Cannot reduce below new stake's lockup period
         if (weightedLockup < newLockupPeriod) {
             weightedLockup = newLockupPeriod;
