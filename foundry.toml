@@ -21,6 +21,12 @@ test = "test/tenderly"
 fork_url = "${TENDERLY_VIRTUAL_TESTNET_RPC_URL}"
 fork_block_number = 0
 
+
+[profile.localhost]
+test = "test/localhost"
+fork_url = "http://localhost:8545"
+fork_block_number = 0
+
 [etherscan]
 unknown_chain = { key = "${TENDERLY_ACCESS_KEY}", chain = 8453420, url = "${TENDERLY_VIRTUAL_TESTNET_RPC_URL}/verify/etherscan" }
 

@@ -1,58 +1,56 @@
-/**
- * Base Sepolia Contract Addresses
- * Generated from deployment on Base Sepolia testnet
- */
 
-export interface ContractAddresses {
-  // Core Contracts
-  sapienToken: string;
-  timelock: string;
-  sapienQA: string;
-  multiplier: string;
-  
-  // Rewards System
-  sapienRewards: string;
-  sapienRewardsProxy: string;
-  rewardsProxyAdmin: string;
-  
-  // Vault System
-  sapienVault: string;
-  sapienVaultProxy: string;
-  
-  // System Roles
-  proposer: string;
-  executor: string;
-  admin: string;
-  rewardsSafe: string;
-  rewardsManager: string;
-  securityCouncil: string;
-  treasury: string;
-}
+// LOCALHOST ( Anvil )
 
-export const baseSepolia: ContractAddresses = {
-  // Core Contracts
-  sapienToken: "0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6", // use this one
-  timelock: "0x2a5F9e1Be3A78C73EA1aB256D3Eb0C5A475742cC",
-  sapienQA: "0x93263cB5AfC26Aa8910D5038aC01a12e4881B478",
-  multiplier: "0x8816D0CC618E4Ca88Fb67d97586B691b0Dae3E2b",
-  
-  // Rewards System
-  sapienRewards: "0x8014DAF1Cc0E204689cBd18fe11f2fC557B22A66",
-  sapienRewardsProxy: "0xFfC83AF7b215a026A9A8BBE9c3E8835fB29f479B", // use this one
-  rewardsProxyAdmin: "0xFf8D9eb1b8919D546a2fa5fF3dcCDD22BCA43810",
-  
-  // Vault System  
-  sapienVault: "0x422b5214900a412C2194e12d67eA518b740b59F1",
-  sapienVaultProxy: "0x63962218ea90237d79E7833811E920BB7CE78311", // use this one
-  
-  // System Roles (all using the same address in this deployment)
-  proposer: "0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC",
-  executor: "0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC", 
-  admin: "0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC",
-  rewardsSafe: "0x09F4897735f3Ec9Af6C2dda49d97D454B7dD1e59",
-  rewardsManager: "0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC",
-  securityCouncil: "0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC",
-  treasury: "0x09F4897735f3Ec9Af6C2dda49d97D454B7dD1e59",
-};
+// Core Contracts
+const LOCAL_SAPAIEN_TOKEN = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+const LOCAL_TIMELOCK = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+const LOCAL_SAPIEN_QA = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0";
+const LOCAL_MULTIPLIER = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9";
 
-export default { baseSepolia };
+// Rewards System
+const LOCAL_SAPIEN_REWARDS = "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9";
+const LOCAL_SAPIEN_REWARDS_PROXY = "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
+const LOCAL_REWARDS_PROXY_ADMIN = "0xFf8D9eb1b8919D546a2fa5fF3dcCDD22BCA43810";
+
+// Vault System  
+const LOCAL_SAPIEN_VAULT = "0x0165878A594ca255338adfa4d48449f69242Eb8F";
+const LOCAL_SAPIEN_VAULT_PROXY = "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853"; 
+const LOCAL_VAULT_PROXY_ADMIN = "0xF93C4d6D7B68A524D6e1fc8e67c861b1fb0c49F0";
+
+// System Roles (all using the same address in this deployment)
+const LOCAL_PROPOSER = "0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC";
+const LOCAL_EXECUTOR = "0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC";
+const LOCAL_ADMIN = "0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC";
+const LOCAL_REWARDS_SAFE = "0x09F4897735f3Ec9Af6C2dda49d97D454B7dD1e59";
+const LOCAL_REWARDS_MANAGER = "0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC";
+const LOCAL_SECURITY_COUNCIL = "0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC";
+const LOCAL_TREASURY = "0x09F4897735f3Ec9Af6C2dda49d97D454B7dD1e59";
+
+
+// SEPOLIA
+
+
+// Core Contracts
+const SEPOLIA_SAPAIEN_TOKEN = "0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6";
+const SEPOLIA_TIMELOCK = "0x2a5F9e1Be3A78C73EA1aB256D3Eb0C5A475742cC";
+const SEPOLIA_SAPIEN_QA = "0x93263cB5AfC26Aa8910D5038aC01a12e4881B478";
+const SEPOLIA_MULTIPLIER = "0x8816D0CC618E4Ca88Fb67d97586B691b0Dae3E2b";
+
+// Rewards System
+const SEPOLIA_SAPIEN_REWARDS = "0x8014DAF1Cc0E204689cBd18fe11f2fC557B22A66";
+const SEPOLIA_SAPIEN_REWARDS_PROXY = "0xFfC83AF7b215a026A9A8BBE9c3E8835fB29f479B";
+const SEPOLIA_REWARDS_PROXY_ADMIN = "0xFf8D9eb1b8919D546a2fa5fF3dcCDD22BCA43810";
+
+// Vault System  
+const SEPOLIA_SAPIEN_VAULT = "0x422b5214900a412C2194e12d67eA518b740b59F1";
+const SEPOLIA_SAPIEN_VAULT_PROXY = "0x63962218ea90237d79E7833811E920BB7CE78311"; 
+const SEPOLIA_VAULT_PROXY_ADMIN = "0xF93C4d6D7B68A524D6e1fc8e67c861b1fb0c49F0";
+
+// System Roles (all using the same address in this deployment)
+const SEPOLIA_PROPOSER = "0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC";
+const SEPOLIA_EXECUTOR = "0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC";
+const SEPOLIA_ADMIN = "0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC";
+const SEPOLIA_REWARDS_SAFE = "0x09F4897735f3Ec9Af6C2dda49d97D454B7dD1e59";
+const SEPOLIA_REWARDS_MANAGER = "0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC";
+const SEPOLIA_SECURITY_COUNCIL = "0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC";
+const SEPOLIA_TREASURY = "0x09F4897735f3Ec9Af6C2dda49d97D454B7dD1e59";

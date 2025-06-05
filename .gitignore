@@ -18,3 +18,8 @@ lcov.info
 coverage.lcov
 
 .vscode
+
+Contracts.sol.backup
+contracts.ts.backup
+
+local-addresses.txt

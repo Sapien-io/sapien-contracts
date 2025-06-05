@@ -118,7 +118,6 @@ contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgr
         _grantRole(Const.PAUSER_ROLE, admin);
         _grantRole(Const.REWARD_ADMIN_ROLE, rewardAdmin);
         _grantRole(Const.REWARD_MANAGER_ROLE, rewardManager);
-        _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         // Initialize domain separator for EIP-712
         DOMAIN_SEPARATOR = _domainSeparator();

@@ -29,14 +29,23 @@ show    :;  npx http-server ./coverage
 # Clean the coverage report
 clean   :;  rm -rf coverage/
 
-# Run Tenderly integration tests
-test-tenderly    :; ./script/run-tenderly-tests.sh
+# Start anvil
+node   :; anvil
+
+# Kill anvil
+kill-node    :; @pkill anvil 2>/dev/null || true
+
+# Deploy local contracts
+deploy    :; ./deploy-local.sh
+
+test-localhost :; FOUNDRY_PROFILE=localhost forge test --match-path "test/localhost/LocalIntegration.t.sol" --fork-url http://localhost:8545 -v
 
 
-# CONTRACT=
-# ACCOUNT=
-# TENDERLY_VIRTUAL_TESTNET_RPC_URL=
-# TENDERLY_ACCESS_KEY=
+# Note: Required environment variables for Tenderly deployment:
+# CONTRACT - The contract script to deploy
+# ACCOUNT - The deployer account address
+# TENDERLY_VIRTUAL_TESTNET_RPC_URL - RPC URL for Tenderly virtual testnet
+# TENDERLY_ACCESS_KEY - API key for Tenderly contract verification
 deploy-tenderly    :; forge script script/$(CONTRACT).s.sol:$(CONTRACT) \
                     --slow \
                     --verifier etherscan \
@@ -47,15 +56,15 @@ deploy-tenderly    :; forge script script/$(CONTRACT).s.sol:$(CONTRACT) \
                     --broadcast \
                     --verify
 
-# CONTRACT=
-# ACCOUNT=
-# BASE_SEPOLIA_RPC_URL=
-# ETHERSCAN_API_KEY=
+# Note: Required environment variables for Sepolia deployment:
+# CONTRACT - The contract script to deploy
+# ACCOUNT - The deployer account address
+# BASE_SEPOLIA_RPC_URL - RPC URL for Base Sepolia network
+# ETHERSCAN_API_KEY - API key for contract verification
 deploy-sepolia    :; forge script script/$(CONTRACT).s.sol:$(CONTRACT) \
                     --slow \
                     --account $(ACCOUNT) \
                     --rpc-url  $(BASE_SEPOLIA_RPC_URL) \
                     --etherscan-api-key $(ETHERSCAN_API_KEY) \
                     --broadcast \
-                    --verbosity -vv \
-                    --verify                    
+                    --verify

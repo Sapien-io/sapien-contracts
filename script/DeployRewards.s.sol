@@ -35,6 +35,8 @@ contract DeployRewards is Script {
             contracts.sapienToken // SAPIEN
         );
 
+        // NOTE: revoke default msg.sender from DEFAULT_ADMIN_ROLE after configured.
+
         // Deploy the proxy with initialization
         TUP rewardsProxy = new TUP(address(rewardsImpl), contracts.timelock, initData);
 

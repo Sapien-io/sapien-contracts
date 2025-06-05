@@ -70,7 +70,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(Const.PAUSER_ROLE, admin);
         _grantRole(Const.SAPIEN_QA_ROLE, sapienQA);
-        _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         sapienToken = IERC20(token);
         multiplier = IMultiplier(newMultiplierContract);
