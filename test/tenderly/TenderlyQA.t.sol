@@ -13,6 +13,12 @@ import {Constants as Const} from "src/utils/Constants.sol";
  * @title TenderlyQAIntegrationTest
  * @notice Integration tests for SapienQA penalty system against Tenderly deployed contracts
  * @dev Tests all QA operations, penalty enforcement, and vault integration on Base mainnet fork
+ * 
+ * SETUP REQUIREMENTS:
+ * - Set TENDERLY_VIRTUAL_TESTNET_RPC_URL environment variable
+ * - Set TENDERLY_TEST_PRIVATE_KEY environment variable to the private key corresponding 
+ *   to QA_MANAGER address 0x0C6F86b338417B3b7FCB9B344DECC51d072919c9
+ * - Run with: FOUNDRY_PROFILE=tenderly forge test --match-contract TenderlyQAIntegrationTest
  */
 contract TenderlyQAIntegrationTest is Test {
     // Tenderly deployed contract addresses
@@ -50,12 +56,22 @@ contract TenderlyQAIntegrationTest is Test {
         keccak256("QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,string reason)");
     
     // Test manager private key for signatures
-    uint256 public constant QA_MANAGER_PRIVATE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000001;
+    uint256 public QA_MANAGER_PRIVATE_KEY;
     
     // Decision counter for unique decision IDs
     uint256 public decisionCounter = 1;
     
     function setUp() public {
+        // Initialize private key from environment with fallback
+        try vm.envUint("TENDERLY_TEST_PRIVATE_KEY") returns (uint256 privateKey) {
+            QA_MANAGER_PRIVATE_KEY = privateKey;
+        } catch {
+            // Fallback to default test key if environment variable is not set
+            // NOTE: This will fail with UnauthorizedSigner unless TENDERLY_TEST_PRIVATE_KEY is set 
+            // to the private key corresponding to QA_MANAGER address 0x0C6F86b338417B3b7FCB9B344DECC51d072919c9
+            QA_MANAGER_PRIVATE_KEY = 0x000000000000000000000000000000000000000000000000000000000000dead;
+        }
+        
         // Setup fork to use Tenderly Base mainnet virtual testnet
         string memory rpcUrl = vm.envString("TENDERLY_VIRTUAL_TESTNET_RPC_URL");
         vm.createSelectFork(rpcUrl);

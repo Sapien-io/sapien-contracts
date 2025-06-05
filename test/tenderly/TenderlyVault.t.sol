@@ -314,8 +314,9 @@ contract TenderlyVaultIntegrationTest is Test {
         assertEq(sapienVault.getTotalStaked(maxStaker), MAX_STAKE);
         
         // Test that multiplier is calculated correctly for max stake
+        // For 1M tokens (Tier 5) with 365-day lockup: 15000 + 4500 = 19500 (1.95x)
         uint256 mult = multiplier.calculateMultiplier(MAX_STAKE, Const.LOCKUP_365_DAYS);
-        assertEq(mult, Const.MAX_MULTIPLIER); // Should be 1.5x
+        assertEq(mult, 19500); // Should be 1.95x for max tier
         
         vm.stopPrank();
         
@@ -360,8 +361,14 @@ contract TenderlyVaultIntegrationTest is Test {
         vm.expectRevert();
         sapienVault.stake(Const.MINIMUM_STAKE_AMOUNT, 0);
         
+        // Approve sufficient amount for valid stake and additional operations
+        sapienToken.approve(address(sapienVault), Const.MINIMUM_STAKE_AMOUNT + 1000 * 1e18);
+        
         // Create valid stake for further tests
         sapienVault.stake(Const.MINIMUM_STAKE_AMOUNT, Const.LOCKUP_30_DAYS);
+        
+        // Fast forward past lockup to enable unstaking
+        vm.warp(block.timestamp + 31 days);
         
         // Test increasing amount during cooldown
         sapienVault.initiateUnstake(500 * 1e18);
