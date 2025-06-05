@@ -1,31 +1,21 @@
 Base Sepolia Deployment
 
-== Logs ==
+== DeployToken Logs ==
     SapienToken deployed at: 0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6
 
-== Logs ==
+== DeployTimelock Logs ==
     Timelock deployed at: 0x2a5F9e1Be3A78C73EA1aB256D3Eb0C5A475742cC
     Proposer: 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC
     Executor: 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC
     Admin: 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC
 
-== Logs ==
+== DeployQA Logs ==
     SapienQA deployed at: 0x93263cB5AfC26Aa8910D5038aC01a12e4881B478
 
-== Logs ==
+== DeployMultiplier Logs ==
     Multiplier deployed at: 0x8816D0CC618E4Ca88Fb67d97586B691b0Dae3E2b 
 
-== Logs ==
-    Timelock: 0x2a5F9e1Be3A78C73EA1aB256D3Eb0C5A475742cC
-    SapienToken: 0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6
-    Multiplier: 0x8816D0CC618E4Ca88Fb67d97586B691b0Dae3E2b
-    RewardsSafe: 0x09F4897735f3Ec9Af6C2dda49d97D454B7dD1e59
-    RewardsManager: 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC
-    SecurityCouncilSafe: 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC
-    SapienRewards deployed at: 0x880E78Ab9B50a09D5A8aE84BC3555C16aa5654af
-    Rewards Proxy deployed at: 0x57d9eE35984515e83A36e59fe9f3e4D862Ee13b7
-
-== Logs ==
+== DeployRewards Logs==
     Timelock: 0x2a5F9e1Be3A78C73EA1aB256D3Eb0C5A475742cC
     SapienToken: 0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6
     Multiplier: 0x8816D0CC618E4Ca88Fb67d97586B691b0Dae3E2b
@@ -37,7 +27,7 @@ Base Sepolia Deployment
     Rewards Proxy deployed at: 0xFfC83AF7b215a026A9A8BBE9c3E8835fB29f479B
 
 
-== Logs ==
+== DeployVault Logs ==
   Timelock: 0x2a5F9e1Be3A78C73EA1aB256D3Eb0C5A475742cC
   SapienToken: 0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6
   Multiplier: 0x8816D0CC618E4Ca88Fb67d97586B691b0Dae3E2b
