@@ -119,10 +119,10 @@ contract SapienVaultBasicTest is Test {
 
         // Expected effective multipliers in new system (actual values from multiplier matrix)
         uint256[] memory expectedEffectiveMultipliers = new uint256[](4);
-        expectedEffectiveMultipliers[0] = 10500; // 1.05x for 1K @ 30 days
-        expectedEffectiveMultipliers[1] = 11000; // 1.10x for 1K @ 90 days
-        expectedEffectiveMultipliers[2] = 12500; // 1.25x for 1K @ 180 days
-        expectedEffectiveMultipliers[3] = 15000; // 1.50x for 1K @ 365 days
+        expectedEffectiveMultipliers[0] = 11400; // 1.14x for 1K @ 30 days (with tier bonus)
+        expectedEffectiveMultipliers[1] = 11900; // 1.19x for 1K @ 90 days (with tier bonus)
+        expectedEffectiveMultipliers[2] = 13400; // 1.34x for 1K @ 180 days (with tier bonus)
+        expectedEffectiveMultipliers[3] = 15900; // 1.59x for 1K @ 365 days (with tier bonus)
 
         for (uint256 i = 0; i < lockPeriods.length; i++) {
             address user = makeAddr(string(abi.encodePacked("user", i)));
@@ -577,7 +577,7 @@ contract SapienVaultBasicTest is Test {
 
         // Test 30 days lockup
         uint256 multiplier30Days = sapienVault.calculateMultiplier(amount1, LOCK_30_DAYS);
-        assertApproxEqAbs(multiplier30Days, 10500, 100, "1K tokens @ 30 days should get ~10500 multiplier (1.05x)");
+        assertApproxEqAbs(multiplier30Days, 11400, 100, "1K tokens @ 30 days should get ~11400 multiplier (1.14x)");
 
         // Test 90 days lockup - 2K tokens fall in 1K-2.5K tier, so should get 1.19x = 11900
         uint256 multiplier90Days = sapienVault.calculateMultiplier(amount2, LOCK_90_DAYS);

@@ -128,21 +128,21 @@ contract MultiplierInvariant is StdInvariant, Test {
         uint256 lockup = Const.LOCKUP_365_DAYS; // Use max lockup to see full tier effect
         
         // Test key tier boundaries (based on actual tier logic)
-        // Tier 0 (≤1000) vs Tier 1 (1001-2499): boundary is 1000 to 1001
-        uint256 mult1000 = multiplier.calculateMultiplier(1000 * Const.TOKEN_DECIMALS, lockup);
-        uint256 mult1001 = multiplier.calculateMultiplier(1001 * Const.TOKEN_DECIMALS, lockup);
-        
-        // Tier 1 (1001-2499) vs Tier 2 (2500-4999): boundary is 2499 to 2500
+        // Tier 1 (1000-2499) vs Tier 2 (2500-4999): boundary is 2499 to 2500
         uint256 mult2499 = multiplier.calculateMultiplier(2499 * Const.TOKEN_DECIMALS, lockup);
         uint256 mult2500 = multiplier.calculateMultiplier(2500 * Const.TOKEN_DECIMALS, lockup);
         
-        // At tier boundaries, multiplier should increase
-        if (mult1000 > 0 && mult1001 > 0) {
-            assertLt(mult1000, mult1001, "Multiplier should increase when crossing from 1000 to 1001 tokens");
-        }
+        // Tier 2 (2500-4999) vs Tier 3 (5000-7499): boundary is 4999 to 5000  
+        uint256 mult4999 = multiplier.calculateMultiplier(4999 * Const.TOKEN_DECIMALS, lockup);
+        uint256 mult5000 = multiplier.calculateMultiplier(5000 * Const.TOKEN_DECIMALS, lockup);
         
+        // At tier boundaries, multiplier should increase
         if (mult2499 > 0 && mult2500 > 0) {
             assertLt(mult2499, mult2500, "Multiplier should increase when crossing from 2499 to 2500 tokens");
+        }
+        
+        if (mult4999 > 0 && mult5000 > 0) {
+            assertLt(mult4999, mult5000, "Multiplier should increase when crossing from 4999 to 5000 tokens");
         }
     }
 
@@ -218,8 +218,8 @@ contract MultiplierInvariant is StdInvariant, Test {
         
         uint256 minMult = multiplier.calculateMultiplier(minAmount, minLockup);
         
-        // Should be 1.05x (10500 basis points)
-        assertEq(minMult, 10500, "Minimum multiplier should be 1.05x (10500 basis points)");
+        // Should be 1.14x (11400 basis points) - 1000 tokens gets Tier 1 bonus (1.05x + 0.09x)
+        assertEq(minMult, 11400, "Minimum multiplier should be 1.14x (11400 basis points) with tier bonus");
     }
 }
 

@@ -50,18 +50,18 @@ contract MultiplierTest is Test {
     function test_Multiplier_CalculateMultiplier_ExactDiscretePeriods() public view {
         uint256 amount = MINIMUM_STAKE;
 
-        // Test exact discrete periods with minimum stake
-        assertEq(multiplier.calculateMultiplier(amount, LOCK_30_DAYS), 10500); // 1.05x
-        assertEq(multiplier.calculateMultiplier(amount, LOCK_90_DAYS), 11000); // 1.10x
-        assertEq(multiplier.calculateMultiplier(amount, LOCK_180_DAYS), 12500); // 1.25x
-        assertEq(multiplier.calculateMultiplier(amount, LOCK_365_DAYS), 15000); // 1.50x
+        // Test exact discrete periods with minimum stake (1000 tokens = Tier 1)
+        assertEq(multiplier.calculateMultiplier(amount, LOCK_30_DAYS), 11400); // 1.14x (1.05x + 0.09x tier bonus)
+        assertEq(multiplier.calculateMultiplier(amount, LOCK_90_DAYS), 11900); // 1.19x (1.10x + 0.09x tier bonus) 
+        assertEq(multiplier.calculateMultiplier(amount, LOCK_180_DAYS), 13400); // 1.34x (1.25x + 0.09x tier bonus)
+        assertEq(multiplier.calculateMultiplier(amount, LOCK_365_DAYS), 15900); // 1.59x (1.50x + 0.09x tier bonus)
     }
 
     function test_Multiplier_CalculateMultiplier_AmountTiers() public view {
         uint256 lockup = LOCK_365_DAYS; // Use max duration to see full tier effect
 
         // Test all amount tiers
-        assertEq(multiplier.calculateMultiplier(1000 * TOKEN_DECIMALS, lockup), 15000); // ≤1K: 1.50x
+        assertEq(multiplier.calculateMultiplier(1000 * TOKEN_DECIMALS, lockup), 15900); // 1K: 1.59x (Tier 1)
         assertEq(multiplier.calculateMultiplier(1500 * TOKEN_DECIMALS, lockup), 15900); // 1K-2.5K: 1.59x
         assertEq(multiplier.calculateMultiplier(3000 * TOKEN_DECIMALS, lockup), 16800); // 2.5K-5K: 1.68x
         assertEq(multiplier.calculateMultiplier(6000 * TOKEN_DECIMALS, lockup), 17700); // 5K-7.5K: 1.77x
@@ -73,7 +73,7 @@ contract MultiplierTest is Test {
         // Test the complete multiplier matrix as documented in the contract
 
         // 30 days row
-        assertEq(multiplier.calculateMultiplier(1000 * TOKEN_DECIMALS, LOCK_30_DAYS), 10500); // 1.05x
+        assertEq(multiplier.calculateMultiplier(1000 * TOKEN_DECIMALS, LOCK_30_DAYS), 11400); // 1.14x (with tier bonus)
         assertEq(multiplier.calculateMultiplier(1500 * TOKEN_DECIMALS, LOCK_30_DAYS), 11400); // 1.14x
         assertEq(multiplier.calculateMultiplier(3000 * TOKEN_DECIMALS, LOCK_30_DAYS), 12300); // 1.23x
         assertEq(multiplier.calculateMultiplier(6000 * TOKEN_DECIMALS, LOCK_30_DAYS), 13200); // 1.32x
@@ -81,7 +81,7 @@ contract MultiplierTest is Test {
         assertEq(multiplier.calculateMultiplier(15000 * TOKEN_DECIMALS, LOCK_30_DAYS), 15000); // 1.50x
 
         // 90 days row
-        assertEq(multiplier.calculateMultiplier(1000 * TOKEN_DECIMALS, LOCK_90_DAYS), 11000); // 1.10x
+        assertEq(multiplier.calculateMultiplier(1000 * TOKEN_DECIMALS, LOCK_90_DAYS), 11900); // 1.19x (with tier bonus)
         assertEq(multiplier.calculateMultiplier(1500 * TOKEN_DECIMALS, LOCK_90_DAYS), 11900); // 1.19x
         assertEq(multiplier.calculateMultiplier(3000 * TOKEN_DECIMALS, LOCK_90_DAYS), 12800); // 1.28x
         assertEq(multiplier.calculateMultiplier(6000 * TOKEN_DECIMALS, LOCK_90_DAYS), 13700); // 1.37x
@@ -89,7 +89,7 @@ contract MultiplierTest is Test {
         assertEq(multiplier.calculateMultiplier(15000 * TOKEN_DECIMALS, LOCK_90_DAYS), 15500); // 1.55x
 
         // 180 days row
-        assertEq(multiplier.calculateMultiplier(1000 * TOKEN_DECIMALS, LOCK_180_DAYS), 12500); // 1.25x
+        assertEq(multiplier.calculateMultiplier(1000 * TOKEN_DECIMALS, LOCK_180_DAYS), 13400); // 1.34x (with tier bonus)
         assertEq(multiplier.calculateMultiplier(1500 * TOKEN_DECIMALS, LOCK_180_DAYS), 13400); // 1.34x
         assertEq(multiplier.calculateMultiplier(3000 * TOKEN_DECIMALS, LOCK_180_DAYS), 14300); // 1.43x
         assertEq(multiplier.calculateMultiplier(6000 * TOKEN_DECIMALS, LOCK_180_DAYS), 15200); // 1.52x
@@ -107,11 +107,11 @@ contract MultiplierTest is Test {
         uint256 amount = MINIMUM_STAKE; // Use minimum to isolate duration effect
 
         // Test interpolation at 60 days (midpoint between 30 and 90)
-        uint256 expected = 10500 + ((60 days - 30 days) * (11000 - 10500)) / (90 days - 30 days);
+        uint256 expected = 11400 + ((60 days - 30 days) * (11900 - 11400)) / (90 days - 30 days);
         assertEq(multiplier.calculateMultiplier(amount, 60 days), expected);
 
         // Test at 45 days (1/4 between 30 and 90)
-        expected = 10500 + ((45 days - 30 days) * (11000 - 10500)) / (90 days - 30 days);
+        expected = 11400 + ((45 days - 30 days) * (11900 - 11400)) / (90 days - 30 days);
         assertEq(multiplier.calculateMultiplier(amount, 45 days), expected);
     }
 
@@ -119,7 +119,7 @@ contract MultiplierTest is Test {
         uint256 amount = MINIMUM_STAKE;
 
         // Test interpolation at 135 days (midpoint between 90 and 180)
-        uint256 expected = 11000 + ((135 days - 90 days) * (12500 - 11000)) / (180 days - 90 days);
+        uint256 expected = 11900 + ((135 days - 90 days) * (13400 - 11900)) / (180 days - 90 days);
         assertEq(multiplier.calculateMultiplier(amount, 135 days), expected);
     }
 
@@ -128,7 +128,7 @@ contract MultiplierTest is Test {
 
         // Test interpolation at 272.5 days (midpoint between 180 and 365)
         uint256 midpoint = 180 days + (365 days - 180 days) / 2;
-        uint256 expected = 12500 + ((midpoint - 180 days) * (15000 - 12500)) / (365 days - 180 days);
+        uint256 expected = 13400 + ((midpoint - 180 days) * (15900 - 13400)) / (365 days - 180 days);
         assertEq(multiplier.calculateMultiplier(amount, midpoint), expected);
     }
 
@@ -163,8 +163,8 @@ contract MultiplierTest is Test {
         uint256 lockup = LOCK_365_DAYS;
 
         // Test exact tier boundaries
-        assertEq(multiplier.calculateMultiplier(1000 * TOKEN_DECIMALS, lockup), 15000); // Exact T0 (≤1K)
-        assertEq(multiplier.calculateMultiplier(1001 * TOKEN_DECIMALS, lockup), 15900); // Just above T0 -> T1
+        assertEq(multiplier.calculateMultiplier(1000 * TOKEN_DECIMALS, lockup), 15900); // 1K = Tier 1
+        assertEq(multiplier.calculateMultiplier(1001 * TOKEN_DECIMALS, lockup), 15900); // Just above 1K, still T1
         assertEq(multiplier.calculateMultiplier(2500 * TOKEN_DECIMALS, lockup), 16800); // Exact T2
         assertEq(multiplier.calculateMultiplier(5000 * TOKEN_DECIMALS, lockup), 17700); // Exact T3
         assertEq(multiplier.calculateMultiplier(7500 * TOKEN_DECIMALS, lockup), 18600); // Exact T4
@@ -194,9 +194,9 @@ contract MultiplierTest is Test {
         uint256 baseDuration = LOCK_30_DAYS; // 1.05x base
         uint256 baseMult = 10500;
 
-        // Tier 0: ≤1K tokens
+        // Tier 1: 1K tokens (gets 20% bonus)
         uint256 result = multiplier.calculateMultiplier(1000 * TOKEN_DECIMALS, baseDuration);
-        assertEq(result, baseMult); // No bonus
+        assertEq(result, baseMult + 900); // +0.09x tier bonus
 
         // Tier 1: 1K-2.5K tokens (20% bonus = 0.09x)
         result = multiplier.calculateMultiplier(1500 * TOKEN_DECIMALS, baseDuration);
@@ -296,29 +296,29 @@ contract MultiplierTest is Test {
         TestCase[] memory testCases = new TestCase[](24);
 
         // Fill in all matrix values (6 tiers × 4 durations)
-        testCases[0] = TestCase(1000 * TOKEN_DECIMALS, LOCK_30_DAYS, 10500);
-        testCases[1] = TestCase(1500 * TOKEN_DECIMALS, LOCK_30_DAYS, 11400);
+        testCases[0] = TestCase(1000 * TOKEN_DECIMALS, LOCK_30_DAYS, 11400);  // 1.14x with tier bonus
+        testCases[1] = TestCase(1500 * TOKEN_DECIMALS, LOCK_30_DAYS, 11400);  // Same tier as 1000
         testCases[2] = TestCase(3000 * TOKEN_DECIMALS, LOCK_30_DAYS, 12300);
         testCases[3] = TestCase(6000 * TOKEN_DECIMALS, LOCK_30_DAYS, 13200);
         testCases[4] = TestCase(8000 * TOKEN_DECIMALS, LOCK_30_DAYS, 14100);
         testCases[5] = TestCase(15000 * TOKEN_DECIMALS, LOCK_30_DAYS, 15000);
 
-        testCases[6] = TestCase(1000 * TOKEN_DECIMALS, LOCK_90_DAYS, 11000);
-        testCases[7] = TestCase(1500 * TOKEN_DECIMALS, LOCK_90_DAYS, 11900);
+        testCases[6] = TestCase(1000 * TOKEN_DECIMALS, LOCK_90_DAYS, 11900);   // 1.19x with tier bonus
+        testCases[7] = TestCase(1500 * TOKEN_DECIMALS, LOCK_90_DAYS, 11900);   // Same tier as 1000
         testCases[8] = TestCase(3000 * TOKEN_DECIMALS, LOCK_90_DAYS, 12800);
         testCases[9] = TestCase(6000 * TOKEN_DECIMALS, LOCK_90_DAYS, 13700);
         testCases[10] = TestCase(8000 * TOKEN_DECIMALS, LOCK_90_DAYS, 14600);
         testCases[11] = TestCase(15000 * TOKEN_DECIMALS, LOCK_90_DAYS, 15500);
 
-        testCases[12] = TestCase(1000 * TOKEN_DECIMALS, LOCK_180_DAYS, 12500);
-        testCases[13] = TestCase(1500 * TOKEN_DECIMALS, LOCK_180_DAYS, 13400);
+        testCases[12] = TestCase(1000 * TOKEN_DECIMALS, LOCK_180_DAYS, 13400); // 1.34x with tier bonus
+        testCases[13] = TestCase(1500 * TOKEN_DECIMALS, LOCK_180_DAYS, 13400); // Same tier as 1000
         testCases[14] = TestCase(3000 * TOKEN_DECIMALS, LOCK_180_DAYS, 14300);
         testCases[15] = TestCase(6000 * TOKEN_DECIMALS, LOCK_180_DAYS, 15200);
         testCases[16] = TestCase(8000 * TOKEN_DECIMALS, LOCK_180_DAYS, 16100);
         testCases[17] = TestCase(15000 * TOKEN_DECIMALS, LOCK_180_DAYS, 17000);
 
-        testCases[18] = TestCase(1000 * TOKEN_DECIMALS, LOCK_365_DAYS, 15000);
-        testCases[19] = TestCase(1500 * TOKEN_DECIMALS, LOCK_365_DAYS, 15900);
+        testCases[18] = TestCase(1000 * TOKEN_DECIMALS, LOCK_365_DAYS, 15900); // 1.59x with tier bonus
+        testCases[19] = TestCase(1500 * TOKEN_DECIMALS, LOCK_365_DAYS, 15900); // Same tier as 1000
         testCases[20] = TestCase(3000 * TOKEN_DECIMALS, LOCK_365_DAYS, 16800);
         testCases[21] = TestCase(6000 * TOKEN_DECIMALS, LOCK_365_DAYS, 17700);
         testCases[22] = TestCase(8000 * TOKEN_DECIMALS, LOCK_365_DAYS, 18600);

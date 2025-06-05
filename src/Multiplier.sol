@@ -99,10 +99,10 @@ contract Multiplier is IMultiplier {
     function getAmountTierFactor(uint256 amount) internal pure returns (uint256 factor) {
         uint256 tierAmount = amount / Const.TOKEN_DECIMALS;
 
-        if (tierAmount <= Const.T1_FACTOR) {
-            return 0; // Tier 0: 0% (up to and including 1000 tokens)
+        if (tierAmount < Const.T1_FACTOR) {
+            return 0; // Tier 0: 0% (up to 999 tokens)
         } else if (tierAmount < Const.T2_FACTOR) {
-            return 2000; // Tier 1: 20% (1001-2499 tokens)
+            return 2000; // Tier 1: 20% (1000-2499 tokens)
         } else if (tierAmount < Const.T3_FACTOR) {
             return 4000; // Tier 2: 40% (2500-4999 tokens)
         } else if (tierAmount < Const.T4_FACTOR) {

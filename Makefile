@@ -4,6 +4,9 @@ unit    :; FOUNDRY_PROFILE=default forge test
 # Runs the invariant tests
 invar   :; FOUNDRY_PROFILE=invariant forge test
 
+# Runs the Tenderly integration tests
+tenderly  :; FOUNDRY_PROFILE=tenderly forge test
+
 fmt     :;  FOUNDRY_PROFILE=default forge fmt && FOUNDRY_PROFILE=mainnet forge fmt
 
 lint    :;  solhint --fix --noPrompt test/**/*.sol && \
