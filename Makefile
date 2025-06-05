@@ -26,6 +26,9 @@ show    :;  npx http-server ./coverage
 # Clean the coverage report
 clean   :;  rm -rf coverage/
 
+# Run Tenderly integration tests
+test-tenderly    :; ./script/run-tenderly-tests.sh
+
 
 # CONTRACT=
 # ACCOUNT=
@@ -40,16 +43,3 @@ deploy-tenderly    :; forge script script/$(CONTRACT).s.sol:$(CONTRACT) \
                     --etherscan-api-key $(TENDERLY_ACCESS_KEY) \
                     --broadcast \
                     --verify
-
-# # Deploy without verification (for when verification fails)
-# deploy-tenderly-no-verify    :; forge script script/$(CONTRACT).s.sol:$(CONTRACT) \
-#                     --slow \
-#                     --account $(ACCOUNT) \
-#                     --rpc-url  $(TENDERLY_VIRTUAL_TESTNET_RPC_URL) \
-#                     --broadcast
-
-# # Verify an already deployed contract on Tenderly
-# verify-tenderly    :; forge verify-contract $(CONTRACT_ADDRESS) $(CONTRACT_NAME) \
-#                     --verifier etherscan \
-#                     --verifier-url $(TENDERLY_VIRTUAL_TESTNET_RPC_URL)/verify/etherscan \
-#                     --etherscan-api-key $(TENDERLY_ACCESS_KEY)

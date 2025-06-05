@@ -7,27 +7,27 @@ import {Script} from "lib/forge-std/src/Script.sol";
 import {console} from "lib/forge-std/src/console.sol";
 import {SapienRewards} from "src/SapienRewards.sol";
 
-import {Actors} from "script/Actors.sol";
+import {Actors, AllActors} from "script/Actors.sol";
 
 contract DeployTimelock is Script {
     function run() external {
-        // TODO: Validate the actors
-        (address FOUNDATION_SAFE_1, address FOUNDATION_SAFE_2, address SECURITY_COUNCIL,,) = Actors.get();
+        // Get all actors from the deployed configuration
+        AllActors memory actors = Actors.getAllActors();
 
         vm.startBroadcast();
 
         address[] memory proposers = new address[](1);
-        proposers[0] = FOUNDATION_SAFE_1;
+        proposers[0] = actors.timelockProposer;
 
         address[] memory executors = new address[](1);
-        executors[0] = FOUNDATION_SAFE_2;
+        executors[0] = actors.timelockExecutor;
 
-        TC timelock = new TC(48 hours, proposers, executors, SECURITY_COUNCIL);
+        TC timelock = new TC(48 hours, proposers, executors, actors.timelockAdmin);
 
         console.log("Timelock deployed at:", address(timelock));
-        console.log("Proposer:", FOUNDATION_SAFE_1);
-        console.log("Executor:", FOUNDATION_SAFE_2);
-        console.log("Admin:", SECURITY_COUNCIL);
+        console.log("Proposer:", actors.timelockProposer);
+        console.log("Executor:", actors.timelockExecutor);
+        console.log("Admin:", actors.timelockAdmin);
         vm.stopBroadcast();
     }
 }

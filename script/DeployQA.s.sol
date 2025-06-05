@@ -1,24 +1,29 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity 0.8.30;
 
-import {Script} from "lib/forge-std/src/Script.sol";
-import {console} from "lib/forge-std/src/console.sol";
-import {Actors} from "script/Actors.sol";
-import {Contracts} from "script/Contracts.sol";
+import {Script, console} from "lib/forge-std/src/Script.sol";
 import {SapienQA} from "src/SapienQA.sol";
+import {Actors, AllActors} from "script/Actors.sol";
 
 contract DeployQA is Script {
     function run() external {
-        (address FOUNDATION_SAFE_1,,,,, address QA_MANAGER, address QA_ADMIN,,,) = Actors.get();
+        // Get necessary actors from the deployed configuration
+        AllActors memory actors = Actors.getAllActors();
 
         vm.startBroadcast();
-
-        address _vaultContract = address(1); // call SapienQA.updateVaultContract() to set the vault contract
-
-        SapienQA qa = new SapienQA(FOUNDATION_SAFE_1, _vaultContract, QA_MANAGER, QA_ADMIN);
-
+        
+        // SapienQA constructor takes: treasury, vaultContract, qaManager, admin
+        // We'll use a placeholder for vaultContract since it's deployed later
+        address vaultContract = address(1); // Placeholder - call updateVaultContract() later
+        
+        SapienQA qa = new SapienQA(
+            actors.foundationSafe1,  // treasury
+            vaultContract,           // vaultContract (placeholder)
+            actors.qaManager,        // qaManager
+            actors.qaAdmin          // admin
+        );
+        
         console.log("SapienQA deployed at:", address(qa));
-
         vm.stopBroadcast();
     }
 }

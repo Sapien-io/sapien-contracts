@@ -16,6 +16,11 @@ fs_permissions = [{ access = "read-write", path = "./deployments" }]
 [profile.invariant]
 test = "test/invariant"
 
+[profile.tenderly]
+test = "test/integration"
+fork_url = "${TENDERLY_VIRTUAL_TESTNET_RPC_URL}"
+fork_block_number = 0
+
 [etherscan]
 unknown_chain = { key = "${TENDERLY_ACCESS_KEY}", chain = 8453420, url = "${TENDERLY_VIRTUAL_TESTNET_RPC_URL}/verify/etherscan" }
 

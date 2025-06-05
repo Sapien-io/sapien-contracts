@@ -3,16 +3,16 @@ pragma solidity 0.8.30;
 
 import {Script, console} from "lib/forge-std/src/Script.sol";
 import {SapienToken} from "src/SapienToken.sol";
-import {Actors} from "script/Actors.sol";
+import {Actors, CoreActors} from "script/Actors.sol";
 
 contract DeployToken is Script {
     function run() external {
-        // TODO: Validate the actors
-        (address FOUNDATION_SAFE_1,,,,) = Actors.getActors();
+        // Get foundation safe address for token ownership
+        CoreActors memory actors = Actors.getActors();
 
         vm.startBroadcast();
 
-        SapienToken token = new SapienToken(FOUNDATION_SAFE_1);
+        SapienToken token = new SapienToken(actors.foundationSafe1);
         console.log("SapienToken deployed at:", address(token));
 
         vm.stopBroadcast();
