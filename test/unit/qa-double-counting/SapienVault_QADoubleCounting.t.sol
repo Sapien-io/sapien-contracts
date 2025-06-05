@@ -3,11 +3,11 @@ pragma solidity 0.8.30;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
-import {SapienVault} from "../../src/SapienVault.sol";
-import {MockERC20} from "../mocks/MockERC20.sol";
-import {Multiplier} from "../../src/Multiplier.sol";
-import {Constants} from "../../src/utils/Constants.sol";
-import {ISapienVault} from "../../src/interfaces/ISapienVault.sol";
+import {SapienVault} from "src/SapienVault.sol";
+import {MockERC20} from "test/mocks/MockERC20.sol";
+import {Multiplier} from "src/Multiplier.sol";
+import {Constants} from "src/utils/Constants.sol";
+import {ISapienVault} from "src/interfaces/ISapienVault.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract SapienVault_QADoubleCountingTest is Test {
