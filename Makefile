@@ -46,3 +46,16 @@ deploy-tenderly    :; forge script script/$(CONTRACT).s.sol:$(CONTRACT) \
                     --etherscan-api-key $(TENDERLY_ACCESS_KEY) \
                     --broadcast \
                     --verify
+
+# CONTRACT=
+# ACCOUNT=
+# BASE_SEPOLIA_RPC_URL=
+# ETHERSCAN_API_KEY=
+deploy-sepolia    :; forge script script/$(CONTRACT).s.sol:$(CONTRACT) \
+                    --slow \
+                    --account $(ACCOUNT) \
+                    --rpc-url  $(BASE_SEPOLIA_RPC_URL) \
+                    --etherscan-api-key $(ETHERSCAN_API_KEY) \
+                    --broadcast \
+                    --verbosity -vv \
+                    --verify                    

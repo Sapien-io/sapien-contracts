@@ -22,7 +22,6 @@
   Treasury: 0x0C6F86b338417B3b7FCB9B344DECC51d072919c9
   SapienVault implementation deployed at: 0x5F1469E20Ed5b6B96891CdFA0902d8E412951ED2
   Vault Proxy deployed at: 0x35977d540799db1e8910c00F476a879E2c0e1a24
-  ProxyAdmin at: 0xe716690d6ee06e83944b6eece5ed7888c9dc692e
 
   == Logs ==
   Timelock: 0xAABc9b2DF2Ed11A3f94b011315Beba0ea7fB7D09
@@ -33,4 +32,3 @@
   SecurityCouncilSafe: 0x0C6F86b338417B3b7FCB9B344DECC51d072919c9
   SapienRewards deployed at: 0x89aa32f4401D5d66c5Bd1Ec63B299012Dbe8d171
   Rewards Proxy deployed at: 0xcCa75eFc3161CF18276f84C3924FC8dC9a63E28C
-  ProxyAdmin at: 0xc7002a826cfa3482f82b2c3221dc9086887a2e00

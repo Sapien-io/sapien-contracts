@@ -37,16 +37,16 @@ library LocalActors {
 }
 
 library SepoliaActors {
-    address public constant FOUNDATION_SAFE_1 = address(0x01);
-    address public constant FOUNDATION_SAFE_2 = address(0x02);
-    address public constant SECURITY_COUNCIL_SAFE = address(0x03);
-    address public constant REWARDS_SAFE = address(0x04);
-    address public constant REWARDS_MANAGER = address(0x05);
-    address public constant QA_MANAGER = address(0x06);
-    address public constant QA_ADMIN = address(0x07);
-    address public constant TIMELOCK_PROPOSER = address(0x08);
-    address public constant TIMELOCK_EXECUTOR = address(0x09);
-    address public constant TIMELOCK_ADMIN = address(0x0A);
+    address public constant FOUNDATION_SAFE_1 = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
+    address public constant FOUNDATION_SAFE_2 = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
+    address public constant SECURITY_COUNCIL_SAFE = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
+    address public constant REWARDS_SAFE = 0x09F4897735f3Ec9Af6C2dda49d97D454B7dD1e59;
+    address public constant REWARDS_MANAGER = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
+    address public constant QA_MANAGER = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
+    address public constant QA_ADMIN = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
+    address public constant TIMELOCK_PROPOSER = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
+    address public constant TIMELOCK_EXECUTOR = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
+    address public constant TIMELOCK_ADMIN = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
 }
 
 library TenderlyActors {

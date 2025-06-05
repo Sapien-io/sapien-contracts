@@ -2,26 +2,26 @@
 pragma solidity 0.8.30;
 
 import {Script, console} from "lib/forge-std/src/Script.sol";
-import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {TransparentUpgradeableProxy as TUP} from "src/utils/Common.sol";
 import {SapienRewards} from "src/SapienRewards.sol";
 import {ISapienRewards} from "src/interfaces/ISapienRewards.sol";
 import {Actors, AllActors} from "script/Actors.sol";
+import {Contracts, DeployedContracts} from "script/Contracts.sol";
 
 contract DeployRewards is Script {
     function run() external {
         // Get all actors from the deployed configuration
         AllActors memory actors = Actors.getAllActors();
-
-        address multiplierAddress = vm.envAddress("SAPIEN_MULTIPLIER");
+        DeployedContracts memory contracts = Contracts.get();
 
         vm.startBroadcast();
 
-        console.log("Timelock:", vm.envAddress("SAPIEN_TIMELOCK"));
-        console.log("SapienToken:", vm.envAddress("SAPIEN_TOKEN"));
-        console.log("Multiplier:", multiplierAddress);
+        console.log("Timelock:", contracts.timelock);
+        console.log("SapienToken:", contracts.sapienToken);
+        console.log("Multiplier:", contracts.multiplier);
         console.log("RewardsSafe:", actors.rewardsSafe);
         console.log("RewardsManager:", actors.rewardsManager);
-        console.log("SecurityCouncilSafe:", actors.securityCouncil);
+        console.log("SecurityCouncil (Admin Role):", actors.securityCouncil);
 
         // Deploy the implementation
         SapienRewards rewardsImpl = new SapienRewards();
@@ -29,19 +29,17 @@ contract DeployRewards is Script {
         // Prepare initialization data
         bytes memory initData = abi.encodeWithSelector(
             ISapienRewards.initialize.selector,
-            vm.envAddress("SAPIEN_TOKEN"),
-            multiplierAddress,
-            actors.rewardsSafe,
+            actors.securityCouncil, // admin
             actors.rewardsManager,
-            actors.securityCouncil
+            actors.rewardsSafe,
+            contracts.sapienToken // SAPIEN
         );
 
         // Deploy the proxy with initialization
-        ERC1967Proxy rewardsProxy = new ERC1967Proxy(address(rewardsImpl), initData);
+        TUP rewardsProxy = new TUP(address(rewardsImpl), contracts.timelock, initData);
 
         console.log("SapienRewards deployed at:", address(rewardsImpl));
         console.log("Rewards Proxy deployed at:", address(rewardsProxy));
-        console.log("ProxyAdmin at:", vm.envAddress("PROXY_ADMIN"));
 
         vm.stopBroadcast();
     }
