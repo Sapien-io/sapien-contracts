@@ -52,7 +52,7 @@ contract MultiplierTest is Test {
 
         // Test exact discrete periods with minimum stake (1000 tokens = Tier 1)
         assertEq(multiplier.calculateMultiplier(amount, LOCK_30_DAYS), 11400); // 1.14x (1.05x + 0.09x tier bonus)
-        assertEq(multiplier.calculateMultiplier(amount, LOCK_90_DAYS), 11900); // 1.19x (1.10x + 0.09x tier bonus) 
+        assertEq(multiplier.calculateMultiplier(amount, LOCK_90_DAYS), 11900); // 1.19x (1.10x + 0.09x tier bonus)
         assertEq(multiplier.calculateMultiplier(amount, LOCK_180_DAYS), 13400); // 1.34x (1.25x + 0.09x tier bonus)
         assertEq(multiplier.calculateMultiplier(amount, LOCK_365_DAYS), 15900); // 1.59x (1.50x + 0.09x tier bonus)
     }
@@ -296,15 +296,15 @@ contract MultiplierTest is Test {
         TestCase[] memory testCases = new TestCase[](24);
 
         // Fill in all matrix values (6 tiers × 4 durations)
-        testCases[0] = TestCase(1000 * TOKEN_DECIMALS, LOCK_30_DAYS, 11400);  // 1.14x with tier bonus
-        testCases[1] = TestCase(1500 * TOKEN_DECIMALS, LOCK_30_DAYS, 11400);  // Same tier as 1000
+        testCases[0] = TestCase(1000 * TOKEN_DECIMALS, LOCK_30_DAYS, 11400); // 1.14x with tier bonus
+        testCases[1] = TestCase(1500 * TOKEN_DECIMALS, LOCK_30_DAYS, 11400); // Same tier as 1000
         testCases[2] = TestCase(3000 * TOKEN_DECIMALS, LOCK_30_DAYS, 12300);
         testCases[3] = TestCase(6000 * TOKEN_DECIMALS, LOCK_30_DAYS, 13200);
         testCases[4] = TestCase(8000 * TOKEN_DECIMALS, LOCK_30_DAYS, 14100);
         testCases[5] = TestCase(15000 * TOKEN_DECIMALS, LOCK_30_DAYS, 15000);
 
-        testCases[6] = TestCase(1000 * TOKEN_DECIMALS, LOCK_90_DAYS, 11900);   // 1.19x with tier bonus
-        testCases[7] = TestCase(1500 * TOKEN_DECIMALS, LOCK_90_DAYS, 11900);   // Same tier as 1000
+        testCases[6] = TestCase(1000 * TOKEN_DECIMALS, LOCK_90_DAYS, 11900); // 1.19x with tier bonus
+        testCases[7] = TestCase(1500 * TOKEN_DECIMALS, LOCK_90_DAYS, 11900); // Same tier as 1000
         testCases[8] = TestCase(3000 * TOKEN_DECIMALS, LOCK_90_DAYS, 12800);
         testCases[9] = TestCase(6000 * TOKEN_DECIMALS, LOCK_90_DAYS, 13700);
         testCases[10] = TestCase(8000 * TOKEN_DECIMALS, LOCK_90_DAYS, 14600);
