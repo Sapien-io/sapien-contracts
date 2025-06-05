@@ -11,18 +11,18 @@ contract DeployQA is Script {
         AllActors memory actors = Actors.getAllActors();
 
         vm.startBroadcast();
-        
+
         // SapienQA constructor takes: treasury, vaultContract, qaManager, admin
         // We'll use a placeholder for vaultContract since it's deployed later
         address vaultContract = address(1); // Placeholder - call updateVaultContract() later
-        
+
         SapienQA qa = new SapienQA(
-            actors.foundationSafe1,  // treasury
-            vaultContract,           // vaultContract (placeholder)
-            actors.qaManager,        // qaManager
-            actors.qaAdmin          // admin
+            actors.foundationSafe1, // treasury
+            vaultContract, // vaultContract (placeholder)
+            actors.qaManager, // qaManager
+            actors.qaAdmin // admin
         );
-        
+
         console.log("SapienQA deployed at:", address(qa));
         vm.stopBroadcast();
     }

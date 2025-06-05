@@ -34,12 +34,7 @@ contract SapienVault_QADoubleCountingTest is Test {
         // Deploy SapienVault with proxy
         SapienVault sapienVaultImpl = new SapienVault();
         bytes memory initData = abi.encodeWithSelector(
-            SapienVault.initialize.selector,
-            address(sapienToken),
-            admin,
-            treasury,
-            address(multiplier),
-            qaContract
+            SapienVault.initialize.selector, address(sapienToken), admin, treasury, address(multiplier), qaContract
         );
         ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), initData);
         sapienVault = SapienVault(address(sapienVaultProxy));
@@ -59,7 +54,7 @@ contract SapienVault_QADoubleCountingTest is Test {
      */
     function test_QA_DoubleCounting_Issue() public {
         uint256 stakeAmount = 5000 * 1e18;
-        
+
         // User stakes tokens
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), stakeAmount);
@@ -82,7 +77,10 @@ contract SapienVault_QADoubleCountingTest is Test {
         console.log("=== BEFORE QA PENALTY ===");
         console.log("Total staked amount:", sapienVault.getTotalStaked(user1) / 1e18);
         console.log("Amount in cooldown:", sapienVault.getTotalInCooldown(user1) / 1e18);
-        console.log("Active (non-cooldown) amount:", (sapienVault.getTotalStaked(user1) - sapienVault.getTotalInCooldown(user1)) / 1e18);
+        console.log(
+            "Active (non-cooldown) amount:",
+            (sapienVault.getTotalStaked(user1) - sapienVault.getTotalInCooldown(user1)) / 1e18
+        );
 
         // The issue: Request penalty equal to total staked + some cooldown amount
         // This should NOT be possible, but current implementation allows it due to double counting
@@ -93,7 +91,7 @@ contract SapienVault_QADoubleCountingTest is Test {
         // Current implementation incorrectly calculates totalAvailable as:
         // uint256 totalAvailable = uint256(userStake.amount) + uint256(userStake.cooldownAmount);
         // = 5000 + 2000 = 7000 (WRONG - double counting cooldown tokens)
-        
+
         vm.prank(qaContract);
         uint256 actualPenalty = sapienVault.processQAPenalty(user1, penaltyAmount);
 
@@ -109,15 +107,15 @@ contract SapienVault_QADoubleCountingTest is Test {
         // The bug: actualPenalty allows more than actual staked amount
         // With the bug, the penalty can be up to 5500 even though only 5000 tokens are actually staked
         // This demonstrates double counting: cooldown tokens counted as both part of amount AND additional
-        
+
         console.log("=== PROBLEM ANALYSIS ===");
         console.log("Bug: Penalty allowed:", actualPenalty / 1e18);
         console.log("Correct: Should be max:", stakeAmount / 1e18);
         console.log("The difference shows double counting of cooldown tokens");
-        
+
         // The actual penalty applied should never exceed the original staked amount
         assertLe(actualPenalty, stakeAmount, "Penalty should not exceed original staked amount");
-        
+
         // However, with the current bug, it can be up to stakeAmount + cooldownAmount
         // This test will show that actualPenalty = 5500, proving the bug exists
     }
@@ -127,7 +125,7 @@ contract SapienVault_QADoubleCountingTest is Test {
      */
     function test_QA_DoubleCounting_ProofOfBug() public {
         uint256 stakeAmount = 3000 * 1e18;
-        
+
         // User stakes tokens
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), stakeAmount);
@@ -161,4 +159,4 @@ contract SapienVault_QADoubleCountingTest is Test {
         // The function should only allow penalties up to the actual staked amount
         assertEq(actualPenalty, stakeAmount, "Penalty should be capped at actual staked amount");
     }
-} 
+}

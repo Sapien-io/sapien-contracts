@@ -154,11 +154,8 @@ library Contracts {
      * @return bool True if all contracts are deployed, false otherwise
      */
     function areAllContractsDeployed(DeployedContracts memory contracts) internal pure returns (bool) {
-        return contracts.sapienToken != address(0) &&
-               contracts.sapienVault != address(0) &&
-               contracts.sapienRewards != address(0) &&
-               contracts.sapienQA != address(0) &&
-               contracts.multiplier != address(0) &&
-               contracts.timelock != address(0);
+        return contracts.sapienToken != address(0) && contracts.sapienVault != address(0)
+            && contracts.sapienRewards != address(0) && contracts.sapienQA != address(0)
+            && contracts.multiplier != address(0) && contracts.timelock != address(0);
     }
 }
