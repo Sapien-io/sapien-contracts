@@ -38,7 +38,7 @@ kill-node    :; @pkill anvil 2>/dev/null || true
 # Deploy local contracts
 deploy    :; ./deploy-local.sh
 
-test-localhost :; FOUNDRY_PROFILE=localhost forge test --match-path "test/localhost/LocalIntegration.t.sol" --fork-url http://localhost:8545 -v
+test-localhost :; FOUNDRY_PROFILE=localhost forge test --match-path "test/localhost/LocalIntegration.t.sol" --rpc-url http://localhost:8545 -v
 
 
 # Note: Required environment variables for Tenderly deployment:
