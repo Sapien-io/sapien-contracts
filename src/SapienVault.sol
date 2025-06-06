@@ -568,20 +568,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         // Add check to ensure instant unstake is only possible during lock period
         if (_isUnlocked(userStake)) {
             revert LockPeriodCompleted();
-        }
-
-        if (amount > uint256(userStake.cooldownAmount)) {
-            revert AmountExceedsCooldownAmount();
-        }
-
-        userStake.amount -= amount.toUint128();
-        userStake.cooldownAmount -= amount.toUint128();
-        totalStaked -= amount;
-
-        // Clear cooldown if no more amount in cooldown
-        if (uint256(userStake.cooldownAmount) == 0) {
-            userStake.cooldownStart = 0;
-        }        
+        }      
 
         uint256 penalty = (amount * Const.EARLY_WITHDRAWAL_PENALTY) / 100;
 
