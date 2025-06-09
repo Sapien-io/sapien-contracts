@@ -788,6 +788,23 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         if (remainder > totalAmount / 2) {
             weightedLockup += 1;
         }
+
+        // 🛡️ PROPER LOCKUP FLOOR PROTECTION:
+        // Users cannot reduce their lockup period below their existing commitment
+        // Take the maximum of:
+        // 1. Weighted average calculation (calculated above)
+        // 2. Remaining lockup time on existing tokens (existingLockupPeriod)
+        // 3. Lockup period of new stake (newLockupPeriod)
+
+        // Cannot reduce below remaining commitment of existing tokens
+        if (weightedLockup < existingLockupPeriod) {
+            weightedLockup = existingLockupPeriod;
+        }
+
+        // Cannot reduce below new stake's lockup period
+        if (weightedLockup < newLockupPeriod) {
+            weightedLockup = newLockupPeriod;
+        }
     }
 
     // -------------------------------------------------------------
