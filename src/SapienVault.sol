@@ -404,23 +404,29 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             revert CannotIncreaseStakeInCooldown();
         }
 
-        // Validate weighted calculation won't overflow
-        uint256 existingWeight = uint256(userStake.weightedStartTime) * uint256(userStake.amount);
-        uint256 newWeight = block.timestamp * additionalAmount;
-        if (existingWeight > type(uint256).max - newWeight) {
-            revert StakeAmountTooLarge();
+        // Check if existing stake has expired
+        bool isExistingStakeExpired = _isUnlocked(userStake);
+
+        // If existing stake is expired, reset weighted start time to current timestamp
+        // This prevents users from benefiting from reduced lockup periods due to weighted averaging
+        uint256 newWeightedStartTime;
+        if (isExistingStakeExpired) {
+            newWeightedStartTime = block.timestamp;
+        } else {
+            // Calculate new weighted start time with precision handling
+            uint256 totalAmountForCalculation = uint256(userStake.amount) + additionalAmount;
+            newWeightedStartTime = _calculateWeightedStartTime(
+                uint256(userStake.weightedStartTime),
+                uint256(userStake.amount),
+                additionalAmount,
+                totalAmountForCalculation
+            );
         }
 
         // Transfer tokens only after validation passes
         sapienToken.safeTransferFrom(msg.sender, address(this), additionalAmount);
 
-        // Pre-validate before token transfer
         uint256 newTotalAmount = uint256(userStake.amount) + additionalAmount;
-
-        // Calculate new weighted start time with precision handling
-        uint256 newWeightedStartTime = _calculateWeightedStartTime(
-            uint256(userStake.weightedStartTime), uint256(userStake.amount), additionalAmount, newTotalAmount
-        );
 
         // Update state
         userStake.weightedStartTime = newWeightedStartTime.toUint64();
@@ -682,16 +688,33 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     }
 
     /**
-     * @notice Processes combining new stake with existing stake
-     * @param userStake The user's stake storage reference
-     * @param amount The amount to add
-     * @param lockUpPeriod The new lockup period
+     * @notice Processes stake combination with existing stake, ensuring proper expiration validation
+     * @param userStake The user's existing stake storage reference
+     * @param amount The new amount being added
+     * @param lockUpPeriod The lockup period for the new amount
      */
     function _processCombineStake(UserStake storage userStake, uint256 amount, uint256 lockUpPeriod) private {
         uint256 newTotalAmount = uint256(userStake.amount) + amount;
 
-        // Calculate new weighted values
-        WeightedValues memory newValues = _calculateWeightedValues(userStake, amount, lockUpPeriod, newTotalAmount);
+        // Check if existing stake has expired
+        bool isExistingStakeExpired = _isUnlocked(userStake);
+
+        WeightedValues memory newValues;
+
+        if (isExistingStakeExpired) {
+            // If existing stake is expired, reset weighted start time to current timestamp
+            // This prevents users from benefiting from reduced lockup periods due to weighted averaging
+            newValues.weightedStartTime = block.timestamp;
+            newValues.effectiveLockup = lockUpPeriod;
+
+            // Ensure lockup period doesn't exceed maximum
+            if (newValues.effectiveLockup > Const.LOCKUP_365_DAYS) {
+                newValues.effectiveLockup = Const.LOCKUP_365_DAYS;
+            }
+        } else {
+            // Calculate new weighted values normally for non-expired stakes
+            newValues = _calculateWeightedValues(userStake, amount, lockUpPeriod, newTotalAmount);
+        }
 
         // Update stake with new values
         userStake.amount = newTotalAmount.toUint128();
