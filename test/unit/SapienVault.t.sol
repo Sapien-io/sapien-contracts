@@ -2,7 +2,7 @@
 pragma solidity 0.8.30;
 
 import {Test} from "lib/forge-std/src/Test.sol";
-import {SapienVault} from "src/SapienVault.sol";
+import {SapienVault,ISapienVault} from "src/SapienVault.sol";
 import {Multiplier, IMultiplier} from "src/Multiplier.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
@@ -45,7 +45,6 @@ contract SapienVaultBasicTest is Test {
     event LockupIncreased(
         address indexed user, uint256 additionalLockup, uint256 newEffectiveLockup, uint256 newEffectiveMultiplier
     );
-    event UnstakingInitiated(address indexed user, uint256 amount);
     event Unstaked(address indexed user, uint256 amount);
     event EarlyUnstake(address indexed user, uint256 amount, uint256 penalty);
     event SapienTreasuryUpdated(address indexed newSapienTreasury);
@@ -99,7 +98,7 @@ contract SapienVaultBasicTest is Test {
 
         // Don't check exact multiplier value since it depends on global coefficient in new system
         vm.expectEmit(true, true, false, false);
-        emit Staked(user1, MINIMUM_STAKE, 0, LOCK_30_DAYS); // Only check user and amount, ignore multiplier
+        emit ISapienVault.Staked(user1, MINIMUM_STAKE, 0, LOCK_30_DAYS); // Only check user and amount, ignore multiplier
 
         sapienVault.stake(MINIMUM_STAKE, LOCK_30_DAYS);
         vm.stopPrank();
@@ -133,7 +132,7 @@ contract SapienVaultBasicTest is Test {
 
             // Don't check exact multiplier value in event since it varies with global coefficient
             vm.expectEmit(true, true, false, false);
-            emit Staked(user, MINIMUM_STAKE, 0, lockPeriods[i]); // Only check user, amount, and lockup
+            emit ISapienVault.Staked(user, MINIMUM_STAKE, 0, lockPeriods[i]); // Only check user, amount, and lockup
 
             sapienVault.stake(MINIMUM_STAKE, lockPeriods[i]);
             vm.stopPrank();
@@ -251,7 +250,7 @@ contract SapienVaultBasicTest is Test {
 
         // Increase amount - don't check exact multiplier since it varies with global coefficient
         vm.expectEmit(true, true, true, false);
-        emit AmountIncreased(user1, MINIMUM_STAKE * 2, MINIMUM_STAKE * 3, 0); // Only check user, additional amount, total amount
+        emit ISapienVault.AmountIncreased(user1, MINIMUM_STAKE * 2, MINIMUM_STAKE * 3, 0); // Only check user, additional amount, total amount
 
         sapienVault.increaseAmount(MINIMUM_STAKE * 2);
         vm.stopPrank();
@@ -317,7 +316,7 @@ contract SapienVaultBasicTest is Test {
         uint256 expectedNewLockup = 10 days + additionalLockup; // remaining + additional
 
         vm.expectEmit(true, false, false, false);
-        emit LockupIncreased(user1, additionalLockup, expectedNewLockup, 0); // Don't check exact multiplier
+        emit ISapienVault.LockupIncreased(user1, additionalLockup, expectedNewLockup, 0); // Don't check exact multiplier
 
         sapienVault.increaseLockup(additionalLockup);
 
@@ -378,7 +377,7 @@ contract SapienVaultBasicTest is Test {
         // 3. Initiate unstaking
         vm.prank(user1);
         vm.expectEmit(true, false, false, true);
-        emit UnstakingInitiated(user1, MINIMUM_STAKE);
+        emit ISapienVault.UnstakingInitiated(user1, block.timestamp, MINIMUM_STAKE);
         sapienVault.initiateUnstake(MINIMUM_STAKE);
 
         // Verify cooldown started
@@ -394,7 +393,7 @@ contract SapienVaultBasicTest is Test {
 
         vm.prank(user1);
         vm.expectEmit(true, false, false, true);
-        emit Unstaked(user1, MINIMUM_STAKE);
+        emit ISapienVault.Unstaked(user1, MINIMUM_STAKE);
         sapienVault.unstake(MINIMUM_STAKE);
 
         // Verify tokens returned and stake cleaned up
@@ -458,7 +457,7 @@ contract SapienVaultBasicTest is Test {
 
         vm.prank(user1);
         vm.expectEmit(true, false, false, true);
-        emit EarlyUnstake(user1, expectedPayout, expectedPenalty);
+        emit ISapienVault.EarlyUnstake(user1, expectedPayout, expectedPenalty);
         sapienVault.earlyUnstake(MINIMUM_STAKE);
 
         // Verify penalty and payout
@@ -752,7 +751,7 @@ contract SapienVaultBasicTest is Test {
 
         vm.prank(admin);
         vm.expectEmit(true, false, false, false);
-        emit SapienTreasuryUpdated(newTreasury);
+        emit ISapienVault.SapienTreasuryUpdated(newTreasury);
         sapienVault.setTreasury(newTreasury);
 
         assertEq(sapienVault.treasury(), newTreasury);
@@ -876,7 +875,7 @@ contract SapienVaultBasicTest is Test {
         // Perform emergency withdrawal
         vm.prank(admin);
         vm.expectEmit(true, true, false, true);
-        emit EmergencyWithdraw(address(sapienToken), emergencyRecipient, withdrawAmount);
+        emit ISapienVault.EmergencyWithdraw(address(sapienToken), emergencyRecipient, withdrawAmount);
         sapienVault.emergencyWithdraw(address(sapienToken), emergencyRecipient, withdrawAmount);
 
         // Verify balances
@@ -902,7 +901,7 @@ contract SapienVaultBasicTest is Test {
         // Perform emergency ETH withdrawal
         vm.prank(admin);
         vm.expectEmit(true, true, false, true);
-        emit EmergencyWithdraw(address(0), emergencyRecipient, withdrawAmount);
+        emit ISapienVault.EmergencyWithdraw(address(0), emergencyRecipient, withdrawAmount);
         sapienVault.emergencyWithdraw(address(0), emergencyRecipient, withdrawAmount);
 
         // Verify balances
@@ -924,7 +923,7 @@ contract SapienVaultBasicTest is Test {
         // Withdraw entire balance
         vm.prank(admin);
         vm.expectEmit(true, true, false, true);
-        emit EmergencyWithdraw(address(sapienToken), emergencyRecipient, totalAmount);
+        emit ISapienVault.EmergencyWithdraw(address(sapienToken), emergencyRecipient, totalAmount);
         sapienVault.emergencyWithdraw(address(sapienToken), emergencyRecipient, totalAmount);
 
         // Verify complete withdrawal
@@ -946,7 +945,7 @@ contract SapienVaultBasicTest is Test {
         // Withdraw entire ETH balance
         vm.prank(admin);
         vm.expectEmit(true, true, false, true);
-        emit EmergencyWithdraw(address(0), emergencyRecipient, totalETH);
+        emit ISapienVault.EmergencyWithdraw(address(0), emergencyRecipient, totalETH);
         sapienVault.emergencyWithdraw(address(0), emergencyRecipient, totalETH);
 
         // Verify complete withdrawal
@@ -1038,7 +1037,7 @@ contract SapienVaultBasicTest is Test {
 
         vm.prank(admin);
         vm.expectEmit(true, true, false, true);
-        emit EmergencyWithdraw(address(maliciousToken), recoveryAddress, maliciousAmount);
+        emit ISapienVault.EmergencyWithdraw(address(maliciousToken), recoveryAddress, maliciousAmount);
         sapienVault.emergencyWithdraw(address(maliciousToken), recoveryAddress, maliciousAmount);
 
         // Verify malicious tokens were recovered
@@ -1056,7 +1055,7 @@ contract SapienVaultBasicTest is Test {
 
         vm.prank(admin);
         vm.expectEmit(true, true, false, true);
-        emit EmergencyWithdraw(address(sapienToken), userFundSafeAddress, partialRecovery);
+        emit ISapienVault.EmergencyWithdraw(address(sapienToken), userFundSafeAddress, partialRecovery);
         sapienVault.emergencyWithdraw(address(sapienToken), userFundSafeAddress, partialRecovery);
 
         // Verify partial recovery
@@ -1083,14 +1082,14 @@ contract SapienVaultBasicTest is Test {
         uint256 ethWithdrawAmount = 1 ether;
         vm.prank(admin);
         vm.expectEmit(true, true, false, true);
-        emit EmergencyWithdraw(address(0), emergencyRecipient, ethWithdrawAmount);
+        emit ISapienVault.EmergencyWithdraw(address(0), emergencyRecipient, ethWithdrawAmount);
         sapienVault.emergencyWithdraw(address(0), emergencyRecipient, ethWithdrawAmount);
 
         // Withdraw tokens second
         uint256 tokenWithdrawAmount = 50000e18;
         vm.prank(admin);
         vm.expectEmit(true, true, false, true);
-        emit EmergencyWithdraw(address(sapienToken), emergencyRecipient, tokenWithdrawAmount);
+        emit ISapienVault.EmergencyWithdraw(address(sapienToken), emergencyRecipient, tokenWithdrawAmount);
         sapienVault.emergencyWithdraw(address(sapienToken), emergencyRecipient, tokenWithdrawAmount);
 
         // Verify both withdrawals
@@ -1110,7 +1109,7 @@ contract SapienVaultBasicTest is Test {
         // Test successful update
         vm.prank(admin);
         vm.expectEmit(true, true, false, true);
-        emit SapienTreasuryUpdated(newTreasury);
+        emit ISapienVault.SapienTreasuryUpdated(newTreasury);
         sapienVault.setTreasury(newTreasury);
 
         // Verify update

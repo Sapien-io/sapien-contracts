@@ -57,8 +57,9 @@ contract JuneAudit_SAP_1_CooldownBypassTest is Test {
     /**
      * @notice Test that demonstrates the cooldown bypass vulnerability
      * @dev This test follows the exact exploit scenario from the audit finding
+     * the test should fail if sap-1 vuln is possible
      */
-    function test_Vault_SAP_1_CooldownBypassExploit() public {
+    function skip_test_Vault_SAP_1_CooldownBypassExploit() public {
         console.log("\n=== DEMONSTRATING COOLDOWN BYPASS VULNERABILITY ===");
         
         // Step 1: User stakes 1,000 tokens with lockup period
@@ -95,9 +96,7 @@ contract JuneAudit_SAP_1_CooldownBypassTest is Test {
         // Verify cooldown state
         assertEq(sapienVault.getTotalInCooldown(user1), SMALL_UNSTAKE);
         assertEq(sapienVault.getTotalUnlocked(user1), LARGE_UNSTAKE); // 999 tokens still available
-        
-        // Record the cooldown start time
-        uint256 cooldownStartTime = block.timestamp;
+
 
         // Step 4: Wait for cooldown period to complete (2 days)
         vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
@@ -145,8 +144,9 @@ contract JuneAudit_SAP_1_CooldownBypassTest is Test {
     /**
      * @notice Test showing the intended behavior (what should happen)
      * @dev This test shows how cooldown should work correctly
+     * the test should fail if sap-1 vuln is possible
      */
-    function test_Vault_SAP_1_IntendedCooldownBehavior() public {
+    function skip_test_Vault_SAP_1_IntendedCooldownBehavior() public {
         console.log("\n=== DEMONSTRATING INTENDED COOLDOWN BEHAVIOR ===");
         
         // Setup: User stakes tokens and waits for unlock
@@ -182,8 +182,9 @@ contract JuneAudit_SAP_1_CooldownBypassTest is Test {
     /**
      * @notice Test the severity of the vulnerability with larger amounts
      * @dev Shows how this could be exploited with significant stake amounts
+     * the test should fail if sap-1 vuln is possible
      */
-    function test_Vault_SAP_1_LargeScaleExploit() public {
+    function skip_test_Vault_SAP_1_LargeScaleExploit() public {
         uint256 largeStake = 1_000_000e18; // 1M tokens
         uint256 smallTrigger = 1e18; // 1 token to trigger cooldown
         uint256 majorUnstake = largeStake - smallTrigger;
@@ -228,8 +229,9 @@ contract JuneAudit_SAP_1_CooldownBypassTest is Test {
     /**
      * @notice Test multiple cooldown bypass attempts
      * @dev Shows the vulnerability can be exploited multiple times
+     * the test should fail if sap-1 vuln is possible
      */
-    function test_Vault_SAP_1_MultipleCooldownBypasses() public {
+    function skip_test_Vault_SAP_1_MultipleCooldownBypasses() public {
         uint256 stake1 = 100e18;
         uint256 stake2 = 200e18;
         uint256 stake3 = 300e18;
@@ -265,5 +267,152 @@ contract JuneAudit_SAP_1_CooldownBypassTest is Test {
 
         console.log("\n=== MULTIPLE BYPASSES SUCCESSFUL ===");
         console.log("Bypassed cooldown multiple times using same initial cooldownStart");
+    }
+
+    /**
+     * @notice Test that demonstrates the cooldown reset is intentional and prevents bypasses
+     * @dev This test shows the new behavior where adding to cooldown resets the timer for security
+     */
+    function test_Vault_SAP_1_FixedCooldownBehavior() public {
+        console.log("\n=== DEMONSTRATING FIXED COOLDOWN BEHAVIOR ===");
+        
+        // Setup: User stakes tokens and waits for unlock
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), STAKE_AMOUNT);
+        sapienVault.stake(STAKE_AMOUNT, LOCKUP_PERIOD);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + LOCKUP_PERIOD + 1);
+
+        // User initiates unstaking for 1 token
+        vm.prank(user1);
+        sapienVault.initiateUnstake(SMALL_UNSTAKE);
+        
+        console.log("Step 1: User initiated unstake for", SMALL_UNSTAKE / 1e18, "tokens");
+
+        // Wait 1 day (halfway through 2-day cooldown)
+        vm.warp(block.timestamp + 1 days);
+        
+        console.log("Step 2: Waited 1 day - cooldown period is 2 days");
+
+        // User initiates unstaking for remaining tokens
+        // This should reset the cooldown timer for ALL tokens (security feature)
+        vm.prank(user1);
+        sapienVault.initiateUnstake(LARGE_UNSTAKE);
+        
+        console.log("Step 3: User initiated unstake for remaining", LARGE_UNSTAKE / 1e18, "tokens");
+        console.log("SECURITY: cooldownStart was updated - all tokens must wait full cooldown period");
+
+        // User should NOT be able to immediately unstake ANY amount
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature("NotReadyForUnstake()"));
+        sapienVault.unstake(SMALL_UNSTAKE);
+        
+        console.log("Step 4: SECURITY ENFORCED - Cannot unstake even the original 1 token immediately");
+
+        // User should NOT be able to unstake the large amount either
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature("NotReadyForUnstake()"));
+        sapienVault.unstake(LARGE_UNSTAKE);
+        
+        console.log("Step 5: SECURITY ENFORCED - Cannot unstake large amount immediately");
+
+        // Only after full cooldown period should unstaking work
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        
+        console.log("Step 6: After full cooldown period elapsed");
+
+        // Now both amounts should be available for unstaking
+        uint256 balanceBefore = sapienToken.balanceOf(user1);
+        
+        vm.prank(user1);
+        sapienVault.unstake(STAKE_AMOUNT); // Can unstake all at once
+        
+        uint256 balanceAfter = sapienToken.balanceOf(user1);
+        
+        console.log("Step 7: Successfully unstaked all", STAKE_AMOUNT / 1e18, "tokens after proper cooldown");
+        
+        // Verify the security fix worked
+        assertEq(balanceAfter - balanceBefore, STAKE_AMOUNT);
+        assertEq(sapienVault.getTotalStaked(user1), 0);
+        
+        console.log("\n=== SECURITY FIX CONFIRMED ===");
+        console.log("Cooldown bypass vulnerability has been fixed");
+        console.log("All tokens must wait full cooldown period when new amounts are added");
+    }
+
+    /**
+     * @notice Test that earlyUnstake cannot be used to bypass cooldown requirements
+     * @dev Verify that locked tokens and cooldown tokens cannot exist simultaneously
+     */
+    function test_Vault_SAP_1_EarlyUnstakeCannotBypassCooldown() public {
+        console.log("\n=== TESTING EARLY UNSTAKE COOLDOWN BYPASS SCENARIOS ===");
+        
+        // Setup: User stakes tokens with lockup
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), STAKE_AMOUNT);
+        sapienVault.stake(STAKE_AMOUNT, LOCKUP_PERIOD);
+        vm.stopPrank();
+
+        console.log("Step 1: User staked tokens with lockup period");
+
+        // Verify tokens are locked - earlyUnstake should work
+        assertEq(sapienVault.getTotalLocked(user1), STAKE_AMOUNT, "All tokens should be locked");
+        assertEq(sapienVault.getTotalUnlocked(user1), 0, "No tokens should be unlocked");
+        assertEq(sapienVault.getTotalInCooldown(user1), 0, "No tokens should be in cooldown");
+
+        // Test 1: Cannot initiate cooldown while tokens are locked
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature("StakeStillLocked()"));
+        sapienVault.initiateUnstake(SMALL_UNSTAKE);
+        
+        console.log("Step 2: VERIFIED - Cannot initiate cooldown while tokens are locked");
+
+        // Test 2: EarlyUnstake should work while locked
+        uint256 earlyUnstakeAmount = SMALL_UNSTAKE;
+        uint256 expectedPenalty = (earlyUnstakeAmount * 20) / 100; // 20% penalty
+        uint256 expectedPayout = earlyUnstakeAmount - expectedPenalty;
+
+        uint256 balanceBefore = sapienToken.balanceOf(user1);
+        
+        vm.prank(user1);
+        sapienVault.earlyUnstake(earlyUnstakeAmount);
+        
+        uint256 balanceAfter = sapienToken.balanceOf(user1);
+        
+        console.log("Step 3: VERIFIED - EarlyUnstake works during lock period with penalty");
+        assertEq(balanceAfter - balanceBefore, expectedPayout, "Should receive reduced amount due to penalty");
+
+        // Test 3: After unlock, earlyUnstake should no longer work
+        vm.warp(block.timestamp + LOCKUP_PERIOD + 1);
+        
+        console.log("Step 4: Lock period expired");
+
+        // Now tokens should be unlocked
+        uint256 remainingStake = STAKE_AMOUNT - earlyUnstakeAmount;
+        assertEq(sapienVault.getTotalUnlocked(user1), remainingStake, "Remaining tokens should be unlocked");
+        assertEq(sapienVault.getTotalLocked(user1), 0, "No tokens should be locked");
+
+        // EarlyUnstake should no longer work
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature("LockPeriodCompleted()"));
+        sapienVault.earlyUnstake(SMALL_UNSTAKE);
+        
+        console.log("Step 5: VERIFIED - EarlyUnstake blocked after lock period expires");
+
+        // Test 4: Now initiate cooldown should work
+        vm.prank(user1);
+        sapienVault.initiateUnstake(SMALL_UNSTAKE);
+        
+        console.log("Step 6: VERIFIED - Can initiate cooldown after unlock");
+
+        // Verify state
+        assertEq(sapienVault.getTotalInCooldown(user1), SMALL_UNSTAKE, "Tokens should be in cooldown");
+        assertEq(sapienVault.getTotalUnlocked(user1), remainingStake - SMALL_UNSTAKE, "Remaining unlocked should be reduced");
+
+        console.log("\n=== EARLY UNSTAKE COOLDOWN SECURITY CONFIRMED ===");
+        console.log("- Cannot initiate cooldown while locked");
+        console.log("- Cannot use earlyUnstake after unlock");
+        console.log("- No bypass scenario exists between locked and cooldown states");
     }
 }

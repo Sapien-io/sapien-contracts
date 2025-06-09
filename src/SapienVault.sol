@@ -494,19 +494,21 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             revert StakeStillLocked();
         }
 
-        if (amount > uint256(userStake.amount) - uint256(userStake.cooldownAmount)) {
+        uint256 cooldownAmount = uint256(userStake.cooldownAmount);
+
+        if (amount > uint256(userStake.amount) - cooldownAmount) {
             revert AmountExceedsAvailableBalance();
         }
 
-        // Set cooldown start time only if not already in cooldown
-        if (uint256(userStake.cooldownStart) == 0) {
-            userStake.cooldownStart = block.timestamp.toUint64();
-        }
+        // SECURITY FIX: Always update cooldown start time when adding new amounts to cooldown
+        // This prevents users from bypassing cooldown by using old cooldown timestamps
+        // The cooldown period must be enforced for ALL tokens being added to cooldown
+        userStake.cooldownStart = block.timestamp.toUint64();
 
-        uint256 newCooldownAmount = uint256(userStake.cooldownAmount) + amount;
+        uint256 newCooldownAmount = cooldownAmount + amount;
 
         userStake.cooldownAmount = newCooldownAmount.toUint128();
-        emit UnstakingInitiated(msg.sender, amount);
+        emit UnstakingInitiated(msg.sender, block.timestamp.toUint64(), newCooldownAmount);
     }
 
     /**

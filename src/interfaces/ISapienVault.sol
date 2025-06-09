@@ -36,7 +36,7 @@ interface ISapienVault {
     event LockupIncreased(
         address indexed user, uint256 additionalLockup, uint256 newEffectiveLockup, uint256 newEffectiveMultiplier
     );
-    event UnstakingInitiated(address indexed user, uint256 amount);
+    event UnstakingInitiated(address indexed user, uint256 cooldownStart, uint256 cooldownAmount);
     event Unstaked(address indexed user, uint256 amount);
     event EarlyUnstake(address indexed user, uint256 amount, uint256 penalty);
     event SapienTreasuryUpdated(address indexed newSapienTreasury);
