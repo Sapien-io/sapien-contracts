@@ -570,7 +570,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         // Add check to ensure instant unstake is only possible during lock period
         if (_isUnlocked(userStake)) {
             revert LockPeriodCompleted();
-        }      
+        }
 
         uint256 penalty = (amount * Const.EARLY_WITHDRAWAL_PENALTY) / 100;
 
