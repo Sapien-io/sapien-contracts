@@ -314,9 +314,6 @@ contract SapienVaultEndToEndTest is Test {
         uint256 userBalanceBefore = sapienToken.balanceOf(emergencyUser);
         uint256 treasuryBalanceBefore = sapienToken.balanceOf(treasury);
 
-        // Store current timestamp for time tracking
-        uint256 currentTime = block.timestamp;
-
         // Use helper function for early unstake with cooldown
         _performEarlyUnstakeWithCooldown(emergencyUser, emergencyAmount);
 
