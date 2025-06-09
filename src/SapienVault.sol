@@ -937,8 +937,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         view
         returns (uint256)
     {
-        // Only use amount as the maximum penalty, since cooldownAmount is already counted within amount
-        uint256 totalAvailable = uint256(userStake.amount);
+        uint256 totalAvailable = uint256(userStake.amount) + uint256(userStake.cooldownAmount);
         return requestedPenalty > totalAvailable ? totalAvailable : requestedPenalty;
     }
 
