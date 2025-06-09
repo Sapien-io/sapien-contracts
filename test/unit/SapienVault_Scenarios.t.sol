@@ -51,6 +51,15 @@ contract SapienVaultScenariosTest is Test {
         sapienToken.mint(charlie, 1000000e18);
     }
 
+    // Helper function for early unstake with proper cooldown
+    function _performEarlyUnstakeWithCooldown(address user, uint256 amount) internal {
+        vm.startPrank(user);
+        sapienVault.initiateEarlyUnstake(amount);
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        sapienVault.earlyUnstake(amount);
+        vm.stopPrank();
+    }
+
     // =============================================================================
     // SCENARIO 1: PROGRESSIVE STAKER
     // Alice starts small, gradually increases stakes and extends lockup periods
@@ -147,9 +156,8 @@ contract SapienVaultScenariosTest is Test {
         uint256 bobBalanceBefore = sapienToken.balanceOf(bob);
         uint256 treasuryBalanceBefore = sapienToken.balanceOf(treasury);
 
-        // Bob performs emergency withdrawal
-        vm.prank(bob);
-        sapienVault.earlyUnstake(emergencyAmount);
+        // Bob performs emergency withdrawal (with cooldown)
+        _performEarlyUnstakeWithCooldown(bob, emergencyAmount);
 
         // Verify penalty was applied
         assertEq(sapienToken.balanceOf(bob), bobBalanceBefore + expectedPayout);

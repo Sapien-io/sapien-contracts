@@ -551,8 +551,39 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     }
 
     /**
+     * @notice Initiates early unstake cooldown for a specified amount.
+     * @param amount The amount to initiate early unstake for.
+     * @dev This function starts the cooldown period required before earlyUnstake can be called.
+     *      This prevents users from avoiding QA penalties by immediately unstaking.
+     */
+    function initiateEarlyUnstake(uint256 amount) public whenNotPaused nonReentrant {
+        if (amount == 0) revert InvalidAmount();
+
+        UserStake storage userStake = userStakes[msg.sender];
+
+        if (!userStake.hasStake) {
+            revert NoStakeFound();
+        }
+
+        if (amount > uint256(userStake.amount) - uint256(userStake.cooldownAmount)) {
+            revert AmountExceedsAvailableBalance();
+        }
+
+        // Add check to ensure early unstake initiation is only possible during lock period
+        if (_isUnlocked(userStake)) {
+            revert LockPeriodCompleted();
+        }
+
+        // Set early unstake cooldown start time
+        userStake.earlyUnstakeCooldownStart = block.timestamp.toUint64();
+
+        emit EarlyUnstakeCooldownInitiated(msg.sender, block.timestamp);
+    }
+
+    /**
      * @notice  Unstakes early a specified amount, incurring a penalty.
      * @param amount The amount to unstake instantly.
+     * @dev Now requires a cooldown period to prevent QA penalty avoidance.
      */
     function earlyUnstake(uint256 amount) public whenNotPaused nonReentrant {
         if (amount == 0) revert InvalidAmount();
@@ -572,12 +603,24 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             revert LockPeriodCompleted();
         }
 
+        // SECURITY FIX: Enforce cooldown period for early unstake to prevent QA penalty avoidance
+        if (userStake.earlyUnstakeCooldownStart == 0) {
+            revert EarlyUnstakeCooldownRequired();
+        }
+
+        if (block.timestamp < uint256(userStake.earlyUnstakeCooldownStart) + Const.COOLDOWN_PERIOD) {
+            revert EarlyUnstakeCooldownRequired();
+        }
+
         uint256 penalty = (amount * Const.EARLY_WITHDRAWAL_PENALTY) / 100;
 
         uint256 payout = amount - penalty;
 
         userStake.amount -= amount.toUint128();
         totalStaked -= amount;
+
+        // Reset early unstake cooldown after successful early unstake
+        userStake.earlyUnstakeCooldownStart = 0;
 
         // Complete state reset if stake is fully withdrawn
         if (uint256(userStake.amount) == 0) {
@@ -883,6 +926,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         userStake.effectiveMultiplier = 0;
         userStake.lastUpdateTime = 0;
         userStake.cooldownStart = 0;
+        userStake.earlyUnstakeCooldownStart = 0;
     }
 
     // -------------------------------------------------------------

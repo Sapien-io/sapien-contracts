@@ -15,9 +15,10 @@ interface ISapienVault {
         uint64 effectiveLockUpPeriod; // 8 bytes - Effective lockup period
         uint64 cooldownStart; // 8 bytes - When cooldown was initiated (slot 2)
         uint64 lastUpdateTime; // 8 bytes - Last time stake was modified (slot 3)
+        uint64 earlyUnstakeCooldownStart; // 8 bytes - When early unstake cooldown was initiated (slot 4)
         uint32 effectiveMultiplier; // 4 bytes - Calculated multiplier (slot 4)
         bool hasStake; // 1 byte - Whether user has any active stake (slot 4)
-            // Total: 3 storage slots instead of 8, saving gas per user
+            // Total: 4 storage slots, added early unstake cooldown tracking
     }
 
     struct WeightedValues {
@@ -39,6 +40,7 @@ interface ISapienVault {
     event UnstakingInitiated(address indexed user, uint256 cooldownStart, uint256 cooldownAmount);
     event Unstaked(address indexed user, uint256 amount);
     event EarlyUnstake(address indexed user, uint256 amount, uint256 penalty);
+    event EarlyUnstakeCooldownInitiated(address indexed user, uint256 cooldownStart);
     event SapienTreasuryUpdated(address indexed newSapienTreasury);
     event MultiplierUpdated(uint256 lockUpPeriod, uint256 multiplier);
     event EmergencyWithdraw(address indexed token, address indexed to, uint256 amount);
@@ -75,6 +77,7 @@ interface ISapienVault {
     error UnauthorizedQAManager();
     error InsufficientStakeForPenalty();
     error InsufficientCooldownForPenalty();
+    error EarlyUnstakeCooldownRequired();
 
     // -------------------------------------------------------------
     // Initialization Functions
@@ -101,6 +104,7 @@ interface ISapienVault {
     function increaseLockup(uint256 additionalLockup) external;
     function initiateUnstake(uint256 amount) external;
     function unstake(uint256 amount) external;
+    function initiateEarlyUnstake(uint256 amount) external;
     function earlyUnstake(uint256 amount) external;
 
     // -------------------------------------------------------------

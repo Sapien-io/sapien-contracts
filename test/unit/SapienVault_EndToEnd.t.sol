@@ -148,6 +148,15 @@ contract SapienVaultEndToEndTest is Test {
         _finalComprehensiveVerification();
     }
 
+    // Helper function for early unstake with proper cooldown
+    function _performEarlyUnstakeWithCooldown(address user, uint256 amount) internal {
+        vm.startPrank(user);
+        sapienVault.initiateEarlyUnstake(amount);
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        sapienVault.earlyUnstake(amount);
+        vm.stopPrank();
+    }
+
     function _phaseInitialAdoption() internal {
         // Conservative staker starts with small, safe stakes
         vm.prank(conservativeStaker);
@@ -297,7 +306,7 @@ contract SapienVaultEndToEndTest is Test {
     }
 
     function _phaseEmergencyAndEdgeCases() internal {
-        // Emergency user needs instant liquidity - uses early unstake
+        // Emergency user needs instant liquidity - uses early unstake (with cooldown)
         uint256 emergencyAmount = MEDIUM_STAKE;
         uint256 expectedPenalty = (emergencyAmount * EARLY_WITHDRAWAL_PENALTY) / 100;
         uint256 expectedPayout = emergencyAmount - expectedPenalty;
@@ -305,8 +314,11 @@ contract SapienVaultEndToEndTest is Test {
         uint256 userBalanceBefore = sapienToken.balanceOf(emergencyUser);
         uint256 treasuryBalanceBefore = sapienToken.balanceOf(treasury);
 
-        vm.prank(emergencyUser);
-        sapienVault.earlyUnstake(emergencyAmount);
+        // Store current timestamp for time tracking
+        uint256 currentTime = block.timestamp;
+
+        // Use helper function for early unstake with cooldown
+        _performEarlyUnstakeWithCooldown(emergencyUser, emergencyAmount);
 
         uint256 userBalanceAfter = sapienToken.balanceOf(emergencyUser);
         uint256 treasuryBalanceAfter = sapienToken.balanceOf(treasury);
@@ -320,10 +332,10 @@ contract SapienVaultEndToEndTest is Test {
         console.log("Emergency user: Early unstake", emergencyAmount / 10 ** 18, "SAPIEN");
         console.log("Penalty collected:", expectedPenalty / 10 ** 18, "SAPIEN");
 
-        // Test edge case: trying to unstake more than available
+        // Test edge case: trying to initiate early unstake for more than available
         vm.prank(emergencyUser);
         vm.expectRevert();
-        sapienVault.earlyUnstake(LARGE_STAKE * 2); // Should fail
+        sapienVault.initiateEarlyUnstake(LARGE_STAKE * 2); // Should fail
 
         console.log("Emergency user: Correctly failed oversized unstake");
 
@@ -580,8 +592,8 @@ contract SapienVaultEndToEndTest is Test {
 
         uint256 balanceBefore = sapienToken.balanceOf(optimizer);
 
-        vm.prank(optimizer);
-        sapienVault.earlyUnstake(exitAmount);
+        // Use helper function for early unstake with cooldown
+        _performEarlyUnstakeWithCooldown(optimizer, exitAmount);
 
         uint256 balanceAfter = sapienToken.balanceOf(optimizer);
 

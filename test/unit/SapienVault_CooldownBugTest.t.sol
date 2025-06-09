@@ -161,7 +161,7 @@ contract SapienVaultCooldownBugTest is Test {
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
         vm.stopPrank();
 
-        // While still locked, instant unstake should work
+        // While still locked, early unstake now requires cooldown
         assertEq(sapienVault.getTotalLocked(alice), stakeAmount, "All tokens should be locked");
 
         uint256 instantAmount = MINIMUM_STAKE * 3;
@@ -171,10 +171,18 @@ contract SapienVaultCooldownBugTest is Test {
         uint256 aliceBalanceBefore = mockToken.balanceOf(alice);
         uint256 treasuryBalanceBefore = mockToken.balanceOf(treasury);
 
+        // Initiate early unstake cooldown
+        vm.prank(alice);
+        sapienVault.initiateEarlyUnstake(instantAmount);
+
+        // Fast forward past cooldown period
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+
+        // Now perform early unstake
         vm.prank(alice);
         sapienVault.earlyUnstake(instantAmount);
 
-        // Verify instant unstake worked with penalty
+        // Verify early unstake worked with penalty
         assertEq(mockToken.balanceOf(alice), aliceBalanceBefore + expectedPayout, "Alice should receive reduced amount");
         assertEq(
             mockToken.balanceOf(treasury), treasuryBalanceBefore + expectedPenalty, "Treasury should receive penalty"

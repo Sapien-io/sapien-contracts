@@ -77,6 +77,15 @@ contract SapienVaultBasicTest is Test {
         sapienToken.mint(user3, 100000e18);
     }
 
+    // Helper function for early unstake with proper cooldown
+    function _performEarlyUnstakeWithCooldown(address user, uint256 amount) internal {
+        vm.startPrank(user);
+        sapienVault.initiateEarlyUnstake(amount);
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        sapienVault.earlyUnstake(amount);
+        vm.stopPrank();
+    }
+
     // =============================================================================
     // INITIALIZATION TESTS
     // =============================================================================
@@ -448,13 +457,21 @@ contract SapienVaultBasicTest is Test {
         sapienVault.stake(MINIMUM_STAKE, LOCK_30_DAYS);
         vm.stopPrank();
 
-        // Instant unstake while still locked
+        // Early unstake with cooldown (new behavior after SAP-3 fix)
         uint256 expectedPenalty = (MINIMUM_STAKE * EARLY_WITHDRAWAL_PENALTY) / 100;
         uint256 expectedPayout = MINIMUM_STAKE - expectedPenalty;
 
         uint256 userBalanceBefore = sapienToken.balanceOf(user1);
         uint256 treasuryBalanceBefore = sapienToken.balanceOf(treasury);
 
+        // Initiate early unstake cooldown
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(MINIMUM_STAKE);
+
+        // Fast forward past cooldown
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+
+        // Now perform early unstake
         vm.prank(user1);
         vm.expectEmit(true, false, false, true);
         emit ISapienVault.EarlyUnstake(user1, expectedPayout, expectedPenalty);
@@ -477,17 +494,17 @@ contract SapienVaultBasicTest is Test {
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
         vm.stopPrank();
 
-        // Partial instant unstake
+        // Partial early unstake with cooldown
         uint256 expectedPenalty = (earlyUnstakeAmount * EARLY_WITHDRAWAL_PENALTY) / 100;
         uint256 expectedPayout = earlyUnstakeAmount - expectedPenalty;
 
         uint256 userBalanceBefore = sapienToken.balanceOf(user1);
         uint256 treasuryBalanceBefore = sapienToken.balanceOf(treasury);
 
-        vm.prank(user1);
-        sapienVault.earlyUnstake(earlyUnstakeAmount);
+        // Use helper function for early unstake with cooldown
+        _performEarlyUnstakeWithCooldown(user1, earlyUnstakeAmount);
 
-        // Verify partial instant unstake
+        // Verify partial early unstake
         assertEq(sapienToken.balanceOf(user1), userBalanceBefore + expectedPayout);
         assertEq(sapienToken.balanceOf(treasury), treasuryBalanceBefore + expectedPenalty);
         assertEq(sapienVault.totalStaked(), stakeAmount - earlyUnstakeAmount);
@@ -507,10 +524,10 @@ contract SapienVaultBasicTest is Test {
         // Fast forward past lock period
         vm.warp(block.timestamp + LOCK_30_DAYS + 1);
 
-        // Try instant unstake after lock expiry
+        // Try to initiate early unstake after lock expiry should fail
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSignature("LockPeriodCompleted()"));
-        sapienVault.earlyUnstake(MINIMUM_STAKE);
+        sapienVault.initiateEarlyUnstake(MINIMUM_STAKE);
     }
 
     // =============================================================================
@@ -2036,13 +2053,13 @@ contract SapienVaultBasicTest is Test {
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), stakeAmount);
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
 
-        // Early unstake while locked
+        // Early unstake while locked - now requires cooldown
         uint256 expectedPenalty = (stakeAmount * EARLY_WITHDRAWAL_PENALTY) / 100;
         uint256 expectedPayout = stakeAmount - expectedPenalty;
 
-        sapienVault.earlyUnstake(stakeAmount);
-        vm.stopPrank();
+        _performEarlyUnstakeWithCooldown(user1, stakeAmount);
 
         // Verify penalty was applied correctly
         assertTrue(expectedPenalty < stakeAmount, "Penalty should be less than amount");
@@ -2118,14 +2135,13 @@ contract SapienVaultBasicTest is Test {
         // Test that user has active stake
         assertTrue(sapienVault.hasActiveStake(user1));
 
-        // Test early unstake first (while still locked)
+        // Test early unstake first (while still locked) - now requires cooldown
         uint256 earlyUnstakeAmount = MINIMUM_STAKE;
         uint256 expectedPenalty = (earlyUnstakeAmount * EARLY_WITHDRAWAL_PENALTY) / 100;
         uint256 expectedPayout = earlyUnstakeAmount - expectedPenalty;
 
         uint256 userBalanceBefore = sapienToken.balanceOf(user1);
-        vm.prank(user1);
-        sapienVault.earlyUnstake(earlyUnstakeAmount);
+        _performEarlyUnstakeWithCooldown(user1, earlyUnstakeAmount);
 
         // Verify early unstake completed with penalty
         assertEq(sapienToken.balanceOf(user1), userBalanceBefore + expectedPayout);

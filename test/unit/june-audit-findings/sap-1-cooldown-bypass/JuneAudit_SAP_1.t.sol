@@ -367,8 +367,32 @@ contract JuneAudit_SAP_1_CooldownBypassTest is Test {
 
         console.log("Step 2: VERIFIED - Cannot initiate cooldown while tokens are locked");
 
-        // Test 2: EarlyUnstake should work while locked
+        // Test 2: EarlyUnstake now requires cooldown (SAP-3 fix)
         uint256 earlyUnstakeAmount = SMALL_UNSTAKE;
+
+        // First attempt to early unstake directly should fail (new behavior)
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature("EarlyUnstakeCooldownRequired()"));
+        sapienVault.earlyUnstake(earlyUnstakeAmount);
+
+        console.log("Step 3: VERIFIED - EarlyUnstake now requires cooldown initiation (SAP-3 fix)");
+
+        // Initiate early unstake cooldown
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(earlyUnstakeAmount);
+
+        console.log("Step 3a: Early unstake cooldown initiated");
+
+        // Fast forward past cooldown period BUT stay within lock period
+        // We need to advance enough for cooldown (2 days) but not exceed the lock period
+        uint256 cooldownPeriod = 2 days;
+        uint256 timeToAdvance = cooldownPeriod + 1;
+
+        // Make sure we don't exceed the original lock period from when we started
+        // We've already used some time, so be more careful about timing
+        vm.warp(block.timestamp + timeToAdvance);
+
+        // Now early unstake should work
         uint256 expectedPenalty = (earlyUnstakeAmount * 20) / 100; // 20% penalty
         uint256 expectedPayout = earlyUnstakeAmount - expectedPenalty;
 
@@ -379,25 +403,25 @@ contract JuneAudit_SAP_1_CooldownBypassTest is Test {
 
         uint256 balanceAfter = sapienToken.balanceOf(user1);
 
-        console.log("Step 3: VERIFIED - EarlyUnstake works during lock period with penalty");
+        console.log("Step 3b: VERIFIED - EarlyUnstake works after cooldown period with penalty");
         assertEq(balanceAfter - balanceBefore, expectedPayout, "Should receive reduced amount due to penalty");
 
-        // Test 3: After unlock, earlyUnstake should no longer work
-        vm.warp(block.timestamp + LOCKUP_PERIOD + 1);
+        // Test 3: Advance to after lock period and check unlocked tokens
+        vm.warp(block.timestamp + LOCKUP_PERIOD); // Ensure we're past the original lock period
 
-        console.log("Step 4: Lock period expired");
+        console.log("Step 4: Advanced past lock period, checking remaining stake");
 
-        // Now tokens should be unlocked
+        // Now remaining tokens should be unlocked
         uint256 remainingStake = STAKE_AMOUNT - earlyUnstakeAmount;
         assertEq(sapienVault.getTotalUnlocked(user1), remainingStake, "Remaining tokens should be unlocked");
         assertEq(sapienVault.getTotalLocked(user1), 0, "No tokens should be locked");
 
-        // EarlyUnstake should no longer work
+        // EarlyUnstake should no longer work (since tokens are unlocked)
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSignature("LockPeriodCompleted()"));
-        sapienVault.earlyUnstake(SMALL_UNSTAKE);
+        sapienVault.initiateEarlyUnstake(SMALL_UNSTAKE);
 
-        console.log("Step 5: VERIFIED - EarlyUnstake blocked after lock period expires");
+        console.log("Step 5: VERIFIED - Cannot initiate early unstake after lock period expires");
 
         // Test 4: Now initiate cooldown should work
         vm.prank(user1);
