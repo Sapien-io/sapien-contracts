@@ -4,7 +4,6 @@ pragma solidity 0.8.30;
 import { Test } from "lib/forge-std/src/Test.sol";
 import { StdInvariant } from "lib/forge-std/src/StdInvariant.sol";
 import { SapienVault } from "src/SapienVault.sol";
-import { Multiplier, IMultiplier } from "src/Multiplier.sol";
 import { ERC1967Proxy } from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { MockERC20 } from "test/mocks/MockERC20.sol";
 import { Constants as Const } from "src/utils/Constants.sol";
@@ -183,17 +182,12 @@ contract SapienVaultInvariantsTest is StdInvariant, Test {
     function setUp() public {
         sapienToken = new MockERC20("Sapien", "SAPIEN", 18);
         
-        // Deploy multiplier contract
-        Multiplier multiplierImpl = new Multiplier();
-        IMultiplier multiplierContract = IMultiplier(address(multiplierImpl));
-        
         SapienVault sapienVaultImpl = new SapienVault();
         bytes memory initData = abi.encodeWithSelector(
             SapienVault.initialize.selector,
             address(sapienToken),
             admin,
             rewardSafe,
-            address(multiplierContract),
             sapienQA
         );
         ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), initData);

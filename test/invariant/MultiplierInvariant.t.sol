@@ -8,16 +8,14 @@ import {Constants as Const} from "src/utils/Constants.sol";
 
 /**
  * @title MultiplierInvariant
- * @notice Invariant tests for the Multiplier contract
+ * @notice Invariant tests for the Multiplier library
  * @dev Tests mathematical properties that should always hold true
  */
 contract MultiplierInvariant is StdInvariant, Test {
-    Multiplier public multiplier;
     MultiplierHandler public handler;
 
     function setUp() public {
-        multiplier = new Multiplier();
-        handler = new MultiplierHandler(multiplier);
+        handler = new MultiplierHandler();
         
         // Set the handler as the target for invariant testing
         targetContract(address(handler));
@@ -46,8 +44,8 @@ contract MultiplierInvariant is StdInvariant, Test {
             return;
         }
         
-        uint256 mult1 = multiplier.calculateMultiplier(amount1, lockup);
-        uint256 mult2 = multiplier.calculateMultiplier(amount2, lockup);
+        uint256 mult1 = Multiplier.calculateMultiplier(amount1, lockup);
+        uint256 mult2 = Multiplier.calculateMultiplier(amount2, lockup);
         
         // If amount1 <= amount2, then mult1 <= mult2
         if (amount1 <= amount2) {
@@ -75,8 +73,8 @@ contract MultiplierInvariant is StdInvariant, Test {
             return;
         }
         
-        uint256 mult1 = multiplier.calculateMultiplier(amount, lockup1);
-        uint256 mult2 = multiplier.calculateMultiplier(amount, lockup2);
+        uint256 mult1 = Multiplier.calculateMultiplier(amount, lockup1);
+        uint256 mult2 = Multiplier.calculateMultiplier(amount, lockup2);
         
         // If lockup1 <= lockup2, then mult1 <= mult2
         if (lockup1 <= lockup2) {
@@ -92,7 +90,7 @@ contract MultiplierInvariant is StdInvariant, Test {
         uint256 amount = handler.getCurrentAmount();
         uint256 lockup = handler.getCurrentLockup();
         
-        uint256 mult = multiplier.calculateMultiplier(amount, lockup);
+        uint256 mult = Multiplier.calculateMultiplier(amount, lockup);
         
         if (amount >= Const.MINIMUM_STAKE_AMOUNT && 
             lockup >= Const.LOCKUP_30_DAYS && 
@@ -114,8 +112,8 @@ contract MultiplierInvariant is StdInvariant, Test {
         uint256 amount = handler.getCurrentAmount();
         uint256 lockup = handler.getCurrentLockup();
         
-        uint256 mult1 = multiplier.calculateMultiplier(amount, lockup);
-        uint256 mult2 = multiplier.calculateMultiplier(amount, lockup);
+        uint256 mult1 = Multiplier.calculateMultiplier(amount, lockup);
+        uint256 mult2 = Multiplier.calculateMultiplier(amount, lockup);
         
         assertEq(mult1, mult2, "Same inputs should always produce same outputs");
     }
@@ -124,17 +122,17 @@ contract MultiplierInvariant is StdInvariant, Test {
      * @notice Tier boundary invariant
      * @dev Multipliers should increase exactly at tier boundaries
      */
-    function invariant_TierBoundaries() public view {
+    function invariant_TierBoundaries() public pure {
         uint256 lockup = Const.LOCKUP_365_DAYS; // Use max lockup to see full tier effect
         
         // Test key tier boundaries (based on actual tier logic)
         // Tier 1 (1000-2499) vs Tier 2 (2500-4999): boundary is 2499 to 2500
-        uint256 mult2499 = multiplier.calculateMultiplier(2499 * Const.TOKEN_DECIMALS, lockup);
-        uint256 mult2500 = multiplier.calculateMultiplier(2500 * Const.TOKEN_DECIMALS, lockup);
+        uint256 mult2499 = Multiplier.calculateMultiplier(2499 * Const.TOKEN_DECIMALS, lockup);
+        uint256 mult2500 = Multiplier.calculateMultiplier(2500 * Const.TOKEN_DECIMALS, lockup);
         
         // Tier 2 (2500-4999) vs Tier 3 (5000-7499): boundary is 4999 to 5000  
-        uint256 mult4999 = multiplier.calculateMultiplier(4999 * Const.TOKEN_DECIMALS, lockup);
-        uint256 mult5000 = multiplier.calculateMultiplier(5000 * Const.TOKEN_DECIMALS, lockup);
+        uint256 mult4999 = Multiplier.calculateMultiplier(4999 * Const.TOKEN_DECIMALS, lockup);
+        uint256 mult5000 = Multiplier.calculateMultiplier(5000 * Const.TOKEN_DECIMALS, lockup);
         
         // At tier boundaries, multiplier should increase
         if (mult2499 > 0 && mult2500 > 0) {
@@ -159,9 +157,9 @@ contract MultiplierInvariant is StdInvariant, Test {
         }
         
         // Test continuity between interpolation ranges
-        uint256 mult89Days = multiplier.calculateMultiplier(amount, 89 days);
-        uint256 mult90Days = multiplier.calculateMultiplier(amount, 90 days);
-        uint256 mult91Days = multiplier.calculateMultiplier(amount, 91 days);
+        uint256 mult89Days = Multiplier.calculateMultiplier(amount, 89 days);
+        uint256 mult90Days = Multiplier.calculateMultiplier(amount, 90 days);
+        uint256 mult91Days = Multiplier.calculateMultiplier(amount, 91 days);
         
         if (mult89Days > 0 && mult90Days > 0 && mult91Days > 0) {
             // The change should be gradual and consistent
@@ -186,8 +184,8 @@ contract MultiplierInvariant is StdInvariant, Test {
         }
         
         // Test two amounts in the same tier (e.g., 1200 and 1800 both in tier 1)
-        uint256 mult1200 = multiplier.calculateMultiplier(1200 * Const.TOKEN_DECIMALS, lockup);
-        uint256 mult1800 = multiplier.calculateMultiplier(1800 * Const.TOKEN_DECIMALS, lockup);
+        uint256 mult1200 = Multiplier.calculateMultiplier(1200 * Const.TOKEN_DECIMALS, lockup);
+        uint256 mult1800 = Multiplier.calculateMultiplier(1800 * Const.TOKEN_DECIMALS, lockup);
         
         if (mult1200 > 0 && mult1800 > 0) {
             assertEq(mult1200, mult1800, "Amounts in same tier should have same multiplier");
@@ -198,11 +196,11 @@ contract MultiplierInvariant is StdInvariant, Test {
      * @notice Maximum multiplier invariant
      * @dev The highest possible multiplier should be achieved with max amount and max lockup
      */
-    function invariant_MaximumMultiplier() public view {
+    function invariant_MaximumMultiplier() public pure {
         uint256 maxAmount = 100000 * Const.TOKEN_DECIMALS; // Well above highest tier
         uint256 maxLockup = Const.LOCKUP_365_DAYS;
         
-        uint256 maxMult = multiplier.calculateMultiplier(maxAmount, maxLockup);
+        uint256 maxMult = Multiplier.calculateMultiplier(maxAmount, maxLockup);
         
         // Should be 1.95x (19500 basis points)
         assertEq(maxMult, 19500, "Maximum multiplier should be 1.95x (19500 basis points)");
@@ -212,11 +210,11 @@ contract MultiplierInvariant is StdInvariant, Test {
      * @notice Minimum multiplier invariant  
      * @dev The lowest possible multiplier should be achieved with min amount and min lockup
      */
-    function invariant_MinimumMultiplier() public view {
+    function invariant_MinimumMultiplier() public pure {
         uint256 minAmount = Const.MINIMUM_STAKE_AMOUNT;
         uint256 minLockup = Const.LOCKUP_30_DAYS;
         
-        uint256 minMult = multiplier.calculateMultiplier(minAmount, minLockup);
+        uint256 minMult = Multiplier.calculateMultiplier(minAmount, minLockup);
         
         // Should be 1.14x (11400 basis points) - 1000 tokens gets Tier 1 bonus (1.05x + 0.09x)
         assertEq(minMult, 11400, "Minimum multiplier should be 1.14x (11400 basis points) with tier bonus");
@@ -229,8 +227,6 @@ contract MultiplierInvariant is StdInvariant, Test {
  * @dev Provides controlled random inputs for invariant tests
  */
 contract MultiplierHandler is Test {
-    Multiplier public multiplier;
-    
     // State variables to track for invariants
     uint256 public currentAmount;
     uint256 public currentLockup;
@@ -244,10 +240,6 @@ contract MultiplierHandler is Test {
     uint256 public validCalculations;
     uint256 public invalidCalculations;
 
-    constructor(Multiplier _multiplier) {
-        multiplier = _multiplier;
-    }
-
     /**
      * @notice Set amount for testing
      */
@@ -255,7 +247,7 @@ contract MultiplierHandler is Test {
         currentAmount = bound(amount, 0, 1000000 * Const.TOKEN_DECIMALS);
         totalCalculations++;
         
-        uint256 result = multiplier.calculateMultiplier(currentAmount, Const.LOCKUP_30_DAYS);
+        uint256 result = Multiplier.calculateMultiplier(currentAmount, Const.LOCKUP_30_DAYS);
         if (result > 0) {
             validCalculations++;
         } else {
@@ -270,7 +262,7 @@ contract MultiplierHandler is Test {
         currentLockup = bound(lockup, 0, 400 days);
         totalCalculations++;
         
-        uint256 result = multiplier.calculateMultiplier(Const.MINIMUM_STAKE_AMOUNT, currentLockup);
+        uint256 result = Multiplier.calculateMultiplier(Const.MINIMUM_STAKE_AMOUNT, currentLockup);
         if (result > 0) {
             validCalculations++;
         } else {
@@ -302,7 +294,7 @@ contract MultiplierHandler is Test {
         lockup = bound(lockup, 0, 400 days);
         
         totalCalculations++;
-        uint256 result = multiplier.calculateMultiplier(amount, lockup);
+        uint256 result = Multiplier.calculateMultiplier(amount, lockup);
         
         if (result > 0) {
             validCalculations++;

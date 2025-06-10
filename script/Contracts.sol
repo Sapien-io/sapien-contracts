@@ -12,12 +12,12 @@ struct DeployedContracts {
 }
 
 library LocalContracts {
-    address public constant SAPIEN_TOKEN = 0x5FbDB2315678afecb367f032d93F642f64180aa3;
-    address public constant SAPIEN_VAULT = 0xa513E6E4b8f2a923D98304ec87F64353C4D5C853;
-    address public constant SAPIEN_REWARDS = 0x5FC8d32690cc91D4c39d9d3abcBD16989F875707;
-    address public constant SAPIEN_QA = 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0;
+    address public constant SAPIEN_TOKEN = 0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e;
+    address public constant SAPIEN_VAULT = 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE;
+    address public constant SAPIEN_REWARDS = 0x0B306BF915C4d645ff596e518fAf3F9669b97016;
+    address public constant SAPIEN_QA = 0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82;
     address public constant MULTIPLIER = 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9;
-    address public constant TIMELOCK = 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512;
+    address public constant TIMELOCK = 0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0;
 }
 
 library TenderlyContracts {

@@ -205,10 +205,6 @@ update_contract_after_deployment() {
             local addr=$(grep "SapienQA deployed at:" "$log_file" | awk '{print $NF}' | tr -d '\n\r')
             update_single_contract_address "SAPIEN_QA" "$addr"
             ;;
-        "DeployMultiplier")
-            local addr=$(grep "Multiplier deployed at:" "$log_file" | awk '{print $NF}' | tr -d '\n\r')
-            update_single_contract_address "MULTIPLIER" "$addr"
-            ;;
         "DeployRewards")
             local addr=$(grep "Rewards Proxy deployed at:" "$log_file" | awk '{print $NF}' | tr -d '\n\r')
             update_single_contract_address "SAPIEN_REWARDS" "$addr"
@@ -228,7 +224,6 @@ update_typescript_contracts() {
     local token_addr=$(grep "SapienToken deployed at:" /tmp/DeployToken_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
     local timelock_addr=$(grep "Timelock deployed at:" /tmp/DeployTimelock_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
     local qa_addr=$(grep "SapienQA deployed at:" /tmp/DeployQA_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
-    local multiplier_addr=$(grep "Multiplier deployed at:" /tmp/DeployMultiplier_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
     
     # Extract rewards addresses (both implementation and proxy)
     local rewards_impl_addr=$(grep "SapienRewards deployed at:" /tmp/DeployRewards_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
@@ -245,7 +240,6 @@ update_typescript_contracts() {
     sed -i.tmp "s/const LOCAL_SAPAIEN_TOKEN = \"0x[0-9a-fA-F]\{40\}\";/const LOCAL_SAPAIEN_TOKEN = \"$token_addr\";/g" deployments/contracts.ts
     sed -i.tmp "s/const LOCAL_TIMELOCK = \"0x[0-9a-fA-F]\{40\}\";/const LOCAL_TIMELOCK = \"$timelock_addr\";/g" deployments/contracts.ts
     sed -i.tmp "s/const LOCAL_SAPIEN_QA = \"0x[0-9a-fA-F]\{40\}\";/const LOCAL_SAPIEN_QA = \"$qa_addr\";/g" deployments/contracts.ts
-    sed -i.tmp "s/const LOCAL_MULTIPLIER = \"0x[0-9a-fA-F]\{40\}\";/const LOCAL_MULTIPLIER = \"$multiplier_addr\";/g" deployments/contracts.ts
     sed -i.tmp "s/const LOCAL_SAPIEN_REWARDS = \"0x[0-9a-fA-F]\{40\}\";/const LOCAL_SAPIEN_REWARDS = \"$rewards_impl_addr\";/g" deployments/contracts.ts
     sed -i.tmp "s/const LOCAL_SAPIEN_REWARDS_PROXY = \"0x[0-9a-fA-F]\{40\}\";/const LOCAL_SAPIEN_REWARDS_PROXY = \"$rewards_proxy_addr\";/g" deployments/contracts.ts
     sed -i.tmp "s/const LOCAL_SAPIEN_VAULT = \"0x[0-9a-fA-F]\{40\}\";/const LOCAL_SAPIEN_VAULT = \"$vault_impl_addr\";/g" deployments/contracts.ts
@@ -262,7 +256,6 @@ update_typescript_contracts() {
     echo "  LOCAL_SAPAIEN_TOKEN: $token_addr"
     echo "  LOCAL_TIMELOCK: $timelock_addr"
     echo "  LOCAL_SAPIEN_QA: $qa_addr"
-    echo "  LOCAL_MULTIPLIER: $multiplier_addr"
     echo "  LOCAL_SAPIEN_REWARDS: $rewards_impl_addr"
     echo "  LOCAL_SAPIEN_REWARDS_PROXY: $rewards_proxy_addr"
     echo "  LOCAL_SAPIEN_VAULT: $vault_impl_addr"
@@ -277,7 +270,6 @@ update_local_contract_addresses() {
     local token_addr=$(grep "SapienToken deployed at:" /tmp/DeployToken_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
     local timelock_addr=$(grep "Timelock deployed at:" /tmp/DeployTimelock_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
     local qa_addr=$(grep "SapienQA deployed at:" /tmp/DeployQA_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
-    local multiplier_addr=$(grep "Multiplier deployed at:" /tmp/DeployMultiplier_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
     local rewards_addr=$(grep "Rewards Proxy deployed at:" /tmp/DeployRewards_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
     local vault_addr=$(grep "Vault Proxy deployed at:" /tmp/DeployVault_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
     
@@ -285,7 +277,6 @@ update_local_contract_addresses() {
     echo "  SAPIEN_TOKEN: $token_addr"
     echo "  TIMELOCK: $timelock_addr"
     echo "  SAPIEN_QA: $qa_addr"
-    echo "  MULTIPLIER: $multiplier_addr"
     echo "  SAPIEN_REWARDS: $rewards_addr"
     echo "  SAPIEN_VAULT: $vault_addr"
 }
