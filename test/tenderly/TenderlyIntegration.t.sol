@@ -66,7 +66,7 @@ contract TenderlyIntegrationTest is Test {
     bytes32 public constant REWARD_CLAIM_TYPEHASH = 
         keccak256("RewardClaim(address userWallet,uint256 amount,bytes32 orderId)");
     bytes32 public constant QA_DECISION_TYPEHASH = 
-        keccak256("QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,string reason)");
+        keccak256("QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,bytes32 reason)");
     
     uint256 public REWARDS_MANAGER_PRIVATE_KEY;
     uint256 public QA_ADMIN_PRIVATE_KEY;

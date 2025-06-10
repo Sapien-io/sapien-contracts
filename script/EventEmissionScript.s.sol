@@ -76,7 +76,7 @@ contract EventEmissionScript is Script {
     bytes32 public constant REWARD_CLAIM_TYPEHASH =
         keccak256("RewardClaim(address userWallet,uint256 amount,bytes32 orderId)");
     bytes32 public constant QA_DECISION_TYPEHASH = keccak256(
-        "QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,string reason)"
+        "QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,bytes32 reason)"
     );
 
     function run() public {

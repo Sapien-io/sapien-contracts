@@ -55,7 +55,7 @@ contract LocalIntegrationTest is Test {
     bytes32 public constant REWARD_CLAIM_TYPEHASH = 
         keccak256("RewardClaim(address userWallet,uint256 amount,bytes32 orderId)");
     bytes32 public constant QA_DECISION_TYPEHASH = 
-        keccak256("QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,string reason)");
+        keccak256("QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,bytes32 reason)");
     
     // Anvil default private keys for testing
     uint256 public constant QA_MANAGER_PRIVATE_KEY = 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a;

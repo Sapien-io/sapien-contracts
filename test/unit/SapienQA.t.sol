@@ -395,7 +395,7 @@ contract SapienQATest is Test {
         bytes32 structHash = keccak256(
             abi.encode(
                 keccak256(
-                    "QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,string reason)"
+                    "QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,bytes32 reason)"
                 ),
                 userAddress,
                 uint8(actionType),
@@ -992,7 +992,7 @@ contract SapienQATest is Test {
         bytes32 structHash = keccak256(
             abi.encode(
                 keccak256(
-                    "QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,string reason)"
+                    "QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,bytes32 reason)"
                 ),
                 userAddress,
                 uint8(actionType),

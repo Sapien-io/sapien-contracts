@@ -16,14 +16,6 @@ using ECDSA for bytes32;
  */
 contract SapienQA is ISapienQA, AccessControl, EIP712 {
     // -------------------------------------------------------------
-    // Constants
-    // -------------------------------------------------------------
-
-    bytes32 private constant QA_DECISION_TYPEHASH = keccak256(
-        "QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,string reason)"
-    );
-
-    // -------------------------------------------------------------
     // State Variables
     // -------------------------------------------------------------
 
@@ -346,7 +338,7 @@ contract SapienQA is ISapienQA, AccessControl, EIP712 {
 
         bytes32 structHash = keccak256(
             abi.encode(
-                QA_DECISION_TYPEHASH,
+                Const.QA_DECISION_TYPEHASH,
                 userAddress,
                 uint8(actionType),
                 penaltyAmount,

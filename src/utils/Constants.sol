@@ -52,9 +52,14 @@ library Constants {
     /// @notice EIP-712 domain separator hashes
     bytes32 internal constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+
     bytes32 internal constant REWARD_CLAIM_TYPEHASH =
         keccak256("RewardClaim(address userWallet,uint256 amount,bytes32 orderId)");
 
+    bytes32 internal constant QA_DECISION_TYPEHASH = keccak256(
+        "QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,bytes32 reason)"
+    );
+    
     // -------------------------------------------------------------
     // Time Constants
     // -------------------------------------------------------------

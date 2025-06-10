@@ -53,7 +53,7 @@ contract TenderlyQAIntegrationTest is Test {
     
     // EIP-712 constants
     bytes32 public constant QA_DECISION_TYPEHASH = 
-        keccak256("QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,string reason)");
+        keccak256("QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,bytes32 reason)");
     
     // Test manager private key for signatures
     uint256 public QA_MANAGER_PRIVATE_KEY;
