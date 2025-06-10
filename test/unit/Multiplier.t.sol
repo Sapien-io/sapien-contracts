@@ -6,7 +6,16 @@ import {console} from "lib/forge-std/src/console.sol";
 import {Multiplier} from "src/Multiplier.sol";
 import {Constants as Const} from "src/utils/Constants.sol";
 
+// Test helper contract to expose internal functions
+contract MultiplierTestHelper {
+    function getAmountTierFactor(uint256 amount) external pure returns (uint256) {
+        return Multiplier.getAmountTierFactor(amount);
+    }
+}
+
 contract MultiplierTest is Test {
+    MultiplierTestHelper public helper;
+
     // Test constants
     uint256 public constant TOKEN_DECIMALS = 10 ** 18;
     uint256 public constant MINIMUM_STAKE = 1000 * TOKEN_DECIMALS;
@@ -35,6 +44,10 @@ contract MultiplierTest is Test {
         uint256 amount;
         uint256 duration;
         uint256 expectedMultiplier;
+    }
+
+    function setUp() public {
+        helper = new MultiplierTestHelper();
     }
 
     // =============================================================================
@@ -312,5 +325,61 @@ contract MultiplierTest is Test {
                 string(abi.encodePacked("Test case ", vm.toString(i), " failed"))
             );
         }
+    }
+
+    // =============================================================================
+    // SPECIFIC TIER FACTOR TESTS
+    // =============================================================================
+
+    function test_Multiplier_GetAmountTierFactor_OneToken() public pure {
+        // Test that 1 token returns tier factor 0 (Tier 0)
+        // Since getAmountTierFactor is internal, we test indirectly through calculateMultiplier
+
+        uint256 oneToken = 1 * TOKEN_DECIMALS; // 1 token = 1e18 wei
+        uint256 lockup = LOCK_30_DAYS; // Use minimum lockup for simplicity
+
+        // This should return 0 because amount < MINIMUM_STAKE_AMOUNT
+        uint256 result = Multiplier.calculateMultiplier(oneToken, lockup);
+        assertEq(result, 0, "1 token should return 0 multiplier due to minimum stake requirement");
+
+        // For amounts below MINIMUM_STAKE_AMOUNT, calculateMultiplier returns 0
+        // But we can verify the tier logic by testing amounts just at the threshold
+
+        // Test 999 tokens (below 1000 threshold) - this should also return 0 from calculateMultiplier
+        uint256 tokens999 = 999 * TOKEN_DECIMALS;
+        result = Multiplier.calculateMultiplier(tokens999, lockup);
+        assertEq(result, 0, "999 tokens should return 0 multiplier due to minimum stake requirement");
+
+        // Test exactly 1000 tokens (at threshold) - should get Tier 1 treatment
+        uint256 tokens1000 = 1000 * TOKEN_DECIMALS;
+        result = Multiplier.calculateMultiplier(tokens1000, lockup);
+        assertGt(result, 0, "1000 tokens should return positive multiplier");
+
+        // The 1000 token result should be base (10500) + tier 1 bonus (900) = 11400
+        assertEq(result, 11400, "1000 tokens should get Tier 1 multiplier (1.14x)");
+    }
+
+    function test_Multiplier_GetAmountTierFactor_DirectCall() public view {
+        // Test the getAmountTierFactor function directly using our helper contract
+
+        // Test 1 token - should return 0 (Tier 0)
+        uint256 oneToken = 1 * TOKEN_DECIMALS;
+        uint256 tierFactor = helper.getAmountTierFactor(oneToken);
+        assertEq(tierFactor, 0, "1 token should return tier factor 0");
+
+        // Test 999 tokens - should return 0 (Tier 0)
+        uint256 tokens999 = 999 * TOKEN_DECIMALS;
+        tierFactor = helper.getAmountTierFactor(tokens999);
+        assertEq(tierFactor, 0, "999 tokens should return tier factor 0");
+
+        // Test 1000 tokens - should return 2000 (Tier 1, 20%)
+        uint256 tokens1000 = 1000 * TOKEN_DECIMALS;
+        tierFactor = helper.getAmountTierFactor(tokens1000);
+        assertEq(tierFactor, 2000, "1000 tokens should return tier factor 2000 (20%)");
+
+        // Test 2500 tokens - should return 4000 (Tier 2, 40%)
+        uint256 tokens2500 = 2500 * TOKEN_DECIMALS;
+        tierFactor = helper.getAmountTierFactor(tokens2500);
+        assertEq(tierFactor, 4000, "2500 tokens should return tier factor 4000 (40%)");
     }
 }

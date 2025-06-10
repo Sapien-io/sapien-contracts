@@ -99,7 +99,7 @@ library Multiplier {
         uint256 tierAmount = amount / Const.TOKEN_DECIMALS;
 
         if (tierAmount < Const.TIER_1_THRESHOLD) {
-            return 0; // Tier 0: 0% (up to 999 tokens)
+            return 0; // Tier 0: 0% (up to 999 tokens) Unreachable due to MINIMUM_STAKE_AMOUNT = 1000
         } else if (tierAmount < Const.TIER_2_THRESHOLD) {
             return 2000; // Tier 1: 20% (1000-2499 tokens)
         } else if (tierAmount < Const.TIER_3_THRESHOLD) {
