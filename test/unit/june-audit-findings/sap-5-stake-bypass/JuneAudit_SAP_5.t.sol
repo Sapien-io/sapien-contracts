@@ -120,7 +120,7 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
                 uint256 totalLocked,
                 ,
                 ,
-                uint256 effectiveMultiplier,
+                , // effectiveMultiplier
                 uint256 lockup,
                 uint256 timeUntilUnlock
             ) = sapienVault.getUserStakingSummary(user);
@@ -199,8 +199,8 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
                 uint256 totalLocked,
                 ,
                 ,
-                uint256 effectiveMultiplier,
-                uint256 lockup,
+                , // effectiveMultiplier
+                , // lockup
                 uint256 timeUntilUnlock
             ) = sapienVault.getUserStakingSummary(user);
 
@@ -268,8 +268,8 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
             uint256 locked,
             ,
             ,
-            uint256 effectiveMultiplier,
-            uint256 lockup,
+            , // effectiveMultiplier
+            , // lockup
             uint256 timeUntilUnlock
         ) = sapienVault.getUserStakingSummary(fixTestUser);
 
@@ -319,7 +319,7 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
         sapienVault.stake(LARGE_STAKE, LOCK_365_DAYS);
 
         // Verify proper behavior at boundary
-        (,,,,,, uint256 lockup, uint256 timeUntilUnlock) = sapienVault.getUserStakingSummary(user);
+        (,,,,,, , /* lockup */ uint256 timeUntilUnlock) = sapienVault.getUserStakingSummary(user);
 
         assertEq(timeUntilUnlock / 1 days, 365, "Should apply full lockup at exact boundary");
 
@@ -348,7 +348,7 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
         sapienVault.stake(LARGE_STAKE, LOCK_365_DAYS);
 
         // Verify weighted calculations still work normally
-        (,,,,,, uint256 lockup, uint256 timeUntilUnlock) = sapienVault.getUserStakingSummary(user);
+        (,,,,,, , /* lockup */ uint256 timeUntilUnlock) = sapienVault.getUserStakingSummary(user);
 
         // Should be somewhere between original remaining time and new full lockup
         // This proves normal weighted calculations are preserved

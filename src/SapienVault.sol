@@ -387,7 +387,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     }
 
     /**
-     * @notice Increase the staked amount without changing lockup period.
+     * @notice Increases the staked amount while maintaining the existing lockup period and weighted start time.
      * @param additionalAmount The additional amount to stake.
      */
     function increaseAmount(uint256 additionalAmount) public whenNotPaused nonReentrant {
@@ -404,29 +404,17 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             revert CannotIncreaseStakeInCooldown();
         }
 
-        // Check if existing stake has expired
-        bool isExistingStakeExpired = _isUnlocked(userStake);
-
-        // If existing stake is expired, reset weighted start time to current timestamp
-        // This prevents users from benefiting from reduced lockup periods due to weighted averaging
-        uint256 newWeightedStartTime;
-        if (isExistingStakeExpired) {
-            newWeightedStartTime = block.timestamp;
-        } else {
-            // Calculate new weighted start time with precision handling
-            uint256 totalAmountForCalculation = uint256(userStake.amount) + additionalAmount;
-            newWeightedStartTime = _calculateWeightedStartTime(
-                uint256(userStake.weightedStartTime),
-                uint256(userStake.amount),
-                additionalAmount,
-                totalAmountForCalculation
-            );
-        }
+        // Use standardized expired stake handling
+        uint256 newWeightedStartTime = _calculateStandardizedWeightedStartTime(
+            userStake,
+            additionalAmount,
+            userStake.amount + additionalAmount
+        );
 
         // Transfer tokens only after validation passes
         sapienToken.safeTransferFrom(msg.sender, address(this), additionalAmount);
 
-        uint256 newTotalAmount = uint256(userStake.amount) + additionalAmount;
+        uint256 newTotalAmount = userStake.amount + additionalAmount;
 
         // Update state
         userStake.weightedStartTime = newWeightedStartTime.toUint64();
@@ -435,7 +423,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         // Recalculate linear weighted multiplier based on new total amount
         userStake.effectiveMultiplier =
-            calculateMultiplier(newTotalAmount, uint256(userStake.effectiveLockUpPeriod)).toUint32();
+            calculateMultiplier(newTotalAmount, userStake.effectiveLockUpPeriod).toUint32();
 
         totalStaked += additionalAmount;
 
@@ -459,14 +447,27 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             revert CannotIncreaseStakeInCooldown();
         }
 
-        // Calculate remaining lockup time
-        uint256 timeElapsed = block.timestamp - uint256(userStake.weightedStartTime);
-        uint256 remainingLockup = uint256(userStake.effectiveLockUpPeriod) > timeElapsed
-            ? uint256(userStake.effectiveLockUpPeriod) - timeElapsed
-            : 0;
+        // Use standardized expired stake handling
+        bool isExistingStakeExpired = _handleExpiredStakeCheck(userStake);
+        uint256 newEffectiveLockup;
+        
+        if (isExistingStakeExpired) {
+            // Standardized expired stake handling - reset to new lockup period
+            newEffectiveLockup = additionalLockup;
+            _resetExpiredStakeStartTime(userStake);
+        } else {
+            // Calculate remaining lockup time for active stakes
+            uint256 timeElapsed = block.timestamp - userStake.weightedStartTime;
+            uint256 remainingLockup = userStake.effectiveLockUpPeriod > timeElapsed
+                ? userStake.effectiveLockUpPeriod - timeElapsed
+                : 0;
 
-        // New effective lockup is remaining time plus additional lockup
-        uint256 newEffectiveLockup = remainingLockup + additionalLockup;
+            // New effective lockup is remaining time plus additional lockup
+            newEffectiveLockup = remainingLockup + additionalLockup;
+            
+            // Reset the weighted start time to now since we're extending lockup
+            _resetExpiredStakeStartTime(userStake);
+        }
 
         // Cap at maximum lockup period
         if (newEffectiveLockup > Const.LOCKUP_365_DAYS) {
@@ -475,9 +476,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         userStake.effectiveLockUpPeriod = newEffectiveLockup.toUint64();
         userStake.effectiveMultiplier = calculateMultiplier(uint256(userStake.amount), newEffectiveLockup).toUint32();
-
-        // Reset the weighted start time to now since we're extending lockup
-        userStake.weightedStartTime = block.timestamp.toUint64();
         userStake.lastUpdateTime = block.timestamp.toUint64();
 
         emit LockupIncreased(msg.sender, additionalLockup, newEffectiveLockup, userStake.effectiveMultiplier);
@@ -696,17 +694,16 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     function _processCombineStake(UserStake storage userStake, uint256 amount, uint256 lockUpPeriod) private {
         uint256 newTotalAmount = uint256(userStake.amount) + amount;
 
-        // Check if existing stake has expired
-        bool isExistingStakeExpired = _isUnlocked(userStake);
-
+        // Use standardized expired stake handling
+        bool isExistingStakeExpired = _handleExpiredStakeCheck(userStake);
+        
         WeightedValues memory newValues;
-
+        
         if (isExistingStakeExpired) {
-            // If existing stake is expired, reset weighted start time to current timestamp
-            // This prevents users from benefiting from reduced lockup periods due to weighted averaging
+            // Standardized expired stake handling
             newValues.weightedStartTime = block.timestamp;
             newValues.effectiveLockup = lockUpPeriod;
-
+            
             // Ensure lockup period doesn't exceed maximum
             if (newValues.effectiveLockup > Const.LOCKUP_365_DAYS) {
                 newValues.effectiveLockup = Const.LOCKUP_365_DAYS;
@@ -950,6 +947,62 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         userStake.lastUpdateTime = 0;
         userStake.cooldownStart = 0;
         userStake.earlyUnstakeCooldownStart = 0;
+    }
+
+    // -------------------------------------------------------------
+    // Standardized Expired Stake Helper Functions
+    // -------------------------------------------------------------
+
+    /**
+     * @notice Handles expired stake logic consistently across all operations
+     * @param userStake The user stake storage reference
+     * @return isExpired Whether the stake is expired
+     * @dev This function centralizes the logic for checking if a stake has expired,
+     *      ensuring consistency across all staking operations
+     */
+    function _handleExpiredStakeCheck(UserStake storage userStake) private view returns (bool isExpired) {
+        isExpired = _isUnlocked(userStake);
+        return isExpired;
+    }
+
+    /**
+     * @notice Resets weighted start time for expired stakes
+     * @param userStake The user stake storage reference
+     * @dev This prevents users from benefiting from reduced lockup periods due to weighted averaging
+     *      when their existing stake has already expired
+     */
+    function _resetExpiredStakeStartTime(UserStake storage userStake) private {
+        userStake.weightedStartTime = block.timestamp.toUint64();
+    }
+
+    /**
+     * @notice Calculates weighted start time for stake operations, handling expired stakes consistently
+     * @param userStake The user stake storage reference  
+     * @param newAmount Additional amount being added (0 for lockup increases)
+     * @param totalAmount Total amount after operation
+     * @return newWeightedStartTime The calculated or reset weighted start time
+     * @dev This function standardizes how weighted start time is calculated across all operations,
+     *      ensuring expired stakes are handled consistently
+     */
+    function _calculateStandardizedWeightedStartTime(
+        UserStake storage userStake,
+        uint256 newAmount,
+        uint256 totalAmount
+    ) private view returns (uint256 newWeightedStartTime) {
+        bool isExpired = _handleExpiredStakeCheck(userStake);
+        
+        if (isExpired) {
+            // Reset to current timestamp for expired stakes
+            newWeightedStartTime = block.timestamp;
+        } else {
+            // Calculate weighted start time for active stakes
+            newWeightedStartTime = _calculateWeightedStartTime(
+                uint256(userStake.weightedStartTime),
+                uint256(userStake.amount),
+                newAmount,
+                totalAmount
+            );
+        }
     }
 
     // -------------------------------------------------------------

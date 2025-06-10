@@ -385,4 +385,6 @@ contract SapienVaultWeightedCalculationsTest is Test {
         assertGt(gasUsed, 0, "Gas should be consumed for staking");
         assertLt(gasUsed, 250000, "Gas usage should be reasonable with custom errors");
     }
+
+
 }
