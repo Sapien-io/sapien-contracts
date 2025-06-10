@@ -98,15 +98,15 @@ library Multiplier {
     function getAmountTierFactor(uint256 amount) internal pure returns (uint256 factor) {
         uint256 tierAmount = amount / Const.TOKEN_DECIMALS;
 
-        if (tierAmount < Const.T1_FACTOR) {
+        if (tierAmount < Const.TIER_1_THRESHOLD) {
             return 0; // Tier 0: 0% (up to 999 tokens)
-        } else if (tierAmount < Const.T2_FACTOR) {
+        } else if (tierAmount < Const.TIER_2_THRESHOLD) {
             return 2000; // Tier 1: 20% (1000-2499 tokens)
-        } else if (tierAmount < Const.T3_FACTOR) {
+        } else if (tierAmount < Const.TIER_3_THRESHOLD) {
             return 4000; // Tier 2: 40% (2500-4999 tokens)
-        } else if (tierAmount < Const.T4_FACTOR) {
+        } else if (tierAmount < Const.TIER_4_THRESHOLD) {
             return 6000; // Tier 3: 60% (5000-7499 tokens)
-        } else if (tierAmount < Const.T5_FACTOR) {
+        } else if (tierAmount < Const.TIER_5_THRESHOLD) {
             return 8000; // Tier 4: 80% (7500-9999 tokens)
         } else {
             return 10000; // Tier 5: 100% (10000+ tokens)
@@ -125,11 +125,11 @@ library Multiplier {
     function interpolate(uint256 x, uint256 x1, uint256 x2, uint256 y1, uint256 y2) internal pure returns (uint256) {
         // Required validation: x2 must be greater than x1
         require(x2 > x1, "Multiplier: x2 must be greater than x1");
-        
+
         // Optional validations for additional safety
         require(y2 >= y1, "Multiplier: y2 must be greater than or equal to y1");
         require(x >= x1 && x <= x2, "Multiplier: x must be between x1 and x2 (inclusive)");
-        
+
         return y1 + ((x - x1) * (y2 - y1)) / (x2 - x1);
     }
 }

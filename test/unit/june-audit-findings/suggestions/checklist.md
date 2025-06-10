@@ -1,0 +1,26 @@
+# Code Improvement Checklist
+
+- [x] Make the Multiplier contract a library instead of a contract
+- [x] Remove isValidLockupPeriod() function from Multiplier contract
+- [x] Add validation to Multiplier.interpolate() function
+- [x] Fix misleading T1_FACTOR - T5_FACTOR constants
+- [ ] Remove unused errors from IMultiplier interface
+- [ ] Use different address for PAUSER_ROLE in SapienVault
+- [ ] Remove parameters from MultiplierUpdated event
+- [ ] Remove address(0) check in SapienVault.stake()
+- [ ] Re-evaluate storage savings in UserStake struct
+- [ ] Add constant for magic number in _validateIncreaseAmount()
+- [ ] Avoid double validation in increaseAmount()
+- [ ] Streamline EIP-712 implementation in SapienRewards
+- [ ] Reconsider reward token accounting in SapienRewards
+- [ ] Define MAXIMUM_STAKE_AMOUNT constant
+- [ ] Make calculateMultiplier() revert instead of return zero
+- [ ] Remove redundant checks in _calculateWeightedValues()
+- [ ] Remove unnecessary overflow checks
+- [ ] Add expiration to _verifySignature()
+- [ ] Use delete for _resetUserStake()
+- [ ] Add hasStake check in getUserStakingSummary()
+- [ ] Remove redundant QAPenaltyPartial event
+- [ ] Remove unnecessary uint256 upcasts
+- [ ] Remove penalty > 0 check in earlyUnstake()
+- [ ] Add minimum unstake amount to prevent precision loss

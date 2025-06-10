@@ -89,13 +89,13 @@ Checks if the given lock-up period is within the supported range (30 to 365 days
 - `TOKEN_DECIMALS = 1e18`
 - `MINIMUM_STAKE_AMOUNT = 1000 * 1e18`
 
-Tier Factors (as token thresholds):
+Tier Thresholds (in tokens, not including decimals):
 
-- `T1_FACTOR = 1000`
-- `T2_FACTOR = 2500`
-- `T3_FACTOR = 5000`
-- `T4_FACTOR = 7500`
-- `T5_FACTOR = 10000`
+- `TIER_1_THRESHOLD = 1000`    // 1,000 tokens
+- `TIER_2_THRESHOLD = 2500`    // 2,500 tokens
+- `TIER_3_THRESHOLD = 5000`    // 5,000 tokens
+- `TIER_4_THRESHOLD = 7500`    // 7,500 tokens
+- `TIER_5_THRESHOLD = 10000`   // 10,000 tokens
 
 ---
 

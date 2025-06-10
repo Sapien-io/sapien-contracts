@@ -98,12 +98,12 @@ library Constants {
     uint256 internal constant MULTIPLIER_180_DAYS = 12500; // 1.25x at 180 days
     uint256 internal constant MAX_MULTIPLIER = 15000; // 1.50x at 365 days
 
-    /// @notice Validation tier amount factors (in basis points)
-    uint256 internal constant T1_FACTOR = 1000; // 0%
-    uint256 internal constant T2_FACTOR = 2500; // 25%
-    uint256 internal constant T3_FACTOR = 5000; // 50%
-    uint256 internal constant T4_FACTOR = 7500; // 75%
-    uint256 internal constant T5_FACTOR = 10000; // 100%
+    /// @notice Amount tier thresholds in tokens (not including decimals)
+    uint256 internal constant TIER_1_THRESHOLD = 1000; // 1,000 tokens
+    uint256 internal constant TIER_2_THRESHOLD = 2500; // 2,500 tokens
+    uint256 internal constant TIER_3_THRESHOLD = 5000; // 5,000 tokens
+    uint256 internal constant TIER_4_THRESHOLD = 7500; // 7,500 tokens
+    uint256 internal constant TIER_5_THRESHOLD = 10000; // 10,000 tokens
 
     // -------------------------------------------------------------
     // Reward Constants
