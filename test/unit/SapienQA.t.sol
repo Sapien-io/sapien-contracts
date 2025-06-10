@@ -6,7 +6,6 @@ import {console} from "lib/forge-std/src/console.sol";
 import {SapienQA} from "src/SapienQA.sol";
 import {SapienVault} from "src/SapienVault.sol";
 import {SapienToken} from "src/SapienToken.sol";
-import {Multiplier} from "src/Multiplier.sol";
 import {ISapienQA} from "src/interfaces/ISapienQA.sol";
 import {Constants} from "src/utils/Constants.sol";
 import {Actors} from "script/Actors.sol";
@@ -17,7 +16,6 @@ contract SapienQATest is Test {
     SapienQA public qaContract;
     SapienVault public vault;
     SapienToken public token;
-    Multiplier public multiplier;
 
     address public admin = makeAddr("admin");
     address public treasury = makeAddr("treasury");
@@ -54,7 +52,6 @@ contract SapienQATest is Test {
 
         // Deploy contracts
         token = new SapienToken(admin);
-        multiplier = new Multiplier();
 
         // Deploy SapienVault implementation
         SapienVault vaultImpl = new SapienVault();
@@ -65,8 +62,7 @@ contract SapienQATest is Test {
             address(token),
             admin,
             treasury,
-            address(multiplier),
-            address(0x1) // Temporary address, will be updated
+            address(0x1) // Temporary QA address, will be updated when we deploy QA contract
         );
 
         // Deploy proxy

@@ -3,7 +3,6 @@ pragma solidity 0.8.30;
 
 import {Test} from "lib/forge-std/src/Test.sol";
 import {SapienVault} from "src/SapienVault.sol";
-import {Multiplier, IMultiplier} from "src/Multiplier.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
 import {Constants as Const} from "src/utils/Constants.sol";
@@ -30,16 +29,9 @@ contract SapienVaultWeightedCalculationsTest is Test {
         sapienToken = new MockERC20("Sapien", "SAPIEN", 18);
 
         SapienVault sapienVaultImpl = new SapienVault();
-        Multiplier multiplierImpl = new Multiplier();
-        IMultiplier multiplierContract = IMultiplier(address(multiplierImpl));
 
         bytes memory initData = abi.encodeWithSelector(
-            SapienVault.initialize.selector,
-            address(sapienToken),
-            admin,
-            treasury,
-            address(multiplierContract),
-            makeAddr("dummySapienQA")
+            SapienVault.initialize.selector, address(sapienToken), admin, treasury, makeAddr("dummySapienQA")
         );
         ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), initData);
         sapienVault = SapienVault(address(sapienVaultProxy));

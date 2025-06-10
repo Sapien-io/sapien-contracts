@@ -5,7 +5,6 @@ import "forge-std/Test.sol";
 import "forge-std/console.sol";
 import {SapienVault} from "src/SapienVault.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
-import {Multiplier} from "src/Multiplier.sol";
 import {Constants} from "src/utils/Constants.sol";
 import {ISapienVault} from "src/interfaces/ISapienVault.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -13,7 +12,6 @@ import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/E
 contract SapienVault_QADoubleCountingTest is Test {
     SapienVault public sapienVault;
     MockERC20 public sapienToken;
-    Multiplier public multiplier;
 
     address public admin = makeAddr("admin");
     address public treasury = makeAddr("treasury");
@@ -28,14 +26,10 @@ contract SapienVault_QADoubleCountingTest is Test {
         // Deploy token
         sapienToken = new MockERC20("Sapien", "SAPIEN", 18);
 
-        // Deploy multiplier
-        multiplier = new Multiplier();
-
         // Deploy SapienVault with proxy
         SapienVault sapienVaultImpl = new SapienVault();
-        bytes memory initData = abi.encodeWithSelector(
-            SapienVault.initialize.selector, address(sapienToken), admin, treasury, address(multiplier), qaContract
-        );
+        bytes memory initData =
+            abi.encodeWithSelector(SapienVault.initialize.selector, address(sapienToken), admin, treasury, qaContract);
         ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), initData);
         sapienVault = SapienVault(address(sapienVaultProxy));
 

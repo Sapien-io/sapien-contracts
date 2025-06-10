@@ -13,7 +13,7 @@ import {
 import {SafeCast} from "src/utils/SafeCast.sol";
 import {Constants as Const} from "src/utils/Constants.sol";
 import {ISapienVault} from "src/interfaces/ISapienVault.sol";
-import {IMultiplier} from "src/interfaces/IMultiplier.sol";
+import {Multiplier} from "src/Multiplier.sol";
 
 using SafeCast for uint256;
 using SafeERC20 for IERC20;
@@ -30,9 +30,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
     /// @dev Address of the Rewards Treasury
     address public treasury;
-
-    /// @dev The Multiplier contract for calculating staking multipliers
-    IMultiplier public multiplier;
 
     /// @dev Tracks the total amount of tokens staked in this contract.
     uint256 public totalStaked;
@@ -58,18 +55,12 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param token The IERC20 token contract for Sapien.
      * @param admin The address of the admin multisig.
      * @param newTreasury The address of the Rewards Safe multisig for penalty collection.
+     * @param sapienQA The address of the SapienQA contract.
      */
-    function initialize(
-        address token,
-        address admin,
-        address newTreasury,
-        address newMultiplierContract,
-        address sapienQA
-    ) public initializer {
+    function initialize(address token, address admin, address newTreasury, address sapienQA) public initializer {
         if (token == address(0)) revert ZeroAddress();
         if (admin == address(0)) revert ZeroAddress();
         if (newTreasury == address(0)) revert ZeroAddress();
-        if (newMultiplierContract == address(0)) revert ZeroAddress();
         if (sapienQA == address(0)) revert ZeroAddress();
 
         __Pausable_init();
@@ -81,7 +72,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         _grantRole(Const.SAPIEN_QA_ROLE, sapienQA);
 
         sapienToken = IERC20(token);
-        multiplier = IMultiplier(newMultiplierContract);
         treasury = newTreasury;
     }
 
@@ -147,19 +137,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         treasury = newTreasury;
         emit SapienTreasuryUpdated(newTreasury);
-    }
-
-    /**
-     * @notice Sets the multiplier contract address.
-     * @param newMultiplierContract The new Multiplier contract address.
-     */
-    function setMultiplierContract(address newMultiplierContract) external onlyAdmin {
-        if (newMultiplierContract == address(0)) {
-            revert ZeroAddress();
-        }
-
-        multiplier = IMultiplier(newMultiplierContract);
-        emit MultiplierUpdated(0, 0); // Emit with zero values to indicate contract update
     }
 
     /**
@@ -288,8 +265,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param effectiveLockup The weighted average lockup period for this position
      * @return uint256 calculated effective multiplier
      */
-    function calculateMultiplier(uint256 amount, uint256 effectiveLockup) public view returns (uint256) {
-        return multiplier.calculateMultiplier(amount, effectiveLockup);
+    function calculateMultiplier(uint256 amount, uint256 effectiveLockup) public pure returns (uint256) {
+        return Multiplier.calculateMultiplier(amount, effectiveLockup);
     }
 
     /**
@@ -1097,7 +1074,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         // Recalculate multiplier for remaining active stake
         if (_hasActiveStake) {
             userStake.effectiveMultiplier =
-                multiplier.calculateMultiplier(userStake.amount, userStake.effectiveLockUpPeriod).toUint32();
+                Multiplier.calculateMultiplier(userStake.amount, userStake.effectiveLockUpPeriod).toUint32();
         }
 
         userStake.lastUpdateTime = block.timestamp.toUint64();

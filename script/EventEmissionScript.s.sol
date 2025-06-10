@@ -9,7 +9,6 @@ import {SapienVault} from "src/SapienVault.sol";
 import {SapienQA} from "src/SapienQA.sol";
 import {SapienRewards} from "src/SapienRewards.sol";
 import {SapienToken} from "src/SapienToken.sol";
-import {Multiplier} from "src/Multiplier.sol";
 import {ISapienVault} from "src/interfaces/ISapienVault.sol";
 import {ISapienQA} from "src/interfaces/ISapienQA.sol";
 import {Constants as Const} from "src/utils/Constants.sol";
@@ -55,7 +54,6 @@ contract EventEmissionScript is Script {
     SapienVault public sapienVault;
     SapienQA public sapienQA;
     SapienRewards public sapienRewards;
-    Multiplier public multiplier;
     AllActors public actors;
 
     // Test users (using remaining anvil accounts)
@@ -135,7 +133,6 @@ contract EventEmissionScript is Script {
         console.log("  SapienVault:", address(sapienVault));
         console.log("  SapienQA:", address(sapienQA));
         console.log("  SapienRewards:", address(sapienRewards));
-        console.log("  Multiplier:", address(multiplier));
     }
 
     function checkIfContractsExist() internal view returns (bool) {
@@ -153,7 +150,6 @@ contract EventEmissionScript is Script {
         sapienVault = SapienVault(deployedContracts.sapienVault);
         sapienQA = SapienQA(deployedContracts.sapienQA);
         sapienRewards = SapienRewards(deployedContracts.sapienRewards);
-        multiplier = Multiplier(deployedContracts.multiplier);
     }
 
     function deployContracts() internal {
@@ -162,14 +158,10 @@ contract EventEmissionScript is Script {
         // Deploy SapienToken first (it mints all tokens to TREASURY)
         sapienToken = new SapienToken(TREASURY);
 
-        // Deploy Multiplier
-        multiplier = new Multiplier();
-
         // Deploy SapienVault implementation and proxy
         SapienVault vaultImpl = new SapienVault();
-        bytes memory vaultInitData = abi.encodeWithSelector(
-            SapienVault.initialize.selector, address(sapienToken), ADMIN, TREASURY, address(multiplier), QA_MANAGER
-        );
+        bytes memory vaultInitData =
+            abi.encodeWithSelector(SapienVault.initialize.selector, address(sapienToken), ADMIN, TREASURY, QA_MANAGER);
         ERC1967Proxy vaultProxy = new ERC1967Proxy(address(vaultImpl), vaultInitData);
         sapienVault = SapienVault(address(vaultProxy));
 

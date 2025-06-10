@@ -2,7 +2,6 @@
 pragma solidity 0.8.30;
 
 import {Constants as Const} from "src/utils/Constants.sol";
-import {IMultiplier} from "src/interfaces/IMultiplier.sol";
 
 /**
  * @title Multiplier - Sapien AI Staking Multiplier Calculator
@@ -18,12 +17,12 @@ import {IMultiplier} from "src/interfaces/IMultiplier.sol";
  * └─────────────┴──────┴─────────┴─────────┴─────────┴──────────┴──────┘
  * Formula: Duration Multiplier + (Tier Factor × 0.45x)
  */
-contract Multiplier is IMultiplier {
+library Multiplier {
     // -------------------------------------------------------------
     // Core Multiplier Functions
     // -------------------------------------------------------------
 
-    function calculateMultiplier(uint256 amount, uint256 lockUpPeriod) external pure returns (uint256) {
+    function calculateMultiplier(uint256 amount, uint256 lockUpPeriod) internal pure returns (uint256) {
         // Validate inputs
         if (lockUpPeriod < Const.LOCKUP_30_DAYS || lockUpPeriod > Const.LOCKUP_365_DAYS) {
             return 0;
@@ -125,14 +124,5 @@ contract Multiplier is IMultiplier {
      */
     function interpolate(uint256 x, uint256 x1, uint256 x2, uint256 y1, uint256 y2) internal pure returns (uint256) {
         return y1 + ((x - x1) * (y2 - y1)) / (x2 - x1);
-    }
-
-    /**
-     * @notice Validates that a lockup period is supported
-     * @param lockUpPeriod The lockup period to validate
-     * @return isValid Whether the lockup period is valid
-     */
-    function isValidLockupPeriod(uint256 lockUpPeriod) external pure returns (bool isValid) {
-        return lockUpPeriod >= Const.LOCKUP_30_DAYS && lockUpPeriod <= Const.LOCKUP_365_DAYS;
     }
 }

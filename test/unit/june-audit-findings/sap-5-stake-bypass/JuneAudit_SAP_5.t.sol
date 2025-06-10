@@ -7,7 +7,6 @@ import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/E
 
 import {SapienVault} from "src/SapienVault.sol";
 import {SapienQA} from "src/SapienQA.sol";
-import {Multiplier, IMultiplier} from "src/Multiplier.sol";
 import {ISapienVault} from "src/interfaces/ISapienVault.sol";
 import {Constants as Const} from "src/utils/Constants.sol";
 
@@ -21,7 +20,6 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
     // Core contracts
     SapienVault public sapienVault;
     SapienQA public sapienQA;
-    Multiplier public multiplier;
     MockERC20 public sapienToken;
 
     // System accounts
@@ -43,18 +41,10 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
         // Deploy token
         sapienToken = new MockERC20("Sapien", "SAPIEN", 18);
 
-        // Deploy multiplier
-        multiplier = new Multiplier();
-
         // Deploy SapienVault with proxy
         SapienVault sapienVaultImpl = new SapienVault();
         bytes memory initData = abi.encodeWithSelector(
-            SapienVault.initialize.selector,
-            address(sapienToken),
-            admin,
-            treasury,
-            address(multiplier),
-            makeAddr("dummySapienQA")
+            SapienVault.initialize.selector, address(sapienToken), admin, treasury, makeAddr("dummySapienQA")
         );
         ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), initData);
         sapienVault = SapienVault(address(sapienVaultProxy));

@@ -83,8 +83,7 @@ interface ISapienVault {
     // Initialization Functions
     // -------------------------------------------------------------
 
-    function initialize(address token, address admin, address treasury, address newMultiplierContract, address sapienQA)
-        external;
+    function initialize(address token, address admin, address treasury, address sapienQA) external;
 
     // -------------------------------------------------------------
     // Administrative Functions
