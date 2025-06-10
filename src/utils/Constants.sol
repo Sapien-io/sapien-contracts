@@ -59,7 +59,7 @@ library Constants {
     bytes32 internal constant QA_DECISION_TYPEHASH = keccak256(
         "QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,bytes32 reason)"
     );
-    
+
     // -------------------------------------------------------------
     // Time Constants
     // -------------------------------------------------------------

@@ -41,6 +41,15 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     mapping(address => UserStake) public userStakes;
 
     // -------------------------------------------------------------
+    // Constructor
+    // -------------------------------------------------------------
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    // -------------------------------------------------------------
     // Initialization
     // -------------------------------------------------------------
 

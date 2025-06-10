@@ -10,6 +10,8 @@ import {Multiplier} from "src/Multiplier.sol";
 import {ISapienQA} from "src/interfaces/ISapienQA.sol";
 import {Constants} from "src/utils/Constants.sol";
 import {Actors} from "script/Actors.sol";
+import {ERC1967Proxy} from
+    "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract SapienQATest is Test {
     SapienQA public qaContract;
@@ -50,26 +52,37 @@ contract SapienQATest is Test {
         // Generate qaManager address from the private key we control
         qaManager = vm.addr(QA_MANAGER_PRIVATE_KEY);
 
-        // Deploy contracts from a different address than admin
-        vm.startPrank(address(this));
-
         // Deploy contracts
         token = new SapienToken(admin);
         multiplier = new Multiplier();
-        vault = new SapienVault();
 
-        vm.stopPrank();
+        // Deploy SapienVault implementation
+        SapienVault vaultImpl = new SapienVault();
 
-        // Deploy QA contract from admin to ensure proper role setup
+        // Create initialization data for the vault (we'll update with QA contract address later)
+        bytes memory vaultInitData = abi.encodeWithSelector(
+            SapienVault.initialize.selector,
+            address(token),
+            admin,
+            treasury,
+            address(multiplier),
+            address(0x1) // Temporary address, will be updated
+        );
+
+        // Deploy proxy
+        vault = SapienVault(address(new ERC1967Proxy(address(vaultImpl), vaultInitData)));
+
+        // Deploy QA contract with the vault address
         vm.startPrank(admin);
         qaContract = new SapienQA(treasury, address(vault), qaManager, admin);
 
         // Grant QA_ADMIN_ROLE to qaManager so they can sign decisions
         qaContract.grantRole(Constants.QA_ADMIN_ROLE, qaManager);
-        vm.stopPrank();
 
-        // Initialize vault with admin role and QA contract address (called from this contract)
-        vault.initialize(address(token), admin, treasury, address(multiplier), address(qaContract));
+        // Grant the QA contract the SAPIEN_QA_ROLE on the vault
+        vault.grantRole(Constants.SAPIEN_QA_ROLE, address(qaContract));
+
+        vm.stopPrank();
 
         // Transfer tokens for testing (admin has all tokens from constructor)
         vm.startPrank(admin);
