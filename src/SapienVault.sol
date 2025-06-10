@@ -100,6 +100,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         }
         _;
     }
+    
     // -------------------------------------------------------------
     // Role-Based Functions
     // -------------------------------------------------------------
@@ -238,16 +239,16 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     {
         UserStake memory userStake = userStakes[user];
 
-        userTotalStaked = uint256(userStake.amount);
+        userTotalStaked = userStake.amount;
         totalUnlocked = getTotalUnlocked(user);
         totalLocked = getTotalLocked(user);
         totalInCooldown = getTotalInCooldown(user);
         totalReadyForUnstake = getTotalReadyForUnstake(user);
-        effectiveMultiplier = uint256(userStake.effectiveMultiplier);
-        effectiveLockUpPeriod = uint256(userStake.effectiveLockUpPeriod);
+        effectiveMultiplier = userStake.effectiveMultiplier;
+        effectiveLockUpPeriod = userStake.effectiveLockUpPeriod;
 
         if (userStake.hasStake) {
-            uint256 unlockTime = uint256(userStake.weightedStartTime) + uint256(userStake.effectiveLockUpPeriod);
+            uint256 unlockTime = userStake.weightedStartTime + userStake.effectiveLockUpPeriod;
             timeUntilUnlock = block.timestamp >= unlockTime ? 0 : unlockTime - block.timestamp;
         }
     }
@@ -297,7 +298,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @return The total amount of tokens staked by the user
      */
     function getTotalStaked(address user) public view returns (uint256) {
-        return uint256(userStakes[user].amount);
+        return userStakes[user].amount;
     }
 
     /**
@@ -309,8 +310,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     function getTotalUnlocked(address user) public view returns (uint256) {
         UserStake memory userStake = userStakes[user];
         if (!_isUnlocked(userStake)) return 0;
-        return uint256(userStake.amount) > uint256(userStake.cooldownAmount)
-            ? uint256(userStake.amount) - uint256(userStake.cooldownAmount)
+        return userStake.amount > userStake.cooldownAmount
+            ? userStake.amount - userStake.cooldownAmount
             : 0;
     }
 
@@ -322,8 +323,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      */
     function getTotalLocked(address user) public view returns (uint256) {
         UserStake memory userStake = userStakes[user];
-        if (_isUnlocked(userStake) || uint256(userStake.cooldownAmount) > 0) return 0;
-        return uint256(userStake.amount);
+        if (_isUnlocked(userStake) || userStake.cooldownAmount > 0) return 0;
+        return userStake.amount;
     }
 
     /**
@@ -335,7 +336,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     function getTotalReadyForUnstake(address user) public view returns (uint256) {
         UserStake memory userStake = userStakes[user];
         if (!_isReadyForUnstake(userStake)) return 0;
-        return uint256(userStake.cooldownAmount);
+        return userStake.cooldownAmount;
     }
 
     /**
@@ -346,7 +347,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      */
     function getTotalInCooldown(address user) public view returns (uint256) {
         UserStake memory userStake = userStakes[user];
-        return (userStake.hasStake && uint256(userStake.cooldownStart) > 0) ? uint256(userStake.cooldownAmount) : 0;
+        return (userStake.hasStake && userStake.cooldownStart > 0) ? userStake.cooldownAmount : 0;
     }
 
     // -------------------------------------------------------------
@@ -405,8 +406,11 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         }
 
         // Use standardized expired stake handling
-        uint256 newWeightedStartTime =
-            _calculateStandardizedWeightedStartTime(userStake, additionalAmount, userStake.amount + additionalAmount);
+        uint256 newWeightedStartTime = _calculateStandardizedWeightedStartTime(
+            userStake,
+            additionalAmount,
+            userStake.amount + additionalAmount
+        );
 
         // Transfer tokens only after validation passes
         sapienToken.safeTransferFrom(msg.sender, address(this), additionalAmount);
@@ -419,7 +423,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         userStake.lastUpdateTime = block.timestamp.toUint64();
 
         // Recalculate linear weighted multiplier based on new total amount
-        userStake.effectiveMultiplier = calculateMultiplier(newTotalAmount, userStake.effectiveLockUpPeriod).toUint32();
+        userStake.effectiveMultiplier =
+            calculateMultiplier(newTotalAmount, userStake.effectiveLockUpPeriod).toUint32();
 
         totalStaked += additionalAmount;
 
@@ -446,7 +451,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         // Use standardized expired stake handling
         bool isExistingStakeExpired = _handleExpiredStakeCheck(userStake);
         uint256 newEffectiveLockup;
-
+        
         if (isExistingStakeExpired) {
             // Standardized expired stake handling - reset to new lockup period
             newEffectiveLockup = additionalLockup;
@@ -454,12 +459,13 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         } else {
             // Calculate remaining lockup time for active stakes
             uint256 timeElapsed = block.timestamp - userStake.weightedStartTime;
-            uint256 remainingLockup =
-                userStake.effectiveLockUpPeriod > timeElapsed ? userStake.effectiveLockUpPeriod - timeElapsed : 0;
+            uint256 remainingLockup = userStake.effectiveLockUpPeriod > timeElapsed
+                ? userStake.effectiveLockUpPeriod - timeElapsed
+                : 0;
 
             // New effective lockup is remaining time plus additional lockup
             newEffectiveLockup = remainingLockup + additionalLockup;
-
+            
             // Reset the weighted start time to now since we're extending lockup
             _resetExpiredStakeStartTime(userStake);
         }
@@ -470,7 +476,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         }
 
         userStake.effectiveLockUpPeriod = newEffectiveLockup.toUint64();
-        userStake.effectiveMultiplier = calculateMultiplier(uint256(userStake.amount), newEffectiveLockup).toUint32();
+        userStake.effectiveMultiplier = calculateMultiplier(userStake.amount, newEffectiveLockup).toUint32();
         userStake.lastUpdateTime = block.timestamp.toUint64();
 
         emit LockupIncreased(msg.sender, additionalLockup, newEffectiveLockup, userStake.effectiveMultiplier);
@@ -493,9 +499,9 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             revert StakeStillLocked();
         }
 
-        uint256 cooldownAmount = uint256(userStake.cooldownAmount);
+        uint256 cooldownAmount = userStake.cooldownAmount;
 
-        if (amount > uint256(userStake.amount) - cooldownAmount) {
+        if (amount > userStake.amount - cooldownAmount) {
             revert AmountExceedsAvailableBalance();
         }
 
@@ -527,7 +533,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             revert NotReadyForUnstake();
         }
 
-        if (amount > uint256(userStake.cooldownAmount)) {
+        if (amount > userStake.cooldownAmount) {
             revert AmountExceedsCooldownAmount();
         }
 
@@ -536,12 +542,12 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         totalStaked -= amount;
 
         // Clear cooldown if no more amount in cooldown
-        if (uint256(userStake.cooldownAmount) == 0) {
+        if (userStake.cooldownAmount == 0) {
             userStake.cooldownStart = 0;
         }
 
         // Complete state reset if stake is fully withdrawn
-        if (uint256(userStake.amount) == 0) {
+        if (userStake.amount == 0) {
             _resetUserStake(userStake);
         }
 
@@ -564,7 +570,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             revert NoStakeFound();
         }
 
-        if (amount > uint256(userStake.amount) - uint256(userStake.cooldownAmount)) {
+        if (amount > userStake.amount - userStake.cooldownAmount) {
             revert AmountExceedsAvailableBalance();
         }
 
@@ -593,7 +599,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             revert NoStakeFound();
         }
 
-        if (amount > uint256(userStake.amount) - uint256(userStake.cooldownAmount)) {
+        if (amount > userStake.amount - userStake.cooldownAmount) {
             revert AmountExceedsAvailableBalance();
         }
 
@@ -607,7 +613,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             revert EarlyUnstakeCooldownRequired();
         }
 
-        if (block.timestamp < uint256(userStake.earlyUnstakeCooldownStart) + Const.COOLDOWN_PERIOD) {
+        if (block.timestamp < userStake.earlyUnstakeCooldownStart + Const.COOLDOWN_PERIOD) {
             revert EarlyUnstakeCooldownRequired();
         }
 
@@ -622,7 +628,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         userStake.earlyUnstakeCooldownStart = 0;
 
         // Complete state reset if stake is fully withdrawn
-        if (uint256(userStake.amount) == 0) {
+        if (userStake.amount == 0) {
             _resetUserStake(userStake);
         }
 
@@ -687,18 +693,18 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param lockUpPeriod The lockup period for the new amount
      */
     function _processCombineStake(UserStake storage userStake, uint256 amount, uint256 lockUpPeriod) private {
-        uint256 newTotalAmount = uint256(userStake.amount) + amount;
+        uint256 newTotalAmount = userStake.amount + amount;
 
         // Use standardized expired stake handling
         bool isExistingStakeExpired = _handleExpiredStakeCheck(userStake);
-
+        
         WeightedValues memory newValues;
-
+        
         if (isExistingStakeExpired) {
             // Standardized expired stake handling
             newValues.weightedStartTime = block.timestamp;
             newValues.effectiveLockup = lockUpPeriod;
-
+            
             // Ensure lockup period doesn't exceed maximum
             if (newValues.effectiveLockup > Const.LOCKUP_365_DAYS) {
                 newValues.effectiveLockup = Const.LOCKUP_365_DAYS;
@@ -740,18 +746,18 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         // Calculate weighted start time
         newValues.weightedStartTime = _calculateWeightedStartTimeValue(
-            uint256(userStake.weightedStartTime), uint256(userStake.amount), amount, newTotalAmount
+            userStake.weightedStartTime, userStake.amount, amount, newTotalAmount
         );
 
         // Calculate remaining lockup time for existing stake
-        uint256 timeElapsed = block.timestamp - uint256(userStake.weightedStartTime);
-        uint256 remainingExistingLockup = uint256(userStake.effectiveLockUpPeriod) > timeElapsed
-            ? uint256(userStake.effectiveLockUpPeriod) - timeElapsed
+        uint256 timeElapsed = block.timestamp - userStake.weightedStartTime;
+        uint256 remainingExistingLockup = userStake.effectiveLockUpPeriod > timeElapsed
+            ? userStake.effectiveLockUpPeriod - timeElapsed
             : 0;
 
         // Calculate weighted lockup period using remaining time
         newValues.effectiveLockup = _calculateWeightedLockupPeriod(
-            remainingExistingLockup, uint256(userStake.amount), lockUpPeriod, amount, newTotalAmount
+            remainingExistingLockup, userStake.amount, lockUpPeriod, amount, newTotalAmount
         );
 
         // Ensure lockup period doesn't exceed maximum
@@ -775,21 +781,9 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         uint256 newAmount,
         uint256 totalAmount
     ) private view returns (uint256 weightedStartTime) {
-        // Check for overflow before multiplication
-        if (existingAmount != 0 && existingStartTime > type(uint256).max / existingAmount) {
-            revert WeightedCalculationOverflow();
-        }
-        if (newAmount != 0 && block.timestamp > type(uint256).max / newAmount) {
-            revert WeightedCalculationOverflow();
-        }
 
         uint256 existingWeight = existingStartTime * existingAmount;
         uint256 newWeight = block.timestamp * newAmount;
-
-        // Check for overflow in addition
-        if (existingWeight > type(uint256).max - newWeight) {
-            revert WeightedCalculationOverflow();
-        }
 
         uint256 totalWeight = existingWeight + newWeight;
         weightedStartTime = totalWeight / totalAmount;
@@ -822,21 +816,9 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         uint256 newAmount,
         uint256 totalAmount
     ) private pure returns (uint256 weightedLockup) {
-        // Check for overflow before multiplication
-        if (existingAmount != 0 && existingLockupPeriod > type(uint256).max / existingAmount) {
-            revert LockupWeightCalculationOverflow();
-        }
-        if (newAmount != 0 && newLockupPeriod > type(uint256).max / newAmount) {
-            revert LockupWeightCalculationOverflow();
-        }
 
         uint256 existingLockupWeight = existingLockupPeriod * existingAmount;
         uint256 newLockupWeight = newLockupPeriod * newAmount;
-
-        // Check for overflow in addition
-        if (existingLockupWeight > type(uint256).max - newLockupWeight) {
-            revert LockupWeightCalculationOverflow();
-        }
 
         uint256 totalLockupWeight = existingLockupWeight + newLockupWeight;
         weightedLockup = totalLockupWeight / totalAmount;
@@ -871,13 +853,13 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
     function _isUnlocked(UserStake memory userStake) private view returns (bool) {
         return userStake.hasStake
-            && block.timestamp >= uint256(userStake.weightedStartTime) + uint256(userStake.effectiveLockUpPeriod);
+            && block.timestamp >= userStake.weightedStartTime + userStake.effectiveLockUpPeriod;
     }
 
     function _isReadyForUnstake(UserStake memory userStake) private view returns (bool) {
-        return userStake.hasStake && uint256(userStake.cooldownStart) > 0
-            && block.timestamp >= uint256(userStake.cooldownStart) + Const.COOLDOWN_PERIOD
-            && uint256(userStake.cooldownAmount) > 0;
+        return userStake.hasStake && userStake.cooldownStart > 0
+            && block.timestamp >= userStake.cooldownStart + Const.COOLDOWN_PERIOD
+            && userStake.cooldownAmount > 0;
     }
 
     /**
@@ -906,7 +888,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
     /**
      * @notice Calculates weighted start time with precision handling
-     * @dev Refactored for consistency and better overflow protection
      * @param currentStartTime Current weighted start time
      * @param currentAmount Current stake amount
      * @param newAmount Additional amount being added
@@ -972,7 +953,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
     /**
      * @notice Calculates weighted start time for stake operations, handling expired stakes consistently
-     * @param userStake The user stake storage reference
+     * @param userStake The user stake storage reference  
      * @param newAmount Additional amount being added (0 for lockup increases)
      * @param totalAmount Total amount after operation
      * @return newWeightedStartTime The calculated or reset weighted start time
@@ -985,14 +966,17 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         uint256 totalAmount
     ) private view returns (uint256 newWeightedStartTime) {
         bool isExpired = _handleExpiredStakeCheck(userStake);
-
+        
         if (isExpired) {
             // Reset to current timestamp for expired stakes
             newWeightedStartTime = block.timestamp;
         } else {
             // Calculate weighted start time for active stakes
             newWeightedStartTime = _calculateWeightedStartTime(
-                uint256(userStake.weightedStartTime), uint256(userStake.amount), newAmount, totalAmount
+                userStake.weightedStartTime,
+                userStake.amount,
+                newAmount,
+                totalAmount
             );
         }
     }
@@ -1050,7 +1034,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         returns (uint256)
     {
         // Only use amount as the maximum penalty, since cooldownAmount is already counted within amount
-        uint256 totalAvailable = uint256(userStake.amount);
+        uint256 totalAvailable = userStake.amount;
         return requestedPenalty > totalAvailable ? totalAvailable : requestedPenalty;
     }
 
@@ -1085,7 +1069,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         internal
         returns (uint256 actualReduction)
     {
-        uint256 availableStake = uint256(userStake.amount);
+        uint256 availableStake = userStake.amount;
         if (availableStake == 0) return 0;
 
         actualReduction = maxReduction > availableStake ? availableStake : maxReduction;
@@ -1100,7 +1084,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         internal
         returns (uint256 actualReduction)
     {
-        uint256 availableCooldown = uint256(userStake.cooldownAmount);
+        uint256 availableCooldown = userStake.cooldownAmount;
         actualReduction = reductionAmount > availableCooldown ? availableCooldown : reductionAmount;
         userStake.cooldownAmount = (availableCooldown - actualReduction).toUint128();
     }
@@ -1121,7 +1105,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         // Recalculate multiplier for remaining active stake
         if (_hasActiveStake) {
             userStake.effectiveMultiplier = multiplier.calculateMultiplier(
-                uint256(userStake.amount), uint256(userStake.effectiveLockUpPeriod)
+                userStake.amount, userStake.effectiveLockUpPeriod
             ).toUint32();
         }
 
