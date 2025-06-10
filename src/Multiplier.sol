@@ -123,6 +123,13 @@ library Multiplier {
      * @return The interpolated value
      */
     function interpolate(uint256 x, uint256 x1, uint256 x2, uint256 y1, uint256 y2) internal pure returns (uint256) {
+        // Required validation: x2 must be greater than x1
+        require(x2 > x1, "Multiplier: x2 must be greater than x1");
+        
+        // Optional validations for additional safety
+        require(y2 >= y1, "Multiplier: y2 must be greater than or equal to y1");
+        require(x >= x1 && x <= x2, "Multiplier: x must be between x1 and x2 (inclusive)");
+        
         return y1 + ((x - x1) * (y2 - y1)) / (x2 - x1);
     }
 }
