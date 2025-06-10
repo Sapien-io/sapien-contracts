@@ -49,13 +49,6 @@ contract SapienQA is ISapienQA, AccessControl, EIP712 {
         _;
     }
 
-    modifier onlyQaAdmin() {
-        if (!hasRole(Const.QA_ADMIN_ROLE, msg.sender)) {
-            revert AccessControlUnauthorizedAccount(msg.sender, Const.QA_ADMIN_ROLE);
-        }
-        _;
-    }
-
     modifier onlyQaManager() {
         if (!hasRole(Const.QA_MANAGER_ROLE, msg.sender)) {
             revert AccessControlUnauthorizedAccount(msg.sender, Const.QA_MANAGER_ROLE);
