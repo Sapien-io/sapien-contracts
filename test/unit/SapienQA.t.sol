@@ -61,6 +61,7 @@ contract SapienQATest is Test {
             SapienVault.initialize.selector,
             address(token),
             admin,
+            makeAddr("pauseManager"),
             treasury,
             address(0x1) // Temporary QA address, will be updated when we deploy QA contract
         );
@@ -728,7 +729,7 @@ contract SapienQATest is Test {
         _createUserStake(user1, 5000 * 1e18, Constants.LOCKUP_90_DAYS);
 
         // Pause the vault to force a specific error when processing penalty
-        vm.prank(admin);
+        vm.prank(makeAddr("pauseManager"));
         vault.pause();
 
         bytes32 pausedDecisionId = keccak256("paused_vault_decision");
@@ -764,7 +765,7 @@ contract SapienQATest is Test {
         assertTrue(found, "Should have found the paused decision record");
 
         // Unpause vault for cleanup
-        vm.prank(admin);
+        vm.prank(makeAddr("pauseManager"));
         vault.unpause();
     }
 

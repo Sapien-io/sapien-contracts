@@ -60,7 +60,12 @@ contract SapienVaultEndToEndTest is Test {
         // Deploy SapienVault with proxy
         SapienVault sapienVaultImpl = new SapienVault();
         bytes memory initData = abi.encodeWithSelector(
-            SapienVault.initialize.selector, address(sapienToken), admin, treasury, makeAddr("dummySapienQA")
+            SapienVault.initialize.selector,
+            address(sapienToken),
+            admin,
+            makeAddr("pauseManager"),
+            treasury,
+            makeAddr("dummySapienQA")
         );
         ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), initData);
         sapienVault = SapienVault(address(sapienVaultProxy));
@@ -337,14 +342,14 @@ contract SapienVaultEndToEndTest is Test {
         console.log("Social staker: Completed cooldown unstakes");
 
         // Test system pause functionality
-        vm.prank(admin);
+        vm.prank(makeAddr("pauseManager"));
         sapienVault.pause();
 
         vm.prank(maxStaker);
         vm.expectRevert();
         sapienVault.stake(SMALL_STAKE, LOCK_30_DAYS); // Should fail when paused
 
-        vm.prank(admin);
+        vm.prank(makeAddr("pauseManager"));
         sapienVault.unpause();
 
         console.log("System: Pause/unpause functionality verified");

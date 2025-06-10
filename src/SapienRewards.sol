@@ -98,15 +98,20 @@ contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgr
      * @notice Initializes the contract with the provided admin and reward manager.
      * @param admin The address of the admin.
      * @param rewardManager The address of the rewards manager.
+     * @param pauseManager The address of the pause manager.
      * @param rewardAdmin The address of the Safe that holds Contributor Rewards supply.
      * @param newRewardToken The address of the reward token.
      */
-    function initialize(address admin, address rewardManager, address rewardAdmin, address newRewardToken)
-        public
-        initializer
-    {
+    function initialize(
+        address admin,
+        address rewardManager,
+        address pauseManager,
+        address rewardAdmin,
+        address newRewardToken
+    ) public initializer {
         if (admin == address(0)) revert ZeroAddress();
         if (rewardManager == address(0)) revert ZeroAddress();
+        if (pauseManager == address(0)) revert ZeroAddress();
         if (rewardAdmin == address(0)) revert ZeroAddress();
         if (newRewardToken == address(0)) revert ZeroAddress();
 
@@ -115,7 +120,7 @@ contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgr
         __ReentrancyGuard_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(Const.PAUSER_ROLE, admin);
+        _grantRole(Const.PAUSER_ROLE, pauseManager);
         _grantRole(Const.REWARD_ADMIN_ROLE, rewardAdmin);
         _grantRole(Const.REWARD_MANAGER_ROLE, rewardManager);
 

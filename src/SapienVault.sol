@@ -54,12 +54,17 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @notice Initializes the SapienVault contract.
      * @param token The IERC20 token contract for Sapien.
      * @param admin The address of the admin multisig.
+     * @param pauseManager The address of the pause manager multisig.ß
      * @param newTreasury The address of the Rewards Safe multisig for penalty collection.
      * @param sapienQA The address of the SapienQA contract.
      */
-    function initialize(address token, address admin, address newTreasury, address sapienQA) public initializer {
+    function initialize(address token, address admin, address pauseManager, address newTreasury, address sapienQA)
+        public
+        initializer
+    {
         if (token == address(0)) revert ZeroAddress();
         if (admin == address(0)) revert ZeroAddress();
+        if (pauseManager == address(0)) revert ZeroAddress();
         if (newTreasury == address(0)) revert ZeroAddress();
         if (sapienQA == address(0)) revert ZeroAddress();
 
@@ -68,7 +73,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         __ReentrancyGuard_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(Const.PAUSER_ROLE, admin);
+        _grantRole(Const.PAUSER_ROLE, pauseManager);
         _grantRole(Const.SAPIEN_QA_ROLE, sapienQA);
 
         sapienToken = IERC20(token);
@@ -110,6 +115,14 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      */
     function PAUSER_ROLE() external pure returns (bytes32) {
         return Const.PAUSER_ROLE;
+    }
+
+    /**
+     * @notice Returns the Sapien QA role identifier
+     * @return bytes32 The keccak256 hash of "SAPIEN_QA_ROLE"
+     */
+    function SAPIEN_QA_ROLE() external pure returns (bytes32) {
+        return Const.SAPIEN_QA_ROLE;
     }
 
     /**
@@ -296,7 +309,11 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     function getTotalUnlocked(address user) public view returns (uint256) {
         UserStake memory userStake = userStakes[user];
         if (!_isUnlocked(userStake)) return 0;
-        return userStake.amount > userStake.cooldownAmount ? userStake.amount - userStake.cooldownAmount : 0;
+
+        // Ensure we never return negative values due to inconsistency
+        if (userStake.amount <= userStake.cooldownAmount) return 0;
+
+        return userStake.amount - userStake.cooldownAmount;
     }
 
     /**
@@ -331,7 +348,10 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      */
     function getTotalInCooldown(address user) public view returns (uint256) {
         UserStake memory userStake = userStakes[user];
-        return (userStake.hasStake && userStake.cooldownStart > 0) ? userStake.cooldownAmount : 0;
+        if (!userStake.hasStake || userStake.cooldownStart == 0) return 0;
+
+        // Ensure cooldown amount doesn't exceed total amount
+        return userStake.cooldownAmount > userStake.amount ? userStake.amount : userStake.cooldownAmount;
     }
 
     // -------------------------------------------------------------
@@ -344,11 +364,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param lockUpPeriod The lock-up duration in seconds (30/90/180/365 days).
      */
     function stake(uint256 amount, uint256 lockUpPeriod) public whenNotPaused nonReentrant {
-        // Validate caller is not zero address
-        if (msg.sender == address(0)) {
-            revert ZeroAddress();
-        }
-
         // Validate inputs and user state
         _validateStakeInputs(amount, lockUpPeriod);
 
@@ -683,11 +698,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             // Standardized expired stake handling
             newValues.weightedStartTime = block.timestamp;
             newValues.effectiveLockup = lockUpPeriod;
-
-            // Ensure lockup period doesn't exceed maximum
-            if (newValues.effectiveLockup > Const.LOCKUP_365_DAYS) {
-                newValues.effectiveLockup = Const.LOCKUP_365_DAYS;
-            }
         } else {
             // Calculate new weighted values normally for non-expired stakes
             newValues = _calculateWeightedValues(userStake, amount, lockUpPeriod, newTotalAmount);
@@ -719,9 +729,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         // Input validation
         if (amount == 0) revert AmountMustBePositive();
         if (newTotalAmount == 0) revert TotalAmountMustBePositive();
-        if (lockUpPeriod < Const.LOCKUP_30_DAYS || lockUpPeriod > Const.LOCKUP_365_DAYS) {
-            revert InvalidLockupPeriod();
-        }
 
         // Calculate weighted start time
         newValues.weightedStartTime =
@@ -736,11 +743,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         newValues.effectiveLockup = _calculateWeightedLockupPeriod(
             remainingExistingLockup, userStake.amount, lockUpPeriod, amount, newTotalAmount
         );
-
-        // Ensure lockup period doesn't exceed maximum
-        if (newValues.effectiveLockup > Const.LOCKUP_365_DAYS) {
-            newValues.effectiveLockup = Const.LOCKUP_365_DAYS;
-        }
     }
 
     /**
@@ -911,7 +913,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      */
     function _handleExpiredStakeCheck(UserStake storage userStake) private view returns (bool isExpired) {
         isExpired = _isUnlocked(userStake);
-        return isExpired;
     }
 
     /**
@@ -1008,27 +1009,25 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     }
 
     /**
-     * @dev Apply penalty by reducing stake amounts in priority order (active stake first, then cooldown)
+     * @dev Apply penalty by reducing stake amounts while maintaining consistency
      */
     function _applyPenaltyToUserStake(UserStake storage userStake, uint256 penaltyAmount, address userAddress)
         internal
     {
-        uint256 remainingPenalty = penaltyAmount;
+        uint256 originalCooldownAmount = userStake.cooldownAmount;
 
-        // Take from active stake first
-        uint256 fromActiveStake = _reducePrimaryStake(userStake, remainingPenalty);
-        remainingPenalty -= fromActiveStake;
+        // Apply penalty using enhanced primary stake reduction
+        // This function now handles both primary stake reduction AND cooldown consistency
+        uint256 fromActiveStake = _reducePrimaryStake(userStake, penaltyAmount);
 
-        // Take from cooldown if needed
-        uint256 fromCooldownStake = 0;
-        if (remainingPenalty > 0) {
-            fromCooldownStake = _reduceCooldownStake(userStake, remainingPenalty);
+        // CONSISTENCY CHECK: Log any cooldown adjustments for transparency
+        uint256 cooldownReduction = originalCooldownAmount - userStake.cooldownAmount;
+        if (cooldownReduction > 0) {
+            emit QACooldownAdjusted(userAddress, cooldownReduction);
         }
 
-        // Emit detailed breakdown of where penalty was taken from
-        if (fromActiveStake > 0 || fromCooldownStake > 0) {
-            emit QAStakeReduced(userAddress, fromActiveStake, fromCooldownStake);
-        }
+        // Emit detailed breakdown - fromCooldownStake is always 0 since _reducePrimaryStake handles everything
+        emit QAStakeReduced(userAddress, fromActiveStake, 0);
     }
 
     /**
@@ -1042,20 +1041,20 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         if (availableStake == 0) return 0;
 
         actualReduction = maxReduction > availableStake ? availableStake : maxReduction;
-        userStake.amount = (availableStake - actualReduction).toUint128();
-        totalStaked -= actualReduction;
-    }
+        uint256 newAmount = availableStake - actualReduction;
 
-    /**
-     * @dev Reduce cooldown stake amount
-     */
-    function _reduceCooldownStake(UserStake storage userStake, uint256 reductionAmount)
-        internal
-        returns (uint256 actualReduction)
-    {
-        uint256 availableCooldown = userStake.cooldownAmount;
-        actualReduction = reductionAmount > availableCooldown ? availableCooldown : reductionAmount;
-        userStake.cooldownAmount = (availableCooldown - actualReduction).toUint128();
+        userStake.amount = newAmount.toUint128();
+        totalStaked -= actualReduction;
+
+        // Ensure cooldown amount never exceeds remaining stake
+        if (userStake.cooldownAmount > newAmount) {
+            userStake.cooldownAmount = newAmount.toUint128();
+
+            // Clear cooldown start if no cooldown amount remains
+            if (newAmount == 0) {
+                userStake.cooldownStart = 0;
+            }
+        }
     }
 
     /**

@@ -56,7 +56,12 @@ contract SapienRewardsScenariosTest is Test {
         // Deploy SapienRewards with proxy
         SapienRewards sapienRewardsImpl = new SapienRewards();
         bytes memory initData = abi.encodeWithSelector(
-            SapienRewards.initialize.selector, admin, rewardManager1, rewardSafe, address(rewardToken)
+            SapienRewards.initialize.selector,
+            admin,
+            rewardManager1,
+            makeAddr("pauseManager"),
+            rewardSafe,
+            address(rewardToken)
         );
         ERC1967Proxy sapienRewardsProxy = new ERC1967Proxy(address(sapienRewardsImpl), initData);
         sapienRewards = SapienRewards(address(sapienRewardsProxy));
@@ -223,7 +228,7 @@ contract SapienRewardsScenariosTest is Test {
 
         // Phase 2: Emergency pause
         console.log("Emergency detected - pausing contract");
-        vm.prank(admin);
+        vm.prank(makeAddr("pauseManager"));
         sapienRewards.pause();
 
         // Verify claims are blocked when paused
@@ -257,7 +262,7 @@ contract SapienRewardsScenariosTest is Test {
 
         // Phase 6: Resume operations
         console.log("Emergency resolved - resuming operations");
-        vm.prank(admin);
+        vm.prank(makeAddr("pauseManager"));
         sapienRewards.unpause();
 
         // Verify claims work again

@@ -2,6 +2,8 @@
 pragma solidity 0.8.30;
 
 import {Test} from "lib/forge-std/src/Test.sol";
+import {Vm} from "lib/forge-std/src/Vm.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {SapienVault, ISapienVault} from "src/SapienVault.sol";
 import {Multiplier} from "src/Multiplier.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -14,6 +16,8 @@ contract SapienVaultBasicTest is Test {
 
     address public admin = makeAddr("admin");
     address public treasury = makeAddr("treasury");
+    address public pauseManager = makeAddr("pauseManager");
+    address public sapienQA = makeAddr("sapienQA");
     address public user1 = makeAddr("user1");
     address public user2 = makeAddr("user2");
     address public user3 = makeAddr("user3");
@@ -55,9 +59,8 @@ contract SapienVaultBasicTest is Test {
 
         // Deploy SapienVault
         SapienVault sapienVaultImpl = new SapienVault();
-        address dummySapienQA = makeAddr("dummySapienQA");
         bytes memory initData = abi.encodeWithSelector(
-            SapienVault.initialize.selector, address(sapienToken), admin, treasury, dummySapienQA
+            SapienVault.initialize.selector, address(sapienToken), admin, pauseManager, treasury, sapienQA
         );
         ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), initData);
         sapienVault = SapienVault(address(sapienVaultProxy));
@@ -217,7 +220,7 @@ contract SapienVaultBasicTest is Test {
     }
 
     function test_Vault_RevertStakeWhenPaused() public {
-        vm.prank(admin);
+        vm.prank(pauseManager);
         sapienVault.pause();
 
         vm.startPrank(user1);
@@ -226,13 +229,6 @@ contract SapienVaultBasicTest is Test {
         vm.expectRevert("EnforcedPause()");
         sapienVault.stake(MINIMUM_STAKE, LOCK_30_DAYS);
         vm.stopPrank();
-    }
-
-    function test_Vault_RevertStakeZeroAddress() public {
-        // Try to stake from zero address - should revert with ZeroAddress before any token transfers
-        vm.prank(address(0));
-        vm.expectRevert(abi.encodeWithSignature("ZeroAddress()"));
-        sapienVault.stake(MINIMUM_STAKE, LOCK_30_DAYS);
     }
 
     // =============================================================================
@@ -779,7 +775,7 @@ contract SapienVaultBasicTest is Test {
 
     function test_Vault_PauseUnpause() public {
         // Test pause
-        vm.prank(admin);
+        vm.prank(pauseManager);
         sapienVault.pause();
 
         // Test that staking is blocked when paused
@@ -790,7 +786,7 @@ contract SapienVaultBasicTest is Test {
         vm.stopPrank();
 
         // Test unpause
-        vm.prank(admin);
+        vm.prank(pauseManager);
         sapienVault.unpause();
 
         // Test that staking works after unpause
@@ -818,8 +814,8 @@ contract SapienVaultBasicTest is Test {
     }
 
     function test_Vault_RevertUnpauseNotPauser() public {
-        // First pause the contract (as admin)
-        vm.prank(admin);
+        // First pause the contract (as pauseManager)
+        vm.prank(pauseManager);
         sapienVault.pause();
 
         // Try to unpause as non-pauser
@@ -834,11 +830,12 @@ contract SapienVaultBasicTest is Test {
         sapienVault.unpause();
     }
 
-    function test_Vault_PauserRoleGrantedToAdmin() public view {
-        // Verify admin has PAUSER_ROLE
-        assertTrue(sapienVault.hasRole(Const.PAUSER_ROLE, admin));
+    function test_Vault_PauserRoleGrantedToPauseManager() public view {
+        // Verify pauseManager has PAUSER_ROLE
+        assertTrue(sapienVault.hasRole(Const.PAUSER_ROLE, pauseManager));
 
-        // Verify users don't have PAUSER_ROLE
+        // Verify admin and users don't have PAUSER_ROLE
+        assertFalse(sapienVault.hasRole(Const.PAUSER_ROLE, admin));
         assertFalse(sapienVault.hasRole(Const.PAUSER_ROLE, user1));
         assertFalse(sapienVault.hasRole(Const.PAUSER_ROLE, user2));
     }
@@ -867,7 +864,7 @@ contract SapienVaultBasicTest is Test {
 
     function test_Vault_EmergencyWithdrawERC20() public {
         // Setup: Contract needs to be paused for emergency withdrawal
-        vm.prank(admin);
+        vm.prank(pauseManager);
         sapienVault.pause();
 
         // Add some tokens to the contract
@@ -893,7 +890,7 @@ contract SapienVaultBasicTest is Test {
 
     function test_Vault_EmergencyWithdrawETH() public {
         // Setup: Contract needs to be paused for emergency withdrawal
-        vm.prank(admin);
+        vm.prank(pauseManager);
         sapienVault.pause();
 
         // Add some ETH to the contract
@@ -919,7 +916,7 @@ contract SapienVaultBasicTest is Test {
 
     function test_Vault_EmergencyWithdrawFullERC20Balance() public {
         // Setup: Contract needs to be paused
-        vm.prank(admin);
+        vm.prank(pauseManager);
         sapienVault.pause();
 
         // Add tokens to contract
@@ -941,7 +938,7 @@ contract SapienVaultBasicTest is Test {
 
     function test_Vault_EmergencyWithdrawFullETHBalance() public {
         // Setup: Contract needs to be paused
-        vm.prank(admin);
+        vm.prank(pauseManager);
         sapienVault.pause();
 
         // Add ETH to contract
@@ -973,7 +970,7 @@ contract SapienVaultBasicTest is Test {
 
     function test_Vault_RevertEmergencyWithdrawUnauthorized() public {
         // Setup: Pause contract
-        vm.prank(admin);
+        vm.prank(pauseManager);
         sapienVault.pause();
 
         // Try emergency withdrawal as non-admin
@@ -987,7 +984,7 @@ contract SapienVaultBasicTest is Test {
 
     function test_Vault_RevertEmergencyWithdrawZeroAddress() public {
         // Setup: Pause contract
-        vm.prank(admin);
+        vm.prank(pauseManager);
         sapienVault.pause();
 
         uint256 withdrawAmount = 1000e18;
@@ -999,7 +996,7 @@ contract SapienVaultBasicTest is Test {
 
     function test_Vault_RevertEmergencyWithdrawInsufficientETH() public {
         // Setup: Pause contract
-        vm.prank(admin);
+        vm.prank(pauseManager);
         sapienVault.pause();
 
         // Try to withdraw more ETH than available
@@ -1032,7 +1029,7 @@ contract SapienVaultBasicTest is Test {
         assertEq(totalStakedBefore, MINIMUM_STAKE * 8);
 
         // Phase 2: Emergency situation - contract is compromised and needs to be paused
-        vm.prank(admin);
+        vm.prank(pauseManager);
         sapienVault.pause();
 
         // Phase 3: Some malicious tokens are sent to the contract
@@ -1075,7 +1072,7 @@ contract SapienVaultBasicTest is Test {
         // Test withdrawing both ETH and ERC20 tokens in emergency
 
         // Setup: Pause contract
-        vm.prank(admin);
+        vm.prank(pauseManager);
         sapienVault.pause();
 
         // Add ETH and tokens to contract
@@ -2207,5 +2204,372 @@ contract SapienVaultBasicTest is Test {
         // Should be the longer period (365 days) since:
         // max(weighted_average, 10_days, 365_days) = 365 days
         assertEq(finalLockup, LOCK_365_DAYS, "Should allow extension to longer period");
+    }
+
+    // =============================================================================
+    // QA PENALTY COOLDOWN CONSISTENCY FIX TESTS
+    // =============================================================================
+
+    function test_Vault_QAPenalty_CooldownConsistencyFix_PenaltyExceedsActiveStake() public {
+        // Test penalty larger than active stake but smaller than total (with cooldown)
+        uint256 stakeAmount = 1000e18; // 1000 SAPIEN
+        uint256 cooldownAmount = 500e18; // 500 SAPIEN in cooldown
+        uint256 penaltyAmount = 1000e18; // Penalty equals full stake amount
+
+        // Setup: User stakes and then initiates partial cooldown
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Wait for unlock
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        // Initiate cooldown for part of the stake
+        vm.prank(user1);
+        sapienVault.initiateUnstake(cooldownAmount);
+
+        // Verify initial state
+        (uint256 totalStaked,,, uint256 totalInCooldown,,,,) = sapienVault.getUserStakingSummary(user1);
+        assertEq(totalStaked, stakeAmount, "Should have full stake amount");
+        assertEq(totalInCooldown, cooldownAmount, "Should have cooldown amount");
+
+        // Apply QA penalty equal to the full staked amount
+        vm.expectEmit(true, false, false, true);
+        emit ISapienVault.QACooldownAdjusted(user1, cooldownAmount); // Expect cooldown adjustment
+
+        vm.expectEmit(true, false, false, true);
+        emit ISapienVault.QAStakeReduced(user1, stakeAmount, 0); // All from active stake
+
+        vm.prank(sapienQA);
+        uint256 actualPenalty = sapienVault.processQAPenalty(user1, penaltyAmount);
+
+        // Verify penalty was fully applied
+        assertEq(actualPenalty, penaltyAmount, "Full penalty should be applied");
+
+        // Check final state - should now be consistent
+        (uint256 finalTotalStaked,,, uint256 finalTotalInCooldown,,,,) = sapienVault.getUserStakingSummary(user1);
+
+        // FIXED BEHAVIOR: Both should be 0 for consistency
+        assertEq(finalTotalStaked, 0, "Primary stake should be reduced to 0");
+        assertEq(finalTotalInCooldown, 0, "Cooldown amount should be adjusted to 0 for consistency");
+
+        // Verify user has no active stake
+        assertFalse(sapienVault.hasActiveStake(user1), "User should have no active stake");
+    }
+
+    function test_Vault_QAPenalty_CooldownConsistencyFix_PartialPenalty() public {
+        // Test partial penalty that reduces stake below cooldown amount
+        uint256 stakeAmount = 1000e18; // 1000 SAPIEN
+        uint256 cooldownAmount = 600e18; // 600 SAPIEN in cooldown
+        uint256 penaltyAmount = 500e18; // Penalty reduces stake to 500 SAPIEN
+
+        // Setup: User stakes and then initiates cooldown
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Wait for unlock
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        // Initiate cooldown for most of the stake
+        vm.prank(user1);
+        sapienVault.initiateUnstake(cooldownAmount);
+
+        // Apply partial penalty
+        vm.expectEmit(true, false, false, true);
+        emit ISapienVault.QACooldownAdjusted(user1, 100e18); // Expect 100 SAPIEN adjustment
+
+        vm.prank(sapienQA);
+        uint256 actualPenalty = sapienVault.processQAPenalty(user1, penaltyAmount);
+
+        // Verify penalty was applied
+        assertEq(actualPenalty, penaltyAmount, "Penalty should be applied");
+
+        // Check final state
+        (uint256 finalTotalStaked,,, uint256 finalTotalInCooldown,,,,) = sapienVault.getUserStakingSummary(user1);
+
+        // After penalty: stake = 500, cooldown should be adjusted to 500 (not 600)
+        assertEq(finalTotalStaked, 500e18, "Remaining stake should be 500 SAPIEN");
+        assertEq(finalTotalInCooldown, 500e18, "Cooldown should be adjusted to match remaining stake");
+
+        // Verify consistency: cooldown <= total stake
+        assertTrue(finalTotalInCooldown <= finalTotalStaked, "Cooldown should not exceed total stake");
+    }
+
+    function test_Vault_QAPenalty_CooldownConsistencyFix_NoCooldownAdjustmentNeeded() public {
+        // Test penalty that doesn't require cooldown adjustment
+        uint256 stakeAmount = 1000e18; // 1000 SAPIEN
+        uint256 cooldownAmount = 300e18; // 300 SAPIEN in cooldown
+        uint256 penaltyAmount = 200e18; // Small penalty
+
+        // Setup: User stakes and then initiates cooldown
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Wait for unlock
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        // Initiate cooldown
+        vm.prank(user1);
+        sapienVault.initiateUnstake(cooldownAmount);
+
+        // Apply small penalty - should NOT trigger QACooldownAdjusted event
+        vm.expectEmit(true, false, false, true);
+        emit ISapienVault.QAStakeReduced(user1, penaltyAmount, 0);
+
+        // Should NOT emit QACooldownAdjusted since no adjustment needed
+        vm.recordLogs();
+
+        vm.prank(sapienQA);
+        uint256 actualPenalty = sapienVault.processQAPenalty(user1, penaltyAmount);
+
+        // Verify penalty was applied correctly
+        assertEq(actualPenalty, penaltyAmount, "Penalty should be applied correctly");
+
+        // Check that QACooldownAdjusted was NOT emitted
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bool foundCooldownAdjusted = false;
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics[0] == keccak256("QACooldownAdjusted(address,uint256)")) {
+                foundCooldownAdjusted = true;
+                break;
+            }
+        }
+        assertFalse(foundCooldownAdjusted, "QACooldownAdjusted should not be emitted when no adjustment needed");
+
+        // Verify final state
+        (uint256 finalTotalStaked,,, uint256 finalTotalInCooldown,,,,) = sapienVault.getUserStakingSummary(user1);
+
+        assertEq(finalTotalStaked, 800e18, "Remaining stake should be 800 SAPIEN");
+        assertEq(finalTotalInCooldown, 300e18, "Cooldown should remain unchanged");
+    }
+
+    function test_Vault_QAPenalty_CooldownConsistencyFix_ViewFunctionDefensive() public {
+        // Test that view functions handle inconsistent state gracefully (if it somehow occurs)
+        uint256 stakeAmount = 1000e18;
+
+        // Setup normal stake
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Wait for unlock
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        // Normal cooldown
+        vm.prank(user1);
+        sapienVault.initiateUnstake(300e18);
+
+        // Apply penalty that triggers consistency fix
+        vm.prank(sapienQA);
+        sapienVault.processQAPenalty(user1, stakeAmount); // Full penalty
+
+        // Test view functions after consistency fix
+        uint256 totalUnlocked = sapienVault.getTotalUnlocked(user1);
+        uint256 totalInCooldown = sapienVault.getTotalInCooldown(user1);
+        uint256 totalStaked = sapienVault.getTotalStaked(user1);
+
+        // All should be zero after full penalty
+        assertEq(totalUnlocked, 0, "Should have no unlocked tokens");
+        assertEq(totalInCooldown, 0, "Should have no cooldown tokens");
+        assertEq(totalStaked, 0, "Should have no staked tokens");
+
+        // Verify consistency: unlocked + cooldown <= total
+        assertTrue(totalUnlocked + totalInCooldown <= totalStaked, "View functions should maintain consistency");
+    }
+
+    function test_Vault_QAPenalty_CooldownConsistencyFix_StateResetOnFullPenalty() public {
+        // Test that full penalty properly resets all state including cooldown
+        uint256 stakeAmount = MINIMUM_STAKE; // Use minimum stake amount
+        uint256 cooldownAmount = 200e18;
+
+        // Setup stake with cooldown
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        vm.prank(user1);
+        sapienVault.initiateUnstake(cooldownAmount);
+
+        // Apply full penalty
+        vm.prank(sapienQA);
+        sapienVault.processQAPenalty(user1, stakeAmount);
+
+        // Verify complete state reset
+        assertFalse(sapienVault.hasActiveStake(user1), "Should have no active stake");
+
+        (
+            uint256 userTotalStaked,
+            uint256 totalUnlocked,
+            uint256 totalLocked,
+            uint256 totalInCooldown,
+            uint256 totalReadyForUnstake,
+            uint256 effectiveMultiplier,
+            uint256 effectiveLockUpPeriod,
+            uint256 timeUntilUnlock
+        ) = sapienVault.getUserStakingSummary(user1);
+
+        // All values should be zero
+        assertEq(userTotalStaked, 0, "Total staked should be 0");
+        assertEq(totalUnlocked, 0, "Total unlocked should be 0");
+        assertEq(totalLocked, 0, "Total locked should be 0");
+        assertEq(totalInCooldown, 0, "Total in cooldown should be 0");
+        assertEq(totalReadyForUnstake, 0, "Total ready for unstake should be 0");
+        assertEq(effectiveMultiplier, 0, "Effective multiplier should be 0");
+        assertEq(effectiveLockUpPeriod, 0, "Effective lockup period should be 0");
+        assertEq(timeUntilUnlock, 0, "Time until unlock should be 0");
+    }
+
+    function test_Vault_QAPenalty_CooldownConsistencyFix_EdgeCase_CooldownEqualsPenalty() public {
+        // Test edge case where cooldown amount equals penalty amount
+        uint256 stakeAmount = 1000e18;
+        uint256 cooldownAmount = 500e18;
+        uint256 penaltyAmount = 500e18; // Same as cooldown
+
+        // Setup
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        vm.prank(user1);
+        sapienVault.initiateUnstake(cooldownAmount);
+
+        // Apply penalty equal to cooldown amount
+        vm.prank(sapienQA);
+        uint256 actualPenalty = sapienVault.processQAPenalty(user1, penaltyAmount);
+
+        assertEq(actualPenalty, penaltyAmount, "Full penalty should be applied");
+
+        // Check final state
+        (uint256 finalTotalStaked,,, uint256 finalTotalInCooldown,,,,) = sapienVault.getUserStakingSummary(user1);
+
+        assertEq(finalTotalStaked, 500e18, "Should have 500 SAPIEN remaining");
+        assertEq(finalTotalInCooldown, 500e18, "All remaining should be in cooldown");
+
+        // Verify consistency
+        assertEq(finalTotalInCooldown, finalTotalStaked, "Cooldown should equal total stake");
+    }
+
+    // =============================================================================
+    // COOLDOWN CONSISTENCY VALIDATION TESTS
+    // =============================================================================
+
+    function test_Vault_CooldownConsistencyValidation_DirectCall() public {
+        // Test the internal validation function through a scenario that would trigger it
+        uint256 stakeAmount = 1000e18;
+
+        // Setup normal stake
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // The validation function is internal, but it's called during penalty application
+        // So we test it indirectly by ensuring consistent behavior
+
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        vm.prank(user1);
+        sapienVault.initiateUnstake(500e18);
+
+        // Apply penalty that would trigger validation
+        vm.prank(sapienQA);
+        sapienVault.processQAPenalty(user1, stakeAmount);
+
+        // If validation works, state should be consistent
+        (uint256 totalStaked,,, uint256 totalInCooldown,,,,) = sapienVault.getUserStakingSummary(user1);
+        assertTrue(totalInCooldown <= totalStaked, "Validation should ensure cooldown <= total");
+    }
+
+    function test_Vault_QAPenalty_CooldownFix_MultiplePartialPenalties() public {
+        // Test multiple partial penalties that gradually reduce stake below cooldown
+        uint256 stakeAmount = 1000e18;
+        uint256 cooldownAmount = 700e18;
+
+        // Setup
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        vm.prank(user1);
+        sapienVault.initiateUnstake(cooldownAmount);
+
+        // First penalty: 300 SAPIEN (stake becomes 700, cooldown stays 700)
+        vm.prank(sapienQA);
+        sapienVault.processQAPenalty(user1, 300e18);
+
+        (uint256 totalStaked1,,, uint256 totalInCooldown1,,,,) = sapienVault.getUserStakingSummary(user1);
+        assertEq(totalStaked1, 700e18, "After first penalty: 700 SAPIEN");
+        assertEq(totalInCooldown1, 700e18, "Cooldown should equal stake");
+
+        // Second penalty: 200 SAPIEN (stake becomes 500, cooldown should adjust to 500)
+        vm.expectEmit(true, false, false, true);
+        emit ISapienVault.QACooldownAdjusted(user1, 200e18);
+
+        vm.prank(sapienQA);
+        sapienVault.processQAPenalty(user1, 200e18);
+
+        (uint256 totalStaked2,,, uint256 totalInCooldown2,,,,) = sapienVault.getUserStakingSummary(user1);
+        assertEq(totalStaked2, 500e18, "After second penalty: 500 SAPIEN");
+        assertEq(totalInCooldown2, 500e18, "Cooldown should be adjusted to 500");
+    }
+
+    /**
+     * @notice Test the original failing scenario to show it's now fixed
+     */
+    function test_Vault_QAPenalty_OriginalIssueFixed() public {
+        uint256 stakeAmount = 1000e18;
+        uint256 cooldownAmount = 500e18;
+        uint256 penaltyAmount = 1000e18; // Full stake penalty
+
+        // Setup: User stakes and then initiates partial cooldown
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Wait for unlock
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        // Initiate cooldown for part of the stake
+        vm.prank(user1);
+        sapienVault.initiateUnstake(cooldownAmount);
+
+        // Apply QA penalty equal to the full staked amount
+        vm.prank(sapienQA);
+        uint256 actualPenalty = sapienVault.processQAPenalty(user1, penaltyAmount);
+
+        // Verify penalty was fully applied
+        assertEq(actualPenalty, penaltyAmount, "Full penalty should be applied");
+
+        // Check final state - FIXED BEHAVIOR
+        (uint256 finalTotalStaked,,, uint256 finalTotalInCooldown,,,,) = sapienVault.getUserStakingSummary(user1);
+
+        // FIXED: Both should be 0 for consistency (not the original bug of 0 and 500)
+        assertEq(finalTotalStaked, 0, "Primary stake should be reduced to 0");
+        assertEq(finalTotalInCooldown, 0, "Cooldown amount should be adjusted to 0 (FIXED)");
+
+        // This was the original issue - it would have been:
+        // assertEq(finalTotalStaked, 0, "Primary stake should be reduced to 0");
+        // assertEq(finalTotalInCooldown, 500e18, "Cooldown amount remains unchanged (BUG)");
+
+        console.log("Original issue FIXED:");
+        console.log("  Primary stake after penalty:", finalTotalStaked);
+        console.log("  Cooldown amount after penalty:", finalTotalInCooldown);
+        console.log("  Consistency maintained: cooldown <= total stake");
     }
 }

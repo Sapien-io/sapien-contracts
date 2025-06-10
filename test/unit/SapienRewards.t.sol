@@ -21,6 +21,7 @@ contract SapienRewardsTest is Test {
     address public admin = makeAddr("admin");
     address public rewardManager = makeAddr("rewardManager");
     address public rewardAdmin = makeAddr("rewardAdmin");
+    address public pauseManager = makeAddr("pauseManager");
     address public user1 = makeAddr("user1");
     address public user2 = makeAddr("user2");
     address public unauthorizedUser = makeAddr("unauthorizedUser");
@@ -52,7 +53,12 @@ contract SapienRewardsTest is Test {
 
         // Deploy proxy with initialization
         bytes memory initData = abi.encodeWithSelector(
-            SapienRewards.initialize.selector, admin, rewardManagerSigner, rewardAdmin, address(rewardToken)
+            SapienRewards.initialize.selector,
+            admin,
+            rewardManagerSigner,
+            pauseManager,
+            rewardAdmin,
+            address(rewardToken)
         );
         ERC1967Proxy sapienRewardsProxy = new ERC1967Proxy(address(sapienRewardsImpl), initData);
         sapienRewards = SapienRewards(address(sapienRewardsProxy));
@@ -73,14 +79,19 @@ contract SapienRewardsTest is Test {
         // Deploy new implementation and proxy for testing initialization
         SapienRewards newImpl = new SapienRewards();
         bytes memory initData = abi.encodeWithSelector(
-            SapienRewards.initialize.selector, admin, rewardManagerSigner, rewardAdmin, address(rewardToken)
+            SapienRewards.initialize.selector,
+            admin,
+            rewardManagerSigner,
+            makeAddr("pauseManager"),
+            rewardAdmin,
+            address(rewardToken)
         );
         ERC1967Proxy newProxy = new ERC1967Proxy(address(newImpl), initData);
         SapienRewards newContract = SapienRewards(address(newProxy));
 
         // Check roles
         assertTrue(newContract.hasRole(newContract.DEFAULT_ADMIN_ROLE(), admin));
-        assertTrue(newContract.hasRole(Const.PAUSER_ROLE, admin));
+        assertTrue(newContract.hasRole(Const.PAUSER_ROLE, makeAddr("pauseManager")));
         assertTrue(newContract.hasRole(Const.REWARD_ADMIN_ROLE, rewardAdmin));
         assertTrue(newContract.hasRole(Const.REWARD_MANAGER_ROLE, rewardManagerSigner));
 
@@ -96,28 +107,55 @@ contract SapienRewardsTest is Test {
 
         // Test zero admin
         bytes memory initData = abi.encodeWithSelector(
-            SapienRewards.initialize.selector, address(0), rewardManagerSigner, rewardAdmin, address(rewardToken)
+            SapienRewards.initialize.selector,
+            address(0),
+            rewardManagerSigner,
+            makeAddr("pauseManager"),
+            rewardAdmin,
+            address(rewardToken)
         );
         vm.expectRevert(ISapienRewards.ZeroAddress.selector);
         new ERC1967Proxy(address(newImpl), initData);
 
         // Test zero reward manager
         initData = abi.encodeWithSelector(
-            SapienRewards.initialize.selector, admin, address(0), rewardAdmin, address(rewardToken)
+            SapienRewards.initialize.selector,
+            admin,
+            address(0),
+            makeAddr("pauseManager"),
+            rewardAdmin,
+            address(rewardToken)
+        );
+        vm.expectRevert(ISapienRewards.ZeroAddress.selector);
+        new ERC1967Proxy(address(newImpl), initData);
+
+        // Test zero pause manager
+        initData = abi.encodeWithSelector(
+            SapienRewards.initialize.selector, admin, rewardManagerSigner, address(0), rewardAdmin, address(rewardToken)
         );
         vm.expectRevert(ISapienRewards.ZeroAddress.selector);
         new ERC1967Proxy(address(newImpl), initData);
 
         // Test zero reward safe
         initData = abi.encodeWithSelector(
-            SapienRewards.initialize.selector, admin, rewardManagerSigner, address(0), address(rewardToken)
+            SapienRewards.initialize.selector,
+            admin,
+            rewardManagerSigner,
+            makeAddr("pauseManager"),
+            address(0),
+            address(rewardToken)
         );
         vm.expectRevert(ISapienRewards.ZeroAddress.selector);
         new ERC1967Proxy(address(newImpl), initData);
 
         // Test zero reward token
         initData = abi.encodeWithSelector(
-            SapienRewards.initialize.selector, admin, rewardManagerSigner, rewardAdmin, address(0)
+            SapienRewards.initialize.selector,
+            admin,
+            rewardManagerSigner,
+            makeAddr("pauseManager"),
+            rewardAdmin,
+            address(0)
         );
         vm.expectRevert(ISapienRewards.ZeroAddress.selector);
         new ERC1967Proxy(address(newImpl), initData);
@@ -125,7 +163,9 @@ contract SapienRewardsTest is Test {
 
     function test_Rewards_CannotInitializeTwice() public {
         vm.expectRevert();
-        sapienRewards.initialize(admin, rewardManagerSigner, rewardAdmin, address(rewardToken));
+        sapienRewards.initialize(
+            admin, rewardManagerSigner, makeAddr("pauseManager"), rewardAdmin, address(rewardToken)
+        );
     }
 
     // ============================================
@@ -154,19 +194,19 @@ contract SapienRewardsTest is Test {
     }
 
     function test_Rewards_OnlyPauserCanPause() public {
-        vm.prank(admin);
+        vm.prank(pauseManager);
         sapienRewards.pause();
         assertTrue(sapienRewards.paused());
     }
 
     function test_Rewards_OnlyPauserCanUnpause() public {
         // First pause the contract
-        vm.prank(admin);
+        vm.prank(pauseManager);
         sapienRewards.pause();
         assertTrue(sapienRewards.paused());
 
         // Then unpause it
-        vm.prank(admin);
+        vm.prank(pauseManager);
         sapienRewards.unpause();
         assertFalse(sapienRewards.paused());
     }
@@ -185,7 +225,7 @@ contract SapienRewardsTest is Test {
 
     function test_Rewards_NonPauserCannotUnpause() public {
         // First pause the contract
-        vm.prank(admin);
+        vm.prank(pauseManager);
         sapienRewards.pause();
 
         // Unauthorized user cannot unpause
@@ -402,7 +442,7 @@ contract SapienRewardsTest is Test {
         vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
-        vm.prank(admin);
+        vm.prank(pauseManager);
         sapienRewards.pause();
 
         bytes memory signature = _createSignature(user1, REWARD_AMOUNT, ORDER_ID);
@@ -492,7 +532,7 @@ contract SapienRewardsTest is Test {
         vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
-        vm.prank(admin);
+        vm.prank(pauseManager);
         sapienRewards.pause();
 
         vm.prank(rewardManagerSigner);

@@ -56,8 +56,14 @@ contract SapienRewardsEndToEndTest is Test {
 
         // Deploy SapienRewards with proxy pattern
         SapienRewards sapienRewardsImpl = new SapienRewards();
-        bytes memory initData =
-            abi.encodeWithSelector(SapienRewards.initialize.selector, admin, manager1, rewardSafe, address(rewardToken));
+        bytes memory initData = abi.encodeWithSelector(
+            SapienRewards.initialize.selector,
+            admin,
+            manager1,
+            makeAddr("pauseManager"),
+            rewardSafe,
+            address(rewardToken)
+        );
         ERC1967Proxy sapienRewardsProxy = new ERC1967Proxy(address(sapienRewardsImpl), initData);
         sapienRewards = SapienRewards(address(sapienRewardsProxy));
 
@@ -311,7 +317,7 @@ contract SapienRewardsEndToEndTest is Test {
         console.log("Testing emergency scenarios...");
 
         // Scenario 1: Emergency pause during high activity
-        vm.prank(admin);
+        vm.prank(makeAddr("pauseManager"));
         sapienRewards.pause();
 
         // Verify claims are blocked
@@ -341,7 +347,7 @@ contract SapienRewardsEndToEndTest is Test {
         totalWithdrawn += recoveryAmount;
 
         // Scenario 5: Resume operations
-        vm.prank(admin);
+        vm.prank(makeAddr("pauseManager"));
         sapienRewards.unpause();
 
         // Verify normal operations resume

@@ -43,8 +43,13 @@ interface ISapienRewards {
     //  Functions
     // -------------------------------------------------------------
 
-    function initialize(address admin, address rewardManager, address rewardSafeAddress, address newRewardToken)
-        external;
+    function initialize(
+        address admin,
+        address rewardManager,
+        address pauseManager,
+        address rewardSafeAddress,
+        address newRewardToken
+    ) external;
 
     function pause() external;
     function unpause() external;

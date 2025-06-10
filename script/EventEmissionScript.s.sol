@@ -32,6 +32,7 @@ contract EventEmissionScript is Script {
     address public QA_MANAGER;
     address public QA_ADMIN;
     address public REWARDS_MANAGER;
+    address public PAUSE_MANAGER;
 
     // Anvil default private keys (accounts 0-9)
     uint256 public constant ADMIN_PRIVATE_KEY = 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a; // Account 2
@@ -89,6 +90,7 @@ contract EventEmissionScript is Script {
         QA_MANAGER = actors.qaManager;
         REWARDS_MANAGER = actors.rewardsManager;
         QA_ADMIN = actors.qaAdmin;
+        PAUSE_MANAGER = actors.pauseManager;
 
         // Setup contracts and users
         setupContracts();
@@ -160,8 +162,9 @@ contract EventEmissionScript is Script {
 
         // Deploy SapienVault implementation and proxy
         SapienVault vaultImpl = new SapienVault();
-        bytes memory vaultInitData =
-            abi.encodeWithSelector(SapienVault.initialize.selector, address(sapienToken), ADMIN, TREASURY, QA_MANAGER);
+        bytes memory vaultInitData = abi.encodeWithSelector(
+            SapienVault.initialize.selector, address(sapienToken), ADMIN, PAUSE_MANAGER, TREASURY, QA_MANAGER
+        );
         ERC1967Proxy vaultProxy = new ERC1967Proxy(address(vaultImpl), vaultInitData);
         sapienVault = SapienVault(address(vaultProxy));
 
@@ -171,7 +174,7 @@ contract EventEmissionScript is Script {
         // Deploy SapienRewards implementation and proxy
         SapienRewards rewardsImpl = new SapienRewards();
         bytes memory rewardsInitData = abi.encodeWithSelector(
-            SapienRewards.initialize.selector, ADMIN, REWARDS_MANAGER, TREASURY, address(sapienToken)
+            SapienRewards.initialize.selector, ADMIN, REWARDS_MANAGER, PAUSE_MANAGER, TREASURY, address(sapienToken)
         );
         ERC1967Proxy rewardsProxy = new ERC1967Proxy(address(rewardsImpl), rewardsInitData);
         sapienRewards = SapienRewards(address(rewardsProxy));

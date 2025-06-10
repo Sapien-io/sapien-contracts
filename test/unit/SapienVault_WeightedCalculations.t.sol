@@ -31,7 +31,12 @@ contract SapienVaultWeightedCalculationsTest is Test {
         SapienVault sapienVaultImpl = new SapienVault();
 
         bytes memory initData = abi.encodeWithSelector(
-            SapienVault.initialize.selector, address(sapienToken), admin, treasury, makeAddr("dummySapienQA")
+            SapienVault.initialize.selector,
+            address(sapienToken),
+            admin,
+            makeAddr("pauseManager"),
+            treasury,
+            makeAddr("dummySapienQA")
         );
         ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), initData);
         sapienVault = SapienVault(address(sapienVaultProxy));

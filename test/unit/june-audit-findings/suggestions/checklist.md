@@ -4,8 +4,9 @@
 - [x] Remove isValidLockupPeriod() function from Multiplier contract
 - [x] Add validation to Multiplier.interpolate() function
 - [x] Fix misleading T1_FACTOR - T5_FACTOR constants
-- [ ] Remove unused errors from IMultiplier interface
-- [ ] Use different address for PAUSER_ROLE in SapienVault
+- [x] Remove unused errors from IMultiplier interface
+    - The interface is no longer required.
+- [x] Use different address for PAUSER_ROLE in SapienVault
 - [ ] Remove parameters from MultiplierUpdated event
 - [ ] Remove address(0) check in SapienVault.stake()
 - [ ] Re-evaluate storage savings in UserStake struct

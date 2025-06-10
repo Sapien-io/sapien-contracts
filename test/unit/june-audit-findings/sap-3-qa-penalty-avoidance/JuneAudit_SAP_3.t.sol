@@ -38,6 +38,7 @@ contract JuneAudit_SAP_3 is Test {
             SapienVault.initialize.selector,
             address(sapienToken),
             admin,
+            makeAddr("pauseManager"),
             treasury,
             makeAddr("dummyQA") // Dummy QA address for testing
         );

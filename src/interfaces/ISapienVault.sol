@@ -42,11 +42,11 @@ interface ISapienVault {
     event EarlyUnstake(address indexed user, uint256 amount, uint256 penalty);
     event EarlyUnstakeCooldownInitiated(address indexed user, uint256 cooldownStart);
     event SapienTreasuryUpdated(address indexed newSapienTreasury);
-    event MultiplierUpdated(uint256 lockUpPeriod, uint256 multiplier);
     event EmergencyWithdraw(address indexed token, address indexed to, uint256 amount);
-    event QAPenaltyProcessed(address indexed user, uint256 amount, address qaContract);
-    event QAPenaltyPartial(address indexed user, uint256 requestedAmount, uint256 actualAmount);
+    event QAPenaltyProcessed(address indexed user, uint256 penaltyAmount, address indexed qaContract);
+    event QAPenaltyPartial(address indexed user, uint256 requestedPenalty, uint256 actualPenalty);
     event QAStakeReduced(address indexed user, uint256 fromActiveStake, uint256 fromCooldownStake);
+    event QACooldownAdjusted(address indexed user, uint256 adjustedAmount);
     event QAUserStakeReset(address indexed user);
 
     // -------------------------------------------------------------
@@ -83,13 +83,15 @@ interface ISapienVault {
     // Initialization Functions
     // -------------------------------------------------------------
 
-    function initialize(address token, address admin, address treasury, address sapienQA) external;
+    function initialize(address token, address admin, address pauseManager, address treasury, address sapienQA)
+        external;
 
     // -------------------------------------------------------------
     // Administrative Functions
     // -------------------------------------------------------------
 
     function PAUSER_ROLE() external view returns (bytes32);
+    function SAPIEN_QA_ROLE() external view returns (bytes32);
     function pause() external;
     function unpause() external;
     function setTreasury(address newTreasury) external;

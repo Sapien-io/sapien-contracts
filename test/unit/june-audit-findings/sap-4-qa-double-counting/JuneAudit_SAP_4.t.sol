@@ -28,8 +28,9 @@ contract SapienVault_QADoubleCountingTest is Test {
 
         // Deploy SapienVault with proxy
         SapienVault sapienVaultImpl = new SapienVault();
-        bytes memory initData =
-            abi.encodeWithSelector(SapienVault.initialize.selector, address(sapienToken), admin, treasury, qaContract);
+        bytes memory initData = abi.encodeWithSelector(
+            SapienVault.initialize.selector, address(sapienToken), admin, makeAddr("pauseManager"), treasury, qaContract
+        );
         ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), initData);
         sapienVault = SapienVault(address(sapienVaultProxy));
 
