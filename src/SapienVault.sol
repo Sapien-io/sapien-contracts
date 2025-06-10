@@ -405,11 +405,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         }
 
         // Use standardized expired stake handling
-        uint256 newWeightedStartTime = _calculateStandardizedWeightedStartTime(
-            userStake,
-            additionalAmount,
-            userStake.amount + additionalAmount
-        );
+        uint256 newWeightedStartTime =
+            _calculateStandardizedWeightedStartTime(userStake, additionalAmount, userStake.amount + additionalAmount);
 
         // Transfer tokens only after validation passes
         sapienToken.safeTransferFrom(msg.sender, address(this), additionalAmount);
@@ -422,8 +419,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         userStake.lastUpdateTime = block.timestamp.toUint64();
 
         // Recalculate linear weighted multiplier based on new total amount
-        userStake.effectiveMultiplier =
-            calculateMultiplier(newTotalAmount, userStake.effectiveLockUpPeriod).toUint32();
+        userStake.effectiveMultiplier = calculateMultiplier(newTotalAmount, userStake.effectiveLockUpPeriod).toUint32();
 
         totalStaked += additionalAmount;
 
@@ -450,7 +446,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         // Use standardized expired stake handling
         bool isExistingStakeExpired = _handleExpiredStakeCheck(userStake);
         uint256 newEffectiveLockup;
-        
+
         if (isExistingStakeExpired) {
             // Standardized expired stake handling - reset to new lockup period
             newEffectiveLockup = additionalLockup;
@@ -458,13 +454,12 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         } else {
             // Calculate remaining lockup time for active stakes
             uint256 timeElapsed = block.timestamp - userStake.weightedStartTime;
-            uint256 remainingLockup = userStake.effectiveLockUpPeriod > timeElapsed
-                ? userStake.effectiveLockUpPeriod - timeElapsed
-                : 0;
+            uint256 remainingLockup =
+                userStake.effectiveLockUpPeriod > timeElapsed ? userStake.effectiveLockUpPeriod - timeElapsed : 0;
 
             // New effective lockup is remaining time plus additional lockup
             newEffectiveLockup = remainingLockup + additionalLockup;
-            
+
             // Reset the weighted start time to now since we're extending lockup
             _resetExpiredStakeStartTime(userStake);
         }
@@ -696,14 +691,14 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         // Use standardized expired stake handling
         bool isExistingStakeExpired = _handleExpiredStakeCheck(userStake);
-        
+
         WeightedValues memory newValues;
-        
+
         if (isExistingStakeExpired) {
             // Standardized expired stake handling
             newValues.weightedStartTime = block.timestamp;
             newValues.effectiveLockup = lockUpPeriod;
-            
+
             // Ensure lockup period doesn't exceed maximum
             if (newValues.effectiveLockup > Const.LOCKUP_365_DAYS) {
                 newValues.effectiveLockup = Const.LOCKUP_365_DAYS;
@@ -977,7 +972,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
     /**
      * @notice Calculates weighted start time for stake operations, handling expired stakes consistently
-     * @param userStake The user stake storage reference  
+     * @param userStake The user stake storage reference
      * @param newAmount Additional amount being added (0 for lockup increases)
      * @param totalAmount Total amount after operation
      * @return newWeightedStartTime The calculated or reset weighted start time
@@ -990,17 +985,14 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         uint256 totalAmount
     ) private view returns (uint256 newWeightedStartTime) {
         bool isExpired = _handleExpiredStakeCheck(userStake);
-        
+
         if (isExpired) {
             // Reset to current timestamp for expired stakes
             newWeightedStartTime = block.timestamp;
         } else {
             // Calculate weighted start time for active stakes
             newWeightedStartTime = _calculateWeightedStartTime(
-                uint256(userStake.weightedStartTime),
-                uint256(userStake.amount),
-                newAmount,
-                totalAmount
+                uint256(userStake.weightedStartTime), uint256(userStake.amount), newAmount, totalAmount
             );
         }
     }

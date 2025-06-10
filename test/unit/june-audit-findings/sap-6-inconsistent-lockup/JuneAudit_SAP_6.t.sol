@@ -11,18 +11,18 @@ import {Constants as Const} from "src/utils/Constants.sol";
 /**
  * @title JuneAudit SAP-6: Inconsistent Lockup Period Calculation Test
  * @dev Tests for the fix to the inconsistent lockup period calculation issue (SAP-6)
- * 
+ *
  * ISSUE DESCRIPTION:
  * The SapienVault contract exhibited an inconsistency in the effectiveLockupPeriod calculation methodology.
- * When users stake multiple times, the contract calculates a new weighted start time and a new weighted 
- * effective lockup period. When users increase their stake amount, the contract calculates a new weighted 
- * start time. However, the increaseLockup() function bypassed this weighted calculation for a new lockup 
+ * When users stake multiple times, the contract calculates a new weighted start time and a new weighted
+ * effective lockup period. When users increase their stake amount, the contract calculates a new weighted
+ * start time. However, the increaseLockup() function bypassed this weighted calculation for a new lockup
  * period, and instead used a direct addition of the remaining lockup time and the additional lockup period.
- * 
- * This inconsistency allowed users to game the system by strategically choosing whether to add new stakes 
- * or increase lockup on existing stakes to get the shortest lockup period, as the mathematical approach 
+ *
+ * This inconsistency allowed users to game the system by strategically choosing whether to add new stakes
+ * or increase lockup on existing stakes to get the shortest lockup period, as the mathematical approach
  * differed between these operations.
- * 
+ *
  * FIX IMPLEMENTED:
  * - Standardized expired stake handling across all operations (stake, increaseAmount, increaseLockup)
  * - Added centralized helper functions for consistent behavior
@@ -106,7 +106,7 @@ contract JuneAudit_SAP_6_Test is Test {
         (,,,,,,, uint256 timeUntilUnlock1) = sapienVault.getUserStakingSummary(user1);
         (,,,,,,, uint256 timeUntilUnlock2) = sapienVault.getUserStakingSummary(user2);
         (,,,,,,, uint256 timeUntilUnlock3) = sapienVault.getUserStakingSummary(user3);
-        
+
         assertEq(timeUntilUnlock1, 0, "User1 stake should be expired");
         assertEq(timeUntilUnlock2, 0, "User2 stake should be expired");
         assertEq(timeUntilUnlock3, 0, "User3 stake should be expired");
@@ -137,9 +137,9 @@ contract JuneAudit_SAP_6_Test is Test {
                 , // lastUpdateTime
                 , // earlyUnstakeCooldownStart
                 , // effectiveMultiplier
-                // hasStake
+                    // hasStake
             ) = sapienVault.userStakes(user1);
-            
+
             assertEq(amount, stakeAmount + additionalAmount, "User1 should have combined stake amount");
             assertEq(effectiveLockup, additionalLockup, "User1 effective lockup should be new lockup period");
         }
@@ -156,9 +156,9 @@ contract JuneAudit_SAP_6_Test is Test {
                 , // lastUpdateTime
                 , // earlyUnstakeCooldownStart
                 , // effectiveMultiplier
-                // hasStake
+                    // hasStake
             ) = sapienVault.userStakes(user2);
-            
+
             user2WeightedStart = weightedStart;
             assertEq(amount, stakeAmount + additionalAmount, "User2 should have combined stake amount");
             assertEq(effectiveLockup, lockupPeriod, "User2 effective lockup should be original lockup period");
@@ -175,12 +175,12 @@ contract JuneAudit_SAP_6_Test is Test {
                 , // lastUpdateTime
                 , // earlyUnstakeCooldownStart
                 , // effectiveMultiplier
-                // hasStake
+                    // hasStake
             ) = sapienVault.userStakes(user3);
-            
+
             assertEq(amount, stakeAmount, "User3 should have original stake amount");
             assertEq(effectiveLockup, additionalLockup, "User3 effective lockup should be additional lockup period");
-            
+
             // All users should have similar weighted start times (reset to current timestamp)
             // Note: We compare user2 and user3 as they should be very close in time
             assertEq(user2WeightedStart, weightedStart, "User2 and User3 should have same weighted start time");
@@ -200,7 +200,7 @@ contract JuneAudit_SAP_6_Test is Test {
         // This test documents the issue that existed before the fix
         // Before the fix, increaseLockup() would not reset weighted start time for expired stakes
         // while stake() and increaseAmount() would reset it, creating an inconsistency
-        
+
         uint256 stakeAmount = MINIMUM_STAKE;
         uint256 lockupPeriod = LOCK_30_DAYS;
         uint256 additionalLockup = LOCK_30_DAYS;
@@ -212,7 +212,7 @@ contract JuneAudit_SAP_6_Test is Test {
         vm.stopPrank();
 
         // Record initial weighted start time
-        (, , uint256 initialWeightedStart, , , , , , ) = sapienVault.userStakes(user1);
+        (,, uint256 initialWeightedStart,,,,,,) = sapienVault.userStakes(user1);
 
         // Fast forward to expire the stake
         vm.warp(block.timestamp + lockupPeriod + 1);
@@ -227,12 +227,12 @@ contract JuneAudit_SAP_6_Test is Test {
         vm.stopPrank();
 
         // After the fix, weighted start time should be reset to current timestamp
-        (, , uint256 newWeightedStart, uint256 newLockup, , , , , ) = sapienVault.userStakes(user1);
-        
+        (,, uint256 newWeightedStart, uint256 newLockup,,,,,) = sapienVault.userStakes(user1);
+
         // With the fix: weighted start time should be reset (different from initial)
         assertGt(newWeightedStart, initialWeightedStart, "Weighted start time should be reset for expired stakes");
         assertEq(newLockup, additionalLockup, "New lockup should be the additional lockup period");
-        
+
         // This demonstrates that the fix ensures consistent behavior across all operations
     }
 
@@ -277,8 +277,8 @@ contract JuneAudit_SAP_6_Test is Test {
         vm.stopPrank();
 
         // Get final lockup periods
-        (, , , uint256 gamer1Lockup, , , , , ) = sapienVault.userStakes(gamer1);
-        (, , , uint256 gamer2Lockup, , , , , ) = sapienVault.userStakes(gamer2);
+        (,,, uint256 gamer1Lockup,,,,,) = sapienVault.userStakes(gamer1);
+        (,,, uint256 gamer2Lockup,,,,,) = sapienVault.userStakes(gamer2);
 
         // With the fix, both should have predictable and consistent lockup periods
         assertEq(gamer1Lockup, shortLockup, "Gamer1 should get new short lockup for expired stake");
@@ -287,4 +287,4 @@ contract JuneAudit_SAP_6_Test is Test {
         // Both users get the same result - no gaming advantage
         assertEq(gamer1Lockup, gamer2Lockup, "Both approaches should yield identical results");
     }
-} 
+}
