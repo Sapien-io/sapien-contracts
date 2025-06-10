@@ -160,7 +160,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param amount The amount to withdraw
      * @dev This function should only be used in emergency situations where contract is compromised
      */
-    function emergencyWithdraw(address token, address to, uint256 amount) external onlyAdmin whenPaused {
+    function emergencyWithdraw(address token, address to, uint256 amount) external onlyAdmin whenPaused nonReentrant {
         if (to == address(0)) revert ZeroAddress();
 
         if (token == address(0)) {
