@@ -215,11 +215,6 @@ contract SapienQA is ISapienQA, AccessControl, EIP712 {
     function _setupRoles(address qaManager, address admin) private {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(Const.QA_MANAGER_ROLE, qaManager);
-
-        // Only revoke DEFAULT_ADMIN_ROLE from deployer if it's different from admin
-        if (msg.sender != admin) {
-            _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        }
     }
 
     /**

@@ -124,7 +124,6 @@ contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgr
 
         // Store initial chain ID for fork detection
         initialChainId = block.chainid;
-
         rewardToken = IERC20(newRewardToken);
     }
 

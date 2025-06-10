@@ -22,7 +22,7 @@ library Constants {
     // -------------------------------------------------------------
 
     /// @notice Role for the default admin
-    bytes32 internal constant DEFAULT_ADMIN_ROLE = keccak256("DEFAULT_ADMIN_ROLE");
+    bytes32 internal constant DEFAULT_ADMIN_ROLE = 0x0000000000000000000000000000000000000000000000000000000000000000;
 
     /// @notice Role for pausing/unpausing the contract
     bytes32 internal constant PAUSER_ROLE = keccak256("PAUSER_ROLE");

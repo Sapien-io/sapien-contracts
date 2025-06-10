@@ -30,7 +30,10 @@ contract DeployVault is Script {
             contracts.sapienQA
         );
 
-        // NOTE: revoke default msg.sender from DEFAULT_ADMIN_ROLE after configured.
+        // NOTE: POST-DEPLOY, 
+        // 1. revoke default msg.sender from DEFAULT_ADMIN_ROLE after configured.
+        // 2. grant DEFAULT_ADMIN_ROLE to timelock.
+        // 3. grant SAPIEN_QA_ROLE to SapienQA contract.
 
         // Deploy the proxy with initialization
         TUP vaultProxy = new TUP(address(vaultImpl), contracts.timelock, initData);
