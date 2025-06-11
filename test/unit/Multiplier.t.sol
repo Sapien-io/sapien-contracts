@@ -19,7 +19,7 @@ contract MultiplierTest is Test {
 
     // Test constants
     uint256 public constant TOKEN_DECIMALS = 10 ** 18;
-    uint256 public constant MINIMUM_STAKE = 1000 * TOKEN_DECIMALS;
+    uint256 public constant MINIMUM_STAKE = 250 * TOKEN_DECIMALS;
 
     // Duration constants
     uint256 public constant LOCK_30_DAYS = 30 days;
@@ -58,11 +58,11 @@ contract MultiplierTest is Test {
     function test_Multiplier_CalculateMultiplier_ExactDiscretePeriods() public pure {
         uint256 amount = MINIMUM_STAKE;
 
-        // Test exact discrete periods with minimum stake (1000 tokens = Tier 1)
-        assertEq(Multiplier.calculateMultiplier(amount, LOCK_30_DAYS), 11400); // 1.14x (1.05x + 0.09x tier bonus)
-        assertEq(Multiplier.calculateMultiplier(amount, LOCK_90_DAYS), 11900); // 1.19x (1.10x + 0.09x tier bonus)
-        assertEq(Multiplier.calculateMultiplier(amount, LOCK_180_DAYS), 13400); // 1.34x (1.25x + 0.09x tier bonus)
-        assertEq(Multiplier.calculateMultiplier(amount, LOCK_365_DAYS), 15900); // 1.59x (1.50x + 0.09x tier bonus)
+        // Test exact discrete periods with minimum stake (250 tokens = Tier 0)
+        assertEq(Multiplier.calculateMultiplier(amount, LOCK_30_DAYS), 10500); // 1.05x (1.05x + 0.00x tier bonus)
+        assertEq(Multiplier.calculateMultiplier(amount, LOCK_90_DAYS), 11000); // 1.10x (1.10x + 0.00x tier bonus)
+        assertEq(Multiplier.calculateMultiplier(amount, LOCK_180_DAYS), 12500); // 1.25x (1.25x + 0.00x tier bonus)
+        assertEq(Multiplier.calculateMultiplier(amount, LOCK_365_DAYS), 15000); // 1.50x (1.50x + 0.00x tier bonus)
     }
 
     function test_Multiplier_CalculateMultiplier_AmountTiers() public pure {
@@ -115,11 +115,11 @@ contract MultiplierTest is Test {
         uint256 amount = MINIMUM_STAKE; // Use minimum to isolate duration effect
 
         // Test interpolation at 60 days (midpoint between 30 and 90)
-        uint256 expected = 11400 + ((60 days - 30 days) * (11900 - 11400)) / (90 days - 30 days);
+        uint256 expected = 10500 + ((60 days - 30 days) * (11000 - 10500)) / (90 days - 30 days);
         assertEq(Multiplier.calculateMultiplier(amount, 60 days), expected);
 
         // Test at 45 days (1/4 between 30 and 90)
-        expected = 11400 + ((45 days - 30 days) * (11900 - 11400)) / (90 days - 30 days);
+        expected = 10500 + ((45 days - 30 days) * (11000 - 10500)) / (90 days - 30 days);
         assertEq(Multiplier.calculateMultiplier(amount, 45 days), expected);
     }
 
@@ -127,7 +127,7 @@ contract MultiplierTest is Test {
         uint256 amount = MINIMUM_STAKE;
 
         // Test interpolation at 135 days (midpoint between 90 and 180)
-        uint256 expected = 11900 + ((135 days - 90 days) * (13400 - 11900)) / (180 days - 90 days);
+        uint256 expected = 11000 + ((135 days - 90 days) * (12500 - 11000)) / (180 days - 90 days);
         assertEq(Multiplier.calculateMultiplier(amount, 135 days), expected);
     }
 
@@ -136,7 +136,7 @@ contract MultiplierTest is Test {
 
         // Test interpolation at 272.5 days (midpoint between 180 and 365)
         uint256 midpoint = 180 days + (365 days - 180 days) / 2;
-        uint256 expected = 13400 + ((midpoint - 180 days) * (15900 - 13400)) / (365 days - 180 days);
+        uint256 expected = 12500 + ((midpoint - 180 days) * (15000 - 12500)) / (365 days - 180 days);
         assertEq(Multiplier.calculateMultiplier(amount, midpoint), expected);
     }
 
@@ -350,18 +350,18 @@ contract MultiplierTest is Test {
         vm.expectRevert(ISapienVault.MinimumStakeAmountRequired.selector);
         Multiplier.calculateMultiplier(oneToken, lockup);
 
-        // Test 999 tokens (below 1000 threshold) - this should also revert from calculateMultiplier
-        uint256 tokens999 = 999 * TOKEN_DECIMALS;
+        // Test 249 tokens (below 250 threshold) - this should also revert from calculateMultiplier
+        uint256 tokens249 = 249 * TOKEN_DECIMALS;
         vm.expectRevert(ISapienVault.MinimumStakeAmountRequired.selector);
-        Multiplier.calculateMultiplier(tokens999, lockup);
+        Multiplier.calculateMultiplier(tokens249, lockup);
 
-        // Test exactly 1000 tokens (at threshold) - should get Tier 1 treatment
-        uint256 tokens1000 = 1000 * TOKEN_DECIMALS;
-        uint256 result = Multiplier.calculateMultiplier(tokens1000, lockup);
-        assertGt(result, 0, "1000 tokens should return positive multiplier");
+        // Test exactly 250 tokens (at threshold) - should get Tier 0 treatment
+        uint256 tokens250 = 250 * TOKEN_DECIMALS;
+        uint256 result = Multiplier.calculateMultiplier(tokens250, lockup);
+        assertGt(result, 0, "250 tokens should return positive multiplier");
 
-        // The 1000 token result should be base (10500) + tier 1 bonus (900) = 11400
-        assertEq(result, 11400, "1000 tokens should get Tier 1 multiplier (1.14x)");
+        // The 250 token result should be base (10500) + tier 0 bonus (0) = 10500
+        assertEq(result, 10500, "250 tokens should get Tier 0 multiplier (1.05x)");
     }
 
     function test_Multiplier_GetAmountTierFactor_DirectCall() public view {

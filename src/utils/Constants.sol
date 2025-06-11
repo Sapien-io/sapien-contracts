@@ -114,7 +114,7 @@ library Constants {
     uint256 internal constant TIER_5_THRESHOLD = 10000; // 10,000 tokens
 
     /// @notice Minimum stake amount (1,000 tokens)
-    uint256 internal constant MINIMUM_STAKE_AMOUNT = 1000 * TOKEN_DECIMALS;
+    uint256 internal constant MINIMUM_STAKE_AMOUNT = 250 * TOKEN_DECIMALS;
 
     /// @notice Maximum stake amount (10,000,000 tokens)
     uint256 internal constant MAXIMUM_STAKE_AMOUNT = 10_000_000 * TOKEN_DECIMALS;

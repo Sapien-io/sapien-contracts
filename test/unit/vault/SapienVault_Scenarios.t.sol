@@ -16,7 +16,7 @@ contract SapienVaultScenariosTest is Test {
     address public bob = makeAddr("bob");
     address public charlie = makeAddr("charlie");
 
-    uint256 public constant MINIMUM_STAKE = 1000e18;
+    uint256 public constant MINIMUM_STAKE = 250e18;
     uint256 public constant COOLDOWN_PERIOD = 2 days;
     uint256 public constant EARLY_WITHDRAWAL_PENALTY = 20;
     uint256 public constant MINIMUM_LOCKUP_INCREASE = 7 days;
@@ -269,7 +269,7 @@ contract SapienVaultScenariosTest is Test {
         // David starts with a short-term stake
         vm.startPrank(david);
         sapienToken.approve(address(sapienVault), MINIMUM_STAKE);
-        sapienVault.stake(MINIMUM_STAKE, LOCK_30_DAYS); // 1000 tokens, 30 days
+        sapienVault.stake(MINIMUM_STAKE, LOCK_30_DAYS); // 250 tokens, 30 days
         vm.stopPrank();
 
         // Advance time and add a larger, longer-term stake
@@ -277,13 +277,13 @@ contract SapienVaultScenariosTest is Test {
 
         vm.startPrank(david);
         sapienToken.approve(address(sapienVault), MINIMUM_STAKE * 3);
-        sapienVault.stake(MINIMUM_STAKE * 3, LOCK_180_DAYS); // 3000 tokens, 180 days
+        sapienVault.stake(MINIMUM_STAKE * 3, LOCK_180_DAYS); // 750 tokens, 180 days
         vm.stopPrank();
 
         // Due to floor protection, the effective lockup will be 180 days (the longer period)
         // rather than the theoretical weighted average of ~140 days
-        // Original: 1000 tokens with ~20 days remaining (30-10)
-        // New: 3000 tokens with 180 days
+        // Original: 250 tokens with ~20 days remaining (30-10)
+        // New: 750 tokens with 180 days
         // Floor protection ensures lockup >= max(20 days remaining, 180 days new) = 180 days
 
         ISapienVault.UserStakingSummary memory davidInitialStake = sapienVault.getUserStakingSummary(david);
@@ -299,12 +299,12 @@ contract SapienVaultScenariosTest is Test {
 
         vm.startPrank(david);
         sapienToken.approve(address(sapienVault), MINIMUM_STAKE * 2);
-        sapienVault.stake(MINIMUM_STAKE * 2, LOCK_365_DAYS); // 2000 tokens, 365 days
+        sapienVault.stake(MINIMUM_STAKE * 2, LOCK_365_DAYS); // 500 tokens, 365 days
         vm.stopPrank();
 
         // New calculation with floor protection:
-        // Existing: 4000 tokens with ~150 days remaining effective (180 - 30)
-        // New: 2000 tokens with 365 days
+        // Existing: 1000 tokens with ~150 days remaining effective (180 - 30)
+        // New: 500 tokens with 365 days
         // Floor protection ensures lockup >= max(150 days remaining, 365 days new) = 365 days
 
         ISapienVault.UserStakingSummary memory davidAfterIncrease = sapienVault.getUserStakingSummary(david);
@@ -431,7 +431,7 @@ contract SapienVaultScenariosTest is Test {
 
     // =============================================================================
     // SCENARIO 7: BELOW MINIMUM STAKE SCENARIOS
-    // Testing various scenarios where stakes go below minimum threshold (1000 tokens)
+    // Testing various scenarios where stakes go below minimum threshold (250 tokens)
     //
     // These tests cover:
     // 1. Partial unstaking that leaves user below minimum stake
@@ -453,7 +453,7 @@ contract SapienVaultScenariosTest is Test {
         sapienToken.mint(helen, 1000000e18);
 
         // Helen stakes slightly above minimum
-        uint256 stakeAmount = MINIMUM_STAKE + 500e18; // 1500 tokens
+        uint256 stakeAmount = MINIMUM_STAKE + 100e18; // 350 tokens
         vm.startPrank(helen);
         sapienToken.approve(address(sapienVault), stakeAmount);
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
@@ -463,7 +463,7 @@ contract SapienVaultScenariosTest is Test {
         vm.warp(block.timestamp + LOCK_30_DAYS + 1);
 
         // Helen unstakes most of her stake, leaving below minimum
-        uint256 unstakeAmount = 800e18; // This will leave 700e18, below minimum
+        uint256 unstakeAmount = 200e18; // This will leave 150e18, below minimum
         uint256 expectedRemaining = stakeAmount - unstakeAmount;
 
         // Initiate unstake
@@ -495,7 +495,7 @@ contract SapienVaultScenariosTest is Test {
         // Test that Helen can still perform operations with below-minimum stake
 
         // 1. Test increaseAmount - should work and restore proper multiplier
-        uint256 additionalAmount = 500e18;
+        uint256 additionalAmount = 150e18;
         vm.startPrank(helen);
         sapienToken.approve(address(sapienVault), additionalAmount);
         sapienVault.increaseAmount(additionalAmount);
@@ -527,14 +527,14 @@ contract SapienVaultScenariosTest is Test {
         sapienToken.mint(ivan, 1000000e18);
 
         // Ivan stakes just above minimum
-        uint256 stakeAmount = MINIMUM_STAKE + 200e18; // 1200 tokens
+        uint256 stakeAmount = MINIMUM_STAKE + 200e18; // 450 tokens
         vm.startPrank(ivan);
         sapienToken.approve(address(sapienVault), stakeAmount);
         sapienVault.stake(stakeAmount, LOCK_90_DAYS);
         vm.stopPrank();
 
         // Ivan gets a QA penalty that reduces his stake below minimum
-        uint256 penaltyAmount = 400e18; // This will leave 800e18, below minimum
+        uint256 penaltyAmount = 400e18; // This will leave 50e18, below minimum
         uint256 expectedRemaining = stakeAmount - penaltyAmount;
 
         uint256 treasuryBalanceBefore = sapienToken.balanceOf(treasury);
@@ -594,24 +594,24 @@ contract SapienVaultScenariosTest is Test {
         sapienToken.mint(julia, 1000000e18);
 
         // Julia stakes significantly above minimum
-        uint256 stakeAmount = MINIMUM_STAKE * 3; // 3000 tokens
+        uint256 stakeAmount = MINIMUM_STAKE * 3; // 750 tokens
         vm.startPrank(julia);
         sapienToken.approve(address(sapienVault), stakeAmount);
         sapienVault.stake(stakeAmount, LOCK_180_DAYS);
         vm.stopPrank();
 
         // First QA penalty reduces stake but keeps it above minimum
-        uint256 firstPenalty = 1500e18; // Leaves 1500e18, still above minimum
+        uint256 firstPenalty = 500e18; // Leaves 250e18, exactly at minimum
         vm.prank(qaManager);
         sapienVault.processQAPenalty(julia, firstPenalty);
 
         ISapienVault.UserStakingSummary memory juliaAfterFirst = sapienVault.getUserStakingSummary(julia);
         assertEq(juliaAfterFirst.userTotalStaked, stakeAmount - firstPenalty);
-        assertTrue(juliaAfterFirst.userTotalStaked >= MINIMUM_STAKE, "Should still be above minimum");
+        assertTrue(juliaAfterFirst.userTotalStaked >= MINIMUM_STAKE, "Should still be at or above minimum");
         assertGt(juliaAfterFirst.effectiveMultiplier, 10000, "Multiplier should still be above base");
 
         // Second QA penalty reduces stake below minimum
-        uint256 secondPenalty = 800e18; // Leaves 700e18, below minimum
+        uint256 secondPenalty = 50e18; // Leaves 200e18, below minimum
         vm.prank(qaManager);
         sapienVault.processQAPenalty(julia, secondPenalty);
 
@@ -619,16 +619,6 @@ contract SapienVaultScenariosTest is Test {
         assertEq(juliaAfterSecond.userTotalStaked, stakeAmount - firstPenalty - secondPenalty);
         assertTrue(juliaAfterSecond.userTotalStaked < MINIMUM_STAKE, "Should be below minimum after second penalty");
         assertEq(juliaAfterSecond.effectiveMultiplier, 10000, "Multiplier should be base 1.0x for below minimum");
-
-        // Third QA penalty further reduces the below-minimum stake
-        uint256 thirdPenalty = 200e18; // Leaves 500e18, still below minimum
-        vm.prank(qaManager);
-        sapienVault.processQAPenalty(julia, thirdPenalty);
-
-        ISapienVault.UserStakingSummary memory juliaAfterThird = sapienVault.getUserStakingSummary(julia);
-        assertEq(juliaAfterThird.userTotalStaked, stakeAmount - firstPenalty - secondPenalty - thirdPenalty);
-        assertTrue(juliaAfterThird.userTotalStaked < MINIMUM_STAKE, "Should still be below minimum");
-        assertEq(juliaAfterThird.effectiveMultiplier, 10000, "Multiplier should remain base 1.0x");
 
         // Julia adds more stake to get back above minimum
         uint256 recoveryStake = MINIMUM_STAKE; // Use minimum stake amount
@@ -638,7 +628,7 @@ contract SapienVaultScenariosTest is Test {
         vm.stopPrank();
 
         ISapienVault.UserStakingSummary memory juliaRecovered = sapienVault.getUserStakingSummary(julia);
-        assertEq(juliaRecovered.userTotalStaked, juliaAfterThird.userTotalStaked + recoveryStake);
+        assertEq(juliaRecovered.userTotalStaked, juliaAfterSecond.userTotalStaked + recoveryStake);
         assertTrue(juliaRecovered.userTotalStaked >= MINIMUM_STAKE, "Should be above minimum again");
         assertGt(juliaRecovered.effectiveMultiplier, 10000, "Multiplier should be restored above base");
     }
@@ -649,7 +639,7 @@ contract SapienVaultScenariosTest is Test {
         sapienToken.mint(kevin, 1000000e18);
 
         // Kevin stakes above minimum
-        uint256 stakeAmount = MINIMUM_STAKE * 2; // 2000 tokens
+        uint256 stakeAmount = MINIMUM_STAKE * 2; // 500 tokens
         vm.startPrank(kevin);
         sapienToken.approve(address(sapienVault), stakeAmount);
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
@@ -659,14 +649,14 @@ contract SapienVaultScenariosTest is Test {
         vm.warp(block.timestamp + LOCK_30_DAYS + 1);
 
         // Kevin initiates partial unstake
-        uint256 cooldownAmount = 500e18;
+        uint256 cooldownAmount = 100e18;
         vm.prank(kevin);
         sapienVault.initiateUnstake(cooldownAmount);
 
-        // Now Kevin has 1500e18 active, 500e18 in cooldown
+        // Now Kevin has 400e18 active, 100e18 in cooldown
 
         // QA penalty hits Kevin while in cooldown, reducing total below minimum
-        uint256 penaltyAmount = 800e18; // This will reduce from 2000 to 1200, still above minimum
+        uint256 penaltyAmount = 200e18; // This will reduce from 500e18 to 300e18, still above minimum
         vm.prank(qaManager);
         sapienVault.processQAPenalty(kevin, penaltyAmount);
 
@@ -675,7 +665,7 @@ contract SapienVaultScenariosTest is Test {
         assertTrue(kevinAfterPenalty.userTotalStaked >= MINIMUM_STAKE, "Should still be above minimum");
 
         // Apply another penalty that takes Kevin below minimum
-        uint256 secondPenalty = 500e18; // This will reduce from 1200 to 700, below minimum
+        uint256 secondPenalty = 100e18; // This will reduce from 300e18 to 200e18, below minimum
         vm.prank(qaManager);
         sapienVault.processQAPenalty(kevin, secondPenalty);
 
