@@ -418,4 +418,329 @@ contract SapienVaultScenariosTest is Test {
         assertEq(frankFinalStake.userTotalStaked, MINIMUM_STAKE * 20, "Frank's remaining stake should be reduced");
         assertEq(sapienVault.totalStaked(), MINIMUM_STAKE * 28, "Total should be sum of both stakes");
     }
+
+    // =============================================================================
+    // SCENARIO 7: BELOW MINIMUM STAKE SCENARIOS
+    // Testing various scenarios where stakes go below minimum threshold (1000 tokens)
+    //
+    // These tests cover:
+    // 1. Partial unstaking that leaves user below minimum stake
+    // 2. QA penalties that reduce stakes below minimum
+    // 3. Multiple sequential QA penalties on below-minimum stakes
+    // 4. QA penalties interacting with cooldown states
+    // 5. Complete stake wipeout and recovery scenarios
+    //
+    // Key behaviors tested:
+    // - Stakes can go below minimum through unstaking or penalties
+    // - QA penalties set multiplier to 1.0x for below-minimum stakes
+    // - Voluntary unstaking preserves original multiplier calculation
+    // - All vault functions still work with below-minimum stakes
+    // - Users can recover by adding more stake to get above minimum
+    // =============================================================================
+
+    function test_Vault_Scenario_PartialUnstakeBelowMinimum() public {
+        address helen = makeAddr("helen");
+        sapienToken.mint(helen, 1000000e18);
+
+        // Helen stakes slightly above minimum
+        uint256 stakeAmount = MINIMUM_STAKE + 500e18; // 1500 tokens
+        vm.startPrank(helen);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Wait for unlock
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        // Helen unstakes most of her stake, leaving below minimum
+        uint256 unstakeAmount = 800e18; // This will leave 700e18, below minimum
+        uint256 expectedRemaining = stakeAmount - unstakeAmount;
+
+        // Initiate unstake
+        vm.prank(helen);
+        sapienVault.initiateUnstake(unstakeAmount);
+
+        // Complete cooldown
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+
+        uint256 helenBalanceBefore = sapienToken.balanceOf(helen);
+
+        // Complete unstake
+        vm.prank(helen);
+        sapienVault.unstake(unstakeAmount);
+
+        // Verify Helen received the tokens
+        assertEq(sapienToken.balanceOf(helen), helenBalanceBefore + unstakeAmount);
+
+        // Verify remaining stake is below minimum but still active
+        ISapienVault.UserStakingSummary memory helenStake = sapienVault.getUserStakingSummary(helen);
+        assertEq(helenStake.userTotalStaked, expectedRemaining);
+        assertTrue(helenStake.userTotalStaked < MINIMUM_STAKE, "Remaining stake should be below minimum");
+        assertTrue(sapienVault.hasActiveStake(helen), "Helen should still have active stake");
+
+        // Verify multiplier is still calculated normally for voluntary unstaking (not penalty)
+        // The multiplier reduction to base only happens for QA penalties, not user unstaking
+        assertGt(helenStake.effectiveMultiplier, 10000, "Multiplier should still be above base for voluntary unstaking");
+
+        // Test that Helen can still perform operations with below-minimum stake
+
+        // 1. Test increaseAmount - should work and restore proper multiplier
+        uint256 additionalAmount = 500e18;
+        vm.startPrank(helen);
+        sapienToken.approve(address(sapienVault), additionalAmount);
+        sapienVault.increaseAmount(additionalAmount);
+        vm.stopPrank();
+
+        ISapienVault.UserStakingSummary memory helenAfterIncrease = sapienVault.getUserStakingSummary(helen);
+        assertEq(helenAfterIncrease.userTotalStaked, expectedRemaining + additionalAmount);
+        assertTrue(helenAfterIncrease.userTotalStaked >= MINIMUM_STAKE, "Stake should be above minimum again");
+        assertGt(helenAfterIncrease.effectiveMultiplier, 10000, "Multiplier should be restored above base");
+
+        // 2. Test that Helen can still stake additional amounts (creating a new combined stake)
+        uint256 newStakeAmount = MINIMUM_STAKE;
+        vm.startPrank(helen);
+        sapienToken.approve(address(sapienVault), newStakeAmount);
+        sapienVault.stake(newStakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        ISapienVault.UserStakingSummary memory helenAfterNewStake = sapienVault.getUserStakingSummary(helen);
+        assertEq(helenAfterNewStake.userTotalStaked, helenAfterIncrease.userTotalStaked + newStakeAmount);
+
+        // 3. Test that system validates below-minimum scenarios correctly
+        // This verifies the logic handles the below-minimum case properly
+        assertTrue(helenAfterNewStake.userTotalStaked > MINIMUM_STAKE, "Total stake should be well above minimum now");
+    }
+
+    function test_Vault_Scenario_QAPenaltyBelowMinimum() public {
+        address ivan = makeAddr("ivan");
+        address qaManager = makeAddr("dummySapienQA");
+        sapienToken.mint(ivan, 1000000e18);
+
+        // Ivan stakes just above minimum
+        uint256 stakeAmount = MINIMUM_STAKE + 200e18; // 1200 tokens
+        vm.startPrank(ivan);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        vm.stopPrank();
+
+        // Ivan gets a QA penalty that reduces his stake below minimum
+        uint256 penaltyAmount = 400e18; // This will leave 800e18, below minimum
+        uint256 expectedRemaining = stakeAmount - penaltyAmount;
+
+        uint256 treasuryBalanceBefore = sapienToken.balanceOf(treasury);
+
+        // Apply QA penalty
+        vm.prank(qaManager);
+        uint256 actualPenalty = sapienVault.processQAPenalty(ivan, penaltyAmount);
+
+        // Verify penalty was applied correctly
+        assertEq(actualPenalty, penaltyAmount);
+        assertEq(sapienToken.balanceOf(treasury), treasuryBalanceBefore + penaltyAmount);
+
+        // Verify Ivan's stake is now below minimum
+        ISapienVault.UserStakingSummary memory ivanStake = sapienVault.getUserStakingSummary(ivan);
+        assertEq(ivanStake.userTotalStaked, expectedRemaining);
+        assertTrue(ivanStake.userTotalStaked < MINIMUM_STAKE, "Stake should be below minimum after penalty");
+        assertTrue(sapienVault.hasActiveStake(ivan), "Ivan should still have active stake");
+
+        // Verify multiplier is set to base multiplier (1.0x) for below minimum stake
+        assertEq(ivanStake.effectiveMultiplier, 10000, "Multiplier should be base 1.0x for below minimum stake");
+
+        // Test that Ivan can still interact with the system
+
+        // 1. Test stake - should work and restore proper multiplier
+        uint256 newStakeAmount = MINIMUM_STAKE; // Use minimum stake amount for new stake
+        vm.startPrank(ivan);
+        sapienToken.approve(address(sapienVault), newStakeAmount);
+        sapienVault.stake(newStakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        ISapienVault.UserStakingSummary memory ivanAfterStake = sapienVault.getUserStakingSummary(ivan);
+        assertEq(ivanAfterStake.userTotalStaked, expectedRemaining + newStakeAmount);
+        assertTrue(ivanAfterStake.userTotalStaked >= MINIMUM_STAKE, "Stake should be above minimum again");
+        assertGt(ivanAfterStake.effectiveMultiplier, 10000, "Multiplier should be restored above base");
+
+        // 2. Test increaseAmount - should work
+        uint256 additionalAmount = 300e18;
+        vm.startPrank(ivan);
+        sapienToken.approve(address(sapienVault), additionalAmount);
+        sapienVault.increaseAmount(additionalAmount);
+        vm.stopPrank();
+
+        ISapienVault.UserStakingSummary memory ivanAfterIncrease = sapienVault.getUserStakingSummary(ivan);
+        assertEq(ivanAfterIncrease.userTotalStaked, expectedRemaining + newStakeAmount + additionalAmount);
+
+        // 3. Test increaseLockup - should work
+        vm.prank(ivan);
+        sapienVault.increaseLockup(LOCK_30_DAYS);
+
+        ISapienVault.UserStakingSummary memory ivanAfterLockupIncrease = sapienVault.getUserStakingSummary(ivan);
+        assertGt(ivanAfterLockupIncrease.effectiveLockUpPeriod, ivanAfterIncrease.effectiveLockUpPeriod);
+    }
+
+    function test_Vault_Scenario_MultipleQAPenaltiesBelowMinimum() public {
+        address julia = makeAddr("julia");
+        address qaManager = makeAddr("dummySapienQA");
+        sapienToken.mint(julia, 1000000e18);
+
+        // Julia stakes significantly above minimum
+        uint256 stakeAmount = MINIMUM_STAKE * 3; // 3000 tokens
+        vm.startPrank(julia);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_180_DAYS);
+        vm.stopPrank();
+
+        // First QA penalty reduces stake but keeps it above minimum
+        uint256 firstPenalty = 1500e18; // Leaves 1500e18, still above minimum
+        vm.prank(qaManager);
+        sapienVault.processQAPenalty(julia, firstPenalty);
+
+        ISapienVault.UserStakingSummary memory juliaAfterFirst = sapienVault.getUserStakingSummary(julia);
+        assertEq(juliaAfterFirst.userTotalStaked, stakeAmount - firstPenalty);
+        assertTrue(juliaAfterFirst.userTotalStaked >= MINIMUM_STAKE, "Should still be above minimum");
+        assertGt(juliaAfterFirst.effectiveMultiplier, 10000, "Multiplier should still be above base");
+
+        // Second QA penalty reduces stake below minimum
+        uint256 secondPenalty = 800e18; // Leaves 700e18, below minimum
+        vm.prank(qaManager);
+        sapienVault.processQAPenalty(julia, secondPenalty);
+
+        ISapienVault.UserStakingSummary memory juliaAfterSecond = sapienVault.getUserStakingSummary(julia);
+        assertEq(juliaAfterSecond.userTotalStaked, stakeAmount - firstPenalty - secondPenalty);
+        assertTrue(juliaAfterSecond.userTotalStaked < MINIMUM_STAKE, "Should be below minimum after second penalty");
+        assertEq(juliaAfterSecond.effectiveMultiplier, 10000, "Multiplier should be base 1.0x for below minimum");
+
+        // Third QA penalty further reduces the below-minimum stake
+        uint256 thirdPenalty = 200e18; // Leaves 500e18, still below minimum
+        vm.prank(qaManager);
+        sapienVault.processQAPenalty(julia, thirdPenalty);
+
+        ISapienVault.UserStakingSummary memory juliaAfterThird = sapienVault.getUserStakingSummary(julia);
+        assertEq(juliaAfterThird.userTotalStaked, stakeAmount - firstPenalty - secondPenalty - thirdPenalty);
+        assertTrue(juliaAfterThird.userTotalStaked < MINIMUM_STAKE, "Should still be below minimum");
+        assertEq(juliaAfterThird.effectiveMultiplier, 10000, "Multiplier should remain base 1.0x");
+
+        // Julia adds more stake to get back above minimum
+        uint256 recoveryStake = MINIMUM_STAKE; // Use minimum stake amount
+        vm.startPrank(julia);
+        sapienToken.approve(address(sapienVault), recoveryStake);
+        sapienVault.stake(recoveryStake, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        ISapienVault.UserStakingSummary memory juliaRecovered = sapienVault.getUserStakingSummary(julia);
+        assertEq(juliaRecovered.userTotalStaked, juliaAfterThird.userTotalStaked + recoveryStake);
+        assertTrue(juliaRecovered.userTotalStaked >= MINIMUM_STAKE, "Should be above minimum again");
+        assertGt(juliaRecovered.effectiveMultiplier, 10000, "Multiplier should be restored above base");
+    }
+
+    function test_Vault_Scenario_BelowMinimumWithCooldown() public {
+        address kevin = makeAddr("kevin");
+        address qaManager = makeAddr("dummySapienQA");
+        sapienToken.mint(kevin, 1000000e18);
+
+        // Kevin stakes above minimum
+        uint256 stakeAmount = MINIMUM_STAKE * 2; // 2000 tokens
+        vm.startPrank(kevin);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Wait for unlock
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        // Kevin initiates partial unstake
+        uint256 cooldownAmount = 500e18;
+        vm.prank(kevin);
+        sapienVault.initiateUnstake(cooldownAmount);
+
+        // Now Kevin has 1500e18 active, 500e18 in cooldown
+
+        // QA penalty hits Kevin while in cooldown, reducing total below minimum
+        uint256 penaltyAmount = 800e18; // This will reduce from 2000 to 1200, still above minimum
+        vm.prank(qaManager);
+        sapienVault.processQAPenalty(kevin, penaltyAmount);
+
+        ISapienVault.UserStakingSummary memory kevinAfterPenalty = sapienVault.getUserStakingSummary(kevin);
+        assertEq(kevinAfterPenalty.userTotalStaked, stakeAmount - penaltyAmount);
+        assertTrue(kevinAfterPenalty.userTotalStaked >= MINIMUM_STAKE, "Should still be above minimum");
+
+        // Apply another penalty that takes Kevin below minimum
+        uint256 secondPenalty = 500e18; // This will reduce from 1200 to 700, below minimum
+        vm.prank(qaManager);
+        sapienVault.processQAPenalty(kevin, secondPenalty);
+
+        ISapienVault.UserStakingSummary memory kevinBelowMin = sapienVault.getUserStakingSummary(kevin);
+        assertEq(kevinBelowMin.userTotalStaked, stakeAmount - penaltyAmount - secondPenalty);
+        assertTrue(kevinBelowMin.userTotalStaked < MINIMUM_STAKE, "Should be below minimum after second penalty");
+        assertEq(kevinBelowMin.effectiveMultiplier, 10000, "Multiplier should be base 1.0x for below minimum");
+
+        // Kevin should still be able to complete unstake process
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+
+        uint256 kevinBalanceBefore = sapienToken.balanceOf(kevin);
+        uint256 availableForUnstake = kevinBelowMin.totalReadyForUnstake;
+
+        if (availableForUnstake > 0) {
+            vm.prank(kevin);
+            sapienVault.unstake(availableForUnstake);
+
+            assertEq(sapienToken.balanceOf(kevin), kevinBalanceBefore + availableForUnstake);
+        }
+
+        // Test that Kevin can still add more stake (but not during cooldown)
+        // First let's complete the cooldown if there was one
+        ISapienVault.UserStakingSummary memory kevinBeforeAdd = sapienVault.getUserStakingSummary(kevin);
+
+        // Only try to add stake if not in cooldown
+        if (kevinBeforeAdd.totalInCooldown == 0) {
+            uint256 additionalStake = MINIMUM_STAKE;
+            vm.startPrank(kevin);
+            sapienToken.approve(address(sapienVault), additionalStake);
+            sapienVault.increaseAmount(additionalStake);
+            vm.stopPrank();
+
+            ISapienVault.UserStakingSummary memory kevinFinal = sapienVault.getUserStakingSummary(kevin);
+            assertGt(kevinFinal.userTotalStaked, kevinBelowMin.userTotalStaked, "Stake should increase");
+        }
+    }
+
+    function test_Vault_Scenario_CompleteStakeWipeoutByQA() public {
+        address lucy = makeAddr("lucy");
+        address qaManager = makeAddr("dummySapienQA");
+        sapienToken.mint(lucy, 1000000e18);
+
+        // Lucy stakes exactly the minimum
+        vm.startPrank(lucy);
+        sapienToken.approve(address(sapienVault), MINIMUM_STAKE);
+        sapienVault.stake(MINIMUM_STAKE, LOCK_90_DAYS);
+        vm.stopPrank();
+
+        // QA penalty completely wipes out Lucy's stake
+        uint256 penaltyAmount = MINIMUM_STAKE + 500e18; // More than her stake
+        uint256 treasuryBalanceBefore = sapienToken.balanceOf(treasury);
+
+        vm.prank(qaManager);
+        uint256 actualPenalty = sapienVault.processQAPenalty(lucy, penaltyAmount);
+
+        // Should only take what's available
+        assertEq(actualPenalty, MINIMUM_STAKE);
+        assertEq(sapienToken.balanceOf(treasury), treasuryBalanceBefore + MINIMUM_STAKE);
+
+        // Lucy should have no stake remaining
+        ISapienVault.UserStakingSummary memory lucyStake = sapienVault.getUserStakingSummary(lucy);
+        assertEq(lucyStake.userTotalStaked, 0);
+        assertFalse(sapienVault.hasActiveStake(lucy), "Lucy should have no active stake");
+        assertEq(lucyStake.effectiveMultiplier, 0, "Multiplier should be 0 for no stake");
+
+        // Lucy can start fresh with a new stake
+        vm.startPrank(lucy);
+        sapienToken.approve(address(sapienVault), MINIMUM_STAKE * 2);
+        sapienVault.stake(MINIMUM_STAKE * 2, LOCK_180_DAYS);
+        vm.stopPrank();
+
+        ISapienVault.UserStakingSummary memory lucyNewStake = sapienVault.getUserStakingSummary(lucy);
+        assertEq(lucyNewStake.userTotalStaked, MINIMUM_STAKE * 2);
+        assertTrue(sapienVault.hasActiveStake(lucy), "Lucy should have active stake again");
+        assertGt(lucyNewStake.effectiveMultiplier, 10000, "Multiplier should be above base for new stake");
+    }
 }

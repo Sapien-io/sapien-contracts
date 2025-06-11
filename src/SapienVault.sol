@@ -450,13 +450,13 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param additionalLockup The additional lockup time in seconds.
      */
     function increaseLockup(uint256 additionalLockup) public whenNotPaused nonReentrant {
-        if (additionalLockup < Const.MINIMUM_LOCKUP_INCREASE) {
-            revert MinimumLockupIncreaseRequired();
-        }
-
         UserStake storage userStake = userStakes[msg.sender];
         if (userStake.amount == 0) {
             revert NoStakeFound();
+        }
+
+        if (additionalLockup < Const.MINIMUM_LOCKUP_INCREASE) {
+            revert MinimumLockupIncreaseRequired();
         }
         if (userStake.cooldownStart != 0) {
             revert CannotIncreaseStakeInCooldown();

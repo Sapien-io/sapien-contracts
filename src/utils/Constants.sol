@@ -124,7 +124,7 @@ library Constants {
     uint256 internal constant MINIMUM_UNSTAKE_AMOUNT = 500;
 
     /// @notice Minimum lockup increase period
-    uint256 internal constant MINIMUM_LOCKUP_INCREASE = 7 days;
+    uint256 internal constant MINIMUM_LOCKUP_INCREASE = 30 days;
 
     /// @notice Standard timelock period for critical operations
     uint256 internal constant DEFAULT_TIMELOCK = 48 hours;
