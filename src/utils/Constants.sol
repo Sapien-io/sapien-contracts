@@ -8,6 +8,14 @@ pragma solidity 0.8.30;
  */
 library Constants {
     // -------------------------------------------------------------
+    // Version Constants
+    // -------------------------------------------------------------
+
+    string internal constant QA_VERSION = "0.1.3";
+    string internal constant REWARDS_VERSION = "0.1.3";
+    string internal constant VAULT_VERSION = "0.1.3";
+
+    // -------------------------------------------------------------
     // Token Constants
     // -------------------------------------------------------------
 
@@ -39,8 +47,8 @@ library Constants {
     /// @notice Role for managing quality assurance decisions
     bytes32 internal constant QA_MANAGER_ROLE = keccak256("QA_MANAGER_ROLE");
 
-    /// @notice Role for managing quality assurance decisions
-    bytes32 internal constant QA_ADMIN_ROLE = keccak256("QA_ADMIN_ROLE");
+    /// @notice Role for signing quality assurance decisions
+    bytes32 internal constant QA_SIGNER_ROLE = keccak256("QA_SIGNER_ROLE");
 
     /// @notice Role for managing quality assurance decisions
     bytes32 internal constant SAPIEN_QA_ROLE = keccak256("SAPIEN_QA_ROLE");
@@ -57,7 +65,7 @@ library Constants {
         keccak256("RewardClaim(address userWallet,uint256 amount,bytes32 orderId)");
 
     bytes32 internal constant QA_DECISION_TYPEHASH = keccak256(
-        "QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,bytes32 reason)"
+        "QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,bytes32 reason,uint256 expiration)"
     );
 
     // -------------------------------------------------------------
@@ -105,16 +113,15 @@ library Constants {
     uint256 internal constant TIER_4_THRESHOLD = 7500; // 7,500 tokens
     uint256 internal constant TIER_5_THRESHOLD = 10000; // 10,000 tokens
 
-    // -------------------------------------------------------------
-    // Reward Constants
-    // -------------------------------------------------------------
+    /// @notice Minimum stake amount (1,000 tokens)
+    uint256 internal constant MINIMUM_STAKE_AMOUNT = 1000 * TOKEN_DECIMALS;
 
-    // Add this constant at the contract level
-    uint256 internal constant MAX_REWARD_AMOUNT = 1000000 * 10 ** 18;
+    /// @notice Minimum unstake amount to prevent precision loss in penalty calculations
+    /// @dev Set to 500 wei to ensure at least 100 wei penalty (500 * 20 / 100 = 100)
+    uint256 internal constant MINIMUM_UNSTAKE_AMOUNT = 500;
 
-    // -------------------------------------------------------------
-    // Default Timelock and Security Constants
-    // -------------------------------------------------------------
+    /// @notice Minimum lockup increase period
+    uint256 internal constant MINIMUM_LOCKUP_INCREASE = 7 days;
 
     /// @notice Standard timelock period for critical operations
     uint256 internal constant DEFAULT_TIMELOCK = 48 hours;
@@ -126,22 +133,18 @@ library Constants {
     uint256 internal constant EARLY_WITHDRAWAL_PENALTY = 20; // 20%
 
     // -------------------------------------------------------------
-    // Minimum Values
+    // Reward Constants
     // -------------------------------------------------------------
 
-    /// @notice Minimum stake amount (1,000 tokens)
-    uint256 internal constant MINIMUM_STAKE_AMOUNT = 1000 * TOKEN_DECIMALS;
-
-    /// @notice Minimum unstake amount to prevent precision loss in penalty calculations
-    /// @dev Set to 500 wei to ensure at least 100 wei penalty (500 * 20 / 100 = 100)
-    uint256 internal constant MINIMUM_UNSTAKE_AMOUNT = 500;
-
-    /// @notice Minimum lockup increase period
-    uint256 internal constant MINIMUM_LOCKUP_INCREASE = 7 days;
+    // Add this constant at the contract level
+    uint256 internal constant MAX_REWARD_AMOUNT = 1000000 * 10 ** 18;
 
     // -------------------------------------------------------------
     // QA Constants
     // -------------------------------------------------------------
+
+    /// @notice Validity period for QA signatures (24 hours)
+    uint256 internal constant QA_SIGNATURE_VALIDITY_PERIOD = 24 hours;
 
     string internal constant INSUFFICIENT_STAKE_REASON = "Insufficient stake for full penalty";
     string internal constant UNKNOWN_PENALTY_ERROR = "Unknown error processing penalty";

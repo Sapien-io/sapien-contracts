@@ -17,7 +17,7 @@ struct AllActors {
     address rewardsSafe;
     address rewardsManager;
     address qaManager;
-    address qaAdmin;
+    address qaSigner;
     address pauseManager;
     address timelockProposer;
     address timelockExecutor;
@@ -31,7 +31,7 @@ library LocalActors {
     address public constant REWARDS_SAFE = 0x90F79bf6EB2c4f870365E785982E1f101E93b906;
     address public constant REWARDS_MANAGER = 0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65;
     address public constant QA_MANAGER = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;
-    address public constant QA_ADMIN = 0x976EA74026E726554dB657fA54763abd0C3a0aa9;
+    address public constant QA_SIGNER = 0x976EA74026E726554dB657fA54763abd0C3a0aa9;
     address public constant PAUSE_MANAGER = 0xBcd4042DE499D14e55001CcbB24a551F3b954096;
     address public constant TIMELOCK_PROPOSER = 0x14dC79964da2C08b23698B3D3cc7Ca32193d9955;
     address public constant TIMELOCK_EXECUTOR = 0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f;
@@ -45,7 +45,7 @@ library SepoliaActors {
     address public constant REWARDS_SAFE = 0x09F4897735f3Ec9Af6C2dda49d97D454B7dD1e59;
     address public constant REWARDS_MANAGER = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
     address public constant QA_MANAGER = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
-    address public constant QA_ADMIN = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
+    address public constant QA_SIGNER = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
     address public constant PAUSE_MANAGER = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
     address public constant TIMELOCK_PROPOSER = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
     address public constant TIMELOCK_EXECUTOR = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
@@ -60,7 +60,7 @@ library TenderlyActors {
     address public constant REWARDS_SAFE = 0x0C6F86b338417B3b7FCB9B344DECC51d072919c9;
     address public constant REWARDS_MANAGER = 0x0C6F86b338417B3b7FCB9B344DECC51d072919c9;
     address public constant QA_MANAGER = 0x0C6F86b338417B3b7FCB9B344DECC51d072919c9;
-    address public constant QA_ADMIN = 0x0C6F86b338417B3b7FCB9B344DECC51d072919c9;
+    address public constant QA_SIGNER = 0x0C6F86b338417B3b7FCB9B344DECC51d072919c9;
     address public constant PAUSE_MANAGER = 0x0C6F86b338417B3b7FCB9B344DECC51d072919c9;
     address public constant TIMELOCK_PROPOSER = 0x0C6F86b338417B3b7FCB9B344DECC51d072919c9;
     address public constant TIMELOCK_EXECUTOR = 0x0C6F86b338417B3b7FCB9B344DECC51d072919c9;
@@ -74,7 +74,7 @@ library MainnetActors {
     address public constant REWARDS_SAFE = address(0x04);
     address public constant REWARDS_MANAGER = address(0x05);
     address public constant QA_MANAGER = address(0x06);
-    address public constant QA_ADMIN = address(0x07);
+    address public constant QA_SIGNER = address(0x07);
     address public constant PAUSE_MANAGER = address(0x0B);
     address public constant TIMELOCK_PROPOSER = address(0x08);
     address public constant TIMELOCK_EXECUTOR = address(0x09);
@@ -140,7 +140,7 @@ library Actors {
                 rewardsSafe: LocalActors.REWARDS_SAFE,
                 rewardsManager: LocalActors.REWARDS_MANAGER,
                 qaManager: LocalActors.QA_MANAGER,
-                qaAdmin: LocalActors.QA_ADMIN,
+                qaSigner: LocalActors.QA_SIGNER,
                 pauseManager: LocalActors.PAUSE_MANAGER,
                 timelockProposer: LocalActors.TIMELOCK_PROPOSER,
                 timelockExecutor: LocalActors.TIMELOCK_EXECUTOR,
@@ -154,7 +154,7 @@ library Actors {
                 rewardsSafe: SepoliaActors.REWARDS_SAFE,
                 rewardsManager: SepoliaActors.REWARDS_MANAGER,
                 qaManager: SepoliaActors.QA_MANAGER,
-                qaAdmin: SepoliaActors.QA_ADMIN,
+                qaSigner: SepoliaActors.QA_SIGNER,
                 pauseManager: SepoliaActors.PAUSE_MANAGER,
                 timelockProposer: SepoliaActors.TIMELOCK_PROPOSER,
                 timelockExecutor: SepoliaActors.TIMELOCK_EXECUTOR,
@@ -168,7 +168,7 @@ library Actors {
                 rewardsSafe: TenderlyActors.REWARDS_SAFE,
                 rewardsManager: TenderlyActors.REWARDS_MANAGER,
                 qaManager: TenderlyActors.QA_MANAGER,
-                qaAdmin: TenderlyActors.QA_ADMIN,
+                qaSigner: TenderlyActors.QA_SIGNER,
                 pauseManager: TenderlyActors.PAUSE_MANAGER,
                 timelockProposer: TenderlyActors.TIMELOCK_PROPOSER,
                 timelockExecutor: TenderlyActors.TIMELOCK_EXECUTOR,
@@ -182,7 +182,7 @@ library Actors {
                 rewardsSafe: MainnetActors.REWARDS_SAFE,
                 rewardsManager: MainnetActors.REWARDS_MANAGER,
                 qaManager: MainnetActors.QA_MANAGER,
-                qaAdmin: MainnetActors.QA_ADMIN,
+                qaSigner: MainnetActors.QA_SIGNER,
                 pauseManager: MainnetActors.PAUSE_MANAGER,
                 timelockProposer: MainnetActors.TIMELOCK_PROPOSER,
                 timelockExecutor: MainnetActors.TIMELOCK_EXECUTOR,
@@ -215,7 +215,7 @@ library Actors {
                 rewardsSafe: LocalActors.REWARDS_SAFE,
                 rewardsManager: LocalActors.REWARDS_MANAGER,
                 qaManager: LocalActors.QA_MANAGER,
-                qaAdmin: LocalActors.QA_ADMIN,
+                qaSigner: LocalActors.QA_SIGNER,
                 pauseManager: LocalActors.PAUSE_MANAGER,
                 timelockProposer: LocalActors.TIMELOCK_PROPOSER,
                 timelockExecutor: LocalActors.TIMELOCK_EXECUTOR,
@@ -229,7 +229,7 @@ library Actors {
                 rewardsSafe: SepoliaActors.REWARDS_SAFE,
                 rewardsManager: SepoliaActors.REWARDS_MANAGER,
                 qaManager: SepoliaActors.QA_MANAGER,
-                qaAdmin: SepoliaActors.QA_ADMIN,
+                qaSigner: SepoliaActors.QA_SIGNER,
                 pauseManager: SepoliaActors.PAUSE_MANAGER,
                 timelockProposer: SepoliaActors.TIMELOCK_PROPOSER,
                 timelockExecutor: SepoliaActors.TIMELOCK_EXECUTOR,
@@ -243,7 +243,7 @@ library Actors {
                 rewardsSafe: TenderlyActors.REWARDS_SAFE,
                 rewardsManager: TenderlyActors.REWARDS_MANAGER,
                 qaManager: TenderlyActors.QA_MANAGER,
-                qaAdmin: TenderlyActors.QA_ADMIN,
+                qaSigner: TenderlyActors.QA_SIGNER,
                 pauseManager: TenderlyActors.PAUSE_MANAGER,
                 timelockProposer: TenderlyActors.TIMELOCK_PROPOSER,
                 timelockExecutor: TenderlyActors.TIMELOCK_EXECUTOR,
@@ -257,7 +257,7 @@ library Actors {
                 rewardsSafe: MainnetActors.REWARDS_SAFE,
                 rewardsManager: MainnetActors.REWARDS_MANAGER,
                 qaManager: MainnetActors.QA_MANAGER,
-                qaAdmin: MainnetActors.QA_ADMIN,
+                qaSigner: MainnetActors.QA_SIGNER,
                 pauseManager: MainnetActors.PAUSE_MANAGER,
                 timelockProposer: MainnetActors.TIMELOCK_PROPOSER,
                 timelockExecutor: MainnetActors.TIMELOCK_EXECUTOR,

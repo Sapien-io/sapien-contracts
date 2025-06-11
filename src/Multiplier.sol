@@ -2,6 +2,7 @@
 pragma solidity 0.8.30;
 
 import {Constants as Const} from "src/utils/Constants.sol";
+import {ISapienVault} from "src/interfaces/ISapienVault.sol";
 
 /**
  * @title Multiplier - Sapien AI Staking Multiplier Calculator
@@ -23,12 +24,12 @@ library Multiplier {
     // -------------------------------------------------------------
 
     function calculateMultiplier(uint256 amount, uint256 lockUpPeriod) internal pure returns (uint256) {
-        // Validate inputs
+        // Validate inputs and revert with specific errors
         if (lockUpPeriod < Const.LOCKUP_30_DAYS || lockUpPeriod > Const.LOCKUP_365_DAYS) {
-            return 0;
+            revert ISapienVault.InvalidLockupPeriod();
         }
         if (amount < Const.MINIMUM_STAKE_AMOUNT) {
-            return 0;
+            revert ISapienVault.MinimumStakeAmountRequired();
         }
 
         // Get base duration multiplier using existing discrete values

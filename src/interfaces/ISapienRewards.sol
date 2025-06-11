@@ -51,6 +51,8 @@ interface ISapienRewards {
         address newRewardToken
     ) external;
 
+    function version() external view returns (string memory);
+
     function pause() external;
     function unpause() external;
     function setRewardToken(address _rewardToken) external;

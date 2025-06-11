@@ -140,9 +140,9 @@ contract LocalIntegrationTest is Test {
             ADMIN              // admin
         );
         
-        // Grant QA_ADMIN_ROLE to QA_MANAGER so they can sign QA decisions
+        // Grant QA_SIGNER_ROLE to QA_MANAGER so they can sign QA decisions
         vm.prank(ADMIN);
-        sapienQA.grantRole(Const.QA_ADMIN_ROLE, QA_MANAGER);
+        sapienQA.grantRole(Const.QA_SIGNER_ROLE, QA_MANAGER);
         
         // Deploy SapienRewards implementation and proxy
         SapienRewards rewardsImpl = new SapienRewards();

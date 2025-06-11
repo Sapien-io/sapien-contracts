@@ -99,7 +99,7 @@ contract SapienRewardsTest is Test {
         assertEq(address(newContract.rewardToken()), address(rewardToken));
 
         // Check version
-        assertEq(newContract.version(), "0.1.2");
+        assertEq(newContract.version(), "0.1.3");
     }
 
     function test_Rewards_InitializeRevertsOnZeroAddresses() public {
@@ -591,7 +591,7 @@ contract SapienRewardsTest is Test {
     }
 
     function test_Rewards_VersionIsCorrect() public view {
-        assertEq(sapienRewards.version(), "0.1.2");
+        assertEq(sapienRewards.version(), "0.1.3");
     }
 
     // ============================================

@@ -44,7 +44,6 @@ CONTRACTS=(
     "DeployToken"
     "DeployTimelock" 
     "DeployQA"
-    "DeployMultiplier"
     "DeployRewards"
     "DeployVault"
 )

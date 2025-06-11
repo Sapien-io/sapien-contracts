@@ -21,12 +21,12 @@ contract DeployQA is Script {
             actors.foundationSafe1, // treasury
             vaultContract, // vaultContract (placeholder)
             actors.qaManager, // qaManager
-            actors.qaAdmin // admin
+            actors.qaSigner // qaSigner
         );
 
         console.log("SapienQA deployed at:", address(qa));
         console.log("QA Manager:", actors.qaManager);
-        console.log("QA Admin:", actors.qaAdmin);
+        console.log("QA Signer:", actors.qaSigner);
         console.log("Vault Contract:", vaultContract);
         vm.stopBroadcast();
     }

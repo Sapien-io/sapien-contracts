@@ -31,7 +31,7 @@ Initializes contract with treasury address, Vault contract address, and role ass
 |------|-------------|
 | `DEFAULT_ADMIN_ROLE` | Controls configuration and contract upgrades |
 | `QA_MANAGER_ROLE` | Can submit signed decisions for processing |
-| `QA_ADMIN_ROLE` | Authorized signer for QA decisions (EIP-712) |
+| `QA_SIGNER_ROLE` | Authorized signer for QA decisions (EIP-712) |
 
 ---
 
@@ -42,7 +42,7 @@ Initializes contract with treasury address, Vault contract address, and role ass
 Signature-based action executor with internal validation:
 
 - Checks input values and replay protection
-- Verifies signer is `QA_ADMIN_ROLE`
+- Verifies signer is `QA_SIGNER_ROLE`
 - Calls `SapienVault.processQAPenalty(...)` if penalty is applied
 - Logs decision in `userQAHistory`
 
@@ -75,7 +75,7 @@ keccak256("QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount
 
 - Hashes the struct
 - Recovers signer address
-- Requires `QA_ADMIN_ROLE`
+- Requires `QA_SIGNER_ROLE`
 
 ---
 

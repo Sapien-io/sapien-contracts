@@ -61,10 +61,22 @@ interface ISapienQA {
     error InvalidSignatureLength();
     error InvalidSignatureV();
     error InvalidSignature();
+    error ExpiredSignature(uint256 expiration);
 
     // -------------------------------------------------------------
     // Functions
     // -------------------------------------------------------------
+
+    function createQADecisionHash(
+        bytes32 decisionId,
+        address user,
+        uint8 actionType,
+        uint256 penaltyAmount,
+        string memory reason,
+        uint256 expiration
+    ) external pure returns (bytes32);
+
+    function version() external view returns (string memory);
 
     function processQualityAssessment(
         address userAddress,
@@ -72,9 +84,11 @@ interface ISapienQA {
         uint256 penaltyAmount,
         bytes32 decisionId,
         string calldata reason,
+        uint256 expiration,
         bytes calldata signature
     ) external;
 
+    function getDomainSeparator() external view returns (bytes32);
     function getUserQAHistory(address userAddress) external view returns (QARecord[] memory);
     function getUserQARecordCount(address userAddress) external view returns (uint256);
     function isDecisionProcessed(bytes32 decisionId) external view returns (bool);

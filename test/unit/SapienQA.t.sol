@@ -31,6 +31,11 @@ contract SapienQATest is Test {
     string constant REASON = "Inappropriate behavior in community";
     uint256 constant PENALTY_AMOUNT = 1000 * 1e18; // 1000 tokens
 
+    // Helper function to get current expiration time
+    function _getExpiration() internal view returns (uint256) {
+        return block.timestamp + Constants.QA_SIGNATURE_VALIDITY_PERIOD;
+    }
+
     event QualityAssessmentProcessed(
         address indexed userAddress,
         ISapienQA.QAActionType actionType,
@@ -73,8 +78,8 @@ contract SapienQATest is Test {
         vm.startPrank(admin);
         qaContract = new SapienQA(treasury, address(vault), qaManager, admin);
 
-        // Grant QA_ADMIN_ROLE to qaManager so they can sign decisions
-        qaContract.grantRole(Constants.QA_ADMIN_ROLE, qaManager);
+        // Grant QA_SIGNER_ROLE to qaManager so they can sign decisions
+        qaContract.grantRole(Constants.QA_SIGNER_ROLE, qaManager);
 
         // Grant the QA contract the SAPIEN_QA_ROLE on the vault
         vault.grantRole(Constants.SAPIEN_QA_ROLE, address(qaContract));
@@ -172,7 +177,13 @@ contract SapienQATest is Test {
             vm.prank(unauthorizedUsers[i]);
             vm.expectRevert();
             qaContract.processQualityAssessment(
-                user1, ISapienQA.QAActionType.MINOR_PENALTY, penaltyAmount, testDecisionId, REASON, signature
+                user1,
+                ISapienQA.QAActionType.MINOR_PENALTY,
+                penaltyAmount,
+                testDecisionId,
+                REASON,
+                _getExpiration(),
+                signature
             );
         }
 
@@ -193,7 +204,13 @@ contract SapienQATest is Test {
         // Test that valid QA manager can call the function
         vm.prank(qaManager);
         qaContract.processQualityAssessment(
-            user1, ISapienQA.QAActionType.MINOR_PENALTY, penaltyAmount, testDecisionId, REASON, signature
+            user1,
+            ISapienQA.QAActionType.MINOR_PENALTY,
+            penaltyAmount,
+            testDecisionId,
+            REASON,
+            _getExpiration(),
+            signature
         );
 
         // Verify the decision was processed
@@ -262,7 +279,13 @@ contract SapienQATest is Test {
         vm.prank(qaManager);
         vm.expectRevert(); // Should revert with UnauthorizedSigner
         qaContract.processQualityAssessment(
-            user1, ISapienQA.QAActionType.MINOR_PENALTY, penaltyAmount, testDecisionId, REASON, unauthorizedSignature
+            user1,
+            ISapienQA.QAActionType.MINOR_PENALTY,
+            penaltyAmount,
+            testDecisionId,
+            REASON,
+            _getExpiration(),
+            unauthorizedSignature
         );
     }
 
@@ -279,7 +302,13 @@ contract SapienQATest is Test {
         vm.prank(qaManager);
         vm.expectRevert(ISapienQA.InvalidSignatureLength.selector);
         qaContract.processQualityAssessment(
-            user1, ISapienQA.QAActionType.MINOR_PENALTY, penaltyAmount, testDecisionId, REASON, invalidSignature
+            user1,
+            ISapienQA.QAActionType.MINOR_PENALTY,
+            penaltyAmount,
+            testDecisionId,
+            REASON,
+            _getExpiration(),
+            invalidSignature
         );
     }
 
@@ -292,9 +321,9 @@ contract SapienQATest is Test {
         vm.prank(admin);
         qaContract.grantRole(Constants.QA_MANAGER_ROLE, qaManager2);
 
-        // Grant QA_ADMIN_ROLE to qaManager2 so they can sign decisions
+        // Grant QA_SIGNER_ROLE to qaManager2 so they can sign decisions
         vm.prank(admin);
-        qaContract.grantRole(Constants.QA_ADMIN_ROLE, qaManager2);
+        qaContract.grantRole(Constants.QA_SIGNER_ROLE, qaManager2);
 
         // Create user stake
         _createUserStake(user1, 5000 * 1e18, Constants.LOCKUP_90_DAYS);
@@ -309,7 +338,7 @@ contract SapienQATest is Test {
 
         vm.prank(qaManager);
         qaContract.processQualityAssessment(
-            user1, ISapienQA.QAActionType.WARNING, 0, decision1, "First manager warning", signature1
+            user1, ISapienQA.QAActionType.WARNING, 0, decision1, "First manager warning", _getExpiration(), signature1
         );
 
         // Second QA manager processes assessment
@@ -319,7 +348,7 @@ contract SapienQATest is Test {
 
         vm.prank(qaManager2);
         qaContract.processQualityAssessment(
-            user1, ISapienQA.QAActionType.WARNING, 0, decision2, "Second manager warning", signature2
+            user1, ISapienQA.QAActionType.WARNING, 0, decision2, "Second manager warning", _getExpiration(), signature2
         );
 
         // Verify both decisions were processed
@@ -402,28 +431,27 @@ contract SapienQATest is Test {
         string memory reason,
         uint256 privateKey
     ) internal view returns (bytes memory) {
-        bytes32 structHash = keccak256(
-            abi.encode(
-                keccak256(
-                    "QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,bytes32 reason)"
-                ),
-                userAddress,
-                uint8(actionType),
-                penaltyAmount,
-                decisionId,
-                keccak256(bytes(reason))
-            )
+        uint256 expiration = block.timestamp + Constants.QA_SIGNATURE_VALIDITY_PERIOD;
+        return _generateSignatureWithKeyAndExpiration(
+            userAddress, actionType, penaltyAmount, decisionId, reason, expiration, privateKey
+        );
+    }
+
+    function _generateSignatureWithKeyAndExpiration(
+        address userAddress,
+        ISapienQA.QAActionType actionType,
+        uint256 penaltyAmount,
+        bytes32 decisionId,
+        string memory reason,
+        uint256 expiration,
+        uint256 privateKey
+    ) internal view returns (bytes memory) {
+        // Use the QA contract's createQADecisionHash function
+        bytes32 structHash = qaContract.createQADecisionHash(
+            decisionId, userAddress, uint8(actionType), penaltyAmount, reason, expiration
         );
 
-        bytes32 domainSeparator = keccak256(
-            abi.encode(
-                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-                keccak256("SapienQA"),
-                keccak256("1"),
-                block.chainid,
-                address(qaContract)
-            )
-        );
+        bytes32 domainSeparator = qaContract.getDomainSeparator();
 
         bytes32 hash = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
 
@@ -489,7 +517,9 @@ contract SapienQATest is Test {
         emit QualityAssessmentProcessed(user1, ISapienQA.QAActionType.WARNING, 0, DECISION_ID, REASON, qaManager);
 
         vm.prank(qaManager);
-        qaContract.processQualityAssessment(user1, ISapienQA.QAActionType.WARNING, 0, DECISION_ID, REASON, signature);
+        qaContract.processQualityAssessment(
+            user1, ISapienQA.QAActionType.WARNING, 0, DECISION_ID, REASON, _getExpiration(), signature
+        );
 
         // Verify decision is recorded
         assertTrue(qaContract.isDecisionProcessed(DECISION_ID));
@@ -527,7 +557,13 @@ contract SapienQATest is Test {
 
         vm.prank(qaManager);
         qaContract.processQualityAssessment(
-            user1, ISapienQA.QAActionType.MINOR_PENALTY, PENALTY_AMOUNT, DECISION_ID, REASON, signature
+            user1,
+            ISapienQA.QAActionType.MINOR_PENALTY,
+            PENALTY_AMOUNT,
+            DECISION_ID,
+            REASON,
+            _getExpiration(),
+            signature
         );
 
         // Verify stake was reduced
@@ -548,7 +584,7 @@ contract SapienQATest is Test {
         vm.prank(qaManager);
         vm.expectRevert(); // ECDSA will revert on invalid signature
         qaContract.processQualityAssessment(
-            user1, ISapienQA.QAActionType.WARNING, 0, DECISION_ID, REASON, invalidSignature
+            user1, ISapienQA.QAActionType.WARNING, 0, DECISION_ID, REASON, _getExpiration(), invalidSignature
         );
     }
 
@@ -559,23 +595,29 @@ contract SapienQATest is Test {
         vm.prank(qaManager);
         vm.expectRevert(ISapienQA.ZeroAddress.selector);
         qaContract.processQualityAssessment(
-            address(0), ISapienQA.QAActionType.WARNING, 0, DECISION_ID, REASON, signature
+            address(0), ISapienQA.QAActionType.WARNING, 0, DECISION_ID, REASON, _getExpiration(), signature
         );
 
         // Test invalid decision ID
         vm.prank(qaManager);
         vm.expectRevert(ISapienQA.InvalidDecisionId.selector);
-        qaContract.processQualityAssessment(user1, ISapienQA.QAActionType.WARNING, 0, bytes32(0), REASON, signature);
+        qaContract.processQualityAssessment(
+            user1, ISapienQA.QAActionType.WARNING, 0, bytes32(0), REASON, _getExpiration(), signature
+        );
 
         // Test empty reason
         vm.prank(qaManager);
         vm.expectRevert(ISapienQA.EmptyReason.selector);
-        qaContract.processQualityAssessment(user1, ISapienQA.QAActionType.WARNING, 0, DECISION_ID, "", signature);
+        qaContract.processQualityAssessment(
+            user1, ISapienQA.QAActionType.WARNING, 0, DECISION_ID, "", _getExpiration(), signature
+        );
 
         // Test penalty for warning
         vm.prank(qaManager);
         vm.expectRevert(ISapienQA.InvalidPenaltyForWarning.selector);
-        qaContract.processQualityAssessment(user1, ISapienQA.QAActionType.WARNING, 100, DECISION_ID, REASON, signature);
+        qaContract.processQualityAssessment(
+            user1, ISapienQA.QAActionType.WARNING, 100, DECISION_ID, REASON, _getExpiration(), signature
+        );
 
         // Test no penalty for penalty action
         bytes memory penaltySignature =
@@ -584,7 +626,7 @@ contract SapienQATest is Test {
         vm.prank(qaManager);
         vm.expectRevert(ISapienQA.PenaltyAmountRequired.selector);
         qaContract.processQualityAssessment(
-            user1, ISapienQA.QAActionType.MINOR_PENALTY, 0, DECISION_ID, REASON, penaltySignature
+            user1, ISapienQA.QAActionType.MINOR_PENALTY, 0, DECISION_ID, REASON, _getExpiration(), penaltySignature
         );
     }
 
@@ -593,12 +635,70 @@ contract SapienQATest is Test {
 
         // First call should succeed
         vm.prank(qaManager);
-        qaContract.processQualityAssessment(user1, ISapienQA.QAActionType.WARNING, 0, DECISION_ID, REASON, signature);
+        qaContract.processQualityAssessment(
+            user1, ISapienQA.QAActionType.WARNING, 0, DECISION_ID, REASON, _getExpiration(), signature
+        );
 
         // Second call with same decision ID should fail
         vm.prank(qaManager);
         vm.expectRevert(ISapienQA.DecisionAlreadyProcessed.selector);
-        qaContract.processQualityAssessment(user1, ISapienQA.QAActionType.WARNING, 0, DECISION_ID, REASON, signature);
+        qaContract.processQualityAssessment(
+            user1, ISapienQA.QAActionType.WARNING, 0, DECISION_ID, REASON, _getExpiration(), signature
+        );
+    }
+
+    function test_QA_SignatureExpiration() public {
+        // Create user stake for the test
+        _createUserStake(user1, 5000 * 1e18, Constants.LOCKUP_90_DAYS);
+
+        bytes32 testDecisionId = keccak256("expiration_test");
+        uint256 penaltyAmount = 1000 * 1e18;
+
+        // Fast forward time to ensure we have a meaningful timestamp
+        vm.warp(100000); // Set timestamp to 100000 seconds
+
+        // Generate signature with past expiration
+        uint256 pastExpiration = 50000; // Well in the past (less than current timestamp)
+        bytes memory expiredSignature = _generateSignatureWithExpiration(
+            user1, ISapienQA.QAActionType.MINOR_PENALTY, penaltyAmount, testDecisionId, REASON, pastExpiration
+        );
+
+        // Test that expired signature fails
+        vm.prank(qaManager);
+        vm.expectRevert(abi.encodeWithSelector(ISapienQA.ExpiredSignature.selector, pastExpiration));
+        qaContract.processQualityAssessment(
+            user1,
+            ISapienQA.QAActionType.MINOR_PENALTY,
+            penaltyAmount,
+            testDecisionId,
+            REASON,
+            pastExpiration,
+            expiredSignature
+        );
+
+        // Verify decision was not processed
+        assertFalse(qaContract.isDecisionProcessed(testDecisionId));
+
+        // Test that valid signature works - use different decision ID
+        bytes32 testDecisionId2 = keccak256("expiration_test_2");
+        uint256 futureExpiration = block.timestamp + Constants.QA_SIGNATURE_VALIDITY_PERIOD;
+        bytes memory validSignature = _generateSignatureWithExpiration(
+            user1, ISapienQA.QAActionType.MINOR_PENALTY, penaltyAmount, testDecisionId2, REASON, futureExpiration
+        );
+
+        vm.prank(qaManager);
+        qaContract.processQualityAssessment(
+            user1,
+            ISapienQA.QAActionType.MINOR_PENALTY,
+            penaltyAmount,
+            testDecisionId2,
+            REASON,
+            futureExpiration,
+            validSignature
+        );
+
+        // Verify decision was processed
+        assertTrue(qaContract.isDecisionProcessed(testDecisionId2));
     }
 
     function test_QA_PenaltyProcessingFailure() public {
@@ -617,7 +717,13 @@ contract SapienQATest is Test {
 
         vm.prank(qaManager);
         qaContract.processQualityAssessment(
-            user1, ISapienQA.QAActionType.MINOR_PENALTY, requestedPenalty, DECISION_ID, REASON, signature
+            user1,
+            ISapienQA.QAActionType.MINOR_PENALTY,
+            requestedPenalty,
+            DECISION_ID,
+            REASON,
+            _getExpiration(),
+            signature
         );
 
         // Decision should be processed
@@ -649,7 +755,13 @@ contract SapienQATest is Test {
 
         vm.prank(qaManager);
         qaContract.processQualityAssessment(
-            user1, ISapienQA.QAActionType.MINOR_PENALTY, 1000 * 1e18, noStakeDecisionId, REASON, signature
+            user1,
+            ISapienQA.QAActionType.MINOR_PENALTY,
+            1000 * 1e18,
+            noStakeDecisionId,
+            REASON,
+            _getExpiration(),
+            signature
         );
 
         // Decision should still be processed but with 0 penalty
@@ -671,7 +783,9 @@ contract SapienQATest is Test {
         bytes memory signature = _generateSignature(user1, ISapienQA.QAActionType.WARNING, 0, DECISION_ID, REASON);
 
         vm.prank(qaManager);
-        qaContract.processQualityAssessment(user1, ISapienQA.QAActionType.WARNING, 0, DECISION_ID, REASON, signature);
+        qaContract.processQualityAssessment(
+            user1, ISapienQA.QAActionType.WARNING, 0, DECISION_ID, REASON, _getExpiration(), signature
+        );
 
         // Should now be 1
         assertEq(qaContract.getUserQARecordCount(user1), 1);
@@ -681,7 +795,9 @@ contract SapienQATest is Test {
         signature = _generateSignature(user1, ISapienQA.QAActionType.WARNING, 0, decisionId2, REASON);
 
         vm.prank(qaManager);
-        qaContract.processQualityAssessment(user1, ISapienQA.QAActionType.WARNING, 0, decisionId2, REASON, signature);
+        qaContract.processQualityAssessment(
+            user1, ISapienQA.QAActionType.WARNING, 0, decisionId2, REASON, _getExpiration(), signature
+        );
 
         // Should now be 2
         assertEq(qaContract.getUserQARecordCount(user1), 2);
@@ -709,7 +825,13 @@ contract SapienQATest is Test {
 
         vm.prank(qaManager);
         qaContract.processQualityAssessment(
-            user1, ISapienQA.QAActionType.MINOR_PENALTY, PENALTY_AMOUNT, DECISION_ID, REASON, signature
+            user1,
+            ISapienQA.QAActionType.MINOR_PENALTY,
+            PENALTY_AMOUNT,
+            DECISION_ID,
+            REASON,
+            _getExpiration(),
+            signature
         );
 
         // Verify stake was reduced
@@ -745,7 +867,13 @@ contract SapienQATest is Test {
 
         vm.prank(qaManager);
         qaContract.processQualityAssessment(
-            user1, ISapienQA.QAActionType.MINOR_PENALTY, requestedPenalty, pausedDecisionId, REASON, signature
+            user1,
+            ISapienQA.QAActionType.MINOR_PENALTY,
+            requestedPenalty,
+            pausedDecisionId,
+            REASON,
+            _getExpiration(),
+            signature
         );
 
         // Decision should still be processed but with 0 penalty
@@ -794,7 +922,13 @@ contract SapienQATest is Test {
 
         vm.prank(qaManager);
         qaContract.processQualityAssessment(
-            user1, ISapienQA.QAActionType.MINOR_PENALTY, requestedPenalty, stringErrorDecisionId, REASON, signature
+            user1,
+            ISapienQA.QAActionType.MINOR_PENALTY,
+            requestedPenalty,
+            stringErrorDecisionId,
+            REASON,
+            _getExpiration(),
+            signature
         );
 
         // Decision should be processed with 0 penalty
@@ -894,7 +1028,9 @@ contract SapienQATest is Test {
         bytes memory sig1 = _generateSignature(user1, ISapienQA.QAActionType.WARNING, 0, warningId1, reason1);
 
         vm.prank(qaManager);
-        qaContract.processQualityAssessment(user1, ISapienQA.QAActionType.WARNING, 0, warningId1, reason1, sig1);
+        qaContract.processQualityAssessment(
+            user1, ISapienQA.QAActionType.WARNING, 0, warningId1, reason1, _getExpiration(), sig1
+        );
 
         // Second warning
         bytes32 warningId2 = keccak256("warning_002");
@@ -903,7 +1039,9 @@ contract SapienQATest is Test {
         bytes memory sig2 = _generateSignature(user1, ISapienQA.QAActionType.WARNING, 0, warningId2, reason2);
 
         vm.prank(qaManager);
-        qaContract.processQualityAssessment(user1, ISapienQA.QAActionType.WARNING, 0, warningId2, reason2, sig2);
+        qaContract.processQualityAssessment(
+            user1, ISapienQA.QAActionType.WARNING, 0, warningId2, reason2, _getExpiration(), sig2
+        );
 
         // Verify warnings
         assertEq(qaContract.getUserQARecordCount(user1), 2);
@@ -927,7 +1065,13 @@ contract SapienQATest is Test {
 
         vm.prank(qaManager);
         qaContract.processQualityAssessment(
-            user1, ISapienQA.QAActionType.MINOR_PENALTY, penalty1, penaltyId1, "Minor penalty applied", sig1
+            user1,
+            ISapienQA.QAActionType.MINOR_PENALTY,
+            penalty1,
+            penaltyId1,
+            "Minor penalty applied",
+            _getExpiration(),
+            sig1
         );
 
         // Verify first penalty
@@ -941,7 +1085,13 @@ contract SapienQATest is Test {
 
         vm.prank(qaManager);
         qaContract.processQualityAssessment(
-            user1, ISapienQA.QAActionType.MAJOR_PENALTY, penalty2, penaltyId2, "Major penalty applied", sig2
+            user1,
+            ISapienQA.QAActionType.MAJOR_PENALTY,
+            penalty2,
+            penaltyId2,
+            "Major penalty applied",
+            _getExpiration(),
+            sig2
         );
 
         // Verify second penalty
@@ -999,28 +1149,24 @@ contract SapienQATest is Test {
         bytes32 decisionId,
         string memory reason
     ) internal view returns (bytes memory) {
-        bytes32 structHash = keccak256(
-            abi.encode(
-                keccak256(
-                    "QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,bytes32 reason)"
-                ),
-                userAddress,
-                uint8(actionType),
-                penaltyAmount,
-                decisionId,
-                keccak256(bytes(reason))
-            )
+        uint256 expiration = block.timestamp + Constants.QA_SIGNATURE_VALIDITY_PERIOD;
+        return _generateSignatureWithExpiration(userAddress, actionType, penaltyAmount, decisionId, reason, expiration);
+    }
+
+    function _generateSignatureWithExpiration(
+        address userAddress,
+        ISapienQA.QAActionType actionType,
+        uint256 penaltyAmount,
+        bytes32 decisionId,
+        string memory reason,
+        uint256 expiration
+    ) internal view returns (bytes memory) {
+        // Use the QA contract's createQADecisionHash function
+        bytes32 structHash = qaContract.createQADecisionHash(
+            decisionId, userAddress, uint8(actionType), penaltyAmount, reason, expiration
         );
 
-        bytes32 domainSeparator = keccak256(
-            abi.encode(
-                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-                keccak256(bytes("SapienQA")),
-                keccak256(bytes("1")),
-                block.chainid,
-                address(qaContract)
-            )
-        );
+        bytes32 domainSeparator = qaContract.getDomainSeparator();
 
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
 

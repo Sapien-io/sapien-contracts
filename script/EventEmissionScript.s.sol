@@ -30,7 +30,7 @@ contract EventEmissionScript is Script {
     address public ADMIN;
     address public TREASURY;
     address public QA_MANAGER;
-    address public QA_ADMIN;
+    address public QA_SIGNER;
     address public REWARDS_MANAGER;
     address public PAUSE_MANAGER;
 
@@ -38,7 +38,7 @@ contract EventEmissionScript is Script {
     uint256 public constant ADMIN_PRIVATE_KEY = 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a; // Account 2
     uint256 public constant TREASURY_PRIVATE_KEY = 0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6; // Account 3
     uint256 public constant QA_MANAGER_PRIVATE_KEY = 0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba; // Account 5
-    uint256 public constant QA_ADMIN_PRIVATE_KEY = 0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e; // Account 6
+    uint256 public constant QA_SIGNER_PRIVATE_KEY = 0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e; // Account 6
     uint256 public constant REWARDS_MANAGER_PRIVATE_KEY =
         0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a; // Account 4
 
@@ -75,7 +75,7 @@ contract EventEmissionScript is Script {
     bytes32 public constant REWARD_CLAIM_TYPEHASH =
         keccak256("RewardClaim(address userWallet,uint256 amount,bytes32 orderId)");
     bytes32 public constant QA_DECISION_TYPEHASH = keccak256(
-        "QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,bytes32 reason)"
+        "QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,bytes32 reason,uint256 expiration)"
     );
 
     function run() public {
@@ -89,7 +89,7 @@ contract EventEmissionScript is Script {
         TREASURY = actors.rewardsSafe;
         QA_MANAGER = actors.qaManager;
         REWARDS_MANAGER = actors.rewardsManager;
-        QA_ADMIN = actors.qaAdmin;
+        QA_SIGNER = actors.qaSigner;
         PAUSE_MANAGER = actors.pauseManager;
 
         // Setup contracts and users
@@ -141,7 +141,6 @@ contract EventEmissionScript is Script {
         return (
             LocalContracts.SAPIEN_TOKEN.code.length > 0 && LocalContracts.SAPIEN_VAULT.code.length > 0
                 && LocalContracts.SAPIEN_QA.code.length > 0 && LocalContracts.SAPIEN_REWARDS.code.length > 0
-                && LocalContracts.MULTIPLIER.code.length > 0
         );
     }
 
@@ -183,7 +182,7 @@ contract EventEmissionScript is Script {
 
         // Grant necessary roles using private key
         vm.startBroadcast(ADMIN_PRIVATE_KEY);
-        sapienQA.grantRole(Const.QA_ADMIN_ROLE, QA_ADMIN);
+        sapienQA.grantRole(Const.QA_SIGNER_ROLE, QA_SIGNER);
         vm.stopBroadcast();
     }
 
@@ -360,38 +359,54 @@ contract EventEmissionScript is Script {
 
         // Warning for user 4 (no penalty)
         bytes32 decisionId1 = keccak256("qa_warning_1");
+        uint256 expiration1 = block.timestamp + 24 hours;
         bytes32 digest4 = createQADecisionDigest(
             decisionId1,
             user4,
             0, // WARNING
             0, // No penalty for warning
-            "Community guideline reminder"
+            "Community guideline reminder",
+            expiration1
         );
-        (uint8 v4, bytes32 r4, bytes32 s4) = vm.sign(QA_ADMIN_PRIVATE_KEY, digest4);
+        (uint8 v4, bytes32 r4, bytes32 s4) = vm.sign(QA_SIGNER_PRIVATE_KEY, digest4);
         bytes memory signature4 = abi.encodePacked(r4, s4, v4);
 
         vm.startBroadcast(QA_MANAGER_PRIVATE_KEY);
         sapienQA.processQualityAssessment(
-            user4, ISapienQA.QAActionType.WARNING, 0, decisionId1, "Community guideline reminder", signature4
+            user4,
+            ISapienQA.QAActionType.WARNING,
+            0,
+            decisionId1,
+            "Community guideline reminder",
+            expiration1,
+            signature4
         ); // QualityAssessmentProcessed event
         vm.stopBroadcast();
 
         // Minor penalty for user 5
         bytes32 decisionId2 = keccak256("qa_minor_penalty_1");
         uint256 penaltyAmount = 1000 * 1e18;
+        uint256 expiration2 = block.timestamp + 24 hours;
         bytes32 digest5 = createQADecisionDigest(
             decisionId2,
             user5,
             1, // MINOR_PENALTY
             penaltyAmount,
-            "Minor rule violation"
+            "Minor rule violation",
+            expiration2
         );
-        (uint8 v5, bytes32 r5, bytes32 s5) = vm.sign(QA_ADMIN_PRIVATE_KEY, digest5);
+        (uint8 v5, bytes32 r5, bytes32 s5) = vm.sign(QA_SIGNER_PRIVATE_KEY, digest5);
         bytes memory signature5 = abi.encodePacked(r5, s5, v5);
 
         vm.startBroadcast(QA_MANAGER_PRIVATE_KEY);
         sapienQA.processQualityAssessment(
-            user5, ISapienQA.QAActionType.MINOR_PENALTY, penaltyAmount, decisionId2, "Minor rule violation", signature5
+            user5,
+            ISapienQA.QAActionType.MINOR_PENALTY,
+            penaltyAmount,
+            decisionId2,
+            "Minor rule violation",
+            expiration2,
+            signature5
         ); // QualityAssessmentProcessed + QAPenaltyProcessed events
         vm.stopBroadcast();
 
@@ -481,7 +496,8 @@ contract EventEmissionScript is Script {
         address user,
         uint8 actionType,
         uint256 penaltyAmount,
-        string memory reason
+        string memory reason,
+        uint256 expiration
     ) internal view returns (bytes32) {
         bytes32 domainSeparator = keccak256(
             abi.encode(
@@ -493,7 +509,9 @@ contract EventEmissionScript is Script {
             )
         );
         bytes32 structHash = keccak256(
-            abi.encode(QA_DECISION_TYPEHASH, user, actionType, penaltyAmount, decisionId, keccak256(bytes(reason)))
+            abi.encode(
+                QA_DECISION_TYPEHASH, user, actionType, penaltyAmount, decisionId, keccak256(bytes(reason)), expiration
+            )
         );
         return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
     }

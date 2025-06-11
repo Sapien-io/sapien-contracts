@@ -30,9 +30,10 @@ contract DeployRewards is Script {
         bytes memory initData = abi.encodeWithSelector(
             ISapienRewards.initialize.selector,
             actors.securityCouncil, // admin
-            actors.rewardsManager,
-            actors.rewardsSafe,
-            contracts.sapienToken // SAPIEN
+            actors.rewardsManager, // rewardManager
+            actors.pauseManager, // pauseManager
+            actors.rewardsSafe, // rewardAdmin
+            contracts.sapienToken // newRewardToken
         );
 
         // NOTE: revoke default msg.sender from DEFAULT_ADMIN_ROLE after configured.

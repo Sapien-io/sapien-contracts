@@ -5,6 +5,7 @@ import {Test} from "lib/forge-std/src/Test.sol";
 import {console} from "lib/forge-std/src/console.sol";
 import {Multiplier} from "src/Multiplier.sol";
 import {Constants as Const} from "src/utils/Constants.sol";
+import {ISapienVault} from "src/interfaces/ISapienVault.sol";
 
 // Test helper contract to expose internal functions
 contract MultiplierTestHelper {
@@ -143,27 +144,32 @@ contract MultiplierTest is Test {
     // EDGE CASES AND VALIDATION TESTS
     // =============================================================================
 
-    function test_Multiplier_CalculateMultiplier_InvalidLockupPeriods() public pure {
+    function test_Multiplier_CalculateMultiplier_InvalidLockupPeriods() public {
         uint256 amount = MINIMUM_STAKE;
 
         // Test below minimum lockup
-        assertEq(Multiplier.calculateMultiplier(amount, LOCK_30_DAYS - 1), 0);
+        vm.expectRevert(ISapienVault.InvalidLockupPeriod.selector);
+        Multiplier.calculateMultiplier(amount, LOCK_30_DAYS - 1);
 
         // Test above maximum lockup
-        assertEq(Multiplier.calculateMultiplier(amount, LOCK_365_DAYS + 1), 0);
+        vm.expectRevert(ISapienVault.InvalidLockupPeriod.selector);
+        Multiplier.calculateMultiplier(amount, LOCK_365_DAYS + 1);
 
         // Test zero lockup
-        assertEq(Multiplier.calculateMultiplier(amount, 0), 0);
+        vm.expectRevert(ISapienVault.InvalidLockupPeriod.selector);
+        Multiplier.calculateMultiplier(amount, 0);
     }
 
-    function test_Multiplier_CalculateMultiplier_InvalidAmounts() public pure {
+    function test_Multiplier_CalculateMultiplier_InvalidAmounts() public {
         uint256 lockup = LOCK_30_DAYS;
 
         // Test below minimum stake
-        assertEq(Multiplier.calculateMultiplier(MINIMUM_STAKE - 1, lockup), 0);
+        vm.expectRevert(ISapienVault.MinimumStakeAmountRequired.selector);
+        Multiplier.calculateMultiplier(MINIMUM_STAKE - 1, lockup);
 
         // Test zero amount
-        assertEq(Multiplier.calculateMultiplier(0, lockup), 0);
+        vm.expectRevert(ISapienVault.MinimumStakeAmountRequired.selector);
+        Multiplier.calculateMultiplier(0, lockup);
     }
 
     function test_Multiplier_CalculateMultiplier_BoundaryAmounts() public pure {
@@ -245,15 +251,17 @@ contract MultiplierTest is Test {
         assertLe(result, 19500); // Maximum multiplier
     }
 
-    function testFuzz_Multiplier_CalculateMultiplier_InvalidInputs(uint256 amount, uint256 lockup) public pure {
+    function testFuzz_Multiplier_CalculateMultiplier_InvalidInputs(uint256 amount, uint256 lockup) public {
         // Test invalid amounts
         if (amount < MINIMUM_STAKE) {
-            assertEq(Multiplier.calculateMultiplier(amount, LOCK_30_DAYS), 0);
+            vm.expectRevert(ISapienVault.MinimumStakeAmountRequired.selector);
+            Multiplier.calculateMultiplier(amount, LOCK_30_DAYS);
         }
 
         // Test invalid lockups
         if (lockup < LOCK_30_DAYS || lockup > LOCK_365_DAYS) {
-            assertEq(Multiplier.calculateMultiplier(MINIMUM_STAKE, lockup), 0);
+            vm.expectRevert(ISapienVault.InvalidLockupPeriod.selector);
+            Multiplier.calculateMultiplier(MINIMUM_STAKE, lockup);
         }
     }
 
@@ -331,28 +339,25 @@ contract MultiplierTest is Test {
     // SPECIFIC TIER FACTOR TESTS
     // =============================================================================
 
-    function test_Multiplier_GetAmountTierFactor_OneToken() public pure {
+    function test_Multiplier_GetAmountTierFactor_OneToken() public {
         // Test that 1 token returns tier factor 0 (Tier 0)
         // Since getAmountTierFactor is internal, we test indirectly through calculateMultiplier
 
         uint256 oneToken = 1 * TOKEN_DECIMALS; // 1 token = 1e18 wei
         uint256 lockup = LOCK_30_DAYS; // Use minimum lockup for simplicity
 
-        // This should return 0 because amount < MINIMUM_STAKE_AMOUNT
-        uint256 result = Multiplier.calculateMultiplier(oneToken, lockup);
-        assertEq(result, 0, "1 token should return 0 multiplier due to minimum stake requirement");
+        // This should revert because amount < MINIMUM_STAKE_AMOUNT
+        vm.expectRevert(ISapienVault.MinimumStakeAmountRequired.selector);
+        Multiplier.calculateMultiplier(oneToken, lockup);
 
-        // For amounts below MINIMUM_STAKE_AMOUNT, calculateMultiplier returns 0
-        // But we can verify the tier logic by testing amounts just at the threshold
-
-        // Test 999 tokens (below 1000 threshold) - this should also return 0 from calculateMultiplier
+        // Test 999 tokens (below 1000 threshold) - this should also revert from calculateMultiplier
         uint256 tokens999 = 999 * TOKEN_DECIMALS;
-        result = Multiplier.calculateMultiplier(tokens999, lockup);
-        assertEq(result, 0, "999 tokens should return 0 multiplier due to minimum stake requirement");
+        vm.expectRevert(ISapienVault.MinimumStakeAmountRequired.selector);
+        Multiplier.calculateMultiplier(tokens999, lockup);
 
         // Test exactly 1000 tokens (at threshold) - should get Tier 1 treatment
         uint256 tokens1000 = 1000 * TOKEN_DECIMALS;
-        result = Multiplier.calculateMultiplier(tokens1000, lockup);
+        uint256 result = Multiplier.calculateMultiplier(tokens1000, lockup);
         assertGt(result, 0, "1000 tokens should return positive multiplier");
 
         // The 1000 token result should be base (10500) + tier 1 bonus (900) = 11400

@@ -5,6 +5,7 @@ import {
     ECDSA,
     IERC20,
     SafeERC20,
+    EIP712Upgradeable,
     PausableUpgradeable,
     AccessControlUpgradeable,
     ReentrancyGuardUpgradeable
@@ -20,7 +21,13 @@ using SafeERC20 for IERC20;
  * @title SapienRewards
  * @dev This contract allows users to claim rewards with an EIP-712 offchain signature from the rewards manager.
  */
-contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
+contract SapienRewards is
+    ISapienRewards,
+    EIP712Upgradeable,
+    AccessControlUpgradeable,
+    PausableUpgradeable,
+    ReentrancyGuardUpgradeable
+{
     // -------------------------------------------------------------
     // State Variables
     // -------------------------------------------------------------
@@ -33,12 +40,6 @@ contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgr
 
     /// @notice Mapping of wallet addresses to their redeemed orders.
     mapping(address => mapping(bytes32 => bool)) private redeemedOrders;
-
-    /// @notice EIP-712 domain separator for this contract.
-    bytes32 private DOMAIN_SEPARATOR;
-
-    /// @notice Initial chain ID when contract was deployed (for fork detection)
-    uint256 private initialChainId;
 
     // -------------------------------------------------------------
     // Constructor
@@ -91,7 +92,7 @@ contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgr
 
     /// @notice Returns the version of the contract
     function version() public pure returns (string memory) {
-        return "0.1.2";
+        return Const.REWARDS_VERSION;
     }
 
     /**
@@ -118,17 +119,13 @@ contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgr
         __Pausable_init();
         __AccessControl_init();
         __ReentrancyGuard_init();
+        __EIP712_init("SapienRewards", version());
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(Const.PAUSER_ROLE, pauseManager);
         _grantRole(Const.REWARD_ADMIN_ROLE, rewardAdmin);
         _grantRole(Const.REWARD_MANAGER_ROLE, rewardManager);
 
-        // Initialize domain separator for EIP-712
-        DOMAIN_SEPARATOR = _domainSeparator();
-
-        // Store initial chain ID for fork detection
-        initialChainId = block.chainid;
         rewardToken = IERC20(newRewardToken);
     }
 
@@ -279,10 +276,10 @@ contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgr
     /**
      * @notice Returns the domain separator for EIP-712 signatures
      * @dev Server can use this to verify they're building signatures for the correct contract/chain
-     * @return The current domain separator
+     * @return bytes32 current domain separator
      */
     function getDomainSeparator() public view returns (bytes32) {
-        return _domainSeparator();
+        return _domainSeparatorV4();
     }
 
     /**
@@ -354,24 +351,6 @@ contract SapienRewards is ISapienRewards, AccessControlUpgradeable, PausableUpgr
         }
 
         validateRewardParameters(userWallet, rewardAmount, orderId);
-    }
-
-    /**
-     * @notice Returns the current domain separator, recalculating if chainid has changed
-     * @dev This protects against signature replay attacks across chain forks
-     * @return The current domain separator
-     */
-    function _domainSeparator() internal view returns (bytes32) {
-        if (block.chainid == initialChainId) {
-            return DOMAIN_SEPARATOR;
-        } else {
-            // Recalculate if chain has forked
-            return keccak256(
-                abi.encode(
-                    Const.EIP712_DOMAIN_TYPEHASH, keccak256("SapienRewards"), version(), block.chainid, address(this)
-                )
-            );
-        }
     }
 
     /**

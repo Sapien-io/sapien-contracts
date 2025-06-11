@@ -32,10 +32,16 @@ contract SapienQA is ISapienQA, AccessControl, EIP712 {
     // Constructor
     // -------------------------------------------------------------
 
-    constructor(address _treasury, address _vaultContract, address qaManager, address admin) EIP712("SapienQA", "1") {
+    constructor(address _treasury, address _vaultContract, address qaManager, address admin)
+        EIP712("SapienQA", version())
+    {
         _validateConstructorInputs(_treasury, _vaultContract, qaManager, admin);
         _initializeState(_treasury, _vaultContract);
         _setupRoles(qaManager, admin);
+    }
+
+    function version() public pure returns (string memory) {
+        return Const.QA_VERSION;
     }
 
     // -------------------------------------------------------------
@@ -75,13 +81,14 @@ contract SapienQA is ISapienQA, AccessControl, EIP712 {
         uint256 penaltyAmount,
         bytes32 decisionId,
         string calldata reason,
+        uint256 expiration,
         bytes calldata signature
     ) public onlyQaManager {
         // Step 1: Validate all inputs
         _validateQAInputs(userAddress, actionType, penaltyAmount, decisionId, reason);
 
-        // Step 2: Verify signature authorization
-        _verifySignature(userAddress, actionType, penaltyAmount, decisionId, reason, signature);
+        // Step 2: Verify signature authorization and expiration
+        verifySignature(userAddress, actionType, penaltyAmount, decisionId, reason, expiration, signature);
 
         // Step 3: Mark decision as processed (prevents replay attacks)
         _markDecisionProcessed(decisionId);
@@ -137,6 +144,14 @@ contract SapienQA is ISapienQA, AccessControl, EIP712 {
      */
     function getQAStatistics() external view override returns (uint256, uint256) {
         return (totalPenalties, totalWarnings);
+    }
+
+    /**
+     * @notice Get the EIP-712 domain separator for this contract
+     * @return The domain separator used for EIP-712 typed data signing
+     */
+    function getDomainSeparator() external view override returns (bytes32) {
+        return _domainSeparatorV4();
     }
 
     // -------------------------------------------------------------
@@ -311,22 +326,60 @@ contract SapienQA is ISapienQA, AccessControl, EIP712 {
     }
 
     /**
-     * @notice Verify EIP-712 signature for QA decision
+     * @notice Creates a hash of the QA decision parameters for EIP-712 signature verification
+     * @param decisionId Unique identifier for the QA decision
+     * @param user Address of the user being assessed
+     * @param actionType Type of QA action (WARNING, MINOR_PENALTY, etc.)
+     * @param penaltyAmount Amount to penalize (0 for warnings)
+     * @param reason Human-readable reason for the assessment
+     * @param expiration Timestamp when the signature expires
+     * @return structHash The keccak256 hash of the encoded parameters
+     */
+    function createQADecisionHash(
+        bytes32 decisionId,
+        address user,
+        uint8 actionType,
+        uint256 penaltyAmount,
+        string memory reason,
+        uint256 expiration
+    ) public pure returns (bytes32) {
+        bytes32 structHash = keccak256(
+            abi.encode(
+                Const.QA_DECISION_TYPEHASH,
+                user,
+                actionType,
+                penaltyAmount,
+                decisionId,
+                keccak256(bytes(reason)),
+                expiration
+            )
+        );
+
+        return structHash;
+    }
+
+    /**
+     * @notice Verify EIP-712 signature for QA decision with expiration check
      * @param userAddress The user being assessed
      * @param actionType The type of QA action
      * @param penaltyAmount The penalty amount
      * @param decisionId The unique decision identifier
      * @param reason The reason for the assessment
+     * @param expiration The expiration timestamp for the signature
      * @param signature The signature to verify from the QA admin
      */
-    function _verifySignature(
+    function verifySignature(
         address userAddress,
         QAActionType actionType,
         uint256 penaltyAmount,
         bytes32 decisionId,
         string calldata reason,
+        uint256 expiration,
         bytes calldata signature
-    ) internal view {
+    ) public view {
+        // Check signature expiration first
+        if (block.timestamp > expiration) revert ExpiredSignature(expiration);
+
         if (signature.length != 65) revert InvalidSignatureLength();
 
         bytes32 structHash = keccak256(
@@ -336,13 +389,14 @@ contract SapienQA is ISapienQA, AccessControl, EIP712 {
                 uint8(actionType),
                 penaltyAmount,
                 decisionId,
-                keccak256(bytes(reason))
+                keccak256(bytes(reason)),
+                expiration
             )
         );
 
         bytes32 hash = _hashTypedDataV4(structHash);
         address signer = hash.recover(signature);
 
-        if (!hasRole(Const.QA_ADMIN_ROLE, signer)) revert UnauthorizedSigner(signer);
+        if (!hasRole(Const.QA_SIGNER_ROLE, signer)) revert UnauthorizedSigner(signer);
     }
 }

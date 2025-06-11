@@ -36,7 +36,7 @@ contract TenderlyIntegrationTest is Test {
     address public constant ADMIN = 0x0C6F86b338417B3b7FCB9B344DECC51d072919c9;
     address public constant TREASURY = 0x0C6F86b338417B3b7FCB9B344DECC51d072919c9;
     address public constant QA_MANAGER = 0x0C6F86b338417B3b7FCB9B344DECC51d072919c9;
-    address public constant QA_ADMIN = 0x0C6F86b338417B3b7FCB9B344DECC51d072919c9;
+    address public constant QA_SIGNER = 0x0C6F86b338417B3b7FCB9B344DECC51d072919c9;
     address public constant REWARDS_MANAGER = 0x0C6F86b338417B3b7FCB9B344DECC51d072919c9;
     
     // Contract interfaces
@@ -69,14 +69,14 @@ contract TenderlyIntegrationTest is Test {
         keccak256("QADecision(address userAddress,uint8 actionType,uint256 penaltyAmount,bytes32 decisionId,bytes32 reason)");
     
     uint256 public REWARDS_MANAGER_PRIVATE_KEY;
-    uint256 public QA_ADMIN_PRIVATE_KEY;
+    uint256 public QA_SIGNER_PRIVATE_KEY;
     
     
     function setUp() public {
         // Initialize private keys from environment with fallback
         try vm.envUint("TENDERLY_TEST_PRIVATE_KEY") returns (uint256 privateKey) {
             REWARDS_MANAGER_PRIVATE_KEY = privateKey;
-            QA_ADMIN_PRIVATE_KEY = privateKey;
+            QA_SIGNER_PRIVATE_KEY = privateKey;
         } catch {
             revert("TENDERLY_TEST_PRIVATE_KEY not set");
         }
@@ -286,7 +286,7 @@ contract TenderlyIntegrationTest is Test {
         
         // Create reward claim signature
         bytes32 digest = createRewardClaimDigest(user1, rewardAmount, orderId);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(QA_ADMIN_PRIVATE_KEY, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(QA_SIGNER_PRIVATE_KEY, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
         
         uint256 balanceBefore = sapienToken.balanceOf(user1);
@@ -305,48 +305,48 @@ contract TenderlyIntegrationTest is Test {
      */
     function test_Integration_QAPenaltySystem() public {
         console.log("=== QA PENALTY SYSTEM TEST DIAGNOSTICS ===");
-        console.log("Derived QA admin:", vm.addr(QA_ADMIN_PRIVATE_KEY));
-        console.log("Expected QA admin:", QA_ADMIN);
+        console.log("Derived QA signer:", vm.addr(QA_SIGNER_PRIVATE_KEY));
+        console.log("Expected QA signer:", QA_SIGNER);
         
-        // Check if the derived address has the QA_ADMIN role
-        address derivedQAAdmin = vm.addr(QA_ADMIN_PRIVATE_KEY);
-        bool hasQAAdminRole = sapienQA.hasRole(Const.QA_ADMIN_ROLE, derivedQAAdmin);
+        // Check if the derived address has the QA_SIGNER role
+        address derivedQASigner = vm.addr(QA_SIGNER_PRIVATE_KEY);
+        bool hasQASignerRole = sapienQA.hasRole(Const.QA_SIGNER_ROLE, derivedQASigner);
         bool hasQAManagerRole = sapienQA.hasRole(Const.QA_MANAGER_ROLE, QA_MANAGER);
         
-        console.log("Derived QA admin has QA_ADMIN_ROLE:", hasQAAdminRole);
+        console.log("Derived QA signer has QA_SIGNER_ROLE:", hasQASignerRole);
         console.log("QA_MANAGER has QA_MANAGER_ROLE:", hasQAManagerRole);
-        console.log("QA_ADMIN_ROLE hash:", vm.toString(Const.QA_ADMIN_ROLE));
+        console.log("QA_SIGNER_ROLE hash:", vm.toString(Const.QA_SIGNER_ROLE));
         console.log("QA_MANAGER_ROLE hash:", vm.toString(Const.QA_MANAGER_ROLE));
         
-        // Check all the deployed addresses to see which ones have QA_ADMIN_ROLE
-        console.log("=== CHECKING WHICH ADDRESSES HAVE QA_ADMIN_ROLE ===");
+        // Check all the deployed addresses to see which ones have QA_SIGNER_ROLE
+        console.log("=== CHECKING WHICH ADDRESSES HAVE QA_SIGNER_ROLE ===");
         address[] memory addressesToCheck = new address[](6);
         addressesToCheck[0] = ADMIN;
         addressesToCheck[1] = TREASURY;
         addressesToCheck[2] = QA_MANAGER;
-        addressesToCheck[3] = QA_ADMIN;
+        addressesToCheck[3] = QA_SIGNER;
         addressesToCheck[4] = REWARDS_MANAGER;
-        addressesToCheck[5] = derivedQAAdmin;
+        addressesToCheck[5] = derivedQASigner;
         
         for (uint256 i = 0; i < addressesToCheck.length; i++) {
-            bool hasRole = sapienQA.hasRole(Const.QA_ADMIN_ROLE, addressesToCheck[i]);
-            console.log("Address", addressesToCheck[i], "has QA_ADMIN_ROLE:", hasRole);
+            bool hasRole = sapienQA.hasRole(Const.QA_SIGNER_ROLE, addressesToCheck[i]);
+            console.log("Address", addressesToCheck[i], "has QA_SIGNER_ROLE:", hasRole);
         }
         
         // Skip if environment is not properly configured
-        if (derivedQAAdmin != QA_ADMIN) {
+        if (derivedQASigner != QA_SIGNER) {
             console.log("[SKIP] QA penalty test requires correct TENDERLY_TEST_PRIVATE_KEY");
-            console.log("Private key derives to:", derivedQAAdmin);
-            console.log("But expected address is:", QA_ADMIN);
+            console.log("Private key derives to:", derivedQASigner);
+            console.log("But expected address is:", QA_SIGNER);
             return;
         }
         
-        // Additional check: verify the expected QA_ADMIN has the role
-        bool expectedHasRole = sapienQA.hasRole(Const.QA_ADMIN_ROLE, QA_ADMIN);
-        console.log("Expected QA_ADMIN has QA_ADMIN_ROLE:", expectedHasRole);
+        // Additional check: verify the expected QA_SIGNER has the role
+        bool expectedHasRole = sapienQA.hasRole(Const.QA_SIGNER_ROLE, QA_SIGNER);
+        console.log("Expected QA_SIGNER has QA_SIGNER_ROLE:", expectedHasRole);
         
         if (!expectedHasRole) {
-            console.log("[SKIP] Expected QA_ADMIN address doesn't have QA_ADMIN_ROLE in contract");
+            console.log("[SKIP] Expected QA_SIGNER address doesn't have QA_SIGNER_ROLE in contract");
             return;
         }
         
@@ -378,7 +378,7 @@ contract TenderlyIntegrationTest is Test {
         
         console.log("Digest to sign:", vm.toString(digest));
         
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(QA_ADMIN_PRIVATE_KEY, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(QA_SIGNER_PRIVATE_KEY, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
         
         console.log("Signature v:", v);
@@ -389,7 +389,7 @@ contract TenderlyIntegrationTest is Test {
         // Test ecrecover locally to see what address it derives
         address recoveredAddress = ecrecover(digest, v, r, s);
         console.log("Locally recovered address:", recoveredAddress);
-        console.log("Local recovery matches expected:", recoveredAddress == QA_ADMIN);
+        console.log("Local recovery matches expected:", recoveredAddress == QA_SIGNER);
         
         // Process penalty
         uint256 treasuryBefore = sapienToken.balanceOf(TREASURY);
@@ -603,11 +603,11 @@ contract TenderlyIntegrationTest is Test {
             vm.stopPrank();
             
             // User claims reward (if environment is properly configured)
-            if (vm.addr(QA_ADMIN_PRIVATE_KEY) == QA_ADMIN) {
+            if (vm.addr(QA_SIGNER_PRIVATE_KEY) == QA_SIGNER) {
                 bytes32 orderId = keccak256(abi.encodePacked("load_order_", i));
                 uint256 rewardAmount = 1000 * 1e18;
                 bytes32 digest = createRewardClaimDigest(testUser, rewardAmount, orderId);
-                (uint8 v, bytes32 r, bytes32 s) = vm.sign(QA_ADMIN_PRIVATE_KEY, digest);
+                (uint8 v, bytes32 r, bytes32 s) = vm.sign(QA_SIGNER_PRIVATE_KEY, digest);
                 bytes memory signature = abi.encodePacked(r, s, v);
                 
                 vm.prank(testUser);

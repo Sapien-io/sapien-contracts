@@ -3,7 +3,6 @@ pragma solidity 0.8.30;
 
 import {Test, console} from "forge-std/Test.sol";
 import {Multiplier} from "src/Multiplier.sol";
-import {IMultiplier} from "src/interfaces/IMultiplier.sol";
 import {Constants as Const} from "src/utils/Constants.sol";
 
 /**
