@@ -133,7 +133,7 @@ contract JuneAudit_SAP_6_Test is Test {
                 , // cooldownStart
                 , // lastUpdateTime
                 , // earlyUnstakeCooldownStart
-                  // effectiveMultiplier
+                    // effectiveMultiplier
             ) = sapienVault.userStakes(user1);
 
             assertEq(amount, stakeAmount + additionalAmount, "User1 should have combined stake amount");
@@ -151,7 +151,7 @@ contract JuneAudit_SAP_6_Test is Test {
                 , // cooldownStart
                 , // lastUpdateTime
                 , // earlyUnstakeCooldownStart
-                  // effectiveMultiplier
+                    // effectiveMultiplier
             ) = sapienVault.userStakes(user2);
 
             user2WeightedStart = weightedStart;
@@ -169,7 +169,7 @@ contract JuneAudit_SAP_6_Test is Test {
                 , // cooldownStart
                 , // lastUpdateTime
                 , // earlyUnstakeCooldownStart
-                  // effectiveMultiplier
+                    // effectiveMultiplier
             ) = sapienVault.userStakes(user3);
 
             assertEq(amount, stakeAmount, "User3 should have original stake amount");

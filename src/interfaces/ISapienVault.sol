@@ -17,9 +17,9 @@ interface ISapienVault {
         uint64 lastUpdateTime; // 8 bytes - Last time stake was modified (slot 3)
         uint64 earlyUnstakeCooldownStart; // 8 bytes - When early unstake cooldown was initiated (slot 4)
         uint32 effectiveMultiplier; // 4 bytes - Calculated multiplier (slot 4)
-        // Note: hasStake field removed - stake existence determined by amount > 0
-        // This eliminates storage corruption and reduces gas costs
-        // Total: 4 storage slots, with 4 bytes free in slot 4
+            // Note: hasStake field removed - stake existence determined by amount > 0
+            // This eliminates storage corruption and reduces gas costs
+            // Total: 4 storage slots, with 4 bytes free in slot 4
     }
 
     struct WeightedValues {
@@ -28,14 +28,14 @@ interface ISapienVault {
     }
 
     struct UserStakingSummary {
-        uint256 userTotalStaked;        // Total amount staked by the user
-        uint256 totalUnlocked;          // Amount available for unstaking initiation
-        uint256 totalLocked;            // Amount still in lockup period
-        uint256 totalInCooldown;        // Amount currently in unstaking cooldown
-        uint256 totalReadyForUnstake;   // Amount ready for immediate withdrawal
-        uint256 effectiveMultiplier;    // Current multiplier for rewards (basis points)
-        uint256 effectiveLockUpPeriod;  // Weighted average lockup period (seconds)
-        uint256 timeUntilUnlock;        // Time remaining until unlock (seconds, 0 if unlocked)
+        uint256 userTotalStaked; // Total amount staked by the user
+        uint256 totalUnlocked; // Amount available for unstaking initiation
+        uint256 totalLocked; // Amount still in lockup period
+        uint256 totalInCooldown; // Amount currently in unstaking cooldown
+        uint256 totalReadyForUnstake; // Amount ready for immediate withdrawal
+        uint256 effectiveMultiplier; // Current multiplier for rewards (basis points)
+        uint256 effectiveLockUpPeriod; // Weighted average lockup period (seconds)
+        uint256 timeUntilUnlock; // Time remaining until unlock (seconds, 0 if unlocked)
     }
 
     // -------------------------------------------------------------
@@ -137,7 +137,8 @@ interface ISapienVault {
      * @return summary The complete UserStakingSummary struct for the user
      */
     function getUserStakingSummary(address user) external view returns (UserStakingSummary memory summary);
-
+    function getTimeUntilUnlock(address user) external view returns (uint256);
+    function getUserLockupPeriod(address user) external view returns (uint256);
     function hasActiveStake(address user) external view returns (bool);
 
     // -------------------------------------------------------------

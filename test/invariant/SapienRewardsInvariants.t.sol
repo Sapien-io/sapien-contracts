@@ -251,6 +251,7 @@ contract SapienRewardsInvariantsTest is StdInvariant, Test {
     address public admin = makeAddr("admin");
     address public rewardAdmin = makeAddr("rewardAdmin");
     address public rewardManager = makeAddr("rewardManager");
+    address public pauseManager = makeAddr("pauseManager");
     
     function setUp() public {
         rewardToken = new MockERC20("Reward", "REWARD", 18);
@@ -260,6 +261,7 @@ contract SapienRewardsInvariantsTest is StdInvariant, Test {
             SapienRewards.initialize.selector,
             admin,
             rewardManager,
+            pauseManager,
             rewardAdmin,
             address(rewardToken)
         );

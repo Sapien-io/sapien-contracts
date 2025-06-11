@@ -503,7 +503,9 @@ contract SapienVaultUncoveredLinesTest is Test {
         ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
 
         // Should be exactly 365 days due to floor protection taking the max
-        assertEq(userStake.effectiveLockUpPeriod, Const.LOCKUP_365_DAYS, "Floor protection should ensure exactly 365 days");
+        assertEq(
+            userStake.effectiveLockUpPeriod, Const.LOCKUP_365_DAYS, "Floor protection should ensure exactly 365 days"
+        );
 
         // The cap check (line 760) might be unreachable due to floor protection logic
         // This test documents the expected behavior
@@ -563,7 +565,9 @@ contract SapienVaultUncoveredLinesTest is Test {
 
         // Even with banker's rounding, floor protection prevents exceeding 365 days
         ISapienVault.UserStakingSummary memory userStake2 = vault.getUserStakingSummary(user);
-        assertLe(userStake2.effectiveLockUpPeriod, Const.LOCKUP_365_DAYS, "Floor protection prevents exceeding max lockup");
+        assertLe(
+            userStake2.effectiveLockUpPeriod, Const.LOCKUP_365_DAYS, "Floor protection prevents exceeding max lockup"
+        );
 
         // Note: Line 757 "newValues.effectiveLockup = Const.LOCKUP_365_DAYS;" is unreachable
         // because _calculateWeightedLockupPeriod has floor protection that ensures:

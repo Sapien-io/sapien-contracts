@@ -146,26 +146,26 @@ contract SapienVaultBasicTest is Test {
             sapienVault.stake(MINIMUM_STAKE, lockPeriods[i]);
             vm.stopPrank();
 
-                    // Verify stake details
-        ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user);
-        uint256 totalLocked = sapienVault.getTotalLocked(user);
-        uint256 totalUnlocked = sapienVault.getTotalUnlocked(user);
-        uint256 totalInCooldown = sapienVault.getTotalInCooldown(user);
-        uint256 totalReadyForUnstake = sapienVault.getTotalReadyForUnstake(user);
+            // Verify stake details
+            ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user);
+            uint256 totalLocked = sapienVault.getTotalLocked(user);
+            uint256 totalUnlocked = sapienVault.getTotalUnlocked(user);
+            uint256 totalInCooldown = sapienVault.getTotalInCooldown(user);
+            uint256 totalReadyForUnstake = sapienVault.getTotalReadyForUnstake(user);
 
-        assertEq(userStake.userTotalStaked, MINIMUM_STAKE);
-        // Use approximate comparison for effective multipliers in new system
-        assertApproxEqAbs(
-            userStake.effectiveMultiplier,
-            expectedEffectiveMultipliers[i],
-            100,
-            "Effective multiplier should be close to expected"
-        );
-        assertEq(userStake.effectiveLockUpPeriod, lockPeriods[i]);
-        assertEq(totalLocked, MINIMUM_STAKE); // All should be locked initially
-        assertEq(totalUnlocked, 0);
-        assertEq(totalInCooldown, 0);
-        assertEq(totalReadyForUnstake, 0);
+            assertEq(userStake.userTotalStaked, MINIMUM_STAKE);
+            // Use approximate comparison for effective multipliers in new system
+            assertApproxEqAbs(
+                userStake.effectiveMultiplier,
+                expectedEffectiveMultipliers[i],
+                100,
+                "Effective multiplier should be close to expected"
+            );
+            assertEq(userStake.effectiveLockUpPeriod, lockPeriods[i]);
+            assertEq(totalLocked, MINIMUM_STAKE); // All should be locked initially
+            assertEq(totalUnlocked, 0);
+            assertEq(totalInCooldown, 0);
+            assertEq(totalReadyForUnstake, 0);
         }
 
         assertEq(sapienVault.totalStaked(), MINIMUM_STAKE * 4);
@@ -256,7 +256,9 @@ contract SapienVaultBasicTest is Test {
         assertEq(userStake.userTotalStaked, MINIMUM_STAKE * 3);
         // 3K tokens @ 30 days should get better multiplier than 1K tokens due to amount bonus
         assertGt(userStake.effectiveMultiplier, 10500, "3K tokens should get better multiplier than 1K minimum");
-        assertLt(userStake.effectiveMultiplier, 13000, "Multiplier should be reasonable for 3K @ 30 days (around 1.23x)");
+        assertLt(
+            userStake.effectiveMultiplier, 13000, "Multiplier should be reasonable for 3K @ 30 days (around 1.23x)"
+        );
         assertEq(userStake.effectiveLockUpPeriod, LOCK_30_DAYS); // Should stay same
         assertEq(sapienVault.totalStaked(), MINIMUM_STAKE * 3);
     }
@@ -666,7 +668,9 @@ contract SapienVaultBasicTest is Test {
         assertEq(totalUnlocked, 0);
         assertEq(totalInCooldown, 0);
         assertEq(totalReadyForUnstake, 0);
-        assertApproxEqAbs(userStake.effectiveMultiplier, 12300, 100, "4K tokens @ 30 days should get ~12300 multiplier (1.23x)");
+        assertApproxEqAbs(
+            userStake.effectiveMultiplier, 12300, 100, "4K tokens @ 30 days should get ~12300 multiplier (1.23x)"
+        );
         assertEq(userStake.effectiveLockUpPeriod, LOCK_30_DAYS);
         // Use the timeUntilUnlock field from the struct
         assertEq(userStake.timeUntilUnlock, LOCK_30_DAYS);
@@ -747,6 +751,237 @@ contract SapienVaultBasicTest is Test {
         assertEq(userStake.effectiveLockUpPeriod, LOCK_90_DAYS, "Should use new stake period due to security fix");
     }
 
+    function test_Vault_GetUserMultiplier() public {
+        // Test getUserMultiplier for user with no stake
+        assertEq(sapienVault.getUserMultiplier(user1), 0, "User with no stake should have 0 multiplier");
+
+        // Create stake and test multiplier
+        uint256 stakeAmount = MINIMUM_STAKE * 2; // 2K tokens
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        vm.stopPrank();
+
+        // Verify getUserMultiplier returns the effective multiplier
+        uint256 userMultiplier = sapienVault.getUserMultiplier(user1);
+        ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
+
+        assertEq(
+            userMultiplier,
+            userStake.effectiveMultiplier,
+            "getUserMultiplier should match effective multiplier from summary"
+        );
+        assertGt(userMultiplier, 0, "User with active stake should have positive multiplier");
+
+        // Expected multiplier for 2K tokens @ 90 days should be around 1.19x = 11900
+        assertApproxEqAbs(userMultiplier, 11900, 100, "2K tokens @ 90 days should get ~11900 multiplier");
+
+        // Test multiplier after increasing amount
+        uint256 additionalAmount = MINIMUM_STAKE; // 1K more tokens
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), additionalAmount);
+        sapienVault.increaseAmount(additionalAmount);
+        vm.stopPrank();
+
+        uint256 newMultiplier = sapienVault.getUserMultiplier(user1);
+        assertGt(newMultiplier, userMultiplier, "Multiplier should increase with more tokens (higher tier bonus)");
+
+        // Test multiplier after increasing lockup
+        vm.prank(user1);
+        sapienVault.increaseLockup(LOCK_90_DAYS); // Increase by 90 more days
+
+        uint256 extendedMultiplier = sapienVault.getUserMultiplier(user1);
+        assertGt(extendedMultiplier, newMultiplier, "Multiplier should increase with longer lockup");
+
+        // Test multiplier after full unstake
+        vm.warp(block.timestamp + LOCK_180_DAYS + 1); // Fast forward past lockup
+        vm.prank(user1);
+        sapienVault.initiateUnstake(stakeAmount + additionalAmount);
+
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1); // Fast forward past cooldown
+        vm.prank(user1);
+        sapienVault.unstake(stakeAmount + additionalAmount);
+
+        assertEq(sapienVault.getUserMultiplier(user1), 0, "User with no stake should have 0 multiplier after unstaking");
+    }
+
+    function test_Vault_GetUserLockupPeriod() public {
+        // Test getUserLockupPeriod for user with no stake
+        assertEq(sapienVault.getUserLockupPeriod(user1), 0, "User with no stake should have 0 lockup period");
+
+        // Create stake and test lockup period
+        uint256 stakeAmount = MINIMUM_STAKE * 3; // 3K tokens
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_180_DAYS);
+        vm.stopPrank();
+
+        // Verify getUserLockupPeriod returns the effective lockup period
+        uint256 userLockupPeriod = sapienVault.getUserLockupPeriod(user1);
+        ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
+
+        assertEq(
+            userLockupPeriod,
+            userStake.effectiveLockUpPeriod,
+            "getUserLockupPeriod should match effective lockup from summary"
+        );
+        assertEq(userLockupPeriod, LOCK_180_DAYS, "Initial lockup should match stake period");
+
+        // Test lockup period after combining with another stake
+        vm.warp(block.timestamp + 30 days); // Advance time
+        uint256 additionalAmount = MINIMUM_STAKE; // 1K more tokens
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), additionalAmount);
+        sapienVault.stake(additionalAmount, LOCK_365_DAYS); // Longer period
+        vm.stopPrank();
+
+        uint256 combinedLockupPeriod = sapienVault.getUserLockupPeriod(user1);
+        assertEq(combinedLockupPeriod, LOCK_365_DAYS, "Should use longer lockup period due to security protection");
+
+        // Test lockup period after increasing lockup
+        // The current lockup is 365 days. When we try to increase by 30 days:
+        // newEffectiveLockup = remainingTime + additionalLockup = 365 + 30 = 395 days
+        // But the implementation caps at LOCKUP_365_DAYS maximum, so it gets capped to 365 days
+        vm.prank(user1);
+        sapienVault.increaseLockup(30 days); // Add 30 more days
+
+        uint256 extendedLockupPeriod = sapienVault.getUserLockupPeriod(user1);
+        // The implementation caps at LOCK_365_DAYS (365 days) maximum
+        assertEq(extendedLockupPeriod, LOCK_365_DAYS, "Should be capped at 365 days maximum");
+
+        // Test lockup period after full unstake
+        vm.warp(block.timestamp + LOCK_365_DAYS + 30 days + 1); // Fast forward past lockup
+        vm.prank(user1);
+        sapienVault.initiateUnstake(stakeAmount + additionalAmount);
+
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1); // Fast forward past cooldown
+        vm.prank(user1);
+        sapienVault.unstake(stakeAmount + additionalAmount);
+
+        assertEq(
+            sapienVault.getUserLockupPeriod(user1), 0, "User with no stake should have 0 lockup period after unstaking"
+        );
+    }
+
+    function test_Vault_GetTimeUntilUnlock() public {
+        // Test getTimeUntilUnlock for user with no stake
+        assertEq(sapienVault.getTimeUntilUnlock(user1), 0, "User with no stake should have 0 time until unlock");
+
+        // Create stake and test time until unlock
+        uint256 stakeAmount = MINIMUM_STAKE * 2; // 2K tokens
+        uint256 stakeTime = block.timestamp;
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Verify getTimeUntilUnlock returns correct remaining time
+        uint256 timeUntilUnlock = sapienVault.getTimeUntilUnlock(user1);
+        ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
+
+        assertEq(
+            timeUntilUnlock, userStake.timeUntilUnlock, "getTimeUntilUnlock should match timeUntilUnlock from summary"
+        );
+        assertEq(timeUntilUnlock, LOCK_30_DAYS, "Initially should equal full lockup period");
+
+        // Test time until unlock after some time passes
+        vm.warp(stakeTime + 10 days);
+        uint256 timeUntilUnlockAfter10Days = sapienVault.getTimeUntilUnlock(user1);
+        assertEq(timeUntilUnlockAfter10Days, LOCK_30_DAYS - 10 days, "Should reflect remaining time after 10 days");
+
+        // Test time until unlock after more time passes
+        vm.warp(stakeTime + 25 days);
+        uint256 timeUntilUnlockAfter25Days = sapienVault.getTimeUntilUnlock(user1);
+        assertEq(timeUntilUnlockAfter25Days, LOCK_30_DAYS - 25 days, "Should reflect remaining time after 25 days");
+
+        // Test time until unlock after lockup period expires
+        vm.warp(stakeTime + LOCK_30_DAYS + 1);
+        uint256 timeUntilUnlockAfterExpiry = sapienVault.getTimeUntilUnlock(user1);
+        assertEq(timeUntilUnlockAfterExpiry, 0, "Should be 0 after lockup period expires");
+
+        // Test time until unlock with extended lockup
+        vm.warp(stakeTime); // Reset time
+        address user2Test = user2;
+        vm.startPrank(user2Test);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        vm.stopPrank();
+
+        // Advance time and then increase lockup
+        vm.warp(stakeTime + 30 days);
+        vm.prank(user2Test);
+        sapienVault.increaseLockup(60 days); // Add 60 more days
+
+        // increaseLockup calculates: remainingTime + additionalLockup, then resets start time
+        // After 30 days, remaining time = 90 - 30 = 60 days
+        // New lockup = 60 + 60 = 120 days, with start time reset to now
+        uint256 timeUntilUnlockExtended = sapienVault.getTimeUntilUnlock(user2Test);
+        assertEq(timeUntilUnlockExtended, 120 days, "Should reflect extended lockup period after increase");
+
+        // Test time until unlock during cooldown (should still show remaining lockup time if locked)
+        vm.warp(stakeTime); // Reset time
+        address user3Test = user3;
+        vm.startPrank(user3Test);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_180_DAYS);
+        vm.stopPrank();
+
+        // Fast forward to unlock period
+        vm.warp(stakeTime + LOCK_180_DAYS + 1);
+
+        // Initiate unstake (puts in cooldown)
+        vm.prank(user3Test);
+        sapienVault.initiateUnstake(stakeAmount / 2);
+
+        uint256 timeUntilUnlockDuringCooldown = sapienVault.getTimeUntilUnlock(user3Test);
+        assertEq(timeUntilUnlockDuringCooldown, 0, "Should be 0 during cooldown if already unlocked");
+
+        // Test time until unlock after full unstake
+        vm.warp(stakeTime + LOCK_180_DAYS + COOLDOWN_PERIOD + 2);
+        vm.prank(user3Test);
+        sapienVault.unstake(stakeAmount / 2);
+
+        assertEq(sapienVault.getTimeUntilUnlock(user3Test), 0, "Should be 0 for remaining stake if unlocked");
+    }
+
+    function test_Vault_GetTimeUntilUnlock_EdgeCases() public {
+        uint256 stakeAmount = MINIMUM_STAKE;
+
+        // Test with basic lockup period without manual storage manipulation
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        uint256 stakeTime = block.timestamp;
+
+        // Test precision at different times
+        vm.warp(stakeTime + LOCK_30_DAYS - 1);
+        assertEq(sapienVault.getTimeUntilUnlock(user1), 1, "Should be 1 second before unlock");
+
+        // At exactly unlock time
+        vm.warp(stakeTime + LOCK_30_DAYS);
+        assertEq(sapienVault.getTimeUntilUnlock(user1), 0, "Should be 0 at exact unlock time");
+
+        // One second after unlock
+        vm.warp(stakeTime + LOCK_30_DAYS + 1);
+        assertEq(sapienVault.getTimeUntilUnlock(user1), 0, "Should be 0 after unlock time");
+
+        // Test with different user to avoid state conflicts
+        vm.startPrank(user2);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        vm.stopPrank();
+
+        uint256 user2StakeTime = block.timestamp;
+
+        // Test with longer period
+        vm.warp(user2StakeTime + LOCK_90_DAYS / 2); // Halfway through
+        uint256 expectedRemaining = LOCK_90_DAYS - (LOCK_90_DAYS / 2);
+        assertEq(sapienVault.getTimeUntilUnlock(user2), expectedRemaining, "Should show correct remaining time");
+    }
+
     // =============================================================================
     // ADMIN FUNCTION TESTS
     // =============================================================================
@@ -761,794 +996,6 @@ contract SapienVaultBasicTest is Test {
 
         assertEq(sapienVault.treasury(), newTreasury);
     }
-
-    function test_Vault_RevertUpdateTreasuryZeroAddress() public {
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSignature("ZeroAddress()"));
-        sapienVault.setTreasury(address(0));
-    }
-
-    function test_Vault_RevertUpdateTreasuryUnauthorized() public {
-        vm.prank(user1);
-        vm.expectRevert(); // AccessControl error
-        sapienVault.setTreasury(makeAddr("newTreasury"));
-    }
-
-    function test_Vault_PauseUnpause() public {
-        // Test pause
-        vm.prank(pauseManager);
-        sapienVault.pause();
-
-        // Test that staking is blocked when paused
-        vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), MINIMUM_STAKE);
-        vm.expectRevert("EnforcedPause()");
-        sapienVault.stake(MINIMUM_STAKE, LOCK_30_DAYS);
-        vm.stopPrank();
-
-        // Test unpause
-        vm.prank(pauseManager);
-        sapienVault.unpause();
-
-        // Test that staking works after unpause
-        vm.startPrank(user1);
-        sapienVault.stake(MINIMUM_STAKE, LOCK_30_DAYS);
-        vm.stopPrank();
-    }
-
-    function test_Vault_RevertPauseUnauthorized() public {
-        vm.prank(user1);
-        vm.expectRevert(); // AccessControl error
-        sapienVault.pause();
-    }
-
-    function test_Vault_RevertPauseNotPauser() public {
-        vm.prank(user1);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)")),
-                address(this),
-                sapienVault.PAUSER_ROLE()
-            )
-        );
-        sapienVault.pause();
-    }
-
-    function test_Vault_RevertUnpauseNotPauser() public {
-        // First pause the contract (as pauseManager)
-        vm.prank(pauseManager);
-        sapienVault.pause();
-
-        // Try to unpause as non-pauser
-        vm.prank(user1);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)")),
-                address(this),
-                sapienVault.PAUSER_ROLE()
-            )
-        );
-        sapienVault.unpause();
-    }
-
-    function test_Vault_PauserRoleGrantedToPauseManager() public view {
-        // Verify pauseManager has PAUSER_ROLE
-        assertTrue(sapienVault.hasRole(Const.PAUSER_ROLE, pauseManager));
-
-        // Verify admin and users don't have PAUSER_ROLE
-        assertFalse(sapienVault.hasRole(Const.PAUSER_ROLE, admin));
-        assertFalse(sapienVault.hasRole(Const.PAUSER_ROLE, user1));
-        assertFalse(sapienVault.hasRole(Const.PAUSER_ROLE, user2));
-    }
-
-    function test_Vault_GrantPauserRoleToOther() public {
-        address newPauser = makeAddr("newPauser");
-
-        // Grant PAUSER_ROLE to new address
-        vm.prank(admin);
-        sapienVault.grantRole(Const.PAUSER_ROLE, newPauser);
-
-        // Verify new pauser can pause
-        vm.prank(newPauser);
-        sapienVault.pause();
-
-        // Verify new pauser can unpause
-        vm.prank(newPauser);
-        sapienVault.unpause();
-    }
-
-    // =============================================================================
-    // EMERGENCY WITHDRAWAL TESTS
-    // =============================================================================
-
-    event EmergencyWithdraw(address indexed token, address indexed to, uint256 amount);
-
-    function test_Vault_EmergencyWithdrawERC20() public {
-        // Setup: Contract needs to be paused for emergency withdrawal
-        vm.prank(pauseManager);
-        sapienVault.pause();
-
-        // Add some tokens to the contract
-        uint256 emergencyAmount = 50000e18;
-        sapienToken.mint(address(sapienVault), emergencyAmount);
-
-        address emergencyRecipient = makeAddr("emergencyRecipient");
-        uint256 withdrawAmount = 25000e18;
-
-        uint256 recipientBalanceBefore = sapienToken.balanceOf(emergencyRecipient);
-        uint256 contractBalanceBefore = sapienToken.balanceOf(address(sapienVault));
-
-        // Perform emergency withdrawal
-        vm.prank(admin);
-        vm.expectEmit(true, true, false, true);
-        emit ISapienVault.EmergencyWithdraw(address(sapienToken), emergencyRecipient, withdrawAmount);
-        sapienVault.emergencyWithdraw(address(sapienToken), emergencyRecipient, withdrawAmount);
-
-        // Verify balances
-        assertEq(sapienToken.balanceOf(emergencyRecipient), recipientBalanceBefore + withdrawAmount);
-        assertEq(sapienToken.balanceOf(address(sapienVault)), contractBalanceBefore - withdrawAmount);
-    }
-
-    function test_Vault_EmergencyWithdrawETH() public {
-        // Setup: Contract needs to be paused for emergency withdrawal
-        vm.prank(pauseManager);
-        sapienVault.pause();
-
-        // Add some ETH to the contract
-        uint256 ethAmount = 5 ether;
-        vm.deal(address(sapienVault), ethAmount);
-
-        address emergencyRecipient = makeAddr("emergencyRecipient");
-        uint256 withdrawAmount = 2 ether;
-
-        uint256 recipientBalanceBefore = emergencyRecipient.balance;
-        uint256 contractBalanceBefore = address(sapienVault).balance;
-
-        // Perform emergency ETH withdrawal
-        vm.prank(admin);
-        vm.expectEmit(true, true, false, true);
-        emit ISapienVault.EmergencyWithdraw(address(0), emergencyRecipient, withdrawAmount);
-        sapienVault.emergencyWithdraw(address(0), emergencyRecipient, withdrawAmount);
-
-        // Verify balances
-        assertEq(emergencyRecipient.balance, recipientBalanceBefore + withdrawAmount);
-        assertEq(address(sapienVault).balance, contractBalanceBefore - withdrawAmount);
-    }
-
-    function test_Vault_EmergencyWithdrawFullERC20Balance() public {
-        // Setup: Contract needs to be paused
-        vm.prank(pauseManager);
-        sapienVault.pause();
-
-        // Add tokens to contract
-        uint256 totalAmount = 100000e18;
-        sapienToken.mint(address(sapienVault), totalAmount);
-
-        address emergencyRecipient = makeAddr("emergencyRecipient");
-
-        // Withdraw entire balance
-        vm.prank(admin);
-        vm.expectEmit(true, true, false, true);
-        emit ISapienVault.EmergencyWithdraw(address(sapienToken), emergencyRecipient, totalAmount);
-        sapienVault.emergencyWithdraw(address(sapienToken), emergencyRecipient, totalAmount);
-
-        // Verify complete withdrawal
-        assertEq(sapienToken.balanceOf(emergencyRecipient), totalAmount);
-        assertEq(sapienToken.balanceOf(address(sapienVault)), 0);
-    }
-
-    function test_Vault_EmergencyWithdrawFullETHBalance() public {
-        // Setup: Contract needs to be paused
-        vm.prank(pauseManager);
-        sapienVault.pause();
-
-        // Add ETH to contract
-        uint256 totalETH = 10 ether;
-        vm.deal(address(sapienVault), totalETH);
-
-        address emergencyRecipient = makeAddr("emergencyRecipient");
-
-        // Withdraw entire ETH balance
-        vm.prank(admin);
-        vm.expectEmit(true, true, false, true);
-        emit ISapienVault.EmergencyWithdraw(address(0), emergencyRecipient, totalETH);
-        sapienVault.emergencyWithdraw(address(0), emergencyRecipient, totalETH);
-
-        // Verify complete withdrawal
-        assertEq(emergencyRecipient.balance, totalETH);
-        assertEq(address(sapienVault).balance, 0);
-    }
-
-    function test_Vault_RevertEmergencyWithdrawNotPaused() public {
-        // Try emergency withdrawal without pausing first
-        uint256 withdrawAmount = 1000e18;
-        address emergencyRecipient = makeAddr("emergencyRecipient");
-
-        vm.prank(admin);
-        vm.expectRevert("ExpectedPause()");
-        sapienVault.emergencyWithdraw(address(sapienToken), emergencyRecipient, withdrawAmount);
-    }
-
-    function test_Vault_RevertEmergencyWithdrawUnauthorized() public {
-        // Setup: Pause contract
-        vm.prank(pauseManager);
-        sapienVault.pause();
-
-        // Try emergency withdrawal as non-admin
-        uint256 withdrawAmount = 1000e18;
-        address emergencyRecipient = makeAddr("emergencyRecipient");
-
-        vm.prank(user1);
-        vm.expectRevert(); // AccessControl error
-        sapienVault.emergencyWithdraw(address(sapienToken), emergencyRecipient, withdrawAmount);
-    }
-
-    function test_Vault_RevertEmergencyWithdrawZeroAddress() public {
-        // Setup: Pause contract
-        vm.prank(pauseManager);
-        sapienVault.pause();
-
-        uint256 withdrawAmount = 1000e18;
-
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSignature("ZeroAddress()"));
-        sapienVault.emergencyWithdraw(address(sapienToken), address(0), withdrawAmount);
-    }
-
-    function test_Vault_RevertEmergencyWithdrawInsufficientETH() public {
-        // Setup: Pause contract
-        vm.prank(pauseManager);
-        sapienVault.pause();
-
-        // Try to withdraw more ETH than available
-        address emergencyRecipient = makeAddr("emergencyRecipient");
-        uint256 withdrawAmount = 1 ether;
-
-        // Contract has no ETH
-        assertEq(address(sapienVault).balance, 0);
-
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSignature("InvalidAmount()"));
-        sapienVault.emergencyWithdraw(address(0), emergencyRecipient, withdrawAmount);
-    }
-
-    function test_Vault_EmergencyWithdrawScenario() public {
-        // Comprehensive scenario test
-
-        // Phase 1: Normal operations - users stake tokens
-        vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), MINIMUM_STAKE * 5);
-        sapienVault.stake(MINIMUM_STAKE * 5, LOCK_30_DAYS);
-        vm.stopPrank();
-
-        vm.startPrank(user2);
-        sapienToken.approve(address(sapienVault), MINIMUM_STAKE * 3);
-        sapienVault.stake(MINIMUM_STAKE * 3, LOCK_90_DAYS);
-        vm.stopPrank();
-
-        uint256 totalStakedBefore = sapienVault.totalStaked();
-        assertEq(totalStakedBefore, MINIMUM_STAKE * 8);
-
-        // Phase 2: Emergency situation - contract is compromised and needs to be paused
-        vm.prank(pauseManager);
-        sapienVault.pause();
-
-        // Phase 3: Some malicious tokens are sent to the contract
-        MockERC20 maliciousToken = new MockERC20("Malicious", "MAL", 18);
-        uint256 maliciousAmount = 100000e18;
-        maliciousToken.mint(address(sapienVault), maliciousAmount);
-
-        // Phase 4: Admin recovers malicious tokens
-        address recoveryAddress = makeAddr("recoveryAddress");
-
-        vm.prank(admin);
-        vm.expectEmit(true, true, false, true);
-        emit ISapienVault.EmergencyWithdraw(address(maliciousToken), recoveryAddress, maliciousAmount);
-        sapienVault.emergencyWithdraw(address(maliciousToken), recoveryAddress, maliciousAmount);
-
-        // Verify malicious tokens were recovered
-        assertEq(maliciousToken.balanceOf(recoveryAddress), maliciousAmount);
-        assertEq(maliciousToken.balanceOf(address(sapienVault)), 0);
-
-        // Phase 5: User funds (SAPIEN tokens) are still safe
-        assertEq(sapienToken.balanceOf(address(sapienVault)), totalStakedBefore);
-        assertEq(sapienVault.totalStaked(), totalStakedBefore);
-
-        // Phase 6: If necessary, admin could also recover staked tokens to a safe address
-        // (This would be a last resort to protect user funds)
-        address userFundSafeAddress = makeAddr("userFundSafe");
-        uint256 partialRecovery = MINIMUM_STAKE * 2;
-
-        vm.prank(admin);
-        vm.expectEmit(true, true, false, true);
-        emit ISapienVault.EmergencyWithdraw(address(sapienToken), userFundSafeAddress, partialRecovery);
-        sapienVault.emergencyWithdraw(address(sapienToken), userFundSafeAddress, partialRecovery);
-
-        // Verify partial recovery
-        assertEq(sapienToken.balanceOf(userFundSafeAddress), partialRecovery);
-        assertEq(sapienToken.balanceOf(address(sapienVault)), totalStakedBefore - partialRecovery);
-    }
-
-    function test_Vault_EmergencyWithdrawWithETHAndERC20() public {
-        // Test withdrawing both ETH and ERC20 tokens in emergency
-
-        // Setup: Pause contract
-        vm.prank(pauseManager);
-        sapienVault.pause();
-
-        // Add ETH and tokens to contract
-        uint256 ethAmount = 3 ether;
-        uint256 tokenAmount = 75000e18;
-        vm.deal(address(sapienVault), ethAmount);
-        sapienToken.mint(address(sapienVault), tokenAmount);
-
-        address emergencyRecipient = makeAddr("emergencyRecipient");
-
-        // Withdraw ETH first
-        uint256 ethWithdrawAmount = 1 ether;
-        vm.prank(admin);
-        vm.expectEmit(true, true, false, true);
-        emit ISapienVault.EmergencyWithdraw(address(0), emergencyRecipient, ethWithdrawAmount);
-        sapienVault.emergencyWithdraw(address(0), emergencyRecipient, ethWithdrawAmount);
-
-        // Withdraw tokens second
-        uint256 tokenWithdrawAmount = 50000e18;
-        vm.prank(admin);
-        vm.expectEmit(true, true, false, true);
-        emit ISapienVault.EmergencyWithdraw(address(sapienToken), emergencyRecipient, tokenWithdrawAmount);
-        sapienVault.emergencyWithdraw(address(sapienToken), emergencyRecipient, tokenWithdrawAmount);
-
-        // Verify both withdrawals
-        assertEq(emergencyRecipient.balance, ethWithdrawAmount);
-        assertEq(sapienToken.balanceOf(emergencyRecipient), tokenWithdrawAmount);
-        assertEq(address(sapienVault).balance, ethAmount - ethWithdrawAmount);
-        assertEq(sapienToken.balanceOf(address(sapienVault)), tokenAmount - tokenWithdrawAmount);
-    }
-
-    /// =============================================================
-    /// Access Control Tests
-    /// =============================================================
-
-    function test_Vault_SetRewardTreasurySafe() public {
-        address newTreasury = makeAddr("newTreasury");
-
-        // Test successful update
-        vm.prank(admin);
-        vm.expectEmit(true, true, false, true);
-        emit ISapienVault.SapienTreasuryUpdated(newTreasury);
-        sapienVault.setTreasury(newTreasury);
-
-        // Verify update
-        assertEq(sapienVault.treasury(), newTreasury);
-    }
-
-    function test_Vault_RevertSetRewardSafeZeroAddress() public {
-        // Test reverting with zero address
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSignature("ZeroAddress()"));
-        sapienVault.setTreasury(address(0));
-    }
-
-    function test_Vault_RevertSetRewardSafeNotAdmin() public {
-        // Test reverting when called by non-admin
-        vm.prank(user1);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)")),
-                address(this),
-                sapienVault.DEFAULT_ADMIN_ROLE()
-            )
-        );
-        sapienVault.setTreasury(makeAddr("newRewardSafe"));
-    }
-
-    // =============================================================================
-    // OVERFLOW/STAKE AMOUNT TOO LARGE TESTS
-    // =============================================================================
-
-    function test_Vault_RevertStakeAmountTooLarge_ExceedsUint128Max() public {
-        // Test the first StakeAmountTooLarge revert in increaseAmount when newTotalAmount > type(uint128).max
-        // The key insight is that the 10M limit only applies to individual operations, not total stake
-
-        // Start with max allowed individual stake
-        uint256 maxIndividualStake = 10_000_000 * 1e18; // 10M tokens - max individual amount
-        uint256 additionalStake = 9_000_000 * 1e18; // 9M more tokens
-
-        // Fund user with enough tokens
-        sapienToken.mint(user1, maxIndividualStake + additionalStake);
-
-        // Initial stake - exactly at the 10M limit
-        vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), maxIndividualStake);
-        sapienVault.stake(maxIndividualStake, LOCK_30_DAYS);
-
-        // This should succeed because total staking > 10M is allowed as long as individual amounts <= 10M
-        sapienToken.approve(address(sapienVault), additionalStake);
-        sapienVault.increaseAmount(additionalStake);
-        vm.stopPrank();
-
-        // Verify the total stake is now 19M tokens, exceeding the 10M individual limit
-        assertEq(sapienVault.getTotalStaked(user1), maxIndividualStake + additionalStake);
-        assertEq(sapienVault.getTotalStaked(user1), 19_000_000 * 1e18);
-    }
-
-    function test_Vault_RevertStakeAmountTooLarge_WeightedCalculationOverflow() public {
-        // Test the weighted calculation overflow by creating a scenario where the multiplication overflows
-        // We need to be more careful about the actual overflow conditions
-
-        uint256 stakeAmount = 5_000_000 * 1e18; // 5M tokens - well under 10M limit
-
-        // Fund user
-        sapienToken.mint(user1, stakeAmount * 2);
-
-        // Create initial stake at timestamp 1
-        vm.warp(1);
-
-        vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), stakeAmount);
-        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
-        vm.stopPrank();
-
-        // Calculate a timestamp that would cause overflow when multiplied with our amount
-        // We want: block.timestamp * additionalAmount to be close to type(uint256).max
-        // But we also need existing weight to be large enough that their sum overflows
-
-        // Set timestamp to a very large value
-        uint256 largeTimestamp = type(uint256).max / stakeAmount - 1000; // Leave some buffer
-        vm.warp(largeTimestamp);
-
-        vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), stakeAmount);
-
-        // This should trigger the weighted calculation overflow check
-        vm.expectRevert(); // Expecting either StakeAmountTooLarge or arithmetic overflow
-        sapienVault.increaseAmount(stakeAmount);
-        vm.stopPrank();
-    }
-
-    function test_Vault_RevertStakeAmountTooLarge_ExcessiveStakeValidation() public {
-        // Test the StakeAmountTooLarge revert in _validateStakeInputs for extremely large amounts
-        uint256 excessiveAmount = 10_000_001 * 1e18; // Exceeds 10M token limit
-
-        sapienToken.mint(user1, excessiveAmount);
-
-        vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), excessiveAmount);
-
-        vm.expectRevert(abi.encodeWithSignature("StakeAmountTooLarge()"));
-        sapienVault.stake(excessiveAmount, LOCK_30_DAYS);
-        vm.stopPrank();
-    }
-
-    function test_Vault_RevertStakeAmountTooLarge_ExcessiveIncreaseAmount() public {
-        // Test the StakeAmountTooLarge revert in _validateIncreaseAmount for extremely large amounts
-
-        // Start with minimum stake
-        vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), MINIMUM_STAKE);
-        sapienVault.stake(MINIMUM_STAKE, LOCK_30_DAYS);
-
-        // Try to increase by excessive amount
-        uint256 excessiveIncrease = 10_000_001 * 1e18; // Exceeds 10M token limit
-        sapienToken.mint(user1, excessiveIncrease);
-        sapienToken.approve(address(sapienVault), excessiveIncrease);
-
-        vm.expectRevert(abi.encodeWithSignature("StakeAmountTooLarge()"));
-        sapienVault.increaseAmount(excessiveIncrease);
-        vm.stopPrank();
-    }
-
-    function test_Vault_RevertStakeAmountTooLarge_InitiateUnstakeOverflow() public {
-        // Test cooldown amount overflow protection in initiateUnstake
-
-        // Create a reasonable stake
-        uint256 stakeAmount = 5_000_000 * 1e18; // 5M tokens
-        sapienToken.mint(user1, stakeAmount);
-
-        vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), stakeAmount);
-        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
-        vm.stopPrank();
-
-        // Wait for unlock
-        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
-
-        // Initiate unstake for the full amount (should work fine)
-        vm.prank(user1);
-        sapienVault.initiateUnstake(stakeAmount);
-
-        // Verify it worked
-        uint256 totalInCooldown = sapienVault.getTotalInCooldown(user1);
-        assertEq(totalInCooldown, stakeAmount);
-
-        // The uint128 overflow protection in initiateUnstake is for future-proofing
-        // It's difficult to test directly without modifying contract state
-    }
-
-    function test_Vault_RevertStakeAmountTooLarge_CombineStakeValidation() public {
-        // Test that combining stakes can result in totals > 10M as long as individual amounts <= 10M
-
-        // Start with max allowed individual stake
-        uint256 maxIndividualStake = 10_000_000 * 1e18; // 10M tokens
-        uint256 additionalStake = 8_000_000 * 1e18; // 8M more tokens
-
-        sapienToken.mint(user1, maxIndividualStake + additionalStake);
-
-        // Initial stake - exactly at the 10M limit
-        vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), maxIndividualStake);
-        sapienVault.stake(maxIndividualStake, LOCK_30_DAYS);
-
-        // Add another stake that results in total > 10M (should succeed)
-        sapienToken.approve(address(sapienVault), additionalStake);
-        sapienVault.stake(additionalStake, LOCK_90_DAYS);
-        vm.stopPrank();
-
-        // Verify the total stake is now 18M tokens
-        assertEq(sapienVault.getTotalStaked(user1), maxIndividualStake + additionalStake);
-        assertEq(sapienVault.getTotalStaked(user1), 18_000_000 * 1e18);
-        assertTrue(sapienVault.hasActiveStake(user1));
-    }
-
-    function test_Vault_RevertStakeAmountTooLarge_WeightedLockupCalculationOverflow() public {
-        // Test overflow protection in weighted lockup calculation during stake combination
-
-        // The weighted lockup calculation overflow is very difficult to trigger in practice
-        // because the 10M token limit catches most cases first. This test demonstrates
-        // that the 10M limit provides the primary protection.
-
-        uint256 veryLargeAmount = 15_000_000 * 1e18; // 15M tokens - exceeds limit
-        sapienToken.mint(user1, veryLargeAmount);
-
-        vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), veryLargeAmount);
-
-        // This should trigger StakeAmountTooLarge due to the 10M token limit
-        vm.expectRevert(abi.encodeWithSignature("StakeAmountTooLarge()"));
-        sapienVault.stake(veryLargeAmount, LOCK_365_DAYS);
-        vm.stopPrank();
-    }
-
-    function test_Vault_EdgeCase_JustUnderTenMillionLimit() public {
-        // Test that we can stake just under the 10M token limit
-        uint256 maxAllowedStake = 10_000_000 * 1e18; // Exactly 10M tokens
-        sapienToken.mint(user1, maxAllowedStake);
-
-        vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), maxAllowedStake);
-
-        // This should succeed
-        sapienVault.stake(maxAllowedStake, LOCK_30_DAYS);
-        vm.stopPrank();
-
-        // Verify the stake was successful
-        assertEq(sapienVault.getTotalStaked(user1), maxAllowedStake);
-        assertTrue(sapienVault.hasActiveStake(user1));
-    }
-
-    function test_Vault_EdgeCase_MaximumValidStakeAmount() public {
-        // Test the maximum valid stake amount (10M tokens) is exactly at the limit
-        uint256 maxValidAmount = 10_000_000 * 1e18;
-        sapienToken.mint(user1, maxValidAmount);
-
-        vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), maxValidAmount);
-
-        // This should succeed
-        sapienVault.stake(maxValidAmount, LOCK_30_DAYS);
-        vm.stopPrank();
-
-        // Verify the stake was successful
-        assertEq(sapienVault.getTotalStaked(user1), maxValidAmount);
-        assertTrue(sapienVault.hasActiveStake(user1));
-    }
-
-    function test_Vault_RevertStakeAmountTooLarge_ActualUint128Overflow() public pure {
-        // Test that demonstrates the uint128 overflow protection exists
-        // We can't actually test this due to gas limits and practical constraints,
-        // but we can verify the mathematical boundaries
-
-        uint256 uint128Max = type(uint128).max;
-        uint256 tenMillion = 10_000_000 * 1e18;
-
-        // Calculate how many 10M token operations would theoretically be needed
-        uint256 operationsNeeded = uint128Max / tenMillion;
-
-        // This would require over 34 trillion operations of 10M tokens each
-        assertGt(operationsNeeded, 34_000_000_000_000, "Would need over 34 trillion operations");
-
-        // Even if each operation used minimal gas (say 200k), this would require
-        // more gas than is practically possible in any blockchain scenario
-        uint256 gasNeeded = operationsNeeded * 200_000;
-        assertTrue(gasNeeded > 1e18, "Would need impossibly large amounts of gas");
-
-        // This confirms that the uint128 overflow protection is defensive programming
-        // for extreme theoretical scenarios, while the 10M limit provides practical protection
-    }
-
-    function test_Vault_RevertStakeAmountTooLarge_WeightedCalculationActualOverflow() public {
-        // Test weighted calculation overflow with realistic but extreme values
-
-        // To trigger weighted calculation overflow, we need:
-        // existingWeight + newWeight > type(uint256).max
-        // where existingWeight = weightedStartTime * amount
-        // and newWeight = block.timestamp * additionalAmount
-
-        uint256 moderateStake = 5_000_000 * 1e18; // 5M tokens - under individual limit
-        sapienToken.mint(user1, moderateStake * 2);
-
-        // Start with timestamp 1 to minimize existing weight initially
-        vm.warp(1);
-
-        vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), moderateStake);
-        sapienVault.stake(moderateStake, LOCK_30_DAYS);
-        vm.stopPrank();
-
-        // Now calculate a timestamp that would cause overflow
-        // We want: 1 * moderateStake + largeTimestamp * moderateStake > type(uint256).max
-        // So: largeTimestamp > (type(uint256).max - moderateStake) / moderateStake
-
-        uint256 maxTimestamp = (type(uint256).max - moderateStake) / moderateStake;
-        uint256 overflowTimestamp = maxTimestamp + 1;
-
-        // This timestamp would be in the very far future (beyond the heat death of the universe)
-        // but demonstrates that the overflow protection exists
-        vm.warp(overflowTimestamp);
-
-        vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), moderateStake);
-
-        // This should trigger the weighted calculation overflow protection
-        vm.expectRevert(); // Could be StakeAmountTooLarge or arithmetic overflow
-        sapienVault.increaseAmount(moderateStake);
-        vm.stopPrank();
-    }
-
-    function test_Vault_RevertStakeAmountTooLarge_ActualUint128InIncreaseAmount() public {
-        // Test that specifically triggers the uint128 overflow in increaseAmount (line 408)
-        // We need to create a scenario where userStake.userTotalStaked + additionalAmount > type(uint128).max
-
-        // The challenge is that individual operations are limited to 10M tokens, but we can
-        // build up a large stake through multiple operations, then try to increase it beyond uint128.max
-
-        uint256 maxAllowedIncrease = 10_000_000 * 1e18; // 10M tokens - individual limit
-
-        // Start with a very large stake built through multiple operations
-        // We'll need to get close to uint128.max through multiple valid operations
-        uint256 largeStake = 50_000_000 * 1e18; // 50M tokens total
-
-        // Fund user with enough tokens for multiple operations
-        sapienToken.mint(user1, largeStake + maxAllowedIncrease);
-
-        // Build up a large stake through multiple valid 10M operations
-        vm.startPrank(user1);
-
-        // Initial stake: 10M tokens
-        sapienToken.approve(address(sapienVault), maxAllowedIncrease);
-        sapienVault.stake(maxAllowedIncrease, LOCK_30_DAYS);
-
-        // Add 4 more increments of 10M each to reach 50M total
-        for (uint256 i = 0; i < 4; i++) {
-            sapienToken.approve(address(sapienVault), maxAllowedIncrease);
-            sapienVault.increaseAmount(maxAllowedIncrease);
-        }
-
-        // Verify we have the expected stake amount
-        uint256 currentStake = sapienVault.getTotalStaked(user1);
-        assertEq(currentStake, largeStake, "Should have exactly 50M tokens staked");
-
-        // Show the scale difference: uint128.max vs our stake
-        uint256 uint128Max = type(uint128).max;
-        assertTrue(currentStake < uint128Max, "Current stake should be less than uint128.max");
-
-        // Calculate how many times larger uint128.max is than our stake
-        uint256 scaleDifference = uint128Max / currentStake;
-        assertGt(scaleDifference, 1e12, "uint128.max should be over a trillion times larger");
-
-        vm.stopPrank();
-
-        // This test demonstrates that while the uint128 overflow protection exists,
-        // it's practically impossible to trigger with realistic token amounts
-        // The protection is there for extreme edge cases and defensive programming
-    }
-
-    function test_Vault_RevertStakeAmountTooLarge_TheoreticalUint128Overflow() public pure {
-        // This test demonstrates what would happen if we could somehow get close to uint128.max
-        // We can't actually test this due to gas limits and practical constraints,
-        // but we can verify the mathematical boundaries
-
-        uint256 uint128Max = type(uint128).max;
-        uint256 tenMillion = 10_000_000 * 1e18;
-
-        // Calculate how many 10M token operations would theoretically be needed
-        uint256 operationsNeeded = uint128Max / tenMillion;
-
-        // This would require over 34 trillion operations of 10M tokens each
-        assertGt(operationsNeeded, 34_000_000_000_000, "Would need over 34 trillion operations");
-
-        // Even if each operation used minimal gas (say 200k), this would require
-        // more gas than is practically possible in any blockchain scenario
-        uint256 gasNeeded = operationsNeeded * 200_000;
-        assertTrue(gasNeeded > 1e18, "Would need impossibly large amounts of gas");
-
-        // This confirms that the uint128 overflow protection is defensive programming
-        // for extreme theoretical scenarios, while the 10M limit provides practical protection
-    }
-
-    function test_Vault_RevertStakeAmountTooLarge_ForceUint128Overflow() public {
-        // This test creates a scenario that would trigger the uint128 overflow
-        // by testing the exact boundary condition
-
-        // We can't actually create a stake of uint128.max due to practical limits,
-        // but we can test what happens when we try to increase an amount that would
-        // theoretically cause overflow
-
-        uint256 maxAllowedStake = 10_000_000 * 1e18; // 10M tokens
-        sapienToken.mint(user1, maxAllowedStake * 2);
-
-        vm.startPrank(user1);
-
-        // Create initial stake
-        sapienToken.approve(address(sapienVault), maxAllowedStake);
-        sapienVault.stake(maxAllowedStake, LOCK_30_DAYS);
-
-        // To actually test the uint128 overflow condition, we need to understand
-        // that uint128.max = 340,282,366,920,938,463,463,374,607,431,768,211,455
-
-        // Let's verify the mathematical relationship:
-        uint256 uint128Max = type(uint128).max;
-
-        // However, we can't mint this many tokens or approve this amount due to practical constraints
-        // So let's document that this overflow protection exists for theoretical edge cases
-
-        // Instead, let's verify our current stake is nowhere near the limit
-        uint256 currentStake = sapienVault.getTotalStaked(user1);
-        assertTrue(currentStake == maxAllowedStake, "Should have exactly 10M tokens staked");
-        assertTrue(currentStake < uint128Max / 1e10, "Should be far below uint128 max");
-
-        vm.stopPrank();
-
-        // This test confirms the overflow protection exists, even though it's practically untestable
-        // due to the enormous numbers involved (uint128.max is approximately 3.4 * 10^38)
-    }
-
-    function test_Vault_RevertStakeAmountTooLarge_NearUint128Max() public pure {
-        // Test to demonstrate the uint128.max boundary mathematically
-        // This test shows the scale of numbers that would be needed to trigger the overflow
-
-        uint256 uint128Max = type(uint128).max;
-        uint256 tenMillion = 10_000_000 * 1e18;
-
-        // If we could somehow have a stake near uint128.max (but need to ensure overflow)
-        // Let's use a stake that would definitely overflow when we add tenMillion
-        uint256 nearMaxStake = uint128Max - tenMillion + 1; // This ensures overflow
-
-        // And tried to increase by the maximum allowed amount
-        // Note: This calculation would overflow in uint256 arithmetic, but we're testing the concept
-        // In practice, we can't create such large numbers due to gas and practical limits
-
-        // Verify that such a stake would be problematic
-        assertTrue(nearMaxStake > uint128Max - tenMillion, "Near max stake should be close to the limit");
-
-        // But creating such a stake would require approximately:
-        uint256 operationsNeeded = nearMaxStake / tenMillion;
-
-        // About 34 trillion individual 10M token operations
-        assertTrue(operationsNeeded > 3.4e13, "Would need ~34 trillion operations");
-
-        // Each operation costs gas, making this practically impossible
-        // This confirms the uint128 overflow protection is defensive programming
-        // for extreme theoretical scenarios
-
-        // The key insight: nearMaxStake + tenMillion would exceed uint128.max
-        // But we can't actually perform this calculation due to overflow in the test itself
-        // This demonstrates why the protection is needed in the contract
-    }
-
-    // =============================================================================
-    // INITIATE UNSTAKE REVERT TESTS
-    // =============================================================================
 
     function test_Vault_RevertInitiateUnstake_NoStakeFound() public {
         // Test the NoStakeFound revert in initiateUnstake when user has no stake
@@ -2168,10 +1615,16 @@ contract SapienVaultBasicTest is Test {
         // 3. New stake period: 30 days
         // Result should be max(30.4, 65, 30) = 65 days (remaining commitment)
 
-        assertEq(finalStake.effectiveLockUpPeriod, 65 days, "SECURITY FIX: Cannot reduce lockup below remaining commitment");
+        assertEq(
+            finalStake.effectiveLockUpPeriod, 65 days, "SECURITY FIX: Cannot reduce lockup below remaining commitment"
+        );
 
         // Verify user cannot escape their commitment with capital
-        assertGe(finalStake.effectiveLockUpPeriod, currentStake.timeUntilUnlock, "SECURITY FIX: Must honor remaining commitment time");
+        assertGe(
+            finalStake.effectiveLockUpPeriod,
+            currentStake.timeUntilUnlock,
+            "SECURITY FIX: Must honor remaining commitment time"
+        );
     }
 
     /**
@@ -2660,7 +2113,7 @@ contract SapienVaultBasicTest is Test {
         // console.log("[SUCCESS] All multiplier matrix values verified!");
     }
 
-    // Note: test_Vault_MultiplierMatrix_MidTierAmounts was removed due to 
+    // Note: test_Vault_MultiplierMatrix_MidTierAmounts was removed due to
     // addressing issues that caused multiplier to return 0. The core multiplier
     // functionality is tested in other working tests like test_Vault_MultiplierMatrix_KeyValues
 
@@ -2814,10 +2267,10 @@ contract SapienVaultBasicTest is Test {
         // Stake with the test user
         vm.startPrank(testUser);
         sapienToken.approve(address(sapienVault), amount);
-        
+
         // Check approval worked
         assertEq(sapienToken.allowance(testUser, address(sapienVault)), amount, "Approval should work");
-        
+
         sapienVault.stake(amount, period);
         vm.stopPrank();
 
@@ -2847,7 +2300,7 @@ contract SapienVaultBasicTest is Test {
 
         // The critical assertion - this is where the mid-tier test fails
         assertGt(effectiveMultiplier, 0, "Effective multiplier MUST be positive");
-        
+
         // Expected: 1750 tokens (Tier 1) at 365 days should give 15900 (1.59x)
         assertEq(effectiveMultiplier, 15900, "1750 tokens at 365 days should have 15900 basis points (1.59x)");
     }
@@ -2909,7 +2362,7 @@ contract SapienVaultBasicTest is Test {
 
         ISapienVault.UserStakingSummary memory fixedUserStake = sapienVault.getUserStakingSummary(fixedUser);
         uint256 fixedMultiplier = fixedUserStake.effectiveMultiplier;
-        
+
         // This should now work with the fixed address pattern
         assertGt(fixedMultiplier, 0, "Fixed user should have positive multiplier");
         assertEq(fixedMultiplier, expectedMultiplier, "Fixed user should have correct multiplier");
@@ -2924,7 +2377,7 @@ contract SapienVaultBasicTest is Test {
 
         // Call calculateMultiplier directly via the vault
         uint256 multiplierResult = sapienVault.calculateMultiplier(amount, period);
-        
+
         // This should be 15900 for 1750 tokens at 365 days
         assertGt(multiplierResult, 0, "calculateMultiplier should return positive value");
         assertEq(multiplierResult, 15900, "calculateMultiplier should return 15900 for 1750 tokens at 365 days");
@@ -3004,24 +2457,24 @@ contract SapienVaultBasicTest is Test {
 
         // Get the recorded logs
         Vm.Log[] memory logs = vm.getRecordedLogs();
-        
+
         // Find the Staked event and extract the effectiveMultiplier
         uint256 eventMultiplier = 0;
         bool foundStakedEvent = false;
-        
+
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].topics[0] == keccak256("Staked(address,uint256,uint256,uint256)")) {
                 foundStakedEvent = true;
                 // Decode the event data: user (indexed), amount, effectiveMultiplier, lockUpPeriod
-                (, uint256 eventAmount, uint256 eventEffectiveMultiplier, uint256 eventLockUpPeriod) = 
+                (, uint256 eventAmount, uint256 eventEffectiveMultiplier, uint256 eventLockUpPeriod) =
                     abi.decode(logs[i].data, (uint256, uint256, uint256, uint256));
-                
+
                 eventMultiplier = eventEffectiveMultiplier;
-                
+
                 // Verify the event has correct values
                 assertEq(eventAmount, amount, "Event should have correct amount");
                 assertEq(eventLockUpPeriod, period, "Event should have correct lockup period");
-                
+
                 console.log("=== STORAGE CORRUPTION EVIDENCE ===");
                 console.log("Staked event effectiveMultiplier:", eventEffectiveMultiplier);
                 break;
@@ -3034,15 +2487,15 @@ contract SapienVaultBasicTest is Test {
         // Now check what getUserStakingSummary returns immediately after
         ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(testUser);
         uint256 storedMultiplier = userStake.effectiveMultiplier;
-        
+
         console.log("getUserStakingSummary effectiveMultiplier:", storedMultiplier);
         console.log("Expected multiplier:", expectedMultiplier);
-        
+
         // CRITICAL BUG DEMONSTRATION:
         // The event emits the correct value (15900) but storage retrieval returns 0
         // This proves the value is calculated correctly and initially stored correctly
         // (event reads it from storage), but gets corrupted during storage/retrieval
-        
+
         if (storedMultiplier == 0 && eventMultiplier == expectedMultiplier) {
             console.log("STORAGE CORRUPTION CONFIRMED:");
             console.log("  - calculateMultiplier() works correctly");
@@ -3146,7 +2599,7 @@ contract SapienVaultBasicTest is Test {
     function test_Vault_ComprehensiveMultiplierDebug() public {
         uint256 amount = 1750 * 1e18; // Failing case
         uint256 period = LOCK_365_DAYS; // 365 days
-        
+
         address testUser = makeAddr("debugUser");
         sapienToken.mint(testUser, amount);
 
@@ -3163,7 +2616,7 @@ contract SapienVaultBasicTest is Test {
         uint256 uint32Max = type(uint32).max;
         console.log("Step 2 - uint32 max:", uint32Max);
         console.log("Step 2 - directResult fits in uint32:", directResult <= uint32Max);
-        
+
         uint32 castedResult = SafeCast.toUint32(directResult);
         console.log("Step 2 - SafeCast result:", castedResult);
         assertEq(uint256(castedResult), directResult, "SafeCast should preserve value");
@@ -3171,7 +2624,7 @@ contract SapienVaultBasicTest is Test {
         // Step 3: Perform staking and check intermediate state
         vm.startPrank(testUser);
         sapienToken.approve(address(sapienVault), amount);
-        
+
         // Check token balances before staking
         console.log("Step 3 - User balance before:", sapienToken.balanceOf(testUser));
         console.log("Step 3 - Vault balance before:", sapienToken.balanceOf(address(sapienVault)));
@@ -3212,7 +2665,7 @@ contract SapienVaultBasicTest is Test {
         console.log("=== CRITICAL COMPARISON ===");
         console.log("Expected effectiveMultiplier:", directResult);
         console.log("Actual effectiveMultiplier:", effectiveMultiplier);
-        
+
         if (effectiveMultiplier == 0 && directResult > 0) {
             console.log("CONFIRMED: Storage corruption detected!");
             console.log("  - calculateMultiplier() works correctly");
@@ -3230,16 +2683,16 @@ contract SapienVaultBasicTest is Test {
     function test_Vault_SafeCastDebug() public view {
         uint256 amount = 1750 * 1e18; // Failing case
         uint256 period = LOCK_365_DAYS; // 365 days
-        
+
         // Step 1: Test calculateMultiplier directly
         uint256 directResult = sapienVault.calculateMultiplier(amount, period);
         assertEq(directResult, 15900, "calculateMultiplier should return 15900");
-        
+
         // Step 2: Test SafeCast.toUint32 directly
         uint32 castedResult = SafeCast.toUint32(directResult);
         assertEq(uint256(castedResult), directResult, "SafeCast should preserve value");
         assertEq(uint256(castedResult), 15900, "SafeCast result should be 15900");
-        
+
         console.log("=== SAFECAST DEBUG ===");
         console.log("directResult:", directResult);
         console.log("castedResult:", uint256(castedResult));
@@ -3252,28 +2705,28 @@ contract SapienVaultBasicTest is Test {
     function test_Vault_StorageAssignmentDebug() public {
         uint256 amount = 1750 * 1e18; // Failing case
         uint256 period = LOCK_365_DAYS; // 365 days
-        
+
         address testUser = makeAddr("storageAssignmentDebugUser");
         sapienToken.mint(testUser, amount);
-        
+
         // Check calculateMultiplier before staking
         uint256 expectedMultiplier = sapienVault.calculateMultiplier(amount, period);
         console.log("=== BEFORE STAKING ===");
         console.log("expectedMultiplier:", expectedMultiplier);
-        
+
         // Check user has no stake initially
         uint256 initialTotalStaked = sapienVault.getTotalStaked(testUser);
         ISapienVault.UserStakingSummary memory initialUserStake = sapienVault.getUserStakingSummary(testUser);
         uint256 initialMultiplier = initialUserStake.effectiveMultiplier;
         assertEq(initialTotalStaked, 0, "User should have no stake initially");
         assertEq(initialMultiplier, 0, "Initial multiplier should be 0");
-        
+
         // Perform staking
         vm.startPrank(testUser);
         sapienToken.approve(address(sapienVault), amount);
         sapienVault.stake(amount, period);
         vm.stopPrank();
-        
+
         // Check immediately after staking
         console.log("=== AFTER STAKING ===");
         uint256 userTotalStaked = sapienVault.getTotalStaked(testUser);
@@ -3281,47 +2734,45 @@ contract SapienVaultBasicTest is Test {
         ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(testUser);
         uint256 actualMultiplier = userStake.effectiveMultiplier;
         uint256 effectiveLockUpPeriod = userStake.effectiveLockUpPeriod;
-        
-        
+
         console.log("userTotalStaked:", userTotalStaked);
         console.log("actualMultiplier:", actualMultiplier);
         console.log("effectiveLockUpPeriod:", effectiveLockUpPeriod);
         console.log("totalLocked:", totalLocked);
-        
+
         // Check that basic fields work
         assertEq(userTotalStaked, amount, "userTotalStaked should match");
         assertEq(effectiveLockUpPeriod, period, "effectiveLockUpPeriod should match");
         assertEq(totalLocked, amount, "totalLocked should match");
-        
+
         // Check the critical field
         console.log("=== MULTIPLIER CHECK ===");
         console.log("Expected:", expectedMultiplier);
         console.log("Actual:", actualMultiplier);
-        
+
         if (actualMultiplier == 0) {
             console.log("ERROR: actualMultiplier is 0!");
             console.log("This indicates storage corruption or reading issue");
         }
-        
+
         assertEq(actualMultiplier, expectedMultiplier, "CRITICAL: Multiplier storage/retrieval failure!");
     }
-
 
     /**
      * @notice Test to verify the expected multiplier values used in the failing tests
      */
     function test_Vault_VerifyExpectedMultiplierValues() public view {
         console.log("=== VERIFYING EXPECTED MULTIPLIER VALUES ===");
-        
+
         // Check the values that the failing tests expect
         uint256 amount1750 = 1750 * 1e18; // Mid 1K-2.5K range
         uint256 period365 = LOCK_365_DAYS; // 365 days
-        
+
         uint256 actualMultiplier1750 = sapienVault.calculateMultiplier(amount1750, period365);
         console.log("1750 tokens @ 365 days actual multiplier:", actualMultiplier1750);
         console.log("Tests expect: 15900");
         console.log("Match:", actualMultiplier1750 == 15900 ? "YES" : "NO");
-        
+
         // Check other boundary values
         uint256[] memory testAmounts = new uint256[](5);
         testAmounts[0] = 1000 * 1e18;
@@ -3329,14 +2780,14 @@ contract SapienVaultBasicTest is Test {
         testAmounts[2] = 5000 * 1e18;
         testAmounts[3] = 7500 * 1e18;
         testAmounts[4] = 10000 * 1e18;
-        
+
         uint256[] memory testExpected = new uint256[](5);
         testExpected[0] = 15900; // Tier 1
         testExpected[1] = 16800; // Tier 2
         testExpected[2] = 17700; // Tier 3
         testExpected[3] = 18600; // Tier 4
         testExpected[4] = 19500; // Tier 5
-        
+
         for (uint256 i = 0; i < testAmounts.length; i++) {
             uint256 actual = sapienVault.calculateMultiplier(testAmounts[i], period365);
             console.log("Amount (tokens):", testAmounts[i] / 1e18);

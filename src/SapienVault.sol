@@ -215,11 +215,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param user The address of the user to query
      * @return summary The complete UserStakingSummary struct containing all staking information
      */
-    function getUserStakingSummary(address user)
-        public
-        view
-        returns (ISapienVault.UserStakingSummary memory summary)
-    {
+    function getUserStakingSummary(address user) public view returns (ISapienVault.UserStakingSummary memory summary) {
         UserStake memory userStake = userStakes[user];
 
         summary.userTotalStaked = userStake.amount;
@@ -231,18 +227,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         summary.effectiveLockUpPeriod = userStake.effectiveLockUpPeriod;
 
         if (userStake.amount > 0) {
-            uint256 unlockTime = userStake.weightedStartTime + userStake.effectiveLockUpPeriod;
-            summary.timeUntilUnlock = block.timestamp >= unlockTime ? 0 : unlockTime - block.timestamp;
+            summary.timeUntilUnlock = getTimeUntilUnlock(user);
         }
-    }
-
-    /**
-     * @notice Get the effective multiplier for a user's stake
-     * @param user The address of the user to query
-     * @return The effective multiplier for the user's stake (basis points)
-     */
-    function getUserMultiplier(address user) external view returns (uint256) {
-        return userStakes[user].effectiveMultiplier;
     }
 
     // -------------------------------------------------------------
@@ -313,7 +299,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @notice Returns the amount of tokens that are still locked and cannot be unstaked
      * @dev Returns 0 if tokens are unlocked or in cooldown
      * @param user The address of the user to check
-     * @return The amount of tokens still locked
+     * @return totalUnlocked amount of tokens still locked
      */
     function getTotalLocked(address user) public view returns (uint256) {
         UserStake memory userStake = userStakes[user];
@@ -325,7 +311,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @notice Returns the amount of tokens that have completed cooldown and are ready to be unstaked
      * @dev Returns 0 if tokens are not ready for unstaking
      * @param user The address of the user to check
-     * @return The amount of tokens ready for unstaking
+     * @return readyForUnstake amount of tokens ready for unstaking
      */
     function getTotalReadyForUnstake(address user) public view returns (uint256) {
         UserStake memory userStake = userStakes[user];
@@ -337,7 +323,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @notice Returns the amount of tokens currently in cooldown period
      * @dev Returns 0 if user has no stake or is not in cooldown
      * @param user The address of the user to check
-     * @return The amount of tokens in cooldown
+     * @return totalInCooldown amount of tokens in cooldown
      */
     function getTotalInCooldown(address user) public view returns (uint256) {
         UserStake memory userStake = userStakes[user];
@@ -345,6 +331,36 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         // Ensure cooldown amount doesn't exceed total amount
         return userStake.cooldownAmount > userStake.amount ? userStake.amount : userStake.cooldownAmount;
+    }
+
+    /**
+     * @notice Get the effective multiplier for a user's stake
+     * @param user The address of the user to query
+     * @return effectiveMultiplier effective multiplier for the user's stake (basis points)
+     */
+    function getUserMultiplier(address user) public view returns (uint256) {
+        return userStakes[user].effectiveMultiplier;
+    }
+
+    /**
+     * @notice Get the effective lockup period for a user's stake
+     * @param user The address of the user to query
+     * @return effectiveLockUpPeriod effective lockup period for the user's stake (seconds)
+     */
+    function getUserLockupPeriod(address user) public view returns (uint256) {
+        return userStakes[user].effectiveLockUpPeriod;
+    }
+
+    /**
+     * @notice Get the time until a user's stake is unlocked
+     * @param user The address of the user to query
+     * @return timeUntilUnlock time until the user's stake is unlocked (seconds)
+     */
+    function getTimeUntilUnlock(address user) public view returns (uint256) {
+        UserStake memory userStake = userStakes[user];
+        if (userStake.amount == 0) return 0;
+        uint256 unlockTime = userStake.weightedStartTime + userStake.effectiveLockUpPeriod;
+        return block.timestamp >= unlockTime ? 0 : unlockTime - block.timestamp;
     }
 
     // -------------------------------------------------------------

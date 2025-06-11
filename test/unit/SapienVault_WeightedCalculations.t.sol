@@ -77,7 +77,9 @@ contract SapienVaultWeightedCalculationsTest is Test {
 
         // Verify time until unlock matches expected calculation
         uint256 currentTimeUntilUnlock = expectedUnlockTime > block.timestamp ? expectedUnlockTime - block.timestamp : 0;
-        assertEq(userStake.timeUntilUnlock, currentTimeUntilUnlock, "Time until unlock should match weighted calculation");
+        assertEq(
+            userStake.timeUntilUnlock, currentTimeUntilUnlock, "Time until unlock should match weighted calculation"
+        );
     }
 
     function test_Vault_WeightedStartTime_DifferentAmounts() public {
@@ -154,7 +156,9 @@ contract SapienVaultWeightedCalculationsTest is Test {
 
         // Due to floor protection, the 365-day lockup cannot be reduced even by a much larger stake
         ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
-        assertEq(userStake.effectiveLockUpPeriod, LOCK_365_DAYS, "Should maintain longer lockup due to floor protection");
+        assertEq(
+            userStake.effectiveLockUpPeriod, LOCK_365_DAYS, "Should maintain longer lockup due to floor protection"
+        );
     }
 
     function test_Vault_WeightedLockup_MaximumCapping() public {
@@ -200,7 +204,9 @@ contract SapienVaultWeightedCalculationsTest is Test {
         assertEq(userStake.userTotalStaked, stake1 + stake2, "Total stake should be sum of both stakes");
         assertGt(userStake.effectiveLockUpPeriod, LOCK_30_DAYS, "Effective lockup should be > 30 days");
         assertEq(
-            userStake.effectiveLockUpPeriod, LOCK_90_DAYS, "Effective lockup should be exactly 90 days due to floor protection"
+            userStake.effectiveLockUpPeriod,
+            LOCK_90_DAYS,
+            "Effective lockup should be exactly 90 days due to floor protection"
         );
     }
 
@@ -295,7 +301,12 @@ contract SapienVaultWeightedCalculationsTest is Test {
         ISapienVault.UserStakingSummary memory userStake2 = sapienVault.getUserStakingSummary(user2);
 
         assertEq(userStake1.userTotalStaked, userStake2.userTotalStaked, "Total stakes should be equal");
-        assertApproxEqAbs(userStake1.effectiveLockUpPeriod, userStake2.effectiveLockUpPeriod, 100, "Effective lockups should be nearly equal (allowing for rounding differences)");
+        assertApproxEqAbs(
+            userStake1.effectiveLockUpPeriod,
+            userStake2.effectiveLockUpPeriod,
+            100,
+            "Effective lockups should be nearly equal (allowing for rounding differences)"
+        );
     }
 
     // =============================================================================

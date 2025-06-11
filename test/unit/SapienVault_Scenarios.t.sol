@@ -101,7 +101,9 @@ contract SapienVaultScenariosTest is Test {
         // Verify the lockup was extended and multiplier updated
         ISapienVault.UserStakingSummary memory userStakeMultiplier = sapienVault.getUserStakingSummary(alice);
         assertGt(userStakeMultiplier.effectiveLockUpPeriod, LOCK_30_DAYS, "Lockup should be > 30 days");
-        assertGt(userStakeMultiplier.effectiveMultiplier, userStakeAfter.effectiveMultiplier, "Multiplier should increase");
+        assertGt(
+            userStakeMultiplier.effectiveMultiplier, userStakeAfter.effectiveMultiplier, "Multiplier should increase"
+        );
 
         // Phase 4: Alice adds more to her stake near the end
         vm.warp(block.timestamp + 30 days);
@@ -278,7 +280,9 @@ contract SapienVaultScenariosTest is Test {
         assertEq(davidInitialStake.userTotalStaked, MINIMUM_STAKE * 4, "Total should be sum of both stakes");
 
         // The effective lockup should be 180 days due to floor protection
-        assertEq(davidInitialStake.effectiveLockUpPeriod, LOCK_180_DAYS, "Should use longer lockup due to floor protection");
+        assertEq(
+            davidInitialStake.effectiveLockUpPeriod, LOCK_180_DAYS, "Should use longer lockup due to floor protection"
+        );
 
         // Add one more stake to further test floor protection
         vm.warp(block.timestamp + 20 days); // Total elapsed: 30 days
@@ -295,7 +299,9 @@ contract SapienVaultScenariosTest is Test {
 
         ISapienVault.UserStakingSummary memory davidAfterIncrease = sapienVault.getUserStakingSummary(david);
         assertEq(davidAfterIncrease.userTotalStaked, MINIMUM_STAKE * 6, "Total should be sum of both stakes");
-        assertEq(davidAfterIncrease.effectiveLockUpPeriod, LOCK_365_DAYS, "Should use longest lockup due to floor protection");
+        assertEq(
+            davidAfterIncrease.effectiveLockUpPeriod, LOCK_365_DAYS, "Should use longest lockup due to floor protection"
+        );
     }
 
     // =============================================================================
@@ -337,7 +343,11 @@ contract SapienVaultScenariosTest is Test {
         // Multiplier should stay the same since both 10K and 15K are in the highest tier (10K+)
         ISapienVault.UserStakingSummary memory eveFinal = sapienVault.getUserStakingSummary(eve);
         assertEq(eveFinal.userTotalStaked, MINIMUM_STAKE * 15, "Total should include extra amount");
-        assertEq(eveFinal.effectiveMultiplier, eveAfterIncrease.effectiveMultiplier, "Multiplier should stay the same for same tier");
+        assertEq(
+            eveFinal.effectiveMultiplier,
+            eveAfterIncrease.effectiveMultiplier,
+            "Multiplier should stay the same for same tier"
+        );
     }
 
     // =============================================================================
@@ -381,7 +391,7 @@ contract SapienVaultScenariosTest is Test {
         // Grace can unstake, Frank cannot
         ISapienVault.UserStakingSummary memory graceStake = sapienVault.getUserStakingSummary(grace);
         ISapienVault.UserStakingSummary memory frankStake = sapienVault.getUserStakingSummary(frank);
-        
+
         uint256 graceUnlocked = graceStake.totalUnlocked; // Use the correct field for unlocked amount
         uint256 frankUnlocked = frankStake.totalUnlocked; // Use the correct field for unlocked amount
 

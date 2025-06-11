@@ -176,6 +176,7 @@ contract SapienVaultInvariantsTest is StdInvariant, Test {
     SapienVaultHandler public handler;
     
     address public admin = makeAddr("admin");
+    address public pauseManager = makeAddr("pauseManager");
     address public rewardSafe = makeAddr("rewardSafe");
     address public sapienQA = makeAddr("sapienQA");
     
@@ -187,6 +188,7 @@ contract SapienVaultInvariantsTest is StdInvariant, Test {
             SapienVault.initialize.selector,
             address(sapienToken),
             admin,
+            pauseManager,
             rewardSafe,
             sapienQA
         );
@@ -269,16 +271,16 @@ contract SapienVaultInvariantsTest is StdInvariant, Test {
     function invariant_UserSummaryConsistency() public view {
         address[] memory actors = handler.getActors();
         for (uint256 i = 0; i < actors.length; i++) {
-            (
-                uint256 userTotalStaked,
-                uint256 totalUnlocked,
-                uint256 totalLocked,
-                uint256 totalInCooldown,
-                uint256 totalReadyForUnstake,
-                uint256 effectiveMultiplier,
-                uint256 effectiveLockUpPeriod,
-                uint256 timeUntilUnlock
-            ) = sapienVault.getUserStakingSummary(actors[i]);
+            ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(actors[i]);
+            
+            uint256 userTotalStaked = userStake.userTotalStaked;
+            uint256 totalUnlocked = userStake.totalUnlocked;
+            uint256 totalLocked = userStake.totalLocked;
+            uint256 totalInCooldown = userStake.totalInCooldown;
+            uint256 totalReadyForUnstake = userStake.totalReadyForUnstake;
+            uint256 effectiveMultiplier = userStake.effectiveMultiplier;
+            uint256 effectiveLockUpPeriod = userStake.effectiveLockUpPeriod;
+            uint256 timeUntilUnlock = userStake.timeUntilUnlock;
             
             if (userTotalStaked > 0) {
                 // Total staked should equal locked + unlocked
@@ -323,19 +325,14 @@ contract SapienVaultInvariantsTest is StdInvariant, Test {
         address[] memory actors = handler.getActors();
         for (uint256 i = 0; i < actors.length; i++) {
             if (sapienVault.hasActiveStake(actors[i])) {
-                (
-                    uint256 userTotalStaked,
-                    ,,,,,
-                    uint256 effectiveLockUpPeriod,
-                    
-                ) = sapienVault.getUserStakingSummary(actors[i]);
+                ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(actors[i]);
+                
+                uint256 userTotalStaked = userStake.userTotalStaked;
+                uint256 effectiveLockUpPeriod = userStake.effectiveLockUpPeriod;
+                uint256 actualMultiplier = userStake.effectiveMultiplier;
                 
                 // Calculate expected multiplier using the contract's method
                 uint256 expectedMultiplier = sapienVault.calculateMultiplier(userTotalStaked, effectiveLockUpPeriod);
-                
-                // Get actual multiplier from summary
-                ISapienVault.UserStakingSummary memory userStakeForMultiplier = sapienVault.getUserStakingSummary(actors[i]);
-                uint256 actualMultiplier = userStakeForMultiplier.effectiveMultiplier;
                 
                 assertEq(
                     actualMultiplier,
@@ -352,10 +349,10 @@ contract SapienVaultInvariantsTest is StdInvariant, Test {
         for (uint256 i = 0; i < actors.length; i++) {
             ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(actors[i]);
             uint256 userTotalStaked = userStake.userTotalStaked;
-            uint256 totalUnlocked = userStake.unlockedAmount;
-            uint256 totalLocked = userStake.lockedAmount;
-            uint256 totalInCooldown = userStake.cooldownAmount;
-            uint256 totalReadyForUnstake = userStake.readyToUnstakeAmount;
+            uint256 totalUnlocked = userStake.totalUnlocked;
+            uint256 totalLocked = userStake.totalLocked;
+            uint256 totalInCooldown = userStake.totalInCooldown;
+            uint256 totalReadyForUnstake = userStake.totalReadyForUnstake;
             
             if (userTotalStaked > 0) {
                 // Total unlocked + total locked should equal total staked
@@ -485,8 +482,8 @@ contract SapienVaultInvariantsTest is StdInvariant, Test {
         for (uint256 i = 0; i < actors.length; i++) {
             ISapienVault.UserStakingSummary memory userLockStake = sapienVault.getUserStakingSummary(actors[i]);
             uint256 userTotalStaked = userLockStake.userTotalStaked;
-            uint256 totalUnlocked = userLockStake.unlockedAmount;
-            uint256 totalLocked = userLockStake.lockedAmount;
+            uint256 totalUnlocked = userLockStake.totalUnlocked;
+            uint256 totalLocked = userLockStake.totalLocked;
             uint256 timeUntilUnlock = userLockStake.timeUntilUnlock;
             
             if (userTotalStaked > 0) {
@@ -546,12 +543,10 @@ contract SapienVaultInvariantsTest is StdInvariant, Test {
         address[] memory actors = handler.getActors();
         for (uint256 i = 0; i < actors.length; i++) {
             if (sapienVault.hasActiveStake(actors[i])) {
-                (
-                    ,,,,,
-                    uint256 effectiveMultiplier,
-                    uint256 effectiveLockUpPeriod,
-                    
-                ) = sapienVault.getUserStakingSummary(actors[i]);
+                ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(actors[i]);
+                
+                uint256 effectiveMultiplier = userStake.effectiveMultiplier;
+                uint256 effectiveLockUpPeriod = userStake.effectiveLockUpPeriod;
                 
                 if (effectiveLockUpPeriod > 0) {
                     // Check that multiplier is in the expected range for the new system
@@ -588,15 +583,15 @@ contract SapienVaultInvariantsTest is StdInvariant, Test {
             
             // If user has stake, summary should be valid
             if (totalStaked > 0) {
-                (
-                    uint256 userTotalStaked,
-                    uint256 totalUnlocked,
-                    uint256 totalLocked,
-                    uint256 totalInCooldown,
-                    uint256 totalReadyForUnstake,
-                    uint256 effectiveMultiplier,
-                    uint256 effectiveLockUpPeriod,
-                ) = sapienVault.getUserStakingSummary(actors[i]);
+                ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(actors[i]);
+                
+                uint256 userTotalStaked = userStake.userTotalStaked;
+                uint256 totalUnlocked = userStake.totalUnlocked;
+                uint256 totalLocked = userStake.totalLocked;
+                uint256 totalInCooldown = userStake.totalInCooldown;
+                uint256 totalReadyForUnstake = userStake.totalReadyForUnstake;
+                uint256 effectiveMultiplier = userStake.effectiveMultiplier;
+                uint256 effectiveLockUpPeriod = userStake.effectiveLockUpPeriod;
                 
                 assertEq(userTotalStaked, totalStaked, "Summary should match getTotalStaked");
                 assertGt(effectiveMultiplier, 0, "Active stake should have positive multiplier");
