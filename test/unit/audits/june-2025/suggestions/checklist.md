@@ -9,13 +9,13 @@
 7. [y] Remove parameters from MultiplierUpdated event
 8. [y] Remove address(0) check in SapienVault.stake()
 9. [n] Re-evaluate storage savings in UserStake struct
-    - The cost savings are significant with variable packing
-    https://github.com/Sapien-io/sapien-contracts/blob/audit/june%2Bremove-variable-packing-test/test/unit/june-audit-findings/remove-vault-variable-packing/readme.md
-10. [ ] Add constant for magic number in _validateIncreaseAmount()
+    - The cost savings are significant with variable packing [Report here](./remove-userstake-packing.md)
+10. [y] Add constant for magic number in _validateIncreaseAmount()
 11. [y] Avoid double validation in increaseAmount()
 12. [y] Streamline EIP-712 implementation in SapienRewards
-13. [ ] Reconsider reward token accounting in SapienRewards
-14. [ ] Define MAXIMUM_STAKE_AMOUNT constant
+13. [n] Reconsider reward token accounting in SapienRewards
+    - The security and accounting reasons are worth the increased complexity [Report Here](./rewards-accounting.md)
+14. [y] Define MAXIMUM_STAKE_AMOUNT constant
 15. [y] Make calculateMultiplier() revert instead of return zero
 16. [y] Remove redundant checks in _calculateWeightedValues()
 17. [y] Remove unnecessary overflow checks
