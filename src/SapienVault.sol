@@ -672,7 +672,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             revert MinimumStakeAmountRequired();
         }
 
-        if (amount > 10_000_000 * Const.TOKEN_DECIMALS) {
+        if (amount > Const.MAXIMUM_STAKE_AMOUNT) {
             revert StakeAmountTooLarge();
         }
 
@@ -889,7 +889,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         }
 
         // Prevent potential DOS attacks with extremely large stakes
-        if (additionalAmount > 10_000_000 * Const.TOKEN_DECIMALS) {
+        if (additionalAmount > Const.MAXIMUM_STAKE_AMOUNT) {
             revert StakeAmountTooLarge();
         }
     }
