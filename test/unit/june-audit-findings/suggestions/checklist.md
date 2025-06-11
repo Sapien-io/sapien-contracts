@@ -27,4 +27,4 @@
 - [ ] Remove redundant QAPenaltyPartial event
 - [x] Remove unnecessary uint256 upcasts
 - [ ] Remove penalty > 0 check in earlyUnstake()
-- [ ] Add minimum unstake amount to prevent precision loss
+- [x] Add minimum unstake amount to prevent precision loss

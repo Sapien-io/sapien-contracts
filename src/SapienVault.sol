@@ -566,6 +566,11 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      */
     function initiateEarlyUnstake(uint256 amount) external whenNotPaused nonReentrant {
         if (amount == 0) revert InvalidAmount();
+        
+        // Prevent precision loss in penalty calculations
+        if (amount < Const.MINIMUM_UNSTAKE_AMOUNT) {
+            revert MinimumUnstakeAmountRequired();
+        }
 
         UserStake storage userStake = userStakes[msg.sender];
 
@@ -595,6 +600,11 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      */
     function earlyUnstake(uint256 amount) external whenNotPaused nonReentrant {
         if (amount == 0) revert InvalidAmount();
+        
+        // Prevent precision loss in penalty calculations
+        if (amount < Const.MINIMUM_UNSTAKE_AMOUNT) {
+            revert MinimumUnstakeAmountRequired();
+        }
 
         UserStake storage userStake = userStakes[msg.sender];
 
@@ -637,9 +647,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         sapienToken.safeTransfer(msg.sender, payout);
 
-        if (penalty > 0) {
-            sapienToken.safeTransfer(treasury, penalty);
-        }
+        sapienToken.safeTransfer(treasury, penalty);
 
         emit EarlyUnstake(msg.sender, payout, penalty);
     }

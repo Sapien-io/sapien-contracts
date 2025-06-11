@@ -132,6 +132,10 @@ library Constants {
     /// @notice Minimum stake amount (1,000 tokens)
     uint256 internal constant MINIMUM_STAKE_AMOUNT = 1000 * TOKEN_DECIMALS;
 
+    /// @notice Minimum unstake amount to prevent precision loss in penalty calculations
+    /// @dev Set to 500 wei to ensure at least 100 wei penalty (500 * 20 / 100 = 100)
+    uint256 internal constant MINIMUM_UNSTAKE_AMOUNT = 500;
+
     /// @notice Minimum lockup increase period
     uint256 internal constant MINIMUM_LOCKUP_INCREASE = 7 days;
 

@@ -67,6 +67,7 @@ interface ISapienVault {
 
     error ZeroAddress();
     error MinimumStakeAmountRequired();
+    error MinimumUnstakeAmountRequired();
     error InvalidLockupPeriod();
     error InvalidAmount();
     error NoStakeFound();
