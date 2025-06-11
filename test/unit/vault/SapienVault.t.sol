@@ -99,6 +99,11 @@ contract SapienVaultBasicTest is Test {
         assertTrue(sapienVault.hasRole(sapienVault.DEFAULT_ADMIN_ROLE(), admin));
     }
 
+    function test_Vault_Version() public view {
+        string memory version = sapienVault.version();
+        assertEq(version, Const.VAULT_VERSION);
+    }
+
     // =============================================================================
     // STAKING TESTS
     // =============================================================================
@@ -207,6 +212,21 @@ contract SapienVaultBasicTest is Test {
 
         vm.expectRevert(abi.encodeWithSignature("MinimumStakeAmountRequired()"));
         sapienVault.stake(MINIMUM_STAKE - 1, LOCK_30_DAYS);
+        vm.stopPrank();
+    }
+
+    function test_Vault_RevertStakeAboveMaximum() public {
+        // Use the maximum stake amount from Constants plus 1
+        uint256 excessiveStakeAmount = Const.MAXIMUM_STAKE_AMOUNT + 1;
+
+        // Mint the user enough tokens
+        sapienToken.mint(user1, excessiveStakeAmount);
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), excessiveStakeAmount);
+
+        vm.expectRevert(abi.encodeWithSignature("StakeAmountTooLarge()"));
+        sapienVault.stake(excessiveStakeAmount, LOCK_30_DAYS);
         vm.stopPrank();
     }
 
@@ -860,6 +880,59 @@ contract SapienVaultBasicTest is Test {
         assertEq(sapienVault.treasury(), newTreasury);
     }
 
+    function test_Vault_RevertSetTreasury_ZeroAddress() public {
+        // Try to set treasury to zero address
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSignature("ZeroAddress()"));
+        sapienVault.setTreasury(address(0));
+
+        // Treasury should remain unchanged
+        assertEq(sapienVault.treasury(), treasury);
+    }
+
+    function test_Vault_OnlyAdmin_ModifierCoverage() public {
+        address newTreasury = makeAddr("newTreasury");
+        address nonAdmin = makeAddr("nonAdmin");
+
+        // Verify admin role is correctly assigned
+        assertTrue(sapienVault.hasRole(sapienVault.DEFAULT_ADMIN_ROLE(), admin));
+        assertFalse(sapienVault.hasRole(sapienVault.DEFAULT_ADMIN_ROLE(), nonAdmin));
+
+        // Test "if" branch in modifier (should revert)
+        vm.prank(nonAdmin);
+        vm.expectRevert();
+        sapienVault.setTreasury(newTreasury);
+
+        // Test "else" branch in modifier (should succeed)
+        vm.prank(admin);
+        sapienVault.setTreasury(newTreasury);
+        assertEq(sapienVault.treasury(), newTreasury);
+    }
+
+    function test_Vault_OnlyAdmin_SetTreasury() public {
+        address newTreasury = makeAddr("newTreasury");
+        address nonAdmin = makeAddr("nonAdmin");
+
+        // Get the actual DEFAULT_ADMIN_ROLE constant value
+        bytes32 adminRole = sapienVault.DEFAULT_ADMIN_ROLE();
+
+        // Non-admin should be rejected
+        vm.prank(nonAdmin);
+        vm.expectRevert(
+            // Format the error string directly as it would appear in the revert message
+            abi.encodeWithSignature("AccessControlUnauthorizedAccount(address,bytes32)", nonAdmin, adminRole)
+        );
+        sapienVault.setTreasury(newTreasury);
+
+        // Original treasury should remain unchanged
+        assertEq(sapienVault.treasury(), treasury);
+
+        // Admin should succeed
+        vm.prank(admin);
+        sapienVault.setTreasury(newTreasury);
+        assertEq(sapienVault.treasury(), newTreasury);
+    }
+
     function test_Vault_RevertInitiateUnstake_NoStakeFound() public {
         // Test the NoStakeFound revert in initiateUnstake when user has no stake
 
@@ -1054,6 +1127,40 @@ contract SapienVaultBasicTest is Test {
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSignature("AmountExceedsAvailableBalance()"));
         sapienVault.earlyUnstake(availableForEarlyUnstake + 1);
+    }
+
+    function test_Vault_RevertEarlyUnstake_BelowMinimumAmount() public {
+        // Create stake
+        uint256 stakeAmount = MINIMUM_STAKE * 3;
+        sapienToken.mint(user1, stakeAmount);
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+
+        // Try to early unstake less than the minimum required amount
+        uint256 belowMinimumAmount = Const.MINIMUM_UNSTAKE_AMOUNT - 1;
+
+        vm.expectRevert(abi.encodeWithSignature("MinimumUnstakeAmountRequired()"));
+        sapienVault.earlyUnstake(belowMinimumAmount);
+        vm.stopPrank();
+    }
+
+    function test_Vault_RevertInitiateEarlyUnstake_BelowMinimumAmount() public {
+        // Create stake
+        uint256 stakeAmount = MINIMUM_STAKE * 3;
+        sapienToken.mint(user1, stakeAmount);
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+
+        // Try to initiate early unstake with less than minimum amount
+        uint256 belowMinimumAmount = Const.MINIMUM_UNSTAKE_AMOUNT - 1;
+
+        vm.expectRevert(abi.encodeWithSignature("MinimumUnstakeAmountRequired()"));
+        sapienVault.initiateEarlyUnstake(belowMinimumAmount);
+        vm.stopPrank();
     }
 
     function test_Vault_RevertCannotIncreaseStakeInCooldown() public {
@@ -2658,5 +2765,159 @@ contract SapienVaultBasicTest is Test {
             console.log("Actual multiplier:", actual);
             console.log("---");
         }
+    }
+
+    function test_Vault_EmergencyWithdrawERC20() public {
+        // Setup: Mint tokens to the vault
+        uint256 withdrawAmount = 1000e18;
+        sapienToken.mint(address(sapienVault), withdrawAmount);
+        address recipient = makeAddr("emergencyRecipient");
+
+        // First pause the contract (required for emergency withdraw)
+        vm.prank(pauseManager);
+        sapienVault.pause();
+
+        // Record initial balances
+        uint256 recipientInitialBalance = sapienToken.balanceOf(recipient);
+        uint256 vaultInitialBalance = sapienToken.balanceOf(address(sapienVault));
+
+        // Perform emergency withdrawal
+        vm.prank(admin);
+        vm.expectEmit(true, true, true, false);
+        emit ISapienVault.EmergencyWithdraw(address(sapienToken), recipient, withdrawAmount);
+        sapienVault.emergencyWithdraw(address(sapienToken), recipient, withdrawAmount);
+
+        // Verify balances changed correctly
+        assertEq(sapienToken.balanceOf(recipient), recipientInitialBalance + withdrawAmount);
+        assertEq(sapienToken.balanceOf(address(sapienVault)), vaultInitialBalance - withdrawAmount);
+    }
+
+    function test_Vault_EmergencyWithdrawETH() public {
+        // Setup: Send ETH to the vault
+        uint256 withdrawAmount = 1 ether;
+        vm.deal(address(sapienVault), withdrawAmount);
+        address recipient = makeAddr("emergencyRecipient");
+
+        // First pause the contract (required for emergency withdraw)
+        vm.prank(pauseManager);
+        sapienVault.pause();
+
+        // Record initial balances
+        uint256 recipientInitialBalance = recipient.balance;
+        uint256 vaultInitialBalance = address(sapienVault).balance;
+
+        // Perform emergency withdrawal
+        vm.prank(admin);
+        vm.expectEmit(true, true, true, false);
+        emit ISapienVault.EmergencyWithdraw(address(0), recipient, withdrawAmount);
+        sapienVault.emergencyWithdraw(address(0), recipient, withdrawAmount);
+
+        // Verify balances changed correctly
+        assertEq(recipient.balance, recipientInitialBalance + withdrawAmount);
+        assertEq(address(sapienVault).balance, vaultInitialBalance - withdrawAmount);
+    }
+
+    function test_Vault_RevertEmergencyWithdraw_ZeroAddress() public {
+        // First pause the contract (required for emergency withdraw)
+        vm.prank(pauseManager);
+        sapienVault.pause();
+
+        // Try to withdraw to zero address
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSignature("ZeroAddress()"));
+        sapienVault.emergencyWithdraw(address(sapienToken), address(0), 100e18);
+    }
+
+    function test_Vault_RevertEmergencyWithdraw_OnlyAdmin() public {
+        address nonAdmin = makeAddr("nonAdmin");
+
+        // First pause the contract (required for emergency withdraw)
+        vm.prank(pauseManager);
+        sapienVault.pause();
+
+        // Try to call as non-admin
+        vm.prank(nonAdmin);
+        vm.expectRevert(); // Should revert due to onlyAdmin modifier
+        sapienVault.emergencyWithdraw(address(sapienToken), treasury, 100e18);
+    }
+
+    function test_Vault_RevertEmergencyWithdraw_NotPaused() public {
+        // Contract should be paused for emergency withdraw
+        // Try without pausing
+        vm.prank(admin);
+        vm.expectRevert(); // Should revert due to whenPaused modifier
+        sapienVault.emergencyWithdraw(address(sapienToken), treasury, 100e18);
+    }
+
+    function test_Vault_OnlyPauser_ModifierCoverage() public {
+        address nonPauser = makeAddr("nonPauser");
+
+        // Verify role assignments
+        assertTrue(sapienVault.hasRole(Const.PAUSER_ROLE, pauseManager));
+        assertFalse(sapienVault.hasRole(Const.PAUSER_ROLE, nonPauser));
+
+        // Test non-pauser attempt to pause (should revert)
+        vm.prank(nonPauser);
+        vm.expectRevert(
+            abi.encodeWithSignature("AccessControlUnauthorizedAccount(address,bytes32)", nonPauser, Const.PAUSER_ROLE)
+        );
+        sapienVault.pause();
+
+        // Verify pauser can pause
+        vm.prank(pauseManager);
+        sapienVault.pause();
+        assertTrue(sapienVault.paused());
+
+        // Test non-pauser attempt to unpause (should revert)
+        vm.prank(nonPauser);
+        vm.expectRevert(
+            abi.encodeWithSignature("AccessControlUnauthorizedAccount(address,bytes32)", nonPauser, Const.PAUSER_ROLE)
+        );
+        sapienVault.unpause();
+
+        // Verify pauser can unpause
+        vm.prank(pauseManager);
+        sapienVault.unpause();
+        assertFalse(sapienVault.paused());
+    }
+
+    function test_Vault_OnlySapienQA_ModifierCoverage() public {
+        address nonSapienQA = makeAddr("nonSapienQA");
+        uint256 penaltyAmount = MINIMUM_STAKE;
+
+        // Create a stake for testing QA functions
+        sapienToken.mint(user1, penaltyAmount);
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), penaltyAmount);
+        sapienVault.stake(penaltyAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Verify role assignments
+        assertTrue(sapienVault.hasRole(Const.SAPIEN_QA_ROLE, sapienQA));
+        assertFalse(sapienVault.hasRole(Const.SAPIEN_QA_ROLE, nonSapienQA));
+
+        // Test non-SapienQA attempt to process penalty (should revert)
+        vm.prank(nonSapienQA);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "AccessControlUnauthorizedAccount(address,bytes32)", nonSapienQA, Const.SAPIEN_QA_ROLE
+            )
+        );
+        sapienVault.processQAPenalty(user1, penaltyAmount);
+
+        // Verify SapienQA can process penalty
+        vm.prank(sapienQA);
+        sapienVault.processQAPenalty(user1, penaltyAmount);
+        assertEq(sapienVault.getTotalStaked(user1), 0); // Penalty should have reduced stake to 0
+    }
+
+    function test_Vault_RoleFunctions() public {
+        // Test PAUSER_ROLE function
+        bytes32 pauserRole = sapienVault.PAUSER_ROLE();
+        assertEq(pauserRole, Const.PAUSER_ROLE);
+
+        // Test SAPIEN_QA_ROLE function
+        bytes32 sapienQARole = sapienVault.SAPIEN_QA_ROLE();
+        assertEq(sapienQARole, Const.SAPIEN_QA_ROLE);
     }
 }

@@ -860,17 +860,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     }
 
     /**
-     * @notice Validates that a user has an active stake
-     * @param user The user address to check
-     * @dev Reverts with NoStakeFound if user has no stake
-     */
-    function _requireActiveStake(address user) private view {
-        if (userStakes[user].amount == 0) {
-            revert NoStakeFound();
-        }
-    }
-
-    /**
      * @notice Validates if a lockup period is valid
      * @param lockUpPeriod The lockup period to validate
      * @return bool True if the lockup period is valid
