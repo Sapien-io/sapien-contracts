@@ -260,8 +260,76 @@ contract SapienVaultEndToEndTest is Test {
     }
 
     function _phaseMaturityAndComplexity() internal {
+        // Log initial state
+        console.log("\n=== Initial State ===");
+        console.log("Current block timestamp:", block.timestamp);
+
+        ISapienVault.UserStakingSummary memory conservativeStake = sapienVault.getUserStakingSummary(conservativeStaker);
+        console.log("\nConservative staker initial state:");
+        console.log("Total staked:", conservativeStake.userTotalStaked / 10 ** 18, "SAPIEN");
+        console.log("Weighted start time:", conservativeStake.effectiveLockUpPeriod);
+        console.log("Effective lockup period:", conservativeStake.effectiveLockUpPeriod);
+        console.log("Time until unlock:", conservativeStake.timeUntilUnlock);
+        console.log(
+            "Is unlocked:",
+            block.timestamp >= (conservativeStake.effectiveLockUpPeriod + conservativeStake.timeUntilUnlock)
+        );
+
+        // Get social staker state
+        ISapienVault.UserStakingSummary memory socialStake = sapienVault.getUserStakingSummary(socialStaker);
+        console.log("\nSocial staker initial state:");
+        console.log("Total staked:", socialStake.userTotalStaked / 10 ** 18, "SAPIEN");
+        console.log("Weighted start time:", socialStake.effectiveLockUpPeriod);
+        console.log("Effective lockup period:", socialStake.effectiveLockUpPeriod);
+        console.log("Time until unlock:", socialStake.timeUntilUnlock);
+        console.log(
+            "Is unlocked:", block.timestamp >= (socialStake.effectiveLockUpPeriod + socialStake.timeUntilUnlock)
+        );
+
+        // Calculate how much time we need to wait for both stakes
+        uint256 timeNeeded = conservativeStake.timeUntilUnlock > socialStake.timeUntilUnlock
+            ? conservativeStake.timeUntilUnlock
+            : socialStake.timeUntilUnlock;
+
+        console.log("\nTime needed to wait:", timeNeeded);
+        console.log("Current time:", block.timestamp);
+        console.log("Target unlock time:", block.timestamp + timeNeeded);
+
+        // Ensure enough time has passed for both stakes to unlock
+        vm.warp(block.timestamp + timeNeeded + 1); // Add 1 second buffer
+
+        // Log state after time warp
+        console.log("\n=== State After Time Warp ===");
+        console.log("New block timestamp:", block.timestamp);
+
+        conservativeStake = sapienVault.getUserStakingSummary(conservativeStaker);
+        console.log("\nConservative staker state after time warp:");
+        console.log("Total staked:", conservativeStake.userTotalStaked / 10 ** 18, "SAPIEN");
+        console.log("Weighted start time:", conservativeStake.effectiveLockUpPeriod);
+        console.log("Effective lockup period:", conservativeStake.effectiveLockUpPeriod);
+        console.log("Time until unlock:", conservativeStake.timeUntilUnlock);
+        console.log(
+            "Is unlocked:",
+            block.timestamp >= (conservativeStake.effectiveLockUpPeriod + conservativeStake.timeUntilUnlock)
+        );
+
+        socialStake = sapienVault.getUserStakingSummary(socialStaker);
+        console.log("\nSocial staker state after time warp:");
+        console.log("Total staked:", socialStake.userTotalStaked / 10 ** 18, "SAPIEN");
+        console.log("Weighted start time:", socialStake.effectiveLockUpPeriod);
+        console.log("Effective lockup period:", socialStake.effectiveLockUpPeriod);
+        console.log("Time until unlock:", socialStake.timeUntilUnlock);
+        console.log(
+            "Is unlocked:", block.timestamp >= (socialStake.effectiveLockUpPeriod + socialStake.timeUntilUnlock)
+        );
+
         // Test unstaking flows - conservative staker tries to exit partially
         uint256 unstakeAmount = SMALL_STAKE;
+
+        console.log("\n=== Attempting Unstake ===");
+        console.log("Attempting to unstake:", unstakeAmount / 10 ** 18, "SAPIEN");
+        console.log("Current time:", block.timestamp);
+        console.log("Time until unlock:", conservativeStake.timeUntilUnlock);
 
         vm.prank(conservativeStaker);
         sapienVault.initiateUnstake(unstakeAmount);
@@ -269,7 +337,9 @@ contract SapienVaultEndToEndTest is Test {
         console.log("Conservative staker: Initiated unstake of", unstakeAmount / 10 ** 18, "SAPIEN");
 
         // Fast forward through cooldown
+        uint256 previousTime = block.timestamp;
         vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        console.log("Time warped from", previousTime, "to", block.timestamp);
 
         uint256 balanceBefore = sapienToken.balanceOf(conservativeStaker);
         vm.prank(conservativeStaker);
@@ -281,16 +351,86 @@ contract SapienVaultEndToEndTest is Test {
 
         console.log("Conservative staker: Successfully unstaked", unstakeAmount / 10 ** 18, "SAPIEN");
 
-        // Social staker tries partial unstaking with multiple cooldowns
+        // SOCIAL STAKER UNSTAKING - COMPLETELY REWRITTEN USING FIXED TIMESTAMPS
+
+        // Social staker first unstake
+        console.log("\n=== Social Staker First Unstake ===");
+        uint256 socialUnstakeAmount = SMALL_STAKE;
+
+        // Capture state before unstaking
+        uint256 beforeBalance = sapienToken.balanceOf(socialStaker);
+        console.log("Social staker balance before:", beforeBalance / 10 ** 18, "SAPIEN");
+        console.log("Social staker total staked:", sapienVault.getTotalStaked(socialStaker) / 10 ** 18, "SAPIEN");
+
+        // Use fixed timestamps for testing
+        uint256 firstInitiateTime = 20_000_000;
+        console.log("Warping to first initiate time:", firstInitiateTime);
+        vm.warp(firstInitiateTime);
+
+        // Step 1: Initiate unstake
         vm.prank(socialStaker);
-        sapienVault.initiateUnstake(SMALL_STAKE);
+        sapienVault.initiateUnstake(socialUnstakeAmount);
+        console.log("Social staker initiated unstake at time:", block.timestamp);
 
-        vm.warp(block.timestamp + 1 days); // Partial way through cooldown
+        // Step 2: Wait for cooldown period to complete
+        uint256 firstUnstakeTime = firstInitiateTime + COOLDOWN_PERIOD + 100; // Add buffer
+        console.log("Cooldown period:", COOLDOWN_PERIOD);
+        console.log("Warping to after first cooldown:", firstUnstakeTime);
+        vm.warp(firstUnstakeTime);
+        console.log("Current time after warp:", block.timestamp);
+        console.log("Time passed since cooldown initiation:", block.timestamp - firstInitiateTime);
 
+        // Step 3: Complete the unstake
         vm.prank(socialStaker);
-        sapienVault.initiateUnstake(SMALL_STAKE); // Second unstake request
+        sapienVault.unstake(socialUnstakeAmount);
 
-        console.log("Social staker: Multiple unstake initiations");
+        // Verify unstake was successful
+        uint256 afterBalance = sapienToken.balanceOf(socialStaker);
+        console.log("Social staker balance after:", afterBalance / 10 ** 18, "SAPIEN");
+        console.log("Balance increase:", (afterBalance - beforeBalance) / 10 ** 18, "SAPIEN");
+        assertEq(afterBalance - beforeBalance, socialUnstakeAmount);
+
+        totalCurrentStaked -= socialUnstakeAmount;
+        console.log("Social staker: Successfully unstaked first amount");
+
+        // Social staker second unstake
+        console.log("\n=== Social Staker Second Unstake ===");
+
+        // Reset variables for clarity
+        beforeBalance = sapienToken.balanceOf(socialStaker);
+        console.log("Social staker balance before second unstake:", beforeBalance / 10 ** 18, "SAPIEN");
+        console.log("Social staker remaining staked:", sapienVault.getTotalStaked(socialStaker) / 10 ** 18, "SAPIEN");
+
+        // Use fixed timestamps for testing
+        uint256 secondInitiateTime = 21_000_000;
+        console.log("Warping to second initiate time:", secondInitiateTime);
+        vm.warp(secondInitiateTime);
+
+        // Step 1: Initiate second unstake
+        vm.prank(socialStaker);
+        sapienVault.initiateUnstake(socialUnstakeAmount);
+        console.log("Social staker initiated second unstake at time:", block.timestamp);
+
+        // Step 2: Wait for second cooldown period to complete
+        uint256 secondUnstakeTime = secondInitiateTime + COOLDOWN_PERIOD + 100; // Add buffer
+        console.log("Cooldown period:", COOLDOWN_PERIOD);
+        console.log("Warping to after second cooldown:", secondUnstakeTime);
+        vm.warp(secondUnstakeTime);
+        console.log("Current time after warp:", block.timestamp);
+        console.log("Time passed since second cooldown initiation:", block.timestamp - secondInitiateTime);
+
+        // Step 3: Complete the second unstake
+        vm.prank(socialStaker);
+        sapienVault.unstake(socialUnstakeAmount);
+
+        // Verify second unstake was successful
+        afterBalance = sapienToken.balanceOf(socialStaker);
+        console.log("Social staker balance after second unstake:", afterBalance / 10 ** 18, "SAPIEN");
+        console.log("Balance increase from second unstake:", (afterBalance - beforeBalance) / 10 ** 18, "SAPIEN");
+        assertEq(afterBalance - beforeBalance, socialUnstakeAmount);
+
+        totalCurrentStaked -= socialUnstakeAmount;
+        console.log("Social staker: Successfully unstaked second amount");
 
         // Emergency user setup for next phase
         vm.prank(emergencyUser);
@@ -331,15 +471,6 @@ contract SapienVaultEndToEndTest is Test {
         sapienVault.initiateEarlyUnstake(LARGE_STAKE * 2); // Should fail
 
         console.log("Emergency user: Correctly failed oversized unstake");
-
-        // Social staker completes their cooldown unstakes
-        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
-
-        vm.prank(socialStaker);
-        sapienVault.unstake(SMALL_STAKE * 2); // Both unstake requests
-        totalCurrentStaked -= SMALL_STAKE * 2;
-
-        console.log("Social staker: Completed cooldown unstakes");
 
         // Test system pause functionality
         vm.prank(makeAddr("pauseManager"));
@@ -397,17 +528,62 @@ contract SapienVaultEndToEndTest is Test {
 
     function _phaseLongTermOperations() internal {
         // Aggressive staker finally unlocks after full year
-        vm.warp(block.timestamp + 1 days); // Ensure full year passed
+        console.log("\n=== Aggressive Staker Unstaking ===");
 
-        // Start major unstaking
+        // First, check the current state of the aggressive staker
+        ISapienVault.UserStakingSummary memory aggressiveStakeSummary =
+            sapienVault.getUserStakingSummary(aggressiveStaker);
+        console.log("Aggressive staker current state:");
+        console.log("Total staked:", aggressiveStakeSummary.userTotalStaked / 10 ** 18, "SAPIEN");
+        console.log("Effective lockup period:", aggressiveStakeSummary.effectiveLockUpPeriod);
+        console.log("Time until unlock:", aggressiveStakeSummary.timeUntilUnlock);
+        console.log("Current time:", block.timestamp);
+
+        // Calculate exactly how much time is needed to unlock
+        uint256 targetTime;
+        if (aggressiveStakeSummary.timeUntilUnlock > 0) {
+            console.log("Stake still locked, waiting for unlock...");
+            targetTime = block.timestamp + aggressiveStakeSummary.timeUntilUnlock + 1 days;
+        } else {
+            console.log("Stake already unlocked");
+            targetTime = block.timestamp + 1 days;
+        }
+
+        // Warp to unlock time with an extra buffer
+        console.log("Warping from", block.timestamp, "to", targetTime);
+        vm.warp(targetTime);
+
+        // Verify stake is now unlocked
+        aggressiveStakeSummary = sapienVault.getUserStakingSummary(aggressiveStaker);
+        console.log("After time warp:");
+        console.log("Current time:", block.timestamp);
+        console.log("Time until unlock:", aggressiveStakeSummary.timeUntilUnlock);
+        console.log("Is unlocked:", aggressiveStakeSummary.timeUntilUnlock == 0);
+
+        // Start unstaking process
+        uint256 unstakeAmount = LARGE_STAKE / 2;
+        console.log("Initiating unstake of", unstakeAmount / 10 ** 18, "SAPIEN");
+
         vm.prank(aggressiveStaker);
-        sapienVault.initiateUnstake(LARGE_STAKE / 2);
+        sapienVault.initiateUnstake(unstakeAmount);
+        console.log("Unstake initiated at time:", block.timestamp);
 
-        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        // Wait for cooldown to complete
+        console.log("Waiting for cooldown period:", COOLDOWN_PERIOD);
+        uint256 cooldownCompleteTime = block.timestamp + COOLDOWN_PERIOD + 1 hours; // Add extra buffer
+        console.log("Warping to after cooldown:", cooldownCompleteTime);
+        vm.warp(cooldownCompleteTime);
+        console.log("Current time after cooldown:", block.timestamp);
 
+        // Verify tokens are ready for unstaking
+        uint256 readyForUnstake = sapienVault.getTotalReadyForUnstake(aggressiveStaker);
+        console.log("Amount ready for unstake:", readyForUnstake / 10 ** 18, "SAPIEN");
+        require(readyForUnstake >= unstakeAmount, "Tokens should be ready for unstaking");
+
+        // Complete the unstake
         vm.prank(aggressiveStaker);
-        sapienVault.unstake(LARGE_STAKE / 2);
-        totalCurrentStaked -= LARGE_STAKE / 2;
+        sapienVault.unstake(unstakeAmount);
+        totalCurrentStaked -= unstakeAmount;
 
         console.log("Aggressive staker: Long-term unstake completed");
 

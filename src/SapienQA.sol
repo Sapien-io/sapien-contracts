@@ -9,11 +9,36 @@ import {Constants as Const} from "src/utils/Constants.sol";
 
 using ECDSA for bytes32;
 
-/**
- * @title SapienQA
- * @notice Quality Assurance contract for processing user assessments with signature-based verification
- * @dev Uses EIP-712 for signature verification, similar to SapienRewards structure
- */
+/// @title SapienQA - Quality Assurance Management Contract
+/// @notice Manages quality assurance decisions for the Sapien protocol through signature-based verification
+/// @dev This contract handles QA assessments including warnings and penalties, using EIP-712 for secure
+///      off-chain decision authorization. It integrates with SapienVault to apply financial penalties
+///      while maintaining comprehensive audit trails of all QA actions.
+///
+/// KEY FEATURES:
+/// - EIP-712 signature verification for authorized QA decisions
+/// - Multiple action types: warnings, minor penalties, major penalties, severe penalties
+/// - Integration with SapienVault for penalty enforcement
+/// - Comprehensive audit trail with detailed QA history per user
+/// - Role-based access control for QA managers and signers
+/// - Protection against replay attacks through unique decision IDs
+/// - Graceful handling of insufficient stakes during penalty application
+///
+/// WORKFLOW:
+/// 1. QA team identifies quality issue requiring intervention
+/// 2. Authorized signer creates EIP-712 signature for the QA decision
+/// 3. QA manager calls processQualityAssessment() with decision details and signature
+/// 4. Contract verifies signature authenticity and checks for replay attacks
+/// 5. If penalty required, attempts to deduct from user's staked tokens via SapienVault
+/// 6. Records complete QA decision in user's history regardless of penalty success
+/// 7. Updates global statistics and emits relevant events
+///
+/// SECURITY CONSIDERATIONS:
+/// - All QA decisions require valid EIP-712 signatures from authorized signers
+/// - Decision IDs prevent replay attacks and ensure one-time processing
+/// - Signature expiration prevents stale decision execution
+/// - Role separation between QA managers (executors) and QA signers (authorizers)
+/// - Graceful degradation when penalties cannot be fully applied due to insufficient stakes
 contract SapienQA is ISapienQA, AccessControl, EIP712 {
     // -------------------------------------------------------------
     // State Variables

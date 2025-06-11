@@ -52,7 +52,12 @@ contract SapienVaultScenariosTest is Test {
     function _performEarlyUnstakeWithCooldown(address user, uint256 amount) internal {
         vm.startPrank(user);
         sapienVault.initiateEarlyUnstake(amount);
-        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+
+        // Use absolute timestamps to prevent time warping backward issues
+        uint256 initiateTime = block.timestamp;
+        uint256 cooldownCompleteTime = initiateTime + COOLDOWN_PERIOD + 100;
+        vm.warp(cooldownCompleteTime);
+
         sapienVault.earlyUnstake(amount);
         vm.stopPrank();
     }
@@ -154,14 +159,19 @@ contract SapienVaultScenariosTest is Test {
         assertEq(bobStake.userTotalStaked, stakeAmount - emergencyAmount, "Remaining stake should be reduced");
 
         // Bob waits for remaining stake to unlock and exits normally
-        vm.warp(block.timestamp + 185 days); // Total: 365 days
+        // Use absolute timestamp to avoid time warping backward issues
+        uint256 currentTime = block.timestamp;
+        uint256 unlockTime = currentTime + 185 days;
+        vm.warp(unlockTime); // Total: 365 days
 
         uint256 remainingAmount = stakeAmount - emergencyAmount;
 
         vm.prank(bob);
         sapienVault.initiateUnstake(remainingAmount);
 
-        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        // Make sure to use absolute timestamps
+        uint256 cooldownCompleteTime = unlockTime + COOLDOWN_PERIOD + 1000;
+        vm.warp(cooldownCompleteTime);
 
         uint256 bobBalanceBeforeAfter = sapienToken.balanceOf(bob);
 

@@ -1133,6 +1133,192 @@ contract SapienQATest is Test {
         assertTrue(history[3].timestamp >= history[2].timestamp);
     }
 
+    // =============================================================
+    // DIRECT VERIFY SIGNATURE TESTS
+    // =============================================================
+
+    function test_QA_VerifySignature_ValidSignature() public view {
+        // Test that a valid signature passes verification
+        bytes32 decisionId = keccak256("valid_signature_test");
+        string memory reason = "Valid signature test";
+        uint256 penaltyAmount = 1000 * 1e18;
+        uint256 expiration = block.timestamp + Constants.QA_SIGNATURE_VALIDITY_PERIOD;
+
+        bytes memory signature = _generateSignatureWithExpiration(
+            user1, ISapienQA.QAActionType.MINOR_PENALTY, penaltyAmount, decisionId, reason, expiration
+        );
+
+        // This should not revert
+        qaContract.verifySignature(
+            user1, ISapienQA.QAActionType.MINOR_PENALTY, penaltyAmount, decisionId, reason, expiration, signature
+        );
+    }
+
+    function test_QA_VerifySignature_ExpiredSignature() public {
+        bytes32 decisionId = keccak256("expired_signature_test");
+        string memory reason = "Expired signature test";
+        uint256 penaltyAmount = 1000 * 1e18;
+
+        // Create an expired signature (1 second in the past)
+        uint256 expiredTime = block.timestamp - 1;
+        bytes memory signature = _generateSignatureWithExpiration(
+            user1, ISapienQA.QAActionType.MINOR_PENALTY, penaltyAmount, decisionId, reason, expiredTime
+        );
+
+        // Should revert with ExpiredSignature
+        vm.expectRevert(abi.encodeWithSelector(ISapienQA.ExpiredSignature.selector, expiredTime));
+        qaContract.verifySignature(
+            user1, ISapienQA.QAActionType.MINOR_PENALTY, penaltyAmount, decisionId, reason, expiredTime, signature
+        );
+    }
+
+    function test_QA_VerifySignature_InvalidSignatureLength_TooShort() public {
+        bytes32 decisionId = keccak256("short_signature_test");
+        string memory reason = "Short signature test";
+        uint256 penaltyAmount = 1000 * 1e18;
+        uint256 expiration = block.timestamp + Constants.QA_SIGNATURE_VALIDITY_PERIOD;
+
+        // Create a signature that's too short (only 32 bytes instead of 65)
+        bytes memory shortSignature = new bytes(32);
+
+        vm.expectRevert(ISapienQA.InvalidSignatureLength.selector);
+        qaContract.verifySignature(
+            user1, ISapienQA.QAActionType.MINOR_PENALTY, penaltyAmount, decisionId, reason, expiration, shortSignature
+        );
+    }
+
+    function test_QA_VerifySignature_InvalidSignatureLength_TooLong() public {
+        bytes32 decisionId = keccak256("long_signature_test");
+        string memory reason = "Long signature test";
+        uint256 penaltyAmount = 1000 * 1e18;
+        uint256 expiration = block.timestamp + Constants.QA_SIGNATURE_VALIDITY_PERIOD;
+
+        // Create a signature that's too long (100 bytes instead of 65)
+        bytes memory longSignature = new bytes(100);
+
+        vm.expectRevert(ISapienQA.InvalidSignatureLength.selector);
+        qaContract.verifySignature(
+            user1, ISapienQA.QAActionType.MINOR_PENALTY, penaltyAmount, decisionId, reason, expiration, longSignature
+        );
+    }
+
+    // Helper function to reduce stack depth
+    function _createCorruptedSignature(
+        address user,
+        ISapienQA.QAActionType actionType,
+        uint256 amount,
+        bytes32 id,
+        string memory text,
+        uint256 expiry
+    ) internal view returns (bytes memory) {
+        // Generate a valid signature first
+        bytes memory validSig = _generateSignatureWithExpiration(user, actionType, amount, id, text, expiry);
+
+        // Corrupt the signature by flipping some bits
+        bytes memory corruptedSig = new bytes(65);
+        for (uint256 i = 0; i < 65; i++) {
+            if (i < validSig.length) {
+                corruptedSig[i] = bytes1(uint8(validSig[i]) ^ 0xFF); // Flip all bits
+            }
+        }
+
+        return corruptedSig;
+    }
+
+    function test_QA_VerifySignature_CorruptedSignatureData() public {
+        bytes32 decisionId = keccak256("corrupted_signature_test");
+        string memory reason = "Corrupted signature test";
+        uint256 penaltyAmount = 1000 * 1e18;
+        uint256 expiration = block.timestamp + Constants.QA_SIGNATURE_VALIDITY_PERIOD;
+
+        // Get corrupted signature using helper function
+        bytes memory corruptedSignature = _createCorruptedSignature(
+            user1, ISapienQA.QAActionType.MINOR_PENALTY, penaltyAmount, decisionId, reason, expiration
+        );
+
+        // Should revert because the recovered address won't have the QA_SIGNER_ROLE
+        vm.expectRevert(); // Will revert with UnauthorizedSigner but the exact address is unpredictable
+        qaContract.verifySignature(
+            user1,
+            ISapienQA.QAActionType.MINOR_PENALTY,
+            penaltyAmount,
+            decisionId,
+            reason,
+            expiration,
+            corruptedSignature
+        );
+    }
+
+    function test_QA_VerifySignature_WarningActionType() public view {
+        uint256 expiration = block.timestamp + Constants.QA_SIGNATURE_VALIDITY_PERIOD;
+        bytes32 decisionId = keccak256("warning_action_test");
+
+        bytes memory signature = _generateSignatureWithExpiration(
+            user1, ISapienQA.QAActionType.WARNING, 0, decisionId, "Warning action test", expiration
+        );
+
+        qaContract.verifySignature(
+            user1, ISapienQA.QAActionType.WARNING, 0, decisionId, "Warning action test", expiration, signature
+        );
+    }
+
+    function test_QA_VerifySignature_MinorPenaltyActionType() public view {
+        uint256 expiration = block.timestamp + Constants.QA_SIGNATURE_VALIDITY_PERIOD;
+        bytes32 decisionId = keccak256("minor_penalty_test");
+
+        bytes memory signature = _generateSignatureWithExpiration(
+            user1, ISapienQA.QAActionType.MINOR_PENALTY, 500 * 1e18, decisionId, "Minor penalty test", expiration
+        );
+
+        qaContract.verifySignature(
+            user1,
+            ISapienQA.QAActionType.MINOR_PENALTY,
+            500 * 1e18,
+            decisionId,
+            "Minor penalty test",
+            expiration,
+            signature
+        );
+    }
+
+    function test_QA_VerifySignature_MajorPenaltyActionType() public view {
+        uint256 expiration = block.timestamp + Constants.QA_SIGNATURE_VALIDITY_PERIOD;
+        bytes32 decisionId = keccak256("major_penalty_test");
+
+        bytes memory signature = _generateSignatureWithExpiration(
+            user1, ISapienQA.QAActionType.MAJOR_PENALTY, 1000 * 1e18, decisionId, "Major penalty test", expiration
+        );
+
+        qaContract.verifySignature(
+            user1,
+            ISapienQA.QAActionType.MAJOR_PENALTY,
+            1000 * 1e18,
+            decisionId,
+            "Major penalty test",
+            expiration,
+            signature
+        );
+    }
+
+    function test_QA_VerifySignature_SeverePenaltyActionType() public view {
+        uint256 expiration = block.timestamp + Constants.QA_SIGNATURE_VALIDITY_PERIOD;
+        bytes32 decisionId = keccak256("severe_penalty_test");
+
+        bytes memory signature = _generateSignatureWithExpiration(
+            user1, ISapienQA.QAActionType.SEVERE_PENALTY, 2000 * 1e18, decisionId, "Severe penalty test", expiration
+        );
+
+        qaContract.verifySignature(
+            user1,
+            ISapienQA.QAActionType.SEVERE_PENALTY,
+            2000 * 1e18,
+            decisionId,
+            "Severe penalty test",
+            expiration,
+            signature
+        );
+    }
+
     // Helper functions
 
     function _createUserStake(address user, uint256 amount, uint256 lockupPeriod) internal {
@@ -1161,18 +1347,18 @@ contract SapienQATest is Test {
         string memory reason,
         uint256 expiration
     ) internal view returns (bytes memory) {
-        // Use the QA contract's createQADecisionHash function
-        bytes32 structHash = qaContract.createQADecisionHash(
-            decisionId, userAddress, uint8(actionType), penaltyAmount, reason, expiration
+        // Create the hash and sign it inline to avoid stack depth issues
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                qaContract.getDomainSeparator(),
+                qaContract.createQADecisionHash(
+                    decisionId, userAddress, uint8(actionType), penaltyAmount, reason, expiration
+                )
+            )
         );
 
-        bytes32 domainSeparator = qaContract.getDomainSeparator();
-
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
-
-        // Use the qaManager's private key instead of PRIVATE_KEY
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(QA_MANAGER_PRIVATE_KEY, digest);
-
         return abi.encodePacked(r, s, v);
     }
 }
