@@ -495,8 +495,8 @@ contract SapienVaultEndToEndTest is Test {
         // Advanced verification - check that multipliers are reasonable
         for (uint256 i = 0; i < users.length; i++) {
             if (sapienVault.hasActiveStake(users[i])) {
-                (,,,,, uint256 effectiveMultiplier,,) = sapienVault.getUserStakingSummary(users[i]);
-                assertTrue(effectiveMultiplier > 0, "Active stakes should have positive multipliers");
+                ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(users[i]);
+                assertTrue(userStake.effectiveMultiplier > 0, "Active stakes should have positive multipliers");
             }
         }
 
@@ -550,8 +550,10 @@ contract SapienVaultEndToEndTest is Test {
         sapienVault.increaseLockup(90 days);
 
         // Verify final state
-        (uint256 totalStaked,,,,, uint256 effectiveMultiplier, uint256 lockup,) =
-            sapienVault.getUserStakingSummary(builder);
+        ISapienVault.UserStakingSummary memory builderStake = sapienVault.getUserStakingSummary(builder);
+        uint256 totalStaked = builderStake.userTotalStaked;
+        uint256 effectiveMultiplier = builderStake.effectiveMultiplier;
+        uint256 lockup = builderStake.effectiveLockUpPeriod;
 
         assertEq(totalStaked, MINIMUM_STAKE * 5); // 1 + 1 + 3 = 5x minimum
         assertTrue(lockup > LOCK_30_DAYS); // Should be longer than original 30 days
@@ -560,6 +562,11 @@ contract SapienVaultEndToEndTest is Test {
         console.log("Progressive builder final stake:", totalStaked / 10 ** 18, "SAPIEN");
         console.log("Final lockup period:", lockup / 1 days, "days");
         console.log("Final multiplier:", effectiveMultiplier);
+
+        // Verify the builder can handle complex patterns
+        assertTrue(totalStaked > MINIMUM_STAKE * 4, "Builder should have substantial stake");
+        assertTrue(effectiveMultiplier > 10000, "Builder should have multiplier > 1.0x");
+        assertTrue(lockup >= LOCK_30_DAYS, "Builder should have reasonable lockup");
     }
 
     function test_StakingPattern_EarlyExitOptimizer() public {
@@ -593,13 +600,18 @@ contract SapienVaultEndToEndTest is Test {
         assertEq(balanceAfter - balanceBefore, expectedReceived);
 
         // Verify remaining stake is still optimal
-        (uint256 remainingStake,,,,,,,) = sapienVault.getUserStakingSummary(optimizer);
+        ISapienVault.UserStakingSummary memory optimizerStake = sapienVault.getUserStakingSummary(optimizer);
+        uint256 remainingStake = optimizerStake.userTotalStaked;
         assertEq(remainingStake, stakeAmount - exitAmount);
 
         console.log("Early exit amount:", exitAmount / 10 ** 18, "SAPIEN");
         console.log("Penalty paid:", expectedPenalty / 10 ** 18, "SAPIEN");
         console.log("Amount received:", expectedReceived / 10 ** 18, "SAPIEN");
         console.log("Remaining stake:", remainingStake / 10 ** 18, "SAPIEN");
+
+        // Test partial unstaking
+        assertTrue(remainingStake > 0, "Optimizer should have remaining stake");
+        assertTrue(remainingStake < MINIMUM_STAKE * 75, "Should have less than starting amount");
     }
 
     function test_StakingPattern_LiquidityManager() public {
@@ -639,10 +651,14 @@ contract SapienVaultEndToEndTest is Test {
         // Verify remaining stake is still active
         assertTrue(sapienVault.hasActiveStake(manager));
 
-        (uint256 remainingStake,,,,,,,) = sapienVault.getUserStakingSummary(manager);
+        ISapienVault.UserStakingSummary memory managerStake = sapienVault.getUserStakingSummary(manager);
+        uint256 remainingStake = managerStake.userTotalStaked;
         assertEq(remainingStake, MEDIUM_STAKE * 2 - liquidityNeeded);
 
         console.log("Liquidity obtained:", liquidityNeeded / 10 ** 18, "SAPIEN");
         console.log("Remaining stake:", remainingStake / 10 ** 18, "SAPIEN");
+
+        // Test full cycle completion
+        assertTrue(remainingStake > MINIMUM_STAKE * 25, "Manager should have substantial remaining stake");
     }
 }

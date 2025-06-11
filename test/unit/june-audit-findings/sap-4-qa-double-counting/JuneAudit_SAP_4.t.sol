@@ -65,7 +65,7 @@ contract SapienVault_QADoubleCountingTest is Test {
         sapienVault.initiateUnstake(cooldownAmount);
 
         // At this point:
-        // - userStake.amount = 5000 * 1e18 (total staked)
+        // - userStake.userTotalStaked = 5000 * 1e18 (total staked)
         // - userStake.cooldownAmount = 2000 * 1e18 (subset of amount)
         // - Available for penalties should be 5000 * 1e18 (not 7000 * 1e18)
 
@@ -84,7 +84,7 @@ contract SapienVault_QADoubleCountingTest is Test {
         uint256 treasuryBalanceBefore = sapienToken.balanceOf(treasury);
 
         // Current implementation incorrectly calculates totalAvailable as:
-        // uint256 totalAvailable = uint256(userStake.amount) + uint256(userStake.cooldownAmount);
+        // uint256 totalAvailable = uint256(userStake.userTotalStaked) + uint256(userStake.cooldownAmount);
         // = 5000 + 2000 = 7000 (WRONG - double counting cooldown tokens)
 
         vm.prank(qaContract);

@@ -5,7 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import {SapienVault} from "src/SapienVault.sol";
+import {SapienVault, ISapienVault} from "src/SapienVault.sol";
 import {SapienQA} from "src/SapienQA.sol";
 import {ISapienVault} from "src/interfaces/ISapienVault.sol";
 import {Constants as Const} from "src/utils/Constants.sol";
@@ -94,8 +94,10 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
         vm.warp(block.timestamp + LOCK_30_DAYS + 1 days);
 
         {
-            (, uint256 totalUnlocked, uint256 totalLocked,,,,, uint256 timeUntilUnlock) =
-                sapienVault.getUserStakingSummary(user);
+            ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user);
+            uint256 totalUnlocked = userStake.totalUnlocked;
+            uint256 totalLocked = userStake.totalLocked;
+            uint256 timeUntilUnlock = userStake.timeUntilUnlock;
             console.log("After expiration - Unlocked:", totalUnlocked / 10 ** 18, "SAPIEN");
             console.log("After expiration - Locked:", totalLocked / 10 ** 18, "SAPIEN");
             assertTrue(totalUnlocked > 0, "Stake should be unlocked");
@@ -109,16 +111,12 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
         sapienVault.stake(LARGE_STAKE, LOCK_365_DAYS);
 
         {
-            (
-                uint256 totalStaked,
-                uint256 totalUnlocked,
-                uint256 totalLocked,
-                ,
-                ,
-                , // effectiveMultiplier
-                uint256 lockup,
-                uint256 timeUntilUnlock
-            ) = sapienVault.getUserStakingSummary(user);
+            ISapienVault.UserStakingSummary memory addedStake = sapienVault.getUserStakingSummary(user);
+            uint256 totalStaked = addedStake.userTotalStaked;
+            uint256 totalUnlocked = addedStake.totalUnlocked;
+            uint256 totalLocked = addedStake.totalLocked;
+            uint256 lockup = addedStake.effectiveLockUpPeriod;
+            uint256 timeUntilUnlock = addedStake.timeUntilUnlock;
 
             console.log("After adding to expired stake:");
             console.log("Total staked:", totalStaked / 10 ** 18, "SAPIEN");
@@ -173,8 +171,10 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
         vm.warp(block.timestamp + LOCK_30_DAYS + 1 days);
 
         {
-            (, uint256 totalUnlocked, uint256 totalLocked,,,,, uint256 timeUntilUnlock) =
-                sapienVault.getUserStakingSummary(user);
+            uint256 totalUnlocked = sapienVault.getTotalUnlocked(user);
+            uint256 totalLocked = sapienVault.getTotalLocked(user);
+            ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user);
+            uint256 timeUntilUnlock = userStake.timeUntilUnlock;
             console.log("Before increaseAmount - Unlocked:", totalUnlocked / 10 ** 18, "SAPIEN");
             console.log("Before increaseAmount - Locked:", totalLocked / 10 ** 18, "SAPIEN");
             assertTrue(totalUnlocked > 0, "Stake should be unlocked");
@@ -188,16 +188,11 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
         sapienVault.increaseAmount(LARGE_STAKE);
 
         {
-            (
-                uint256 totalStaked,
-                uint256 totalUnlocked,
-                uint256 totalLocked,
-                ,
-                ,
-                , // effectiveMultiplier
-                , // lockup
-                uint256 timeUntilUnlock
-            ) = sapienVault.getUserStakingSummary(user);
+            uint256 totalStaked = sapienVault.getTotalStaked(user);
+            uint256 totalUnlocked = sapienVault.getTotalUnlocked(user);
+            uint256 totalLocked = sapienVault.getTotalLocked(user);
+            ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user);
+            uint256 timeUntilUnlock = userStake.timeUntilUnlock;
 
             console.log("After increaseAmount on expired stake:");
             console.log("Total staked:", totalStaked / 10 ** 18, "SAPIEN");
@@ -243,7 +238,7 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
         vm.warp(block.timestamp + shortLockup + 1 days);
 
         // Verify stake is expired
-        (, uint256 totalUnlocked,,,,,,) = sapienVault.getUserStakingSummary(fixTestUser);
+        uint256 totalUnlocked = sapienVault.getTotalUnlocked(fixTestUser);
         assertTrue(totalUnlocked > 0, "Stake should be unlocked");
 
         console.log("Initial stake expired - User has", totalUnlocked / 10 ** 18, "unlocked SAPIEN");
@@ -257,16 +252,11 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
         vm.prank(fixTestUser);
         sapienVault.stake(LARGE_STAKE, LOCK_365_DAYS);
 
-        (
-            uint256 totalStaked,
-            uint256 unlocked,
-            uint256 locked,
-            ,
-            ,
-            , // effectiveMultiplier
-            , // lockup
-            uint256 timeUntilUnlock
-        ) = sapienVault.getUserStakingSummary(fixTestUser);
+        uint256 totalStaked = sapienVault.getTotalStaked(fixTestUser);
+        uint256 unlocked = sapienVault.getTotalUnlocked(fixTestUser);
+        uint256 locked = sapienVault.getTotalLocked(fixTestUser);
+        ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(fixTestUser);
+        uint256 timeUntilUnlock = userStake.timeUntilUnlock;
 
         console.log("After adding to expired stake:");
         console.log("Total staked:", totalStaked / 10 ** 18, "SAPIEN");
@@ -314,7 +304,8 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
         sapienVault.stake(LARGE_STAKE, LOCK_365_DAYS);
 
         // Verify proper behavior at boundary
-        (,,,,,,, /* lockup */ uint256 timeUntilUnlock) = sapienVault.getUserStakingSummary(user);
+        ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user);
+        uint256 timeUntilUnlock = userStake.timeUntilUnlock;
 
         assertEq(timeUntilUnlock / 1 days, 365, "Should apply full lockup at exact boundary");
 
@@ -343,7 +334,8 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
         sapienVault.stake(LARGE_STAKE, LOCK_365_DAYS);
 
         // Verify weighted calculations still work normally
-        (,,,,,,, /* lockup */ uint256 timeUntilUnlock) = sapienVault.getUserStakingSummary(user);
+        ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user);
+        uint256 timeUntilUnlock = userStake.timeUntilUnlock;
 
         // Should be somewhere between original remaining time and new full lockup
         // This proves normal weighted calculations are preserved

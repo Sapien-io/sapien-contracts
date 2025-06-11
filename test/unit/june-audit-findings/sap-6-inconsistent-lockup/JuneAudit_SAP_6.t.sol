@@ -2,7 +2,7 @@
 pragma solidity 0.8.30;
 
 import {Test} from "lib/forge-std/src/Test.sol";
-import {SapienVault} from "src/SapienVault.sol";
+import {SapienVault, ISapienVault} from "src/SapienVault.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
 import {Constants as Const} from "src/utils/Constants.sol";
@@ -100,13 +100,13 @@ contract JuneAudit_SAP_6_Test is Test {
         vm.warp(block.timestamp + lockupPeriod + 1);
 
         // Verify all stakes are expired (timeUntilUnlock == 0)
-        (,,,,,,, uint256 timeUntilUnlock1) = sapienVault.getUserStakingSummary(user1);
-        (,,,,,,, uint256 timeUntilUnlock2) = sapienVault.getUserStakingSummary(user2);
-        (,,,,,,, uint256 timeUntilUnlock3) = sapienVault.getUserStakingSummary(user3);
+        ISapienVault.UserStakingSummary memory userStake1 = sapienVault.getUserStakingSummary(user1);
+        ISapienVault.UserStakingSummary memory userStake2 = sapienVault.getUserStakingSummary(user2);
+        ISapienVault.UserStakingSummary memory userStake3 = sapienVault.getUserStakingSummary(user3);
 
-        assertEq(timeUntilUnlock1, 0, "User1 stake should be expired");
-        assertEq(timeUntilUnlock2, 0, "User2 stake should be expired");
-        assertEq(timeUntilUnlock3, 0, "User3 stake should be expired");
+        assertEq(userStake1.timeUntilUnlock, 0, "User1 stake should be expired");
+        assertEq(userStake2.timeUntilUnlock, 0, "User2 stake should be expired");
+        assertEq(userStake3.timeUntilUnlock, 0, "User3 stake should be expired");
 
         // User1: Add new stake (combines with expired stake)
         vm.startPrank(user1);
@@ -133,8 +133,7 @@ contract JuneAudit_SAP_6_Test is Test {
                 , // cooldownStart
                 , // lastUpdateTime
                 , // earlyUnstakeCooldownStart
-                , // effectiveMultiplier
-                    // hasStake
+                  // effectiveMultiplier
             ) = sapienVault.userStakes(user1);
 
             assertEq(amount, stakeAmount + additionalAmount, "User1 should have combined stake amount");
@@ -152,8 +151,7 @@ contract JuneAudit_SAP_6_Test is Test {
                 , // cooldownStart
                 , // lastUpdateTime
                 , // earlyUnstakeCooldownStart
-                , // effectiveMultiplier
-                    // hasStake
+                  // effectiveMultiplier
             ) = sapienVault.userStakes(user2);
 
             user2WeightedStart = weightedStart;
@@ -171,8 +169,7 @@ contract JuneAudit_SAP_6_Test is Test {
                 , // cooldownStart
                 , // lastUpdateTime
                 , // earlyUnstakeCooldownStart
-                , // effectiveMultiplier
-                    // hasStake
+                  // effectiveMultiplier
             ) = sapienVault.userStakes(user3);
 
             assertEq(amount, stakeAmount, "User3 should have original stake amount");
@@ -209,13 +206,14 @@ contract JuneAudit_SAP_6_Test is Test {
         vm.stopPrank();
 
         // Record initial weighted start time
-        (,, uint256 initialWeightedStart,,,,,,) = sapienVault.userStakes(user1);
+        (,, uint256 initialWeightedStart,,,,,) = sapienVault.userStakes(user1);
 
         // Fast forward to expire the stake
         vm.warp(block.timestamp + lockupPeriod + 1);
 
         // Verify stake is expired
-        (,,,,,,, uint256 timeUntilUnlock) = sapienVault.getUserStakingSummary(user1);
+        ISapienVault.UserStakingSummary memory userStakeCheck = sapienVault.getUserStakingSummary(user1);
+        uint256 timeUntilUnlock = userStakeCheck.timeUntilUnlock;
         assertEq(timeUntilUnlock, 0, "Stake should be expired");
 
         // User increases lockup on expired stake
@@ -224,7 +222,7 @@ contract JuneAudit_SAP_6_Test is Test {
         vm.stopPrank();
 
         // After the fix, weighted start time should be reset to current timestamp
-        (,, uint256 newWeightedStart, uint256 newLockup,,,,,) = sapienVault.userStakes(user1);
+        (,, uint256 newWeightedStart, uint256 newLockup,,,,) = sapienVault.userStakes(user1);
 
         // With the fix: weighted start time should be reset (different from initial)
         assertGt(newWeightedStart, initialWeightedStart, "Weighted start time should be reset for expired stakes");
@@ -274,8 +272,8 @@ contract JuneAudit_SAP_6_Test is Test {
         vm.stopPrank();
 
         // Get final lockup periods
-        (,,, uint256 gamer1Lockup,,,,,) = sapienVault.userStakes(gamer1);
-        (,,, uint256 gamer2Lockup,,,,,) = sapienVault.userStakes(gamer2);
+        (,,, uint256 gamer1Lockup,,,,) = sapienVault.userStakes(gamer1);
+        (,,, uint256 gamer2Lockup,,,,) = sapienVault.userStakes(gamer2);
 
         // With the fix, both should have predictable and consistent lockup periods
         assertEq(gamer1Lockup, shortLockup, "Gamer1 should get new short lockup for expired stake");

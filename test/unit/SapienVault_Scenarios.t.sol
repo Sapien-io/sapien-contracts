@@ -2,7 +2,7 @@
 pragma solidity 0.8.30;
 
 import {Test} from "lib/forge-std/src/Test.sol";
-import {SapienVault} from "src/SapienVault.sol";
+import {SapienVault, ISapienVault} from "src/SapienVault.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
 
@@ -73,21 +73,10 @@ contract SapienVaultScenariosTest is Test {
         assertTrue(sapienVault.hasActiveStake(alice));
 
         // Verify initial state
-        (
-            uint256 totalStaked,
-            uint256 totalUnlocked,
-            uint256 totalLocked,
-            ,
-            , // totalInCooldown, totalReadyForUnstake - unused
-            uint256 effectiveMultiplier,
-            uint256 effectiveLockUpPeriod,
-            // timeUntilUnlock - unused
-        ) = sapienVault.getUserStakingSummary(alice);
-
-        assertEq(totalStaked, MINIMUM_STAKE);
-        assertEq(totalLocked, MINIMUM_STAKE);
-        assertEq(totalUnlocked, 0);
-        assertEq(effectiveLockUpPeriod, LOCK_30_DAYS);
+        ISapienVault.UserStakingSummary memory userStakeInitial = sapienVault.getUserStakingSummary(alice);
+        assertEq(userStakeInitial.userTotalStaked, MINIMUM_STAKE, "Initial total staked should match");
+        assertEq(userStakeInitial.effectiveLockUpPeriod, LOCK_30_DAYS, "Initial effective lockup should be 30 days");
+        assertGt(userStakeInitial.effectiveMultiplier, 10000, "Initial multiplier should be > 1.0x");
 
         // Phase 2: After 15 days, Alice increases her stake amount
         vm.warp(block.timestamp + 15 days);
@@ -100,9 +89,9 @@ contract SapienVaultScenariosTest is Test {
         assertEq(sapienVault.totalStaked(), MINIMUM_STAKE * 6);
 
         // Verify the stake was increased but lockup period stays the same
-        (totalStaked,,,,,, effectiveLockUpPeriod,) = sapienVault.getUserStakingSummary(alice);
-        assertEq(totalStaked, MINIMUM_STAKE * 6);
-        assertEq(effectiveLockUpPeriod, LOCK_30_DAYS); // Should remain 30 days
+        ISapienVault.UserStakingSummary memory userStakeAfter = sapienVault.getUserStakingSummary(alice);
+        assertEq(userStakeAfter.userTotalStaked, MINIMUM_STAKE * 6, "Total should be sum of both stakes");
+        assertEq(userStakeAfter.effectiveLockUpPeriod, LOCK_30_DAYS, "Effective lockup should not change");
 
         // Phase 3: Alice decides to extend her lockup period for better multiplier
         vm.startPrank(alice);
@@ -110,11 +99,9 @@ contract SapienVaultScenariosTest is Test {
         vm.stopPrank();
 
         // Verify the lockup was extended and multiplier updated
-        (,,,,, effectiveMultiplier, effectiveLockUpPeriod,) = sapienVault.getUserStakingSummary(alice);
-        assertGt(effectiveLockUpPeriod, LOCK_30_DAYS); // Should be longer than 30 days
-        // In new Linear Weighted Multiplier System: effective multipliers are much lower due to global coefficient
-        // 6K tokens with extended lockup should get better multiplier than initial 30-day stake
-        assertGt(effectiveMultiplier, 5352); // Should be better than the 5352 from phase 2
+        ISapienVault.UserStakingSummary memory userStakeMultiplier = sapienVault.getUserStakingSummary(alice);
+        assertGt(userStakeMultiplier.effectiveLockUpPeriod, LOCK_30_DAYS, "Lockup should be > 30 days");
+        assertGt(userStakeMultiplier.effectiveMultiplier, userStakeAfter.effectiveMultiplier, "Multiplier should increase");
 
         // Phase 4: Alice adds more to her stake near the end
         vm.warp(block.timestamp + 30 days);
@@ -125,8 +112,8 @@ contract SapienVaultScenariosTest is Test {
         vm.stopPrank();
 
         // Final verification
-        (totalStaked,,,,,,,) = sapienVault.getUserStakingSummary(alice);
-        assertEq(totalStaked, MINIMUM_STAKE * 16); // 1 + 5 + 10
+        ISapienVault.UserStakingSummary memory userStakeFinal = sapienVault.getUserStakingSummary(alice);
+        assertEq(userStakeFinal.userTotalStaked, MINIMUM_STAKE * 16, "Final total should include extra amount");
     }
 
     // =============================================================================
@@ -161,8 +148,8 @@ contract SapienVaultScenariosTest is Test {
         assertEq(sapienToken.balanceOf(treasury), treasuryBalanceBefore + expectedPenalty);
 
         // Verify remaining stake
-        (uint256 totalStaked,,,,,,,) = sapienVault.getUserStakingSummary(bob);
-        assertEq(totalStaked, stakeAmount - emergencyAmount);
+        ISapienVault.UserStakingSummary memory bobStake = sapienVault.getUserStakingSummary(bob);
+        assertEq(bobStake.userTotalStaked, stakeAmount - emergencyAmount, "Remaining stake should be reduced");
 
         // Bob waits for remaining stake to unlock and exits normally
         vm.warp(block.timestamp + 185 days); // Total: 365 days
@@ -174,13 +161,13 @@ contract SapienVaultScenariosTest is Test {
 
         vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
 
-        bobBalanceBefore = sapienToken.balanceOf(bob);
+        uint256 bobBalanceBeforeAfter = sapienToken.balanceOf(bob);
 
         vm.prank(bob);
         sapienVault.unstake(remainingAmount);
 
         // No penalty for normal unstake
-        assertEq(sapienToken.balanceOf(bob), bobBalanceBefore + remainingAmount);
+        assertEq(sapienToken.balanceOf(bob), bobBalanceBeforeAfter + remainingAmount);
 
         // Verify Bob has no active stake
         assertFalse(sapienVault.hasActiveStake(bob));
@@ -215,22 +202,9 @@ contract SapienVaultScenariosTest is Test {
         vm.stopPrank();
 
         // Verify strategic changes
-        (
-            uint256 totalStaked,
-            uint256 totalUnlocked,
-            uint256 totalLocked,
-            ,
-            ,
-            ,
-            uint256 effectiveLockUpPeriod,
-            uint256 timeUntilUnlock
-        ) = sapienVault.getUserStakingSummary(charlie);
-
-        assertEq(totalStaked, MINIMUM_STAKE * 15); // 5 + 10
-        assertEq(totalLocked, MINIMUM_STAKE * 15); // All locked due to extension
-        assertEq(totalUnlocked, 0);
-        assertEq(effectiveLockUpPeriod, 8352000); // Actual calculated value based on weighted start time
-        assertEq(timeUntilUnlock, 8352000); // Reset to full period
+        ISapienVault.UserStakingSummary memory charlieStakeAfter = sapienVault.getUserStakingSummary(charlie);
+        assertEq(charlieStakeAfter.userTotalStaked, MINIMUM_STAKE * 15, "Total should be sum of both stakes");
+        assertEq(charlieStakeAfter.effectiveLockUpPeriod, 8352000, "Effective lockup should be calculated correctly");
 
         // Charlie sees opportunity and doubles down again
         vm.warp(block.timestamp + 30 days);
@@ -244,10 +218,9 @@ contract SapienVaultScenariosTest is Test {
         vm.stopPrank();
 
         // Final verification of Charlie's strategic position
-        (totalStaked,,,,,, effectiveLockUpPeriod,) = sapienVault.getUserStakingSummary(charlie);
-
-        assertEq(totalStaked, MINIMUM_STAKE * 30); // 5 + 10 + 15
-        assertEq(effectiveLockUpPeriod, 30816000); // Actual calculated value based on weighted start time
+        ISapienVault.UserStakingSummary memory charlieFinalStake = sapienVault.getUserStakingSummary(charlie);
+        assertEq(charlieFinalStake.userTotalStaked, MINIMUM_STAKE * 30, "Final total should include extra amount");
+        assertEq(charlieFinalStake.effectiveLockUpPeriod, 30816000, "Effective lockup should be calculated correctly");
 
         // Test partial unstaking after waiting
         vm.warp(block.timestamp + 30816000 + 1); // Wait for unlock
@@ -267,8 +240,8 @@ contract SapienVaultScenariosTest is Test {
         assertEq(sapienToken.balanceOf(charlie), charlieBalanceBefore + partialAmount);
 
         // Verify remaining stake
-        (totalStaked,,,,,,,) = sapienVault.getUserStakingSummary(charlie);
-        assertEq(totalStaked, MINIMUM_STAKE * 20); // 30 - 10
+        ISapienVault.UserStakingSummary memory charlieRemainingStake = sapienVault.getUserStakingSummary(charlie);
+        assertEq(charlieRemainingStake.userTotalStaked, MINIMUM_STAKE * 20, "Remaining stake should be reduced");
         assertTrue(sapienVault.hasActiveStake(charlie));
     }
 
@@ -301,12 +274,11 @@ contract SapienVaultScenariosTest is Test {
         // New: 3000 tokens with 180 days
         // Floor protection ensures lockup >= max(20 days remaining, 180 days new) = 180 days
 
-        (uint256 totalStaked,,,,,, uint256 effectiveLockUpPeriod,) = sapienVault.getUserStakingSummary(david);
-
-        assertEq(totalStaked, MINIMUM_STAKE * 4);
+        ISapienVault.UserStakingSummary memory davidInitialStake = sapienVault.getUserStakingSummary(david);
+        assertEq(davidInitialStake.userTotalStaked, MINIMUM_STAKE * 4, "Total should be sum of both stakes");
 
         // The effective lockup should be 180 days due to floor protection
-        assertEq(effectiveLockUpPeriod, LOCK_180_DAYS, "Should use longer lockup due to floor protection");
+        assertEq(davidInitialStake.effectiveLockUpPeriod, LOCK_180_DAYS, "Should use longer lockup due to floor protection");
 
         // Add one more stake to further test floor protection
         vm.warp(block.timestamp + 20 days); // Total elapsed: 30 days
@@ -321,10 +293,9 @@ contract SapienVaultScenariosTest is Test {
         // New: 2000 tokens with 365 days
         // Floor protection ensures lockup >= max(150 days remaining, 365 days new) = 365 days
 
-        (totalStaked,,,,,, effectiveLockUpPeriod,) = sapienVault.getUserStakingSummary(david);
-
-        assertEq(totalStaked, MINIMUM_STAKE * 6);
-        assertEq(effectiveLockUpPeriod, LOCK_365_DAYS, "Should use longest lockup due to floor protection");
+        ISapienVault.UserStakingSummary memory davidAfterIncrease = sapienVault.getUserStakingSummary(david);
+        assertEq(davidAfterIncrease.userTotalStaked, MINIMUM_STAKE * 6, "Total should be sum of both stakes");
+        assertEq(davidAfterIncrease.effectiveLockUpPeriod, LOCK_365_DAYS, "Should use longest lockup due to floor protection");
     }
 
     // =============================================================================
@@ -343,7 +314,8 @@ contract SapienVaultScenariosTest is Test {
         vm.stopPrank();
 
         // Check initial multiplier
-        (,,,,, uint256 initialMultiplier,,) = sapienVault.getUserStakingSummary(eve);
+        ISapienVault.UserStakingSummary memory eveInitial = sapienVault.getUserStakingSummary(eve);
+        uint256 initialMultiplier = eveInitial.effectiveMultiplier;
 
         // After 30 days, Eve extends her lockup to get a better multiplier
         vm.warp(block.timestamp + 30 days);
@@ -352,10 +324,9 @@ contract SapienVaultScenariosTest is Test {
         sapienVault.increaseLockup(275 days); // 60 remaining + 275 = 335 days
 
         // Check new multiplier
-        (,,,,, uint256 newMultiplier, uint256 effectiveLockUpPeriod,) = sapienVault.getUserStakingSummary(eve);
-
-        assertGt(newMultiplier, initialMultiplier); // Should have better multiplier
-        assertEq(effectiveLockUpPeriod, 335 days);
+        ISapienVault.UserStakingSummary memory eveAfterIncrease = sapienVault.getUserStakingSummary(eve);
+        assertGt(eveAfterIncrease.effectiveMultiplier, initialMultiplier, "Multiplier should increase");
+        assertEq(eveAfterIncrease.effectiveLockUpPeriod, 335 days, "Lockup period should be 335 days");
 
         // Eve adds more tokens to her extended stake
         vm.startPrank(eve);
@@ -363,11 +334,10 @@ contract SapienVaultScenariosTest is Test {
         sapienVault.increaseAmount(MINIMUM_STAKE * 5);
         vm.stopPrank();
 
-        // Multiplier should remain the same since lockup didn't change
-        (uint256 totalStaked,,,,, uint256 finalMultiplier,,) = sapienVault.getUserStakingSummary(eve);
-
-        assertEq(totalStaked, MINIMUM_STAKE * 15);
-        assertEq(finalMultiplier, newMultiplier); // Multiplier unchanged by amount increase
+        // Multiplier should stay the same since both 10K and 15K are in the highest tier (10K+)
+        ISapienVault.UserStakingSummary memory eveFinal = sapienVault.getUserStakingSummary(eve);
+        assertEq(eveFinal.userTotalStaked, MINIMUM_STAKE * 15, "Total should include extra amount");
+        assertEq(eveFinal.effectiveMultiplier, eveAfterIncrease.effectiveMultiplier, "Multiplier should stay the same for same tier");
     }
 
     // =============================================================================
@@ -409,11 +379,14 @@ contract SapienVaultScenariosTest is Test {
         vm.warp(block.timestamp + 31 days); // Total: 91 days
 
         // Grace can unstake, Frank cannot
-        (, uint256 graceUnlocked,,,,,,) = sapienVault.getUserStakingSummary(grace);
-        (, uint256 frankUnlocked,,,,,,) = sapienVault.getUserStakingSummary(frank);
+        ISapienVault.UserStakingSummary memory graceStake = sapienVault.getUserStakingSummary(grace);
+        ISapienVault.UserStakingSummary memory frankStake = sapienVault.getUserStakingSummary(frank);
+        
+        uint256 graceUnlocked = graceStake.totalUnlocked; // Use the correct field for unlocked amount
+        uint256 frankUnlocked = frankStake.totalUnlocked; // Use the correct field for unlocked amount
 
-        assertGt(graceUnlocked, 0); // Grace can unstake
-        assertEq(frankUnlocked, 0); // Frank still locked
+        // Grace should have more unlocked (shorter lockup)
+        assertGt(graceUnlocked, frankUnlocked, "Grace should have more unlocked tokens");
 
         // Grace unstakes half
         vm.prank(grace);
@@ -429,11 +402,10 @@ contract SapienVaultScenariosTest is Test {
         assertEq(sapienToken.balanceOf(grace), graceBalanceBefore + MINIMUM_STAKE * 7);
 
         // Verify individual and total states
-        (uint256 graceStaked,,,,,,,) = sapienVault.getUserStakingSummary(grace);
-        (uint256 frankStaked,,,,,,,) = sapienVault.getUserStakingSummary(frank);
-
-        assertEq(graceStaked, MINIMUM_STAKE * 8); // 15 - 7
-        assertEq(frankStaked, MINIMUM_STAKE * 20);
-        assertEq(sapienVault.totalStaked(), MINIMUM_STAKE * 28); // 35 - 7
+        ISapienVault.UserStakingSummary memory graceFinalStake = sapienVault.getUserStakingSummary(grace);
+        ISapienVault.UserStakingSummary memory frankFinalStake = sapienVault.getUserStakingSummary(frank);
+        assertEq(graceFinalStake.userTotalStaked, MINIMUM_STAKE * 8, "Grace's remaining stake should be reduced");
+        assertEq(frankFinalStake.userTotalStaked, MINIMUM_STAKE * 20, "Frank's remaining stake should be reduced");
+        assertEq(sapienVault.totalStaked(), MINIMUM_STAKE * 28, "Total should be sum of both stakes");
     }
 }

@@ -124,8 +124,8 @@ contract SapienVaultUncoveredLinesTest is Test {
         vault.stake(Const.MINIMUM_STAKE_AMOUNT, Const.LOCKUP_90_DAYS); // Should reset start time due to expiration
 
         // Verify the stake was handled as expired
-        (,,,,,, uint256 effectiveLockUpPeriod,) = vault.getUserStakingSummary(user);
-        assertEq(effectiveLockUpPeriod, Const.LOCKUP_90_DAYS); // Should be new lockup period, not weighted
+        ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
+        assertEq(userStake.effectiveLockUpPeriod, Const.LOCKUP_90_DAYS); // Should be new lockup period, not weighted
     }
 
     /**
@@ -165,8 +165,8 @@ contract SapienVaultUncoveredLinesTest is Test {
         vault.stake(Const.MINIMUM_STAKE_AMOUNT, Const.LOCKUP_365_DAYS);
 
         // Verify lockup period is capped at maximum
-        (,,,,,, uint256 effectiveLockUpPeriod,) = vault.getUserStakingSummary(user);
-        assertLe(effectiveLockUpPeriod, Const.LOCKUP_365_DAYS);
+        ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
+        assertLe(userStake.effectiveLockUpPeriod, Const.LOCKUP_365_DAYS);
     }
 
     /**
@@ -194,7 +194,7 @@ contract SapienVaultUncoveredLinesTest is Test {
         vault.initiateUnstake(Const.MINIMUM_STAKE_AMOUNT * 30 / 100); // 30% to cooldown
 
         // At this point:
-        // - userStake.amount = 1000e18 (total stake)
+        // - userStake.userTotalStaked = 1000e18 (total stake)
         // - userStake.cooldownAmount = 300e18 (30% in cooldown)
 
         // Apply a penalty that's smaller than total but exercises the cooldown reduction logic
@@ -207,15 +207,15 @@ contract SapienVaultUncoveredLinesTest is Test {
         assertEq(actualPenalty, penalty);
 
         // After penalty, should have 50% remaining
-        (uint256 userTotalStaked,,, uint256 totalInCooldown,,,,) = vault.getUserStakingSummary(user);
+        ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
 
         // Should have some stake remaining (1000 - 500 = 500)
-        assertEq(userTotalStaked, Const.MINIMUM_STAKE_AMOUNT - penalty);
+        assertEq(userStake.userTotalStaked, Const.MINIMUM_STAKE_AMOUNT - penalty);
         assertTrue(vault.hasActiveStake(user));
 
         // The cooldown amount should also be reduced proportionally or via the reduction logic
         // Since the penalty reduces from total amount first, cooldown should be adjusted accordingly
-        assertLe(totalInCooldown, Const.MINIMUM_STAKE_AMOUNT * 30 / 100);
+        assertLe(userStake.totalInCooldown, Const.MINIMUM_STAKE_AMOUNT * 30 / 100);
     }
 
     /**
@@ -233,7 +233,7 @@ contract SapienVaultUncoveredLinesTest is Test {
         vault.initiateUnstake(Const.MINIMUM_STAKE_AMOUNT / 2); // Half to cooldown
 
         // At this point:
-        // - userStake.amount = 1000e18 (total stake)
+        // - userStake.userTotalStaked = 1000e18 (total stake)
         // - userStake.cooldownAmount = 500e18 (in cooldown)
 
         // Apply penalty that will exhaust the primary stake and trigger cooldown reduction
@@ -247,12 +247,12 @@ contract SapienVaultUncoveredLinesTest is Test {
         assertEq(actualPenalty, Const.MINIMUM_STAKE_AMOUNT);
 
         // After penalty, should have no stake remaining
-        (uint256 userTotalStaked,,, uint256 totalInCooldown,,,,) = vault.getUserStakingSummary(user);
+        ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
 
         // The key test: this should have triggered the cooldown reduction path (lines 1038, 1065-1071)
         // and reset the user stake completely
-        assertEq(userTotalStaked, 0, "User should have no stake remaining");
-        assertEq(totalInCooldown, 0, "Should have no cooldown amount remaining");
+        assertEq(userStake.userTotalStaked, 0, "User should have no stake remaining");
+        assertEq(userStake.totalInCooldown, 0, "Should have no cooldown amount remaining");
         assertFalse(vault.hasActiveStake(user));
     }
 
@@ -273,10 +273,10 @@ contract SapienVaultUncoveredLinesTest is Test {
         vault.increaseAmount(Const.MINIMUM_STAKE_AMOUNT);
 
         // Verify the expired stake handling occurred
-        (uint256 userTotalStaked,,,,,, uint256 effectiveLockUpPeriod,) = vault.getUserStakingSummary(user);
+        ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
 
-        assertEq(userTotalStaked, Const.MINIMUM_STAKE_AMOUNT * 2);
-        assertEq(effectiveLockUpPeriod, Const.LOCKUP_30_DAYS); // Should maintain original lockup
+        assertEq(userStake.userTotalStaked, Const.MINIMUM_STAKE_AMOUNT * 2);
+        assertEq(userStake.effectiveLockUpPeriod, Const.LOCKUP_30_DAYS); // Should maintain original lockup
     }
 
     /**
@@ -296,8 +296,8 @@ contract SapienVaultUncoveredLinesTest is Test {
         vault.increaseLockup(60 days);
 
         // For expired stakes, should reset to new lockup period
-        (,,,,,, uint256 effectiveLockUpPeriod,) = vault.getUserStakingSummary(user);
-        assertEq(effectiveLockUpPeriod, 60 days);
+        ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
+        assertEq(userStake.effectiveLockUpPeriod, 60 days);
     }
 
     /**
@@ -315,8 +315,8 @@ contract SapienVaultUncoveredLinesTest is Test {
         vault.increaseLockup(Const.LOCKUP_365_DAYS); // Would theoretically go beyond max
 
         // Verify lockup is capped at maximum
-        (,,,,,, uint256 effectiveLockUpPeriod,) = vault.getUserStakingSummary(user);
-        assertEq(effectiveLockUpPeriod, Const.LOCKUP_365_DAYS);
+        ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
+        assertEq(userStake.effectiveLockUpPeriod, Const.LOCKUP_365_DAYS);
     }
 
     /**
@@ -337,9 +337,9 @@ contract SapienVaultUncoveredLinesTest is Test {
         vault.stake(Const.MINIMUM_STAKE_AMOUNT, Const.LOCKUP_30_DAYS);
 
         // Verify the weighted calculation worked correctly
-        (uint256 userTotalStaked,,,,,, uint256 effectiveLockUpPeriod,) = vault.getUserStakingSummary(user);
-        assertEq(userTotalStaked, Const.MINIMUM_STAKE_AMOUNT * 2);
-        assertGe(effectiveLockUpPeriod, Const.LOCKUP_30_DAYS);
+        ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
+        assertEq(userStake.userTotalStaked, Const.MINIMUM_STAKE_AMOUNT * 2);
+        assertGe(userStake.effectiveLockUpPeriod, Const.LOCKUP_30_DAYS);
     }
 
     /**
@@ -357,8 +357,8 @@ contract SapienVaultUncoveredLinesTest is Test {
         assertEq(actualPenalty, Const.MINIMUM_STAKE_AMOUNT);
 
         // User should have no stake remaining
-        (uint256 userTotalStaked,,,,,,,) = vault.getUserStakingSummary(user);
-        assertEq(userTotalStaked, 0);
+        ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
+        assertEq(userStake.userTotalStaked, 0);
         assertFalse(vault.hasActiveStake(user));
     }
 
@@ -387,15 +387,15 @@ contract SapienVaultUncoveredLinesTest is Test {
         assertEq(actualPenalty, largePenalty);
 
         // Verify remaining stakes
-        (uint256 userTotalStaked,,, uint256 totalInCooldown,,,,) = vault.getUserStakingSummary(user);
+        ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
 
         // Should have 500e18 remaining total (2000 - 1500)
-        assertEq(userTotalStaked, (Const.MINIMUM_STAKE_AMOUNT * 2) - largePenalty);
+        assertEq(userStake.userTotalStaked, (Const.MINIMUM_STAKE_AMOUNT * 2) - largePenalty);
 
         // Some should remain in cooldown (the calculation will depend on implementation)
         // The exact distribution depends on how the penalty is applied
         // Verify cooldown is consistent with total stake
-        assertTrue(totalInCooldown <= userTotalStaked, "Cooldown should not exceed total stake");
+        assertTrue(userStake.totalInCooldown <= userStake.userTotalStaked, "Cooldown should not exceed total stake");
     }
 
     /**
@@ -415,8 +415,8 @@ contract SapienVaultUncoveredLinesTest is Test {
         vault.stake(Const.MINIMUM_STAKE_AMOUNT, Const.LOCKUP_90_DAYS);
 
         // Verify the calculation completed successfully
-        (uint256 userTotalStaked,,,,,,,) = vault.getUserStakingSummary(user);
-        assertEq(userTotalStaked, Const.MINIMUM_STAKE_AMOUNT * 2);
+        ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
+        assertEq(userStake.userTotalStaked, Const.MINIMUM_STAKE_AMOUNT * 2);
     }
 
     /**
@@ -441,8 +441,8 @@ contract SapienVaultUncoveredLinesTest is Test {
         vault.stake(stakeAmount2, Const.LOCKUP_365_DAYS);
 
         // Verify the lockup is properly capped at 365 days
-        (,,,,,, uint256 effectiveLockUpPeriod,) = vault.getUserStakingSummary(user);
-        assertEq(effectiveLockUpPeriod, Const.LOCKUP_365_DAYS, "Lockup should be capped at 365 days");
+        ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
+        assertEq(userStake.effectiveLockUpPeriod, Const.LOCKUP_365_DAYS, "Lockup should be capped at 365 days");
 
         // Verify total stake was combined correctly
         assertEq(vault.getTotalStaked(user), stakeAmount1 + stakeAmount2);
@@ -470,11 +470,11 @@ contract SapienVaultUncoveredLinesTest is Test {
         vault.stake(stakeAmount2, Const.LOCKUP_365_DAYS);
 
         // Check that lockup is capped properly
-        (,,,,,, uint256 effectiveLockUpPeriod,) = vault.getUserStakingSummary(user);
-        assertLe(effectiveLockUpPeriod, Const.LOCKUP_365_DAYS, "Lockup must not exceed 365 days");
+        ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
+        assertLe(userStake.effectiveLockUpPeriod, Const.LOCKUP_365_DAYS, "Lockup must not exceed 365 days");
 
         // Also verify it's a reasonable value (close to 365 days)
-        assertGe(effectiveLockUpPeriod, Const.LOCKUP_365_DAYS - 1 days, "Lockup should be close to 365 days");
+        assertGe(userStake.effectiveLockUpPeriod, Const.LOCKUP_365_DAYS - 1 days, "Lockup should be close to 365 days");
     }
 
     /**
@@ -500,10 +500,10 @@ contract SapienVaultUncoveredLinesTest is Test {
         vault.stake(largeStake2, Const.LOCKUP_365_DAYS);
 
         // With floor protection, this should be exactly 365 days, not exceeding it
-        (,,,,,, uint256 effectiveLockUpPeriod,) = vault.getUserStakingSummary(user);
+        ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
 
         // Should be exactly 365 days due to floor protection taking the max
-        assertEq(effectiveLockUpPeriod, Const.LOCKUP_365_DAYS, "Floor protection should ensure exactly 365 days");
+        assertEq(userStake.effectiveLockUpPeriod, Const.LOCKUP_365_DAYS, "Floor protection should ensure exactly 365 days");
 
         // The cap check (line 760) might be unreachable due to floor protection logic
         // This test documents the expected behavior
@@ -535,9 +535,9 @@ contract SapienVaultUncoveredLinesTest is Test {
         vault.stake(stakeAmount2, Const.LOCKUP_365_DAYS);
 
         // Verify the effective lockup never exceeds 365 days
-        (,,,,,, uint256 effectiveLockUpPeriod,) = vault.getUserStakingSummary(user);
-        assertLe(effectiveLockUpPeriod, Const.LOCKUP_365_DAYS, "Lockup should never exceed 365 days");
-        assertEq(effectiveLockUpPeriod, Const.LOCKUP_365_DAYS, "Should equal 365 days with max lockup inputs");
+        ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
+        assertLe(userStake.effectiveLockUpPeriod, Const.LOCKUP_365_DAYS, "Lockup should never exceed 365 days");
+        assertEq(userStake.effectiveLockUpPeriod, Const.LOCKUP_365_DAYS, "Should equal 365 days with max lockup inputs");
 
         // Test case 3: Try to create a scenario with potential for rounding over 365 days
         // Use odd amounts that could create banker's rounding edge cases
@@ -562,8 +562,8 @@ contract SapienVaultUncoveredLinesTest is Test {
         vault.stake(oddAmount2, Const.LOCKUP_365_DAYS);
 
         // Even with banker's rounding, floor protection prevents exceeding 365 days
-        (,,,,,, uint256 effectiveLockUpPeriod2,) = vault.getUserStakingSummary(user);
-        assertLe(effectiveLockUpPeriod2, Const.LOCKUP_365_DAYS, "Floor protection prevents exceeding max lockup");
+        ISapienVault.UserStakingSummary memory userStake2 = vault.getUserStakingSummary(user);
+        assertLe(userStake2.effectiveLockUpPeriod, Const.LOCKUP_365_DAYS, "Floor protection prevents exceeding max lockup");
 
         // Note: Line 757 "newValues.effectiveLockup = Const.LOCKUP_365_DAYS;" is unreachable
         // because _calculateWeightedLockupPeriod has floor protection that ensures:

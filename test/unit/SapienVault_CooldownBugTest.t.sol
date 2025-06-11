@@ -2,7 +2,7 @@
 pragma solidity 0.8.30;
 
 import {Test} from "lib/forge-std/src/Test.sol";
-import {SapienVault} from "src/SapienVault.sol";
+import {SapienVault, ISapienVault} from "src/SapienVault.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {Multiplier} from "src/Multiplier.sol";
 
@@ -185,8 +185,8 @@ contract SapienVaultCooldownBugTest is Test {
         );
 
         // Verify remaining stake
-        (uint256 totalStaked,,,,,,,) = sapienVault.getUserStakingSummary(alice);
-        assertEq(totalStaked, stakeAmount - instantAmount, "Remaining stake should be reduced");
+        ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(alice);
+        assertEq(userStake.userTotalStaked, stakeAmount - instantAmount, "Remaining stake should be reduced");
     }
 
     function test_Vault_CooldownLogic_CannotIncreaseAmountDuringCooldown() public {
@@ -305,8 +305,8 @@ contract SapienVaultCooldownBugTest is Test {
         assertEq(sapienVault.getTotalInCooldown(alice), 0, "Cooldown should be cleared");
         assertEq(sapienVault.getTotalReadyForUnstake(alice), 0, "Nothing ready after unstake");
 
-        (uint256 totalStaked,,,,,,,) = sapienVault.getUserStakingSummary(alice);
-        assertEq(totalStaked, stakeAmount - cooldownAmount, "Stake should be reduced");
+        ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(alice);
+        assertEq(userStake.userTotalStaked, stakeAmount - cooldownAmount, "Stake should be reduced");
     }
 
     function test_Vault_CooldownLogic_PartialUnstakeFromCooldown() public {
@@ -345,7 +345,7 @@ contract SapienVaultCooldownBugTest is Test {
 
         assertEq(sapienVault.getTotalInCooldown(alice), 0, "All cooldown should be cleared");
 
-        (uint256 totalStaked,,,,,,,) = sapienVault.getUserStakingSummary(alice);
-        assertEq(totalStaked, stakeAmount - cooldownAmount, "Final stake should be correct");
+        ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(alice);
+        assertEq(userStake.userTotalStaked, stakeAmount - cooldownAmount, "Final stake should be correct");
     }
 }

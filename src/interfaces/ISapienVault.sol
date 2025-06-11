@@ -17,13 +17,25 @@ interface ISapienVault {
         uint64 lastUpdateTime; // 8 bytes - Last time stake was modified (slot 3)
         uint64 earlyUnstakeCooldownStart; // 8 bytes - When early unstake cooldown was initiated (slot 4)
         uint32 effectiveMultiplier; // 4 bytes - Calculated multiplier (slot 4)
-        bool hasStake; // 1 byte - Whether user has any active stake (slot 4)
-            // Total: 4 storage slots, added early unstake cooldown tracking
+        // Note: hasStake field removed - stake existence determined by amount > 0
+        // This eliminates storage corruption and reduces gas costs
+        // Total: 4 storage slots, with 4 bytes free in slot 4
     }
 
     struct WeightedValues {
         uint256 weightedStartTime;
         uint256 effectiveLockup;
+    }
+
+    struct UserStakingSummary {
+        uint256 userTotalStaked;        // Total amount staked by the user
+        uint256 totalUnlocked;          // Amount available for unstaking initiation
+        uint256 totalLocked;            // Amount still in lockup period
+        uint256 totalInCooldown;        // Amount currently in unstaking cooldown
+        uint256 totalReadyForUnstake;   // Amount ready for immediate withdrawal
+        uint256 effectiveMultiplier;    // Current multiplier for rewards (basis points)
+        uint256 effectiveLockUpPeriod;  // Weighted average lockup period (seconds)
+        uint256 timeUntilUnlock;        // Time remaining until unlock (seconds, 0 if unlocked)
     }
 
     // -------------------------------------------------------------
@@ -118,19 +130,13 @@ interface ISapienVault {
     function getTotalLocked(address user) external view returns (uint256);
     function getTotalReadyForUnstake(address user) external view returns (uint256);
     function getTotalInCooldown(address user) external view returns (uint256);
-    function getUserStakingSummary(address user)
-        external
-        view
-        returns (
-            uint256 userTotalStaked,
-            uint256 totalUnlocked,
-            uint256 totalLocked,
-            uint256 totalInCooldown,
-            uint256 totalReadyForUnstake,
-            uint256 effectiveMultiplier,
-            uint256 effectiveLockUpPeriod,
-            uint256 timeUntilUnlock
-        );
+    function getUserMultiplier(address user) external view returns (uint256);
+    /**
+     * @notice Returns the user's staking summary information as a struct
+     * @param user The address of the user to query
+     * @return summary The complete UserStakingSummary struct for the user
+     */
+    function getUserStakingSummary(address user) external view returns (UserStakingSummary memory summary);
 
     function hasActiveStake(address user) external view returns (bool);
 

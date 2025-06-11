@@ -2,7 +2,7 @@
 pragma solidity 0.8.30;
 
 import {Test} from "lib/forge-std/src/Test.sol";
-import {SapienVault} from "src/SapienVault.sol";
+import {SapienVault, ISapienVault} from "src/SapienVault.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
 import {Constants as Const} from "src/utils/Constants.sol";
@@ -68,7 +68,8 @@ contract SapienVaultWeightedCalculationsTest is Test {
         vm.stopPrank();
 
         // Expected weighted start time: (100 * 1000 + 200 * 1000) / 2000 = 150
-        (,,,,,,, uint256 timeUntilUnlock) = sapienVault.getUserStakingSummary(user1);
+        ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
+        assertTrue(userStake.timeUntilUnlock > 0, "Time until unlock should be greater than 0");
 
         // Calculate expected unlock time based on weighted start
         uint256 expectedWeightedStart = 150;
@@ -76,7 +77,7 @@ contract SapienVaultWeightedCalculationsTest is Test {
 
         // Verify time until unlock matches expected calculation
         uint256 currentTimeUntilUnlock = expectedUnlockTime > block.timestamp ? expectedUnlockTime - block.timestamp : 0;
-        assertEq(timeUntilUnlock, currentTimeUntilUnlock, "Time until unlock should match weighted calculation");
+        assertEq(userStake.timeUntilUnlock, currentTimeUntilUnlock, "Time until unlock should match weighted calculation");
     }
 
     function test_Vault_WeightedStartTime_DifferentAmounts() public {
@@ -99,12 +100,13 @@ contract SapienVaultWeightedCalculationsTest is Test {
         vm.stopPrank();
 
         // Expected weighted start time: (100 * 1000 + 200 * 3000) / 4000 = (100000 + 600000) / 4000 = 175
-        (,,,,,,, uint256 timeUntilUnlock) = sapienVault.getUserStakingSummary(user1);
+        ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
+        assertTrue(userStake.timeUntilUnlock > 0, "Time until unlock should be greater than 0");
 
         // Verify the weighted average favors the larger, later stake
         uint256 expectedUnlockTime = 175 + LOCK_30_DAYS;
         uint256 currentTimeUntilUnlock = expectedUnlockTime > block.timestamp ? expectedUnlockTime - block.timestamp : 0;
-        assertEq(timeUntilUnlock, currentTimeUntilUnlock, "Weighted start should favor larger stake");
+        assertEq(userStake.timeUntilUnlock, currentTimeUntilUnlock, "Weighted start should favor larger stake");
     }
 
     // =============================================================================
@@ -129,9 +131,8 @@ contract SapienVaultWeightedCalculationsTest is Test {
 
         // Due to floor protection, effective lockup will be the longer period (90 days)
         // rather than the weighted average (60 days)
-        (,,,,,, uint256 effectiveLockUpPeriod,) = sapienVault.getUserStakingSummary(user1);
-
-        assertEq(effectiveLockUpPeriod, LOCK_90_DAYS, "Should use longer lockup due to floor protection");
+        ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
+        assertEq(userStake.effectiveLockUpPeriod, LOCK_90_DAYS, "Should use longer lockup due to floor protection");
     }
 
     function test_Vault_WeightedLockup_DifferentAmounts() public {
@@ -152,9 +153,8 @@ contract SapienVaultWeightedCalculationsTest is Test {
         vm.stopPrank();
 
         // Due to floor protection, the 365-day lockup cannot be reduced even by a much larger stake
-        (,,,,,, uint256 effectiveLockUpPeriod,) = sapienVault.getUserStakingSummary(user1);
-
-        assertEq(effectiveLockUpPeriod, LOCK_365_DAYS, "Should maintain longer lockup due to floor protection");
+        ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
+        assertEq(userStake.effectiveLockUpPeriod, LOCK_365_DAYS, "Should maintain longer lockup due to floor protection");
     }
 
     function test_Vault_WeightedLockup_MaximumCapping() public {
@@ -169,9 +169,8 @@ contract SapienVaultWeightedCalculationsTest is Test {
         sapienVault.stake(stakeAmount, LOCK_365_DAYS);
         vm.stopPrank();
 
-        (,,,,,, uint256 effectiveLockUpPeriod,) = sapienVault.getUserStakingSummary(user1);
-
-        assertLe(effectiveLockUpPeriod, LOCK_365_DAYS, "Effective lockup should never exceed 365 days");
+        ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
+        assertLe(userStake.effectiveLockUpPeriod, LOCK_365_DAYS, "Effective lockup should never exceed 365 days");
     }
 
     // =============================================================================
@@ -197,12 +196,11 @@ contract SapienVaultWeightedCalculationsTest is Test {
         vm.stopPrank();
 
         // Verify calculations completed without error and result is reasonable
-        (uint256 totalStaked,,,,,, uint256 effectiveLockUpPeriod,) = sapienVault.getUserStakingSummary(user1);
-
-        assertEq(totalStaked, stake1 + stake2, "Total stake should be sum of both stakes");
-        assertGt(effectiveLockUpPeriod, LOCK_30_DAYS, "Effective lockup should be > 30 days");
+        ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
+        assertEq(userStake.userTotalStaked, stake1 + stake2, "Total stake should be sum of both stakes");
+        assertGt(userStake.effectiveLockUpPeriod, LOCK_30_DAYS, "Effective lockup should be > 30 days");
         assertEq(
-            effectiveLockUpPeriod, LOCK_90_DAYS, "Effective lockup should be exactly 90 days due to floor protection"
+            userStake.effectiveLockUpPeriod, LOCK_90_DAYS, "Effective lockup should be exactly 90 days due to floor protection"
         );
     }
 
@@ -229,10 +227,9 @@ contract SapienVaultWeightedCalculationsTest is Test {
         vm.stopPrank();
 
         // Should complete without overflow
-        (uint256 totalStaked,,,,,, uint256 effectiveLockUpPeriod,) = sapienVault.getUserStakingSummary(user1);
-
-        assertEq(totalStaked, largeStake * 2, "Should handle large amounts");
-        assertGt(effectiveLockUpPeriod, LOCK_180_DAYS, "Should calculate weighted lockup correctly");
+        ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
+        assertEq(userStake.userTotalStaked, largeStake * 2, "Should handle large amounts");
+        assertGt(userStake.effectiveLockUpPeriod, LOCK_180_DAYS, "Should calculate weighted lockup correctly");
     }
 
     function test_Vault_EdgeCase_MultipleSmallStakes() public {
@@ -248,11 +245,10 @@ contract SapienVaultWeightedCalculationsTest is Test {
         }
 
         // Should complete without error
-        (uint256 totalStaked,,,,,, uint256 effectiveLockUpPeriod,) = sapienVault.getUserStakingSummary(user1);
-
-        assertEq(totalStaked, smallStake * 5, "Should accumulate all stakes");
-        assertGt(effectiveLockUpPeriod, LOCK_30_DAYS, "Should have reasonable effective lockup");
-        assertLe(effectiveLockUpPeriod, LOCK_365_DAYS, "Should not exceed maximum lockup");
+        ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
+        assertEq(userStake.userTotalStaked, smallStake * 5, "Should accumulate all stakes");
+        assertGt(userStake.effectiveLockUpPeriod, LOCK_30_DAYS, "Should have reasonable effective lockup");
+        assertLe(userStake.effectiveLockUpPeriod, LOCK_365_DAYS, "Should not exceed maximum lockup");
     }
 
     // =============================================================================
@@ -295,13 +291,11 @@ contract SapienVaultWeightedCalculationsTest is Test {
 
         // Both should have same total stake and very similar lockup periods
         // (small differences due to banker's rounding in different calculation orders are acceptable)
-        (uint256 total1,,,,,, uint256 lockup1,) = sapienVault.getUserStakingSummary(user1);
-        (uint256 total2,,,,,, uint256 lockup2,) = sapienVault.getUserStakingSummary(user2);
+        ISapienVault.UserStakingSummary memory userStake1 = sapienVault.getUserStakingSummary(user1);
+        ISapienVault.UserStakingSummary memory userStake2 = sapienVault.getUserStakingSummary(user2);
 
-        assertEq(total1, total2, "Total stakes should be equal");
-        assertApproxEqAbs(
-            lockup1, lockup2, 100, "Effective lockups should be nearly equal (allowing for rounding differences)"
-        );
+        assertEq(userStake1.userTotalStaked, userStake2.userTotalStaked, "Total stakes should be equal");
+        assertApproxEqAbs(userStake1.effectiveLockUpPeriod, userStake2.effectiveLockUpPeriod, 100, "Effective lockups should be nearly equal (allowing for rounding differences)");
     }
 
     // =============================================================================

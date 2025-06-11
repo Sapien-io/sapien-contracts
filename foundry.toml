@@ -16,6 +16,12 @@ fs_permissions = [{ access = "read-write", path = "./deployments" }]
 [profile.invariant]
 test = "test/invariant"
 
+[profile.fuzz]
+test = "test/fuzz"
+via_ir = true
+optimizer = true
+optimizer_runs = 200
+
 [profile.tenderly]
 test = "test/tenderly"
 fork_url = "${TENDERLY_VIRTUAL_TESTNET_RPC_URL}"

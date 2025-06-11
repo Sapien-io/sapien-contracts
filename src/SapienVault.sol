@@ -213,43 +213,36 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * - Returns zeros for users with no active stake
      *
      * @param user The address of the user to query
-     * @return userTotalStaked Total amount staked by the user
-     * @return totalUnlocked Amount available for unstaking initiation
-     * @return totalLocked Amount still in lockup period
-     * @return totalInCooldown Amount currently in unstaking cooldown
-     * @return totalReadyForUnstake Amount ready for immediate withdrawal
-     * @return effectiveMultiplier Current multiplier for rewards (basis points)
-     * @return effectiveLockUpPeriod Weighted average lockup period (seconds)
-     * @return timeUntilUnlock Time remaining until unlock (seconds, 0 if unlocked)
+     * @return summary The complete UserStakingSummary struct containing all staking information
      */
     function getUserStakingSummary(address user)
         public
         view
-        returns (
-            uint256 userTotalStaked,
-            uint256 totalUnlocked,
-            uint256 totalLocked,
-            uint256 totalInCooldown,
-            uint256 totalReadyForUnstake,
-            uint256 effectiveMultiplier,
-            uint256 effectiveLockUpPeriod,
-            uint256 timeUntilUnlock
-        )
+        returns (ISapienVault.UserStakingSummary memory summary)
     {
         UserStake memory userStake = userStakes[user];
 
-        userTotalStaked = userStake.amount;
-        totalUnlocked = getTotalUnlocked(user);
-        totalLocked = getTotalLocked(user);
-        totalInCooldown = getTotalInCooldown(user);
-        totalReadyForUnstake = getTotalReadyForUnstake(user);
-        effectiveMultiplier = userStake.effectiveMultiplier;
-        effectiveLockUpPeriod = userStake.effectiveLockUpPeriod;
+        summary.userTotalStaked = userStake.amount;
+        summary.totalUnlocked = getTotalUnlocked(user);
+        summary.totalLocked = getTotalLocked(user);
+        summary.totalInCooldown = getTotalInCooldown(user);
+        summary.totalReadyForUnstake = getTotalReadyForUnstake(user);
+        summary.effectiveMultiplier = userStake.effectiveMultiplier;
+        summary.effectiveLockUpPeriod = userStake.effectiveLockUpPeriod;
 
-        if (userStake.hasStake) {
+        if (userStake.amount > 0) {
             uint256 unlockTime = userStake.weightedStartTime + userStake.effectiveLockUpPeriod;
-            timeUntilUnlock = block.timestamp >= unlockTime ? 0 : unlockTime - block.timestamp;
+            summary.timeUntilUnlock = block.timestamp >= unlockTime ? 0 : unlockTime - block.timestamp;
         }
+    }
+
+    /**
+     * @notice Get the effective multiplier for a user's stake
+     * @param user The address of the user to query
+     * @return The effective multiplier for the user's stake (basis points)
+     */
+    function getUserMultiplier(address user) external view returns (uint256) {
+        return userStakes[user].effectiveMultiplier;
     }
 
     // -------------------------------------------------------------
@@ -288,7 +281,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @return Whether the user has an active stake
      */
     function hasActiveStake(address user) external view returns (bool) {
-        return userStakes[user].hasStake;
+        return userStakes[user].amount > 0;
     }
 
     /**
@@ -348,7 +341,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      */
     function getTotalInCooldown(address user) public view returns (uint256) {
         UserStake memory userStake = userStakes[user];
-        if (!userStake.hasStake || userStake.cooldownStart == 0) return 0;
+        if (userStake.amount == 0 || userStake.cooldownStart == 0) return 0;
 
         // Ensure cooldown amount doesn't exceed total amount
         return userStake.cooldownAmount > userStake.amount ? userStake.amount : userStake.cooldownAmount;
@@ -376,7 +369,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         sapienToken.safeTransferFrom(msg.sender, address(this), amount);
 
         // Execute staking logic
-        if (!userStake.hasStake) {
+        if (userStake.amount == 0) {
             _processFirstTimeStake(userStake, amount, lockUpPeriod);
         } else {
             _processCombineStake(userStake, amount, lockUpPeriod);
@@ -396,7 +389,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         UserStake storage userStake = userStakes[msg.sender];
 
-        if (!userStake.hasStake) {
+        if (userStake.amount == 0) {
             revert NoStakeFound();
         }
 
@@ -436,7 +429,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         }
 
         UserStake storage userStake = userStakes[msg.sender];
-        if (!userStake.hasStake) {
+        if (userStake.amount == 0) {
             revert NoStakeFound();
         }
         if (userStake.cooldownStart != 0) {
@@ -485,7 +478,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         UserStake storage userStake = userStakes[msg.sender];
 
-        if (!userStake.hasStake) {
+        if (userStake.amount == 0) {
             revert NoStakeFound();
         }
 
@@ -514,12 +507,12 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @notice Completes the unstaking process after the cooldown period has passed.
      * @param amount The amount to unstake.
      */
-    function unstake(uint256 amount) public whenNotPaused nonReentrant {
+    function unstake(uint256 amount) external whenNotPaused nonReentrant {
         if (amount == 0) revert InvalidAmount();
 
         UserStake storage userStake = userStakes[msg.sender];
 
-        if (!userStake.hasStake) {
+        if (userStake.amount == 0) {
             revert NoStakeFound();
         }
 
@@ -555,12 +548,12 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @dev This function starts the cooldown period required before earlyUnstake can be called.
      *      This prevents users from avoiding QA penalties by immediately unstaking.
      */
-    function initiateEarlyUnstake(uint256 amount) public whenNotPaused nonReentrant {
+    function initiateEarlyUnstake(uint256 amount) external whenNotPaused nonReentrant {
         if (amount == 0) revert InvalidAmount();
 
         UserStake storage userStake = userStakes[msg.sender];
 
-        if (!userStake.hasStake) {
+        if (userStake.amount == 0) {
             revert NoStakeFound();
         }
 
@@ -584,12 +577,12 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param amount The amount to unstake instantly.
      * @dev Now requires a cooldown period to prevent QA penalty avoidance.
      */
-    function earlyUnstake(uint256 amount) public whenNotPaused nonReentrant {
+    function earlyUnstake(uint256 amount) external whenNotPaused nonReentrant {
         if (amount == 0) revert InvalidAmount();
 
         UserStake storage userStake = userStakes[msg.sender];
 
-        if (!userStake.hasStake) {
+        if (userStake.amount == 0) {
             revert NoStakeFound();
         }
 
@@ -660,7 +653,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      */
     function _preValidateStakeOperation(UserStake storage userStake) private view {
         // Prevent staking while in cooldown
-        if (userStake.hasStake && userStake.cooldownStart != 0) {
+        if (userStake.amount > 0 && userStake.cooldownStart != 0) {
             revert CannotIncreaseStakeInCooldown();
         }
     }
@@ -677,7 +670,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         userStake.effectiveLockUpPeriod = lockUpPeriod.toUint64();
         userStake.effectiveMultiplier = calculateMultiplier(amount, lockUpPeriod).toUint32();
         userStake.lastUpdateTime = block.timestamp.toUint64();
-        userStake.hasStake = true;
     }
 
     /**
@@ -829,11 +821,11 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     // -------------------------------------------------------------
 
     function _isUnlocked(UserStake memory userStake) private view returns (bool) {
-        return userStake.hasStake && block.timestamp >= userStake.weightedStartTime + userStake.effectiveLockUpPeriod;
+        return userStake.amount > 0 && block.timestamp >= userStake.weightedStartTime + userStake.effectiveLockUpPeriod;
     }
 
     function _isReadyForUnstake(UserStake memory userStake) private view returns (bool) {
-        return userStake.hasStake && userStake.cooldownStart > 0
+        return userStake.amount > 0 && userStake.cooldownStart > 0
             && block.timestamp >= userStake.cooldownStart + Const.COOLDOWN_PERIOD && userStake.cooldownAmount > 0;
     }
 
@@ -889,7 +881,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param userStake The user stake to reset
      */
     function _resetUserStake(UserStake storage userStake) private {
-        userStake.hasStake = false;
         userStake.amount = 0;
         userStake.cooldownAmount = 0;
         userStake.weightedStartTime = 0;

@@ -160,7 +160,8 @@ contract TenderlyIntegrationTest is Test {
         sapienVault.stake(SMALL_STAKE, Const.LOCKUP_30_DAYS);
         
         // Verify stake was created
-        (uint256 totalStaked,,,,,,,) = sapienVault.getUserStakingSummary(conservativeStaker);
+        ISapienVault.UserStakingSummary memory conservativeStake = sapienVault.getUserStakingSummary(conservativeStaker);
+        uint256 totalStaked = conservativeStake.userTotalStaked;
         assertEq(totalStaked, SMALL_STAKE);
         vm.stopPrank();
         
@@ -169,7 +170,8 @@ contract TenderlyIntegrationTest is Test {
         sapienToken.approve(address(sapienVault), LARGE_STAKE);
         sapienVault.stake(LARGE_STAKE, Const.LOCKUP_365_DAYS);
         
-        (totalStaked,,,,,,,) = sapienVault.getUserStakingSummary(aggressiveStaker);
+        ISapienVault.UserStakingSummary memory aggressiveStake = sapienVault.getUserStakingSummary(aggressiveStaker);
+        totalStaked = aggressiveStake.userTotalStaked;
         assertEq(totalStaked, LARGE_STAKE);
         vm.stopPrank();
         
@@ -194,7 +196,8 @@ contract TenderlyIntegrationTest is Test {
         sapienVault.increaseLockup(Const.LOCKUP_180_DAYS);
         
         // Verify final state
-        (uint256 totalStaked,,,,,,,) = sapienVault.getUserStakingSummary(strategicStaker);
+        ISapienVault.UserStakingSummary memory strategicStake = sapienVault.getUserStakingSummary(strategicStaker);
+        uint256 totalStaked = strategicStake.userTotalStaked;
         assertEq(totalStaked, MEDIUM_STAKE + MEDIUM_STAKE / 2);
         
         vm.stopPrank();
@@ -411,7 +414,8 @@ contract TenderlyIntegrationTest is Test {
         assertEq(treasuryAfter - treasuryBefore, penaltyAmount);
         
         // Verify user's stake was reduced
-        (uint256 totalStaked,,,,,,,) = sapienVault.getUserStakingSummary(qaVictim);
+        ISapienVault.UserStakingSummary memory qaVictimStake = sapienVault.getUserStakingSummary(qaVictim);
+        uint256 totalStaked = qaVictimStake.userTotalStaked;
         assertEq(totalStaked, LARGE_STAKE - penaltyAmount);
         
         console.log("[PASS] QA penalty system integration validated");
