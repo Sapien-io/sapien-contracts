@@ -59,8 +59,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @notice Initializes the SapienVault contract.
      * @param token The IERC20 token contract for Sapien.
      * @param admin The address of the admin multisig.
-     * @param pauser The address of the pause manager multisig.ß
-     * @param newTreasury The address of the Rewards Safe multisig for penalty collection.
+     * @param pauser The address of the pause manager multisig.
+     * @param newTreasury The address of the treasury multisig for penalty collection.
      * @param sapienQA The address of the SapienQA contract.
      */
     function initialize(address token, address admin, address pauser, address newTreasury, address sapienQA)
@@ -145,8 +145,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     }
 
     /**
-     * @notice Updates the Safe address for penalty collection.
-     * @param newTreasury The new Reward Safe address.
+     * @notice Updates the treasury address for penalty collection.
+     * @param newTreasury The new treasury address.
      */
     function setTreasury(address newTreasury) external onlyAdmin {
         if (newTreasury == address(0)) {
@@ -184,10 +184,12 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     // -------------------------------------------------------------
 
     /**
-     * @notice getUserStakingSummary for comprehensive staking summary for a user's position
+     * @notice Retrieves comprehensive staking summary for a user's position
      * @dev This is the primary function for retrieving all relevant staking information
      * for a user in a single call. It aggregates data from multiple internal functions
      * to provide a complete picture of the user's staking status.
+     * @param user The address of the user to query
+     * @return summary The complete UserStakingSummary struct containing all staking information
      *
      * RETURN VALUES EXPLAINED:
      * - userTotalStaked: Total tokens the user has staked (including locked and unlocked)
@@ -216,9 +218,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * - Multiplier is in basis points (10000 = 1.0x multiplier)
      * - Time values are in seconds since Unix epoch
      * - Returns zeros for users with no active stake
-     *
-     * @param user The address of the user to query
-     * @return summary The complete UserStakingSummary struct containing all staking information
      */
     function getUserStakingSummary(address user) public view returns (ISapienVault.UserStakingSummary memory summary) {
         UserStake memory userStake = userStakes[user];
@@ -241,12 +240,41 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         }
     }
 
+    /**
+     * @notice Returns the raw stake data for a user
+     * @dev This function provides direct access to the user's stake data structure
+     * without any additional calculations or transformations.
+     *
+     * USAGE CONTEXT:
+     * - Direct access to raw stake data for internal contract operations
+     * - Debugging and monitoring of stake positions
+     * - Integration with other contracts that need raw stake data
+     *
+     * RETURN VALUES:
+     * - amount: Total tokens staked by the user
+     * - effectiveMultiplier: Current multiplier applied to the stake
+     * - effectiveLockUpPeriod: Weighted average lockup period
+     * - lockupEndTime: Timestamp when the lockup period ends
+     * - cooldownEndTime: Timestamp when the cooldown period ends
+     *
+     * IMPORTANT NOTES:
+     * - Returns empty struct for users with no stake
+     * - All time values are Unix timestamps
+     * - Multiplier is in basis points (10000 = 1.0x)
+     *
+     * @param user The address of the user to query
+     * @return UserStake struct containing the user's stake data
+     */
+    function getUserStake(address user) public view returns (UserStake memory) {
+        return userStakes[user];
+    }
+
     // -------------------------------------------------------------
     // Multiplier Calculation Helpers
     // -------------------------------------------------------------
 
     /**
-     * @notice calculateMultiplier for a stake position using the multiplier contract
+     * @notice Calculates the multiplier for a stake position using the multiplier contract
      * @dev This is a core function that determines the reward multiplier applied to a user's stake.
      * The multiplier affects how much weight this stake carries in the reputation system and
      * potentially in reward distribution calculations.
@@ -272,20 +300,21 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     }
 
     /**
-     * @notice Check if user has an active stake
-     * @param user The user address
-     * @return Whether the user has an active stake
+     * @notice Checks if a user has an active stake
+     * @param user The address of the user to check
+     * @return hasStake true if the user has an active stake, false otherwise
      */
-    function hasActiveStake(address user) external view returns (bool) {
+    function hasActiveStake(address user) external view returns (bool hasStake) {
+        if (user == address(0)) return false;
         return userStakes[user].amount > 0;
     }
 
     /**
      * @notice Returns the total amount of tokens staked by a user
      * @param user The address of the user to check
-     * @return The total amount of tokens staked by the user
+     * @return userTotalStaked The total amount of tokens staked by the user
      */
-    function getTotalStaked(address user) public view returns (uint256) {
+    function getTotalStaked(address user) public view returns (uint256 userTotalStaked) {
         return userStakes[user].amount;
     }
 
@@ -293,9 +322,9 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @notice Returns the amount of tokens that are unlocked and available for unstaking
      * @dev This excludes tokens that are in cooldown
      * @param user The address of the user to check
-     * @return The amount of unlocked tokens available for unstaking
+     * @return totalUnlocked The amount of unlocked tokens available for unstaking
      */
-    function getTotalUnlocked(address user) public view returns (uint256) {
+    function getTotalUnlocked(address user) public view returns (uint256 totalUnlocked) {
         UserStake memory userStake = userStakes[user];
         if (!_isUnlocked(userStake)) return 0;
 
@@ -309,9 +338,9 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @notice Returns the amount of tokens that are still locked and cannot be unstaked
      * @dev Returns 0 if tokens are unlocked or in cooldown
      * @param user The address of the user to check
-     * @return totalUnlocked amount of tokens still locked
+     * @return totalLocked amount of tokens still locked
      */
-    function getTotalLocked(address user) public view returns (uint256) {
+    function getTotalLocked(address user) public view returns (uint256 totalLocked) {
         UserStake memory userStake = userStakes[user];
         if (_isUnlocked(userStake) || userStake.cooldownAmount > 0) return 0;
         return userStake.amount;
@@ -321,9 +350,9 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @notice Returns the amount of tokens that have completed cooldown and are ready to be unstaked
      * @dev Returns 0 if tokens are not ready for unstaking
      * @param user The address of the user to check
-     * @return readyForUnstake amount of tokens ready for unstaking
+     * @return totalReadyForUnstake amount of tokens ready for unstaking
      */
-    function getTotalReadyForUnstake(address user) public view returns (uint256) {
+    function getTotalReadyForUnstake(address user) public view returns (uint256 totalReadyForUnstake) {
         UserStake memory userStake = userStakes[user];
         if (!_isReadyForUnstake(userStake)) return 0;
         return userStake.cooldownAmount;
@@ -335,7 +364,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param user The address of the user to check
      * @return totalInCooldown amount of tokens in cooldown
      */
-    function getTotalInCooldown(address user) public view returns (uint256) {
+    function getTotalInCooldown(address user) public view returns (uint256 totalInCooldown) {
         UserStake memory userStake = userStakes[user];
         if (userStake.amount == 0 || userStake.cooldownStart == 0) return 0;
 
@@ -348,7 +377,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param user The address of the user to query
      * @return effectiveMultiplier effective multiplier for the user's stake (basis points)
      */
-    function getUserMultiplier(address user) public view returns (uint256) {
+    function getUserMultiplier(address user) public view returns (uint256 effectiveMultiplier) {
         return userStakes[user].effectiveMultiplier;
     }
 
@@ -357,7 +386,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param user The address of the user to query
      * @return effectiveLockUpPeriod effective lockup period for the user's stake (seconds)
      */
-    function getUserLockupPeriod(address user) public view returns (uint256) {
+    function getUserLockupPeriod(address user) public view returns (uint256 effectiveLockUpPeriod) {
         return userStakes[user].effectiveLockUpPeriod;
     }
 
@@ -366,7 +395,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param user The address of the user to query
      * @return timeUntilUnlock time until the user's stake is unlocked (seconds)
      */
-    function getTimeUntilUnlock(address user) public view returns (uint256) {
+    function getTimeUntilUnlock(address user) public view returns (uint256 timeUntilUnlock) {
         UserStake memory userStake = userStakes[user];
         if (userStake.amount == 0) return 0;
         uint256 unlockTime = userStake.weightedStartTime + userStake.effectiveLockUpPeriod;

@@ -70,18 +70,10 @@ contract SapienRewards is
         _;
     }
 
-    /// @dev Reward Manager Access modifier
+    /// @dev Reward Admin Access modifier
     modifier onlyRewardAdmin() {
         if (!hasRole(Const.REWARD_ADMIN_ROLE, msg.sender)) {
             revert AccessControlUnauthorizedAccount(msg.sender, Const.REWARD_ADMIN_ROLE);
-        }
-        _;
-    }
-
-    /// @dev Reward Manager Access modifier
-    modifier onlyRewardManager() {
-        if (!hasRole(Const.REWARD_MANAGER_ROLE, msg.sender)) {
-            revert AccessControlUnauthorizedAccount(msg.sender, Const.REWARD_MANAGER_ROLE);
         }
         _;
     }
@@ -246,41 +238,32 @@ contract SapienRewards is
      * @notice Returns the status of an order
      * @param user The user's wallet address
      * @param orderId The order ID to check
-     * @return True if the order has been redeemed, false otherwise
+     * @return isRedeemed True if the order has been redeemed, false otherwise
      */
-    function getOrderRedeemedStatus(address user, bytes32 orderId) public view returns (bool) {
+    function getOrderRedeemedStatus(address user, bytes32 orderId) public view returns (bool isRedeemed) {
         return redeemedOrders[user][orderId];
     }
 
     /**
      * @notice Returns the balance of reward tokens held by this contract.
-     * @return balance amount of rewards available to claim.
+     * @return availableBalance amount of rewards available to claim.
      */
-    function getAvailableRewards() public view returns (uint256 balance) {
+    function getAvailableRewards() public view returns (uint256 availableBalance) {
         return availableRewards;
     }
 
     /**
      * @notice Returns both available rewards and total contract balance
-     * @return available Amount available for rewards
-     * @return total Total tokens in contract (including direct transfers)
+     * @return availableBalance Amount available for rewards
+     * @return totalContractBalance Total tokens in contract (including direct transfers)
      */
-    function getRewardTokenBalances() public view returns (uint256 available, uint256 total) {
+    function getRewardTokenBalances() public view returns (uint256 availableBalance, uint256 totalContractBalance) {
         return (availableRewards, rewardToken.balanceOf(address(this)));
     }
 
     // -------------------------------------------------------------
     // EIP-712 View Functions (for offchain signature generation)
     // -------------------------------------------------------------
-
-    /**
-     * @notice Returns the domain separator for EIP-712 signatures
-     * @dev Server can use this to verify they're building signatures for the correct contract/chain
-     * @return bytes32 current domain separator
-     */
-    function getDomainSeparator() public view returns (bytes32) {
-        return _domainSeparatorV4();
-    }
 
     /**
      * @notice Validates input parameters and returns the hash to sign
@@ -295,22 +278,8 @@ contract SapienRewards is
     function validateAndGetHashToSign(address userWallet, uint256 rewardAmount, bytes32 orderId)
         public
         view
-        whenNotPaused
-        onlyRewardManager
         returns (bytes32 hashToSign)
     {
-        validateRewardParameters(userWallet, rewardAmount, orderId);
-
-        hashToSign = _getHashToSign(userWallet, rewardAmount, orderId);
-    }
-
-    /**
-     * @dev Validates the reward parameters.
-     * @param userWallet The address of the wallet that should receive the reward.
-     * @param rewardAmount The amount of the reward.
-     * @param orderId The unique identifier of the order.
-     */
-    function validateRewardParameters(address userWallet, uint256 rewardAmount, bytes32 orderId) public view {
         if (rewardAmount == 0) revert InvalidAmount();
         if (orderId == bytes32(0)) revert InvalidOrderId(orderId);
         if (rewardAmount > availableRewards) revert InsufficientAvailableRewards();
@@ -319,6 +288,10 @@ contract SapienRewards is
         if (rewardAmount > Const.MAX_REWARD_AMOUNT) {
             revert RewardExceedsMaxAmount(rewardAmount, Const.MAX_REWARD_AMOUNT);
         }
+
+        bytes32 structHash = keccak256(abi.encode(Const.REWARD_CLAIM_TYPEHASH, userWallet, rewardAmount, orderId));
+
+        return _hashTypedDataV4(structHash);
     }
 
     // -------------------------------------------------------------
@@ -339,7 +312,7 @@ contract SapienRewards is
         private
         view
     {
-        bytes32 hashToSign = _getHashToSign(userWallet, rewardAmount, orderId);
+        bytes32 hashToSign = validateAndGetHashToSign(userWallet, rewardAmount, orderId);
         (address signer, ECDSA.RecoverError error,) = hashToSign.tryRecover(signature);
 
         if (error != ECDSA.RecoverError.NoError) {
@@ -349,41 +322,6 @@ contract SapienRewards is
         if (!hasRole(Const.REWARD_MANAGER_ROLE, signer)) {
             revert UnauthorizedSigner(signer);
         }
-
-        validateRewardParameters(userWallet, rewardAmount, orderId);
-    }
-
-    /**
-     * @notice Returns the struct hash for the given parameters
-     * @dev First step in EIP-712 hash construction
-     * @param userWallet The address of the wallet that should receive the reward
-     * @param rewardAmount The amount of the reward
-     * @param orderId The unique identifier of the order
-     * @return The struct hash
-     */
-    function _getStructHash(address userWallet, uint256 rewardAmount, bytes32 orderId)
-        internal
-        pure
-        returns (bytes32)
-    {
-        return keccak256(abi.encode(Const.REWARD_CLAIM_TYPEHASH, userWallet, rewardAmount, orderId));
-    }
-
-    /**
-     * @notice Constructs the complete EIP-712 hash that needs to be signed for reward claims
-     * @dev This is the final hash the server should sign
-     * @param userWallet The address of the wallet that should receive the reward
-     * @param rewardAmount The amount of the reward
-     * @param orderId The unique identifier of the order
-     * @return The EIP-712 hash to be signed
-     */
-    function _getHashToSign(address userWallet, uint256 rewardAmount, bytes32 orderId)
-        internal
-        view
-        returns (bytes32)
-    {
-        bytes32 structHash = _getStructHash(userWallet, rewardAmount, orderId);
-        return keccak256(abi.encodePacked("\x19\x01", getDomainSeparator(), structHash));
     }
 
     /**

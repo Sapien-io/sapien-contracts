@@ -456,52 +456,14 @@ contract SapienRewardsTest is Test {
         vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
-        bytes memory signature = _createSignature(rewardManagerSigner, REWARD_AMOUNT, ORDER_ID);
-
-        vm.prank(rewardManagerSigner);
+        // The validation happens in validateAndGetHashToSign, so we test that directly
         vm.expectRevert(ISapienRewards.RewardsManagerCannotClaim.selector);
-        sapienRewards.claimReward(REWARD_AMOUNT, ORDER_ID, signature);
+        sapienRewards.validateAndGetHashToSign(rewardManagerSigner, REWARD_AMOUNT, ORDER_ID);
     }
 
     // ============================================
     // Validation Tests
     // ============================================
-
-    function test_Rewards_ValidateRewardParameters() public {
-        vm.prank(rewardAdmin);
-        sapienRewards.depositRewards(REWARD_AMOUNT);
-
-        // Valid parameters should not revert
-        sapienRewards.validateRewardParameters(user1, REWARD_AMOUNT, ORDER_ID);
-    }
-
-    function test_Rewards_ValidateRewardParametersRevertsOnZeroAmount() public {
-        vm.expectRevert(ISapienRewards.InvalidAmount.selector);
-        sapienRewards.validateRewardParameters(user1, 0, ORDER_ID);
-    }
-
-    function test_Rewards_ValidateRewardParametersRevertsOnZeroOrderId() public {
-        vm.expectRevert();
-        sapienRewards.validateRewardParameters(user1, REWARD_AMOUNT, bytes32(0));
-    }
-
-    function test_Rewards_ValidateRewardParametersRevertsOnInsufficientRewards() public {
-        vm.expectRevert(ISapienRewards.InsufficientAvailableRewards.selector);
-        sapienRewards.validateRewardParameters(user1, REWARD_AMOUNT, ORDER_ID);
-    }
-
-    function test_Rewards_ValidateRewardParametersRevertsOnAlreadyRedeemed() public {
-        vm.prank(rewardAdmin);
-        sapienRewards.depositRewards(REWARD_AMOUNT * 2);
-
-        bytes memory signature = _createSignature(user1, REWARD_AMOUNT, ORDER_ID);
-
-        vm.prank(user1);
-        sapienRewards.claimReward(REWARD_AMOUNT, ORDER_ID, signature);
-
-        vm.expectRevert(ISapienRewards.OrderAlreadyUsed.selector);
-        sapienRewards.validateRewardParameters(user1, REWARD_AMOUNT, ORDER_ID);
-    }
 
     function test_Rewards_ValidateAndGetHashToSign() public {
         vm.prank(rewardAdmin);
@@ -513,31 +475,31 @@ contract SapienRewardsTest is Test {
         assertNotEq(hash, bytes32(0));
     }
 
-    function test_Rewards_ValidateAndGetHashToSignRevertsForNonManager() public {
+    function test_Rewards_ValidateAndGetHashToSignAccessibleToAll() public {
         vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
+        // Should work for any user (no access control)
         vm.prank(unauthorizedUser);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)")),
-                unauthorizedUser,
-                Const.REWARD_MANAGER_ROLE
-            )
-        );
-        sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, ORDER_ID);
+        bytes32 hash = sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, ORDER_ID);
+
+        // Hash should be non-zero
+        assertNotEq(hash, bytes32(0));
     }
 
-    function test_Rewards_ValidateAndGetHashToSignRevertsWhenPaused() public {
+    function test_Rewards_ValidateAndGetHashToSignWorksWhenPaused() public {
         vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
         vm.prank(pauseManager);
         sapienRewards.pause();
 
+        // Should work even when paused (view function)
         vm.prank(rewardManagerSigner);
-        vm.expectRevert();
-        sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, ORDER_ID);
+        bytes32 hash = sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, ORDER_ID);
+
+        // Hash should be non-zero
+        assertNotEq(hash, bytes32(0));
     }
 
     // ============================================
@@ -557,18 +519,18 @@ contract SapienRewardsTest is Test {
         vm.prank(rewardAdmin);
         sapienRewards.depositRewards(REWARD_AMOUNT);
 
-        (uint256 available, uint256 total) = sapienRewards.getRewardTokenBalances();
+        (uint256 availableBalance, uint256 totalContractBalance) = sapienRewards.getRewardTokenBalances();
 
-        assertEq(available, REWARD_AMOUNT);
-        assertEq(total, REWARD_AMOUNT);
+        assertEq(availableBalance, REWARD_AMOUNT);
+        assertEq(totalContractBalance, REWARD_AMOUNT);
 
         // Send tokens directly to contract
         rewardToken.mint(address(sapienRewards), 500 * 10 ** 18);
 
-        (available, total) = sapienRewards.getRewardTokenBalances();
+        (availableBalance, totalContractBalance) = sapienRewards.getRewardTokenBalances();
 
-        assertEq(available, REWARD_AMOUNT);
-        assertEq(total, REWARD_AMOUNT + 500 * 10 ** 18);
+        assertEq(availableBalance, REWARD_AMOUNT);
+        assertEq(totalContractBalance, REWARD_AMOUNT + 500 * 10 ** 18);
     }
 
     function test_Rewards_GetOrderRedeemedStatus() public {
@@ -583,11 +545,6 @@ contract SapienRewardsTest is Test {
         sapienRewards.claimReward(REWARD_AMOUNT, ORDER_ID, signature);
 
         assertTrue(sapienRewards.getOrderRedeemedStatus(user1, ORDER_ID));
-    }
-
-    function test_Rewards_GetDomainSeparator() public view {
-        bytes32 domainSeparator = sapienRewards.getDomainSeparator();
-        assertNotEq(domainSeparator, bytes32(0));
     }
 
     function test_Rewards_VersionIsCorrect() public view {
@@ -666,11 +623,13 @@ contract SapienRewardsTest is Test {
         vm.prank(rewardAdmin);
         sapienRewards.depositRewards(excessiveAmount);
 
-        bytes memory signature = _createSignature(user1, excessiveAmount, ORDER_ID);
-
-        vm.prank(user1);
-        vm.expectRevert();
-        sapienRewards.claimReward(excessiveAmount, ORDER_ID, signature);
+        // Test that validateAndGetHashToSign rejects excessive amounts
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ISapienRewards.RewardExceedsMaxAmount.selector, excessiveAmount, Const.MAX_REWARD_AMOUNT
+            )
+        );
+        sapienRewards.validateAndGetHashToSign(user1, excessiveAmount, ORDER_ID);
     }
 
     function test_Rewards_RecoverTokensRevertsOnInsufficientUnaccounted() public {
@@ -694,18 +653,6 @@ contract SapienRewardsTest is Test {
 
         // Should remain the same
         assertEq(sapienRewards.getAvailableRewards(), balanceBefore);
-    }
-
-    function test_Rewards_DomainSeparatorRecalculationOnChainFork() public {
-        bytes32 originalDomainSeparator = sapienRewards.getDomainSeparator();
-
-        // Simulate chain fork by changing chain ID
-        vm.chainId(999);
-
-        bytes32 newDomainSeparator = sapienRewards.getDomainSeparator();
-
-        // Domain separator should be different after chain ID change
-        assertNotEq(originalDomainSeparator, newDomainSeparator);
     }
 
     // ============================================
@@ -794,9 +741,7 @@ contract SapienRewardsTest is Test {
         view
         returns (bytes memory)
     {
-        bytes32 structHash = keccak256(abi.encode(Const.REWARD_CLAIM_TYPEHASH, user, amount, orderId));
-        bytes32 domainSeparator = sapienRewards.getDomainSeparator();
-        bytes32 hash = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        bytes32 hash = sapienRewards.validateAndGetHashToSign(user, amount, orderId);
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, hash);
         return abi.encodePacked(r, s, v);

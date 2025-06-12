@@ -67,13 +67,11 @@ interface ISapienRewards {
         returns (bool success);
 
     function getAvailableRewards() external view returns (uint256 balance);
-    function getRewardTokenBalances() external view returns (uint256 available, uint256 total);
+    function getRewardTokenBalances() external view returns (uint256 availableBalance, uint256 totalContractBalance);
     function getOrderRedeemedStatus(address user, bytes32 orderId) external view returns (bool);
-    function getDomainSeparator() external view returns (bytes32);
 
     function validateAndGetHashToSign(address userWallet, uint256 rewardAmount, bytes32 orderId)
         external
         view
         returns (bytes32);
-    function validateRewardParameters(address userWallet, uint256 rewardAmount, bytes32 orderId) external view;
 }

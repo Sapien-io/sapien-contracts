@@ -94,9 +94,9 @@ interface ISapienQA {
     function setVault(address newVault) external;
 
     function getDomainSeparator() external view returns (bytes32);
-    function getUserQAHistory(address userAddress) external view returns (QARecord[] memory);
-    function getUserQARecordCount(address userAddress) external view returns (uint256);
-    function getQAStatistics() external view returns (uint256 totalPenalties, uint256 totalWarnings);
+    function getUserQAHistory(address user) external view returns (QARecord[] memory);
+    function getUserQARecordCount(address user) external view returns (uint256);
+    function getQAStatistics() external view returns (uint256 penaltiesTotal, uint256 warningsTotal);
 
     function isDecisionProcessed(bytes32 decisionId) external view returns (bool);
 }

@@ -221,9 +221,7 @@ contract SapienRewardsHandler is Test {
         view
         returns (bytes memory)
     {
-        bytes32 structHash = keccak256(abi.encode(Const.REWARD_CLAIM_TYPEHASH, user, amount, orderId));
-        bytes32 domainSeparator = sapienRewards.getDomainSeparator();
-        bytes32 hashToSign = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        bytes32 hashToSign = sapienRewards.validateAndGetHashToSign(user, amount, orderId);
         
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, hashToSign);
         return abi.encodePacked(r, s, v);
@@ -429,23 +427,7 @@ contract SapienRewardsInvariantsTest is StdInvariant, Test {
     // SIGNATURE AND EIP-712 INVARIANTS
     // =============================================================================
     
-    /// @dev Domain separator should be consistent
-    function invariant_DomainSeparatorConsistency() public view {
-        bytes32 domainSeparator = sapienRewards.getDomainSeparator();
-        
-        // Domain separator should not be zero
-        assertTrue(
-            domainSeparator != bytes32(0),
-            "Domain separator should not be zero"
-        );
-        
-        // Should be deterministic for the same chain
-        assertEq(
-            domainSeparator,
-            sapienRewards.getDomainSeparator(),
-            "Domain separator should be deterministic"
-        );
-    }
+
     
     // =============================================================================
     // BUSINESS LOGIC INVARIANTS

@@ -69,6 +69,7 @@ interface ISapienVault {
     error MinimumStakeAmountRequired();
     error MinimumUnstakeAmountRequired();
     error InvalidLockupPeriod();
+
     error InvalidAmount();
     error NoStakeFound();
     error CannotIncreaseStakeInCooldown();
@@ -81,12 +82,14 @@ interface ISapienVault {
     error LockPeriodCompleted();
 
     // Weighted calculation specific errors
+
     error AmountMustBePositive();
     error TotalAmountMustBePositive();
     error WeightedCalculationOverflow();
     error LockupWeightCalculationOverflow();
 
     // QA specific errors
+
     error UnauthorizedQAManager();
     error InsufficientStakeForPenalty();
     error InsufficientCooldownForPenalty();
@@ -133,11 +136,8 @@ interface ISapienVault {
     function getTotalReadyForUnstake(address user) external view returns (uint256);
     function getTotalInCooldown(address user) external view returns (uint256);
     function getUserMultiplier(address user) external view returns (uint256);
-    /**
-     * @notice Returns the user's staking summary information as a struct
-     * @param user The address of the user to query
-     * @return summary The complete UserStakingSummary struct for the user
-     */
+
+    function getUserStake(address user) external view returns (UserStake memory);
     function getUserStakingSummary(address user) external view returns (UserStakingSummary memory summary);
     function getTimeUntilUnlock(address user) external view returns (uint256);
     function getUserLockupPeriod(address user) external view returns (uint256);

@@ -394,9 +394,7 @@ contract SapienRewardsScenariosTest is Test {
         view
         returns (bytes memory)
     {
-        bytes32 structHash = keccak256(abi.encode(Const.REWARD_CLAIM_TYPEHASH, user, amount, orderId));
-        bytes32 domainSeparator = sapienRewards.getDomainSeparator();
-        bytes32 hash = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        bytes32 hash = sapienRewards.validateAndGetHashToSign(user, amount, orderId);
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, hash);
         return abi.encodePacked(r, s, v);

@@ -490,9 +490,7 @@ contract EventEmissionScript is Script {
         view
         returns (bytes32)
     {
-        bytes32 domainSeparator = sapienRewards.getDomainSeparator();
-        bytes32 structHash = keccak256(abi.encode(REWARD_CLAIM_TYPEHASH, userWallet, amount, orderId));
-        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        return sapienRewards.validateAndGetHashToSign(userWallet, amount, orderId);
     }
 
     // Helper function to create QA decision digest

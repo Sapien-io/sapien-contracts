@@ -587,11 +587,9 @@ contract TenderlyRewardsIntegrationTest is Test {
         bytes32 orderId,
         uint256 privateKey
     ) internal view returns (bytes memory) {
-        bytes32 domainSeparator = sapienRewards.getDomainSeparator();
-        bytes32 structHash = keccak256(abi.encode(REWARD_CLAIM_TYPEHASH, userWallet, amount, orderId));
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        bytes32 hash = sapienRewards.validateAndGetHashToSign(userWallet, amount, orderId);
         
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, hash);
         return abi.encodePacked(r, s, v);
     }
     

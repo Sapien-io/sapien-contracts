@@ -406,9 +406,7 @@ contract SapienRewardsEndToEndTest is Test {
         view
         returns (bytes memory)
     {
-        bytes32 structHash = keccak256(abi.encode(Const.REWARD_CLAIM_TYPEHASH, user, amount, orderId));
-        bytes32 domainSeparator = sapienRewards.getDomainSeparator();
-        bytes32 hash = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        bytes32 hash = sapienRewards.validateAndGetHashToSign(user, amount, orderId);
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, hash);
         return abi.encodePacked(r, s, v);
@@ -491,13 +489,10 @@ contract SapienRewardsEndToEndTest is Test {
         vm.prank(rewardsAdmin);
         sapienRewards.withdrawRewards(largeWithdrawal);
 
-        // Test claim with insufficient rewards
+        // Test claim with insufficient rewards - validation happens in validateAndGetHashToSign
         bytes32 orderId = _generateOrderId("insufficient_funds_test");
-        bytes memory signature = _createSignature(regularUser, LARGE_REWARD, orderId, manager1PrivateKey);
-
-        vm.prank(regularUser);
         vm.expectRevert(ISapienRewards.InsufficientAvailableRewards.selector);
-        sapienRewards.claimReward(LARGE_REWARD, orderId, signature);
+        sapienRewards.validateAndGetHashToSign(regularUser, LARGE_REWARD, orderId);
 
         // Add back funds for duplicate order test
         uint256 additionalFunds = LARGE_REWARD * 2;
@@ -520,23 +515,31 @@ contract SapienRewardsEndToEndTest is Test {
         vm.expectRevert(ISapienRewards.OrderAlreadyUsed.selector);
         sapienRewards.claimReward(LARGE_REWARD, duplicateOrderId, duplicateSignature);
 
-        // Test zero amount claim
+        // Test zero amount claim - validation happens in validateAndGetHashToSign
         bytes32 zeroAmountOrderId = _generateOrderId("zero_amount_test");
-        bytes memory zeroAmountSignature = _createSignature(regularUser, 0, zeroAmountOrderId, manager1PrivateKey);
-
-        vm.prank(regularUser);
         vm.expectRevert(ISapienRewards.InvalidAmount.selector);
-        sapienRewards.claimReward(0, zeroAmountOrderId, zeroAmountSignature);
+        sapienRewards.validateAndGetHashToSign(regularUser, 0, zeroAmountOrderId);
 
-        // Test claim exceeding maximum allowed amount
+        // Test claim exceeding maximum allowed amount - validation happens in validateAndGetHashToSign
+        // First ensure we have enough available rewards to trigger the max amount check
         uint256 excessiveAmount = Const.MAX_REWARD_AMOUNT + 1;
-        bytes32 excessiveOrderId = _generateOrderId("excessive_amount_test");
-        bytes memory excessiveSignature =
-            _createSignature(regularUser, excessiveAmount, excessiveOrderId, manager1PrivateKey);
+        uint256 currentAvailable = sapienRewards.getAvailableRewards();
+        if (currentAvailable < excessiveAmount) {
+            uint256 topUpForTest = excessiveAmount - currentAvailable + (1000 * 10 ** 18); // Extra buffer
+            rewardToken.mint(rewardsAdmin, topUpForTest);
+            vm.prank(rewardsAdmin);
+            rewardToken.approve(address(sapienRewards), topUpForTest);
+            vm.prank(rewardsAdmin);
+            sapienRewards.depositRewards(topUpForTest);
+        }
 
-        vm.prank(regularUser);
-        vm.expectRevert();
-        sapienRewards.claimReward(excessiveAmount, excessiveOrderId, excessiveSignature);
+        bytes32 excessiveOrderId = _generateOrderId("excessive_amount_test");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ISapienRewards.RewardExceedsMaxAmount.selector, excessiveAmount, Const.MAX_REWARD_AMOUNT
+            )
+        );
+        sapienRewards.validateAndGetHashToSign(regularUser, excessiveAmount, excessiveOrderId);
 
         console.log("Error condition tests passed");
     }

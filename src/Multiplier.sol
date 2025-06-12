@@ -7,7 +7,24 @@ import {ISapienVault} from "src/interfaces/ISapienVault.sol";
 /**
  * @title Multiplier - Sapien AI Staking Multiplier Calculator
  * @notice Handles all multiplier calculations for the Sapien staking system
- * @dev Multiplier Matrix (Amount vs Time):
+ * @dev Multiplier Calculation Formula:
+ *
+ * Final Multiplier = Duration Base Multiplier + Amount Tier Bonus
+ *
+ * Duration Base Multipliers:
+ * - 30 days:  1.05x (10500 basis points)
+ * - 90 days:  1.10x (11000 basis points)
+ * - 180 days: 1.25x (12500 basis points)
+ * - 365 days: 1.50x (15000 basis points)
+ *
+ * Amount Tier Bonuses (0% to 45% of base range):
+ * - Tier 1 (1K-2.5K):   +20% of 0.45x = +0.09x
+ * - Tier 2 (2.5K-5K):   +40% of 0.45x = +0.18x
+ * - Tier 3 (5K-7.5K):   +60% of 0.45x = +0.27x
+ * - Tier 4 (7.5K-10K):  +80% of 0.45x = +0.36x
+ * - Tier 5 (10K+):      +100% of 0.45x = +0.45x
+ *
+ * Example Multiplier Matrix (calculated values):
  * ┌─────────────┬──────┬─────────┬─────────┬─────────┬──────────┬──────┐
  * │ Time Period │ ≤1K  │ 1K-2.5K │ 2.5K-5K │ 5K-7.5K │ 7.5K-10K │ 10K+ │
  * ├─────────────┼──────┼─────────┼─────────┼─────────┼──────────┼──────┤
@@ -16,7 +33,6 @@ import {ISapienVault} from "src/interfaces/ISapienVault.sol";
  * │ 180 days    │ 1.25x│ 1.34x   │ 1.43x   │ 1.52x   │ 1.61x    │ 1.70x│
  * │ 365 days    │ 1.50x│ 1.59x   │ 1.68x   │ 1.77x   │ 1.86x    │ 1.95x│
  * └─────────────┴──────┴─────────┴─────────┴─────────┴──────────┴──────┘
- * Formula: Duration Multiplier + (Tier Factor × 0.45x)
  */
 library Multiplier {
     // -------------------------------------------------------------

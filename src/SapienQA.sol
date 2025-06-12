@@ -141,7 +141,7 @@ contract SapienQA is ISapienQA, AccessControlUpgradeable, EIP712Upgradeable {
         verifySignature(userAddress, actionType, penaltyAmount, decisionId, reason, expiration, signature);
 
         // Step 3: Mark decision as processed (prevents replay attacks)
-        _markDecisionProcessed(decisionId);
+        processedDecisions[decisionId] = true;
 
         // Step 4: Process penalty if required
         uint256 actualPenaltyApplied = _processPenaltyIfRequired(userAddress, penaltyAmount);
@@ -150,7 +150,11 @@ contract SapienQA is ISapienQA, AccessControlUpgradeable, EIP712Upgradeable {
         _recordQADecision(userAddress, actionType, actualPenaltyApplied, decisionId, reason);
 
         // Step 6: Update statistics
-        _updateStatistics(actionType, actualPenaltyApplied);
+        if (actionType == QAActionType.WARNING) {
+            totalWarnings++;
+        } else if (actualPenaltyApplied > 0) {
+            totalPenalties += actualPenaltyApplied;
+        }
 
         // Step 7: Emit final event
         emit QualityAssessmentProcessed(userAddress, actionType, actualPenaltyApplied, decisionId, reason, msg.sender);
@@ -162,45 +166,46 @@ contract SapienQA is ISapienQA, AccessControlUpgradeable, EIP712Upgradeable {
 
     /**
      * @notice Get complete QA history for a user
-     * @param userAddress The user's address
-     * @return Array of QA records for the user
+     * @param user The user's address
+     * @return qaHistory Array of QA records for the user
      */
-    function getUserQAHistory(address userAddress) external view override returns (QARecord[] memory) {
-        return userQAHistory[userAddress];
+    function getUserQAHistory(address user) external view override returns (QARecord[] memory qaHistory) {
+        return userQAHistory[user];
     }
 
     /**
      * @notice Get the number of QA records for a user
-     * @param userAddress The user's address
-     * @return Number of QA records
+     * @param user The user's address
+     * @return recordCount Number of QA records
      */
-    function getUserQARecordCount(address userAddress) external view override returns (uint256) {
-        return userQAHistory[userAddress].length;
+    function getUserQARecordCount(address user) external view override returns (uint256 recordCount) {
+        return userQAHistory[user].length;
     }
 
     /**
      * @notice Check if a decision ID has been processed
      * @param decisionId The decision ID to check
-     * @return True if the decision has been processed
+     * @return isProcessed True if the decision has been processed
      */
-    function isDecisionProcessed(bytes32 decisionId) external view override returns (bool) {
+    function isDecisionProcessed(bytes32 decisionId) external view override returns (bool isProcessed) {
         return processedDecisions[decisionId];
     }
 
     /**
      * @notice Get overall QA statistics
-     * @return totalPenalties Total amount of penalties processed
-     * @return totalWarnings Total number of warnings issued
+     * @return penaltiesTotal Total amount of penalties processed
+     * @return warningsTotal Total number of warnings issued
      */
-    function getQAStatistics() external view override returns (uint256, uint256) {
+    function getQAStatistics() external view override returns (uint256 penaltiesTotal, uint256 warningsTotal) {
         return (totalPenalties, totalWarnings);
     }
 
     /**
-     * @notice Get the EIP-712 domain separator for this contract
-     * @return The domain separator used for EIP-712 typed data signing
+     * @notice Returns the domain separator for EIP-712 signatures
+     * @dev Used by external systems to verify they're building signatures for the correct contract/chain
+     * @return domainSeparator The current domain separator
      */
-    function getDomainSeparator() external view override returns (bytes32) {
+    function getDomainSeparator() external view override returns (bytes32 domainSeparator) {
         return _domainSeparatorV4();
     }
 
@@ -253,25 +258,11 @@ contract SapienQA is ISapienQA, AccessControlUpgradeable, EIP712Upgradeable {
         if (processedDecisions[decisionId]) revert DecisionAlreadyProcessed();
         if (bytes(reason).length == 0) revert EmptyReason();
 
-        _validatePenaltyAmount(actionType, penaltyAmount);
-    }
-
-    /**
-     * @notice Validate penalty amount based on action type
-     */
-    function _validatePenaltyAmount(QAActionType actionType, uint256 penaltyAmount) private pure {
         if (actionType == QAActionType.WARNING) {
             if (penaltyAmount != 0) revert InvalidPenaltyForWarning();
         } else {
             if (penaltyAmount == 0) revert PenaltyAmountRequired();
         }
-    }
-
-    /**
-     * @notice Mark a decision as processed to prevent replay attacks
-     */
-    function _markDecisionProcessed(bytes32 decisionId) private {
-        processedDecisions[decisionId] = true;
     }
 
     /**
@@ -283,34 +274,17 @@ contract SapienQA is ISapienQA, AccessControlUpgradeable, EIP712Upgradeable {
         }
 
         try ISapienVault(vault).processQAPenalty(userAddress, penaltyAmount) returns (uint256 actualPenalty) {
-            return _handleSuccessfulPenalty(userAddress, penaltyAmount, actualPenalty);
-        } catch Error(string memory errorReason) {
-            _handlePenaltyError(userAddress, penaltyAmount, errorReason);
+            if (actualPenalty < penaltyAmount) {
+                emit QAPenaltyPartial(userAddress, penaltyAmount, actualPenalty, Const.INSUFFICIENT_STAKE_REASON);
+            }
+            return actualPenalty;
+        } catch Error(string memory reason) {
+            emit QAPenaltyFailed(userAddress, penaltyAmount, reason);
             return 0;
         } catch {
-            _handlePenaltyError(userAddress, penaltyAmount, Const.UNKNOWN_PENALTY_ERROR);
+            emit QAPenaltyFailed(userAddress, penaltyAmount, "Unknown error processing penalty");
             return 0;
         }
-    }
-
-    /**
-     * @notice Handle successful penalty processing
-     */
-    function _handleSuccessfulPenalty(address userAddress, uint256 requestedAmount, uint256 actualAmount)
-        private
-        returns (uint256)
-    {
-        if (actualAmount < requestedAmount) {
-            emit QAPenaltyPartial(userAddress, requestedAmount, actualAmount, Const.INSUFFICIENT_STAKE_REASON);
-        }
-        return actualAmount;
-    }
-
-    /**
-     * @notice Handle penalty processing errors
-     */
-    function _handlePenaltyError(address userAddress, uint256 penaltyAmount, string memory errorReason) private {
-        emit QAPenaltyFailed(userAddress, penaltyAmount, errorReason);
     }
 
     /**
@@ -333,17 +307,6 @@ contract SapienQA is ISapienQA, AccessControlUpgradeable, EIP712Upgradeable {
         });
 
         userQAHistory[userAddress].push(record);
-    }
-
-    /**
-     * @notice Update contract statistics based on action type and penalty applied
-     */
-    function _updateStatistics(QAActionType actionType, uint256 actualPenaltyApplied) private {
-        if (actionType == QAActionType.WARNING) {
-            totalWarnings++;
-        } else if (actualPenaltyApplied > 0) {
-            totalPenalties += actualPenaltyApplied;
-        }
     }
 
     /**
