@@ -29,14 +29,8 @@ library Constants {
     // Role Constants
     // -------------------------------------------------------------
 
-    /// @notice Role for the default admin
-    bytes32 internal constant DEFAULT_ADMIN_ROLE = 0x0000000000000000000000000000000000000000000000000000000000000000;
-
     /// @notice Role for pausing/unpausing the contract
     bytes32 internal constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-
-    /// @notice Role for upgrading the contract
-    bytes32 internal constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
 
     /// @notice Role for managing the reward token
     bytes32 internal constant REWARD_MANAGER_ROLE = keccak256("REWARD_MANAGER_ROLE");
@@ -57,10 +51,6 @@ library Constants {
     // EIP-712 Constants
     // -------------------------------------------------------------
 
-    /// @notice EIP-712 domain separator hashes
-    bytes32 internal constant EIP712_DOMAIN_TYPEHASH =
-        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-
     bytes32 internal constant REWARD_CLAIM_TYPEHASH =
         keccak256("RewardClaim(address userWallet,uint256 amount,bytes32 orderId)");
 
@@ -77,7 +67,6 @@ library Constants {
     uint256 internal constant SECONDS_PER_HOUR = 3600;
     uint256 internal constant SECONDS_PER_DAY = 86400;
     uint256 internal constant SECONDS_PER_WEEK = 604800;
-    uint256 internal constant SECONDS_PER_YEAR = 31536000; // 365 days
 
     /// @notice Standard lockup periods
     uint256 internal constant LOCKUP_30_DAYS = 30 days;
@@ -150,5 +139,4 @@ library Constants {
     uint256 internal constant QA_SIGNATURE_VALIDITY_PERIOD = 24 hours;
 
     string internal constant INSUFFICIENT_STAKE_REASON = "Insufficient stake for full penalty";
-    string internal constant UNKNOWN_PENALTY_ERROR = "Unknown error processing penalty";
 }

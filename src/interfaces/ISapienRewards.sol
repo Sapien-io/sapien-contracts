@@ -28,13 +28,10 @@ interface ISapienRewards {
     error ZeroAddress();
     error InsufficientAvailableRewards();
     error OrderAlreadyUsed();
-    error TokenTransferFailed();
-    error InvalidRewardTokenAddress();
     error InvalidAmount();
     error InsufficientUnaccountedTokens();
     error RewardsManagerCannotClaim();
     error InvalidSignatureOrParameters(string errorMessage, ECDSA.RecoverError error);
-    error InvalidRewardParameters(string errorMessage);
     error UnauthorizedSigner(address signer);
     error RewardExceedsMaxAmount(uint256 rewardAmount, uint256 maxAmount);
     error InvalidOrderId(bytes32 orderId);

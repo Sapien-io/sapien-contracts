@@ -56,7 +56,6 @@ interface ISapienVault {
     event SapienTreasuryUpdated(address indexed newSapienTreasury);
     event EmergencyWithdraw(address indexed token, address indexed to, uint256 amount);
     event QAPenaltyProcessed(address indexed user, uint256 penaltyAmount, address indexed qaContract);
-    event QAPenaltyPartial(address indexed user, uint256 requestedPenalty, uint256 actualPenalty);
     event QAStakeReduced(address indexed user, uint256 fromActiveStake, uint256 fromCooldownStake);
     event QACooldownAdjusted(address indexed user, uint256 adjustedAmount);
     event QAUserStakeReset(address indexed user);
@@ -81,18 +80,9 @@ interface ISapienVault {
     error AmountExceedsCooldownAmount();
     error LockPeriodCompleted();
 
-    // Weighted calculation specific errors
-
-    error AmountMustBePositive();
-    error TotalAmountMustBePositive();
-    error WeightedCalculationOverflow();
-    error LockupWeightCalculationOverflow();
-
     // QA specific errors
 
-    error UnauthorizedQAManager();
     error InsufficientStakeForPenalty();
-    error InsufficientCooldownForPenalty();
     error EarlyUnstakeCooldownRequired();
 
     // -------------------------------------------------------------

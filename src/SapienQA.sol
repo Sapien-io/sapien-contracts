@@ -33,7 +33,7 @@ pragma solidity 0.8.30;
  * - Role separation between QA managers (executors) and QA signers (authorizers)
  * - Graceful degradation when penalties cannot be fully applied due to insufficient stakes
  */
-import {ECDSA, IERC20, EIP712Upgradeable, AccessControlUpgradeable} from "src/utils/Common.sol";
+import {ECDSA, EIP712Upgradeable, AccessControlUpgradeable} from "src/utils/Common.sol";
 
 import {ISapienQA} from "./interfaces/ISapienQA.sol";
 import {ISapienVault} from "./interfaces/ISapienVault.sol";

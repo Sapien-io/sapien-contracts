@@ -59,8 +59,6 @@ interface ISapienQA {
     error InvalidPenaltyForWarning();
     error PenaltyAmountRequired();
     error InvalidSignatureLength();
-    error InvalidSignatureV();
-    error InvalidSignature();
     error ExpiredSignature(uint256 expiration);
 
     // -------------------------------------------------------------
