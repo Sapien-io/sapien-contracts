@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity 0.8.30;
 
+/**
+ * @title SapienToken
+ * @notice Sapien AI Platform Utility Token
+ * @dev This is the native utility token for the Sapien AI ecosystem.
+ */
 import {ISapienToken} from "src/interfaces/ISapienToken.sol";
 import {ERC20Permit, ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC20Permit.sol";
 

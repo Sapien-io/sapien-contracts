@@ -2,9 +2,8 @@
 pragma solidity 0.8.30;
 
 /**
- * @file SapienRewards.sol
+ * @title SapienRewards
  * @notice Sapien AI Rewards Distribution Contract
- *
  * @dev This contract enables secure reward distribution to contributors in the Sapien AI ecosystem.
  *      Contributors earn rewards based on their participation and contributions to the platform.
  *

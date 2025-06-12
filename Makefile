@@ -4,6 +4,8 @@ unit    :; FOUNDRY_PROFILE=default forge test
 # Runs the invariant tests
 invar   :; FOUNDRY_PROFILE=invariant forge test
 
+fuzz    :; FOUNDRY_PROFILE=fuzz forge test --fuzz-runs 1000000
+
 # Runs the Tenderly integration tests
 tenderly  :; FOUNDRY_PROFILE=tenderly forge test
 

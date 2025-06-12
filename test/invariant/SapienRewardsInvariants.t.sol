@@ -258,9 +258,9 @@ contract SapienRewardsInvariantsTest is StdInvariant, Test {
         bytes memory initData = abi.encodeWithSelector(
             SapienRewards.initialize.selector,
             admin,
+            rewardAdmin,
             rewardManager,
             pauseManager,
-            rewardAdmin,
             address(rewardToken)
         );
         ERC1967Proxy sapienRewardsProxy = new ERC1967Proxy(address(sapienRewardsImpl), initData);

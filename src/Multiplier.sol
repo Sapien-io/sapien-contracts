@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity 0.8.30;
 
-import {Constants as Const} from "src/utils/Constants.sol";
-import {ISapienVault} from "src/interfaces/ISapienVault.sol";
-
 /**
  * @title Multiplier - Sapien AI Staking Multiplier Calculator
  * @notice Handles all multiplier calculations for the Sapien staking system
@@ -34,6 +31,9 @@ import {ISapienVault} from "src/interfaces/ISapienVault.sol";
  * │ 365 days    │ 1.50x│ 1.59x   │ 1.68x   │ 1.77x   │ 1.86x    │ 1.95x│
  * └─────────────┴──────┴─────────┴─────────┴─────────┴──────────┴──────┘
  */
+import {Constants as Const} from "src/utils/Constants.sol";
+import {ISapienVault} from "src/interfaces/ISapienVault.sol";
+
 library Multiplier {
     // -------------------------------------------------------------
     // Core Multiplier Functions
