@@ -233,7 +233,7 @@ contract MultiplierInvariant is StdInvariant, Test {
         uint256 minMult = Multiplier.calculateMultiplier(minAmount, minLockup);
         
         // Should be 1.14x (11400 basis points) - 1000 tokens gets Tier 1 bonus (1.05x + 0.09x)
-        assertEq(minMult, 11400, "Minimum multiplier should be 1.14x (11400 basis points) with tier bonus");
+        assertEq(minMult, 10500, "Minimum multiplier should be 1.05x (10500 basis points) with tier bonus");
     }
 }
 

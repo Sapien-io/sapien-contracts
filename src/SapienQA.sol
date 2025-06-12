@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity 0.8.30;
 
-import {ECDSA, EIP712, IERC20, AccessControl} from "src/utils/Common.sol";
+import {ECDSA, IERC20, EIP712Upgradeable, AccessControlUpgradeable} from "src/utils/Common.sol";
 
 import {ISapienQA} from "./interfaces/ISapienQA.sol";
 import {ISapienVault} from "./interfaces/ISapienVault.sol";
@@ -39,13 +39,13 @@ using ECDSA for bytes32;
 /// - Signature expiration prevents stale decision execution
 /// - Role separation between QA managers (executors) and QA signers (authorizers)
 /// - Graceful degradation when penalties cannot be fully applied due to insufficient stakes
-contract SapienQA is ISapienQA, AccessControl, EIP712 {
+contract SapienQA is ISapienQA, AccessControlUpgradeable, EIP712Upgradeable {
     // -------------------------------------------------------------
     // State Variables
     // -------------------------------------------------------------
 
     address public treasury;
-    address public vaultContract;
+    address public vault;
 
     uint256 public totalPenalties;
     uint256 public totalWarnings;
@@ -57,16 +57,41 @@ contract SapienQA is ISapienQA, AccessControl, EIP712 {
     // Constructor
     // -------------------------------------------------------------
 
-    constructor(address _treasury, address _vaultContract, address qaManager, address admin)
-        EIP712("SapienQA", version())
-    {
-        _validateConstructorInputs(_treasury, _vaultContract, qaManager, admin);
-        _initializeState(_treasury, _vaultContract);
-        _setupRoles(qaManager, admin);
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
 
     function version() public pure returns (string memory) {
         return Const.QA_VERSION;
+    }
+
+    /**
+     * @notice Initializes the SapienQA contract
+     * @param _treasury The treasury address
+     * @param vaultContract The vault contract address
+     * @param qaManager The QA manager address
+     * @param qaSigner The QA signer address
+     * @param admin The admin address
+     */
+    function initialize(address _treasury, address vaultContract, address qaManager, address qaSigner, address admin)
+        public
+        initializer
+    {
+        if (_treasury == address(0)) revert ZeroAddress();
+        if (vaultContract == address(0)) revert ZeroAddress();
+        if (qaManager == address(0)) revert ZeroAddress();
+        if (qaSigner == address(0)) revert ZeroAddress();
+        if (admin == address(0)) revert ZeroAddress();
+
+        __AccessControl_init();
+        __EIP712_init("SapienQA", version());
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(Const.QA_MANAGER_ROLE, qaManager);
+        _grantRole(Const.QA_SIGNER_ROLE, qaSigner);
+
+        treasury = _treasury;
+        vault = vaultContract;
     }
 
     // -------------------------------------------------------------
@@ -184,10 +209,10 @@ contract SapienQA is ISapienQA, AccessControl, EIP712 {
     // -------------------------------------------------------------
 
     /**
-     * @notice Update the treasury address
+     * @notice Set the treasury address
      * @param newTreasury The new treasury address
      */
-    function updateTreasury(address newTreasury) external onlyAdmin {
+    function setTreasury(address newTreasury) external onlyAdmin {
         if (newTreasury == address(0)) revert ZeroAddress();
 
         address oldTreasury = treasury;
@@ -197,14 +222,14 @@ contract SapienQA is ISapienQA, AccessControl, EIP712 {
     }
 
     /**
-     * @notice Update the vault contract address
+     * @notice Set the vault contract address
      * @param newVaultContract The new vault contract address
      */
-    function updateVaultContract(address newVaultContract) external onlyAdmin {
+    function setVault(address newVaultContract) external onlyAdmin {
         if (newVaultContract == address(0)) revert ZeroAddress();
 
-        address oldVault = vaultContract;
-        vaultContract = newVaultContract;
+        address oldVault = vault;
+        vault = newVaultContract;
 
         emit VaultContractUpdated(oldVault, newVaultContract);
     }
@@ -212,35 +237,6 @@ contract SapienQA is ISapienQA, AccessControl, EIP712 {
     // -------------------------------------------------------------
     // Internal Helper Functions
     // -------------------------------------------------------------
-
-    /**
-     * @notice Validate constructor inputs
-     */
-    function _validateConstructorInputs(address _treasury, address _vaultContract, address qaManager, address admin)
-        private
-        pure
-    {
-        if (_treasury == address(0)) revert ZeroAddress();
-        if (_vaultContract == address(0)) revert ZeroAddress();
-        if (qaManager == address(0)) revert ZeroAddress();
-        if (admin == address(0)) revert ZeroAddress();
-    }
-
-    /**
-     * @notice Initialize contract state variables
-     */
-    function _initializeState(address _treasury, address _vaultContract) private {
-        treasury = _treasury;
-        vaultContract = _vaultContract;
-    }
-
-    /**
-     * @notice Setup access control roles
-     */
-    function _setupRoles(address qaManager, address admin) private {
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(Const.QA_MANAGER_ROLE, qaManager);
-    }
 
     /**
      * @notice Validate all QA assessment inputs
@@ -286,7 +282,7 @@ contract SapienQA is ISapienQA, AccessControl, EIP712 {
             return 0;
         }
 
-        try ISapienVault(vaultContract).processQAPenalty(userAddress, penaltyAmount) returns (uint256 actualPenalty) {
+        try ISapienVault(vault).processQAPenalty(userAddress, penaltyAmount) returns (uint256 actualPenalty) {
             return _handleSuccessfulPenalty(userAddress, penaltyAmount, actualPenalty);
         } catch Error(string memory errorReason) {
             _handlePenaltyError(userAddress, penaltyAmount, errorReason);

@@ -132,17 +132,18 @@ contract LocalIntegrationTest is Test {
         ERC1967Proxy vaultProxy = new ERC1967Proxy(address(vaultImpl), vaultInitData);
         sapienVault = SapienVault(address(vaultProxy));
         
-        // Deploy SapienQA (uses constructor, not proxy pattern)
-        sapienQA = new SapienQA(
+        // Deploy SapienQA implementation and proxy
+        SapienQA qaImpl = new SapienQA();
+        bytes memory qaInitData = abi.encodeWithSelector(
+            SapienQA.initialize.selector,
             TREASURY,           // treasury
             address(sapienVault), // vaultContract
             QA_MANAGER,         // qaManager
+            QA_MANAGER,         // qaSigner (same as QA_MANAGER for simplicity)
             ADMIN              // admin
         );
-        
-        // Grant QA_SIGNER_ROLE to QA_MANAGER so they can sign QA decisions
-        vm.prank(ADMIN);
-        sapienQA.grantRole(Const.QA_SIGNER_ROLE, QA_MANAGER);
+        ERC1967Proxy qaProxy = new ERC1967Proxy(address(qaImpl), qaInitData);
+        sapienQA = SapienQA(address(qaProxy));
         
         // Deploy SapienRewards implementation and proxy
         SapienRewards rewardsImpl = new SapienRewards();

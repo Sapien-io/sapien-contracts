@@ -18,9 +18,9 @@ contract DeployRewards is Script {
 
         console.log("Timelock:", contracts.timelock);
         console.log("SapienToken:", contracts.sapienToken);
-        console.log("Multiplier:", contracts.multiplier);
-        console.log("RewardsSafe:", actors.rewardsSafe);
+        console.log("RewardsAdmin:", actors.rewardsAdmin);
         console.log("RewardsManager:", actors.rewardsManager);
+        console.log("Pauser:", actors.pauser);
         console.log("SecurityCouncil (Admin Role):", actors.securityCouncil);
 
         // Deploy the implementation
@@ -29,10 +29,10 @@ contract DeployRewards is Script {
         // Prepare initialization data
         bytes memory initData = abi.encodeWithSelector(
             ISapienRewards.initialize.selector,
-            actors.securityCouncil, // admin
-            actors.rewardsManager, // rewardManager
-            actors.pauseManager, // pauseManager
-            actors.rewardsSafe, // rewardAdmin
+            actors.securityCouncil, // default admin
+            actors.rewardsAdmin, // rewards admin
+            actors.rewardsManager, // rewards manager
+            actors.pauser, // pauser
             contracts.sapienToken // newRewardToken
         );
 
@@ -42,7 +42,7 @@ contract DeployRewards is Script {
         TUP rewardsProxy = new TUP(address(rewardsImpl), contracts.timelock, initData);
 
         console.log("SapienRewards deployed at:", address(rewardsImpl));
-        console.log("Rewards Proxy deployed at:", address(rewardsProxy));
+        console.log("Rewards proxy deployed at:", address(rewardsProxy));
 
         vm.stopBroadcast();
     }

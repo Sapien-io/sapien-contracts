@@ -4,6 +4,8 @@ pragma solidity 0.8.30;
 import {Test, console} from "forge-std/Test.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {TransparentUpgradeableProxy} from
+    "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {SapienVault} from "src/SapienVault.sol";
 import {SapienQA} from "src/SapienQA.sol";
@@ -70,8 +72,12 @@ contract SapienVaultEndToEndTest is Test {
         ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), initData);
         sapienVault = SapienVault(address(sapienVaultProxy));
 
-        // Deploy SapienQA
-        sapienQA = new SapienQA(treasury, address(sapienVault), qaManager, admin);
+        // Deploy SapienQA implementation and proxy
+        SapienQA qaImpl = new SapienQA();
+        bytes memory qaInitData = abi.encodeWithSelector(
+            SapienQA.initialize.selector, treasury, address(sapienVault), qaManager, makeAddr("qaSigner"), admin
+        );
+        sapienQA = SapienQA(address(new TransparentUpgradeableProxy(address(qaImpl), admin, qaInitData)));
 
         // Grant QA manager role to QA contract
         vm.prank(admin);

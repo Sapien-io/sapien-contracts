@@ -32,7 +32,7 @@ contract EventEmissionScript is Script {
     address public QA_MANAGER;
     address public QA_SIGNER;
     address public REWARDS_MANAGER;
-    address public PAUSE_MANAGER;
+    address public PAUSER;
 
     // Anvil default private keys (accounts 0-9)
     uint256 public constant ADMIN_PRIVATE_KEY = 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a; // Account 2
@@ -85,12 +85,12 @@ contract EventEmissionScript is Script {
 
         actors = Actors.getAllActors();
 
-        ADMIN = actors.securityCouncil;
-        TREASURY = actors.rewardsSafe;
+        ADMIN = actors.rewardsAdmin;
+        TREASURY = actors.foundationSafe1;
         QA_MANAGER = actors.qaManager;
         REWARDS_MANAGER = actors.rewardsManager;
         QA_SIGNER = actors.qaSigner;
-        PAUSE_MANAGER = actors.pauseManager;
+        PAUSER = actors.pauser;
 
         // Setup contracts and users
         setupContracts();
@@ -162,18 +162,23 @@ contract EventEmissionScript is Script {
         // Deploy SapienVault implementation and proxy
         SapienVault vaultImpl = new SapienVault();
         bytes memory vaultInitData = abi.encodeWithSelector(
-            SapienVault.initialize.selector, address(sapienToken), ADMIN, PAUSE_MANAGER, TREASURY, QA_MANAGER
+            SapienVault.initialize.selector, address(sapienToken), ADMIN, PAUSER, TREASURY, QA_MANAGER
         );
         ERC1967Proxy vaultProxy = new ERC1967Proxy(address(vaultImpl), vaultInitData);
         sapienVault = SapienVault(address(vaultProxy));
 
-        // Deploy SapienQA
-        sapienQA = new SapienQA(TREASURY, address(sapienVault), QA_MANAGER, ADMIN);
+        // Deploy SapienQA implementation and proxy
+        SapienQA qaImpl = new SapienQA();
+        bytes memory qaInitData = abi.encodeWithSelector(
+            SapienQA.initialize.selector, TREASURY, address(sapienVault), QA_MANAGER, QA_SIGNER, ADMIN
+        );
+        ERC1967Proxy qaProxy = new ERC1967Proxy(address(qaImpl), qaInitData);
+        sapienQA = SapienQA(address(qaProxy));
 
         // Deploy SapienRewards implementation and proxy
         SapienRewards rewardsImpl = new SapienRewards();
         bytes memory rewardsInitData = abi.encodeWithSelector(
-            SapienRewards.initialize.selector, ADMIN, REWARDS_MANAGER, PAUSE_MANAGER, TREASURY, address(sapienToken)
+            SapienRewards.initialize.selector, ADMIN, REWARDS_MANAGER, PAUSER, TREASURY, address(sapienToken)
         );
         ERC1967Proxy rewardsProxy = new ERC1967Proxy(address(rewardsImpl), rewardsInitData);
         sapienRewards = SapienRewards(address(rewardsProxy));

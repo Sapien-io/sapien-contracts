@@ -88,9 +88,15 @@ interface ISapienQA {
         bytes calldata signature
     ) external;
 
+    function vault() external view returns (address);
+    function treasury() external view returns (address);
+    function setTreasury(address newTreasury) external;
+    function setVault(address newVault) external;
+
     function getDomainSeparator() external view returns (bytes32);
     function getUserQAHistory(address userAddress) external view returns (QARecord[] memory);
     function getUserQARecordCount(address userAddress) external view returns (uint256);
-    function isDecisionProcessed(bytes32 decisionId) external view returns (bool);
     function getQAStatistics() external view returns (uint256 totalPenalties, uint256 totalWarnings);
+
+    function isDecisionProcessed(bytes32 decisionId) external view returns (bool);
 }

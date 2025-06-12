@@ -55,9 +55,9 @@ contract SapienRewardsTest is Test {
         bytes memory initData = abi.encodeWithSelector(
             SapienRewards.initialize.selector,
             admin,
+            rewardAdmin,
             rewardManagerSigner,
             pauseManager,
-            rewardAdmin,
             address(rewardToken)
         );
         ERC1967Proxy sapienRewardsProxy = new ERC1967Proxy(address(sapienRewardsImpl), initData);
@@ -81,9 +81,9 @@ contract SapienRewardsTest is Test {
         bytes memory initData = abi.encodeWithSelector(
             SapienRewards.initialize.selector,
             admin,
+            rewardAdmin,
             rewardManagerSigner,
             makeAddr("pauseManager"),
-            rewardAdmin,
             address(rewardToken)
         );
         ERC1967Proxy newProxy = new ERC1967Proxy(address(newImpl), initData);
@@ -109,9 +109,9 @@ contract SapienRewardsTest is Test {
         bytes memory initData = abi.encodeWithSelector(
             SapienRewards.initialize.selector,
             address(0),
+            rewardAdmin,
             rewardManagerSigner,
             makeAddr("pauseManager"),
-            rewardAdmin,
             address(rewardToken)
         );
         vm.expectRevert(ISapienRewards.ZeroAddress.selector);
@@ -121,9 +121,9 @@ contract SapienRewardsTest is Test {
         initData = abi.encodeWithSelector(
             SapienRewards.initialize.selector,
             admin,
+            rewardAdmin,
             address(0),
             makeAddr("pauseManager"),
-            rewardAdmin,
             address(rewardToken)
         );
         vm.expectRevert(ISapienRewards.ZeroAddress.selector);
@@ -131,7 +131,7 @@ contract SapienRewardsTest is Test {
 
         // Test zero pause manager
         initData = abi.encodeWithSelector(
-            SapienRewards.initialize.selector, admin, rewardManagerSigner, address(0), rewardAdmin, address(rewardToken)
+            SapienRewards.initialize.selector, admin, rewardAdmin, rewardManagerSigner, address(0), address(rewardToken)
         );
         vm.expectRevert(ISapienRewards.ZeroAddress.selector);
         new ERC1967Proxy(address(newImpl), initData);
@@ -140,9 +140,9 @@ contract SapienRewardsTest is Test {
         initData = abi.encodeWithSelector(
             SapienRewards.initialize.selector,
             admin,
+            address(0),
             rewardManagerSigner,
             makeAddr("pauseManager"),
-            address(0),
             address(rewardToken)
         );
         vm.expectRevert(ISapienRewards.ZeroAddress.selector);
@@ -152,9 +152,9 @@ contract SapienRewardsTest is Test {
         initData = abi.encodeWithSelector(
             SapienRewards.initialize.selector,
             admin,
+            rewardAdmin,
             rewardManagerSigner,
             makeAddr("pauseManager"),
-            rewardAdmin,
             address(0)
         );
         vm.expectRevert(ISapienRewards.ZeroAddress.selector);

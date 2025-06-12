@@ -201,16 +201,16 @@ update_contract_after_deployment() {
             update_single_contract_address "TIMELOCK" "$addr"
             ;;
         "DeployQA")
-            local addr=$(grep "SapienQA deployed at:" "$log_file" | awk '{print $NF}' | tr -d '\n\r')
-            update_single_contract_address "SAPIEN_QA" "$addr"
+            local addr=$(grep "SapienQA proxy deployed at:" "$log_file" | awk '{print $NF}' | tr -d '\n\r')
+            update_single_contract_address "SAPIEN_QA_PROXY" "$addr"
             ;;
         "DeployRewards")
-            local addr=$(grep "Rewards Proxy deployed at:" "$log_file" | awk '{print $NF}' | tr -d '\n\r')
-            update_single_contract_address "SAPIEN_REWARDS" "$addr"
+            local addr=$(grep "Rewards proxy deployed at:" "$log_file" | awk '{print $NF}' | tr -d '\n\r')
+            update_single_contract_address "SAPIEN_REWARDS_PROXY" "$addr"
             ;;
         "DeployVault")
-            local addr=$(grep "Vault Proxy deployed at:" "$log_file" | awk '{print $NF}' | tr -d '\n\r')
-            update_single_contract_address "SAPIEN_VAULT" "$addr"
+            local addr=$(grep "Vault proxy deployed at:" "$log_file" | awk '{print $NF}' | tr -d '\n\r')
+            update_single_contract_address "SAPIEN_VAULT_PROXY" "$addr"
             ;;
     esac
 }

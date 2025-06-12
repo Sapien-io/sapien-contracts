@@ -23,12 +23,24 @@ contract DeployVault is Script {
         // Prepare initialization data
         bytes memory initData = abi.encodeWithSelector(
             ISapienVault.initialize.selector,
-            contracts.sapienToken,
-            actors.securityCouncil,
-            actors.rewardsSafe,
-            contracts.multiplier,
-            contracts.sapienQA
+            contracts.sapienToken, // token
+            actors.securityCouncil, //admin
+            actors.pauser, //pauser
+            actors.foundationSafe1, // treasury
+            contracts.sapienQA // SapienQA contract
         );
+
+        if (contracts.sapienToken == address(0)) {
+            revert("SapienToken contract not deployed");
+        }
+
+        if (contracts.timelock == address(0)) {
+            revert("Timelock contract not deployed");
+        }
+
+        if (contracts.sapienQA == address(0)) {
+            revert("SapienQA contract not deployed");
+        }
 
         // NOTE: POST-DEPLOY,
         // 1. revoke default msg.sender from DEFAULT_ADMIN_ROLE after configured.
@@ -40,12 +52,11 @@ contract DeployVault is Script {
 
         console.log("Timelock:", contracts.timelock);
         console.log("SapienToken:", contracts.sapienToken);
-        console.log("Multiplier:", contracts.multiplier);
         console.log("SapienQA:", contracts.sapienQA);
         console.log("Admin:", actors.securityCouncil);
-        console.log("Treasury:", actors.rewardsSafe);
+        console.log("Treasury:", actors.foundationSafe1);
         console.log("SapienVault implementation deployed at:", address(vaultImpl));
-        console.log("Vault Proxy deployed at:", address(vaultProxy));
+        console.log("Vault proxy deployed at:", address(vaultProxy));
 
         vm.stopBroadcast();
     }

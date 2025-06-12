@@ -4,30 +4,42 @@ pragma solidity 0.8.30;
 import {Script, console} from "lib/forge-std/src/Script.sol";
 import {SapienQA} from "src/SapienQA.sol";
 import {Actors, AllActors} from "script/Actors.sol";
+import {Contracts, DeployedContracts} from "script/Contracts.sol";
+import {TransparentUpgradeableProxy as TUP} from "src/utils/Common.sol";
 
 contract DeployQA is Script {
     function run() external {
         // Get necessary actors from the deployed configuration
         AllActors memory actors = Actors.getAllActors();
+        DeployedContracts memory contracts = Contracts.get();
 
         vm.startBroadcast();
 
-        // SapienQA constructor takes: treasury, vaultContract, qaManager, admin
-        // We'll use a placeholder for vaultContract since it's deployed later
-        // TODO: remove this from contructor, make better
-        address vaultContract = address(1); // Placeholder - call updateVaultContract() later
+        // Deploy the implementation contract
+        SapienQA qaImpl = new SapienQA();
 
-        SapienQA qa = new SapienQA(
+        // The ProxyAdmin admin is the timelock contracts. All upgrades performed via timelock
+        address timelock = contracts.timelock;
+
+        // Create initialization data
+        bytes memory initData = abi.encodeWithSelector(
+            SapienQA.initialize.selector,
             actors.foundationSafe1, // treasury
-            vaultContract, // vaultContract (placeholder)
+            address(1), // vaultContract (placeholder - update later)
             actors.qaManager, // qaManager
-            actors.qaSigner // qaSigner
+            actors.qaSigner, // qaSigner
+            actors.foundationSafe1 // admin
         );
 
-        console.log("SapienQA deployed at:", address(qa));
+        // Deploy proxy
+        TUP proxy = new TUP(address(qaImpl), address(timelock), initData);
+
+        console.log("SapienQA implementation deployed at:", address(qaImpl));
+        console.log("ProxyAdmin admin is timelock deployed at:", address(timelock));
+        console.log("SapienQA proxy deployed at:", address(proxy));
         console.log("QA Manager:", actors.qaManager);
         console.log("QA Signer:", actors.qaSigner);
-        console.log("Vault Contract:", vaultContract);
+        console.log("Vault Contract (placeholder):", address(1));
         vm.stopBroadcast();
     }
 }

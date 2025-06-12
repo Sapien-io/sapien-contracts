@@ -19,7 +19,7 @@ contract SapienRewardsEndToEndTest is Test {
 
     // Test accounts
     address public admin = makeAddr("admin");
-    address public rewardSafe = makeAddr("rewardSafe");
+    address public rewardsAdmin = makeAddr("rewardsAdmin");
 
     // User personas for comprehensive testing
     address public regularUser = makeAddr("regularUser"); // Standard user with regular claims
@@ -59,9 +59,9 @@ contract SapienRewardsEndToEndTest is Test {
         bytes memory initData = abi.encodeWithSelector(
             SapienRewards.initialize.selector,
             admin,
+            rewardsAdmin,
             manager1,
             makeAddr("pauseManager"),
-            rewardSafe,
             address(rewardToken)
         );
         ERC1967Proxy sapienRewardsProxy = new ERC1967Proxy(address(sapienRewardsImpl), initData);
@@ -74,12 +74,12 @@ contract SapienRewardsEndToEndTest is Test {
         vm.stopPrank();
 
         // Setup initial funding
-        rewardToken.mint(rewardSafe, INITIAL_FUND);
-        vm.prank(rewardSafe);
+        rewardToken.mint(rewardsAdmin, INITIAL_FUND);
+        vm.prank(rewardsAdmin);
         rewardToken.approve(address(sapienRewards), INITIAL_FUND);
 
         // Initial deposit
-        vm.prank(rewardSafe);
+        vm.prank(rewardsAdmin);
         sapienRewards.depositRewards(INITIAL_FUND);
         totalDeposited = INITIAL_FUND;
 
@@ -197,7 +197,7 @@ contract SapienRewardsEndToEndTest is Test {
 
         // Admin operations during growth phase
         uint256 withdrawAmount = 500_000 * 10 ** 18; // 500K withdrawal
-        vm.prank(rewardSafe);
+        vm.prank(rewardsAdmin);
         sapienRewards.withdrawRewards(withdrawAmount);
         totalWithdrawn += withdrawAmount;
 
@@ -208,11 +208,11 @@ contract SapienRewardsEndToEndTest is Test {
     function _phaseScale() internal {
         // Add more funding due to high demand
         uint256 additionalFunding = 10_000_000 * 10 ** 18; // 10M tokens
-        rewardToken.mint(rewardSafe, additionalFunding);
-        vm.prank(rewardSafe);
+        rewardToken.mint(rewardsAdmin, additionalFunding);
+        vm.prank(rewardsAdmin);
         rewardToken.approve(address(sapienRewards), additionalFunding);
 
-        vm.prank(rewardSafe);
+        vm.prank(rewardsAdmin);
         sapienRewards.depositRewards(additionalFunding);
         totalDeposited += additionalFunding;
 
@@ -334,7 +334,7 @@ contract SapienRewardsEndToEndTest is Test {
         rewardToken.mint(address(sapienRewards), accidentalAmount);
 
         // Scenario 3: Balance reconciliation while paused
-        vm.prank(rewardSafe);
+        vm.prank(rewardsAdmin);
         sapienRewards.reconcileBalance();
 
         (uint256 available, uint256 total) = sapienRewards.getRewardTokenBalances();
@@ -342,7 +342,7 @@ contract SapienRewardsEndToEndTest is Test {
 
         // Scenario 4: Recovery of excess tokens
         uint256 recoveryAmount = accidentalAmount / 2;
-        vm.prank(rewardSafe);
+        vm.prank(rewardsAdmin);
         sapienRewards.withdrawRewards(recoveryAmount);
         totalWithdrawn += recoveryAmount;
 
@@ -441,10 +441,10 @@ contract SapienRewardsEndToEndTest is Test {
         if (sapienRewards.getAvailableRewards() < 1_000_000 * 10 ** 18) {
             // Add funding if running low
             uint256 topUpAmount = 5_000_000 * 10 ** 18;
-            rewardToken.mint(rewardSafe, topUpAmount);
-            vm.prank(rewardSafe);
+            rewardToken.mint(rewardsAdmin, topUpAmount);
+            vm.prank(rewardsAdmin);
             rewardToken.approve(address(sapienRewards), topUpAmount);
-            vm.prank(rewardSafe);
+            vm.prank(rewardsAdmin);
             sapienRewards.depositRewards(topUpAmount);
             totalDeposited += topUpAmount;
 
@@ -488,7 +488,7 @@ contract SapienRewardsEndToEndTest is Test {
 
         // First, exhaust most of the available rewards to create insufficient funds scenario
         uint256 largeWithdrawal = sapienRewards.getAvailableRewards() - (LARGE_REWARD / 2);
-        vm.prank(rewardSafe);
+        vm.prank(rewardsAdmin);
         sapienRewards.withdrawRewards(largeWithdrawal);
 
         // Test claim with insufficient rewards
@@ -501,10 +501,10 @@ contract SapienRewardsEndToEndTest is Test {
 
         // Add back funds for duplicate order test
         uint256 additionalFunds = LARGE_REWARD * 2;
-        rewardToken.mint(rewardSafe, additionalFunds);
-        vm.prank(rewardSafe);
+        rewardToken.mint(rewardsAdmin, additionalFunds);
+        vm.prank(rewardsAdmin);
         rewardToken.approve(address(sapienRewards), additionalFunds);
-        vm.prank(rewardSafe);
+        vm.prank(rewardsAdmin);
         sapienRewards.depositRewards(additionalFunds);
 
         // Create a valid order and use it

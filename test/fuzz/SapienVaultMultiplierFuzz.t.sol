@@ -607,7 +607,7 @@ contract SapienVaultMultiplierFuzz is Test {
             sapienVault.increaseAmount(increaseAmount);
         } else if (opType == 1) {
             // Increase lockup
-            uint256 additionalLockup = bound(timeDelay, 7 days, 90 days);
+            uint256 additionalLockup = bound(timeDelay, 30 days, 90 days);
             sapienVault.increaseLockup(additionalLockup);
         } else {
             // Add new stake

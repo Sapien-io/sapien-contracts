@@ -19,7 +19,7 @@ contract SapienRewardsScenariosTest is Test {
 
     // Test accounts
     address public admin = makeAddr("admin");
-    address public rewardSafe = makeAddr("rewardSafe");
+    address public rewardsAdmin = makeAddr("rewardsAdmin");
 
     // Multiple users for scenarios
     address public alice = makeAddr("alice");
@@ -58,9 +58,9 @@ contract SapienRewardsScenariosTest is Test {
         bytes memory initData = abi.encodeWithSelector(
             SapienRewards.initialize.selector,
             admin,
+            rewardsAdmin,
             rewardManager1,
             makeAddr("pauseManager"),
-            rewardSafe,
             address(rewardToken)
         );
         ERC1967Proxy sapienRewardsProxy = new ERC1967Proxy(address(sapienRewardsImpl), initData);
@@ -71,14 +71,14 @@ contract SapienRewardsScenariosTest is Test {
         sapienRewards.grantRole(Const.REWARD_MANAGER_ROLE, rewardManager2);
 
         // Mint tokens to reward safe
-        rewardToken.mint(rewardSafe, INITIAL_SUPPLY);
-        newRewardToken.mint(rewardSafe, INITIAL_SUPPLY);
+        rewardToken.mint(rewardsAdmin, INITIAL_SUPPLY);
+        newRewardToken.mint(rewardsAdmin, INITIAL_SUPPLY);
 
         // Approve contract to spend tokens
-        vm.prank(rewardSafe);
+        vm.prank(rewardsAdmin);
         rewardToken.approve(address(sapienRewards), INITIAL_SUPPLY);
 
-        vm.prank(rewardSafe);
+        vm.prank(rewardsAdmin);
         newRewardToken.approve(address(sapienRewards), INITIAL_SUPPLY);
     }
 
@@ -90,7 +90,7 @@ contract SapienRewardsScenariosTest is Test {
         console.log("=== Complete Rewards Distribution Lifecycle ===");
 
         // Phase 1: Initial setup and deposit
-        vm.prank(rewardSafe);
+        vm.prank(rewardsAdmin);
         sapienRewards.depositRewards(INITIAL_SUPPLY / 2); // Deposit 5M tokens
 
         uint256 totalDeposited = INITIAL_SUPPLY / 2;
@@ -125,7 +125,7 @@ contract SapienRewardsScenariosTest is Test {
 
         // Phase 3: Partial withdrawal by admin
         uint256 withdrawAmount = 1000000 * 10 ** 18; // 1M tokens
-        vm.prank(rewardSafe);
+        vm.prank(rewardsAdmin);
         sapienRewards.withdrawRewards(withdrawAmount);
 
         console.log("Phase 3: Withdrew", withdrawAmount / 10 ** 18, "tokens");
@@ -133,7 +133,7 @@ contract SapienRewardsScenariosTest is Test {
         // Phase 4: Additional deposit and more claims
         vm.warp(block.timestamp + 7 days);
         uint256 additionalDeposit = 2000000 * 10 ** 18; // 2M tokens
-        vm.prank(rewardSafe);
+        vm.prank(rewardsAdmin);
         sapienRewards.depositRewards(additionalDeposit);
 
         // Diana and Eve claim rewards
@@ -170,7 +170,7 @@ contract SapienRewardsScenariosTest is Test {
         console.log("=== High Volume Operations Scenario ===");
 
         // Deposit large amount
-        vm.prank(rewardSafe);
+        vm.prank(rewardsAdmin);
         sapienRewards.depositRewards(INITIAL_SUPPLY);
 
         // Create many users and process many claims
@@ -218,7 +218,7 @@ contract SapienRewardsScenariosTest is Test {
         console.log("=== Emergency Recovery Workflow ===");
 
         // Phase 1: Normal operations
-        vm.prank(rewardSafe);
+        vm.prank(rewardsAdmin);
         sapienRewards.depositRewards(LARGE_REWARD * 4);
 
         // Some users claim rewards
@@ -247,7 +247,7 @@ contract SapienRewardsScenariosTest is Test {
 
         // Phase 4: Recovery operations while paused
         // Reconcile balance to account for accidental transfer
-        vm.prank(rewardSafe);
+        vm.prank(rewardsAdmin);
         sapienRewards.reconcileBalance();
 
         (available, total) = sapienRewards.getRewardTokenBalances();
@@ -257,7 +257,7 @@ contract SapienRewardsScenariosTest is Test {
         // The reconcileBalance() added the accidental transfer to available rewards
         // We need to recover from the available balance, not unaccounted balance
         uint256 recoveryAmount = accidentalTransfer / 2;
-        vm.prank(rewardSafe);
+        vm.prank(rewardsAdmin);
         sapienRewards.withdrawRewards(recoveryAmount); // Use withdraw instead of recoverUnaccountedTokens
 
         // Phase 6: Resume operations
@@ -281,7 +281,7 @@ contract SapienRewardsScenariosTest is Test {
         console.log("=== Multi-Manager Coordination Scenario ===");
 
         // Setup large reward pool
-        vm.prank(rewardSafe);
+        vm.prank(rewardsAdmin);
         sapienRewards.depositRewards(INITIAL_SUPPLY / 2);
 
         // Manager 1 handles development rewards
@@ -332,7 +332,7 @@ contract SapienRewardsScenariosTest is Test {
         console.log("=== Stress Test: Concurrent Operations ===");
 
         // Setup maximum reward pool
-        vm.prank(rewardSafe);
+        vm.prank(rewardsAdmin);
         sapienRewards.depositRewards(INITIAL_SUPPLY);
 
         uint256 iterations = 30; // Reduced for efficiency
@@ -348,14 +348,14 @@ contract SapienRewardsScenariosTest is Test {
                 // Every 10th iteration, do admin operations
                 if (i % 20 == 0 && sapienRewards.getAvailableRewards() > LARGE_REWARD) {
                     // Withdraw some rewards
-                    vm.prank(rewardSafe);
+                    vm.prank(rewardsAdmin);
                     sapienRewards.withdrawRewards(SMALL_REWARD);
                 } else {
                     // Deposit more rewards
-                    rewardToken.mint(rewardSafe, SMALL_REWARD);
-                    vm.prank(rewardSafe);
+                    rewardToken.mint(rewardsAdmin, SMALL_REWARD);
+                    vm.prank(rewardsAdmin);
                     rewardToken.approve(address(sapienRewards), SMALL_REWARD);
-                    vm.prank(rewardSafe);
+                    vm.prank(rewardsAdmin);
                     sapienRewards.depositRewards(SMALL_REWARD);
                 }
             } else {

@@ -59,17 +59,17 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @notice Initializes the SapienVault contract.
      * @param token The IERC20 token contract for Sapien.
      * @param admin The address of the admin multisig.
-     * @param pauseManager The address of the pause manager multisig.ß
+     * @param pauser The address of the pause manager multisig.ß
      * @param newTreasury The address of the Rewards Safe multisig for penalty collection.
      * @param sapienQA The address of the SapienQA contract.
      */
-    function initialize(address token, address admin, address pauseManager, address newTreasury, address sapienQA)
+    function initialize(address token, address admin, address pauser, address newTreasury, address sapienQA)
         public
         initializer
     {
         if (token == address(0)) revert ZeroAddress();
         if (admin == address(0)) revert ZeroAddress();
-        if (pauseManager == address(0)) revert ZeroAddress();
+        if (pauser == address(0)) revert ZeroAddress();
         if (newTreasury == address(0)) revert ZeroAddress();
         if (sapienQA == address(0)) revert ZeroAddress();
 
@@ -78,7 +78,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         __ReentrancyGuard_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(Const.PAUSER_ROLE, pauseManager);
+        _grantRole(Const.PAUSER_ROLE, pauser);
         _grantRole(Const.SAPIEN_QA_ROLE, sapienQA);
 
         sapienToken = IERC20(token);

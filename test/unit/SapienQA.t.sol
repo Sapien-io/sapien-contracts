@@ -11,6 +11,8 @@ import {Constants} from "src/utils/Constants.sol";
 import {Actors} from "script/Actors.sol";
 import {ERC1967Proxy} from
     "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {TransparentUpgradeableProxy} from
+    "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 contract SapienQATest is Test {
     SapienQA public qaContract;
@@ -20,11 +22,13 @@ contract SapienQATest is Test {
     address public admin = makeAddr("admin");
     address public treasury = makeAddr("treasury");
     address public qaManager;
+    address public qaSigner;
     address public user1 = makeAddr("user1");
     address public user2 = makeAddr("user2");
 
     // Use a private key that we can control for the qaManager
     uint256 private constant QA_MANAGER_PRIVATE_KEY = 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef;
+    uint256 private constant QA_SIGNER_PRIVATE_KEY = 0x2234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef;
 
     // Sample decision for testing
     bytes32 constant DECISION_ID = keccak256("decision_001");
@@ -54,6 +58,7 @@ contract SapienQATest is Test {
     function setUp() public {
         // Generate qaManager address from the private key we control
         qaManager = vm.addr(QA_MANAGER_PRIVATE_KEY);
+        qaSigner = vm.addr(QA_SIGNER_PRIVATE_KEY);
 
         // Deploy contracts
         token = new SapienToken(admin);
@@ -74,16 +79,19 @@ contract SapienQATest is Test {
         // Deploy proxy
         vault = SapienVault(address(new ERC1967Proxy(address(vaultImpl), vaultInitData)));
 
-        // Deploy QA contract with the vault address
+        // Deploy QA implementation
+        SapienQA qaImpl = new SapienQA();
+
+        // Create initialization data for the QA contract
+        bytes memory qaInitData =
+            abi.encodeWithSelector(SapienQA.initialize.selector, treasury, address(vault), qaManager, qaSigner, admin);
+
+        // Deploy proxy for QA contract
+        qaContract = SapienQA(address(new TransparentUpgradeableProxy(address(qaImpl), admin, qaInitData)));
+
         vm.startPrank(admin);
-        qaContract = new SapienQA(treasury, address(vault), qaManager, admin);
-
-        // Grant QA_SIGNER_ROLE to qaManager so they can sign decisions
-        qaContract.grantRole(Constants.QA_SIGNER_ROLE, qaManager);
-
         // Grant the QA contract the SAPIEN_QA_ROLE on the vault
         vault.grantRole(Constants.SAPIEN_QA_ROLE, address(qaContract));
-
         vm.stopPrank();
 
         // Transfer tokens for testing (admin has all tokens from constructor)
@@ -96,7 +104,7 @@ contract SapienQATest is Test {
     function test_QA_BasicFunctionality() public view {
         // Test that the contract was deployed correctly
         assertEq(qaContract.treasury(), treasury);
-        assertEq(qaContract.vaultContract(), address(vault));
+        assertEq(qaContract.vault(), address(vault));
 
         // Test that admin has admin role (admin deployed the contract)
         bytes32 adminRole = qaContract.DEFAULT_ADMIN_ROLE();
@@ -115,30 +123,30 @@ contract SapienQATest is Test {
 
         // Get current treasury for restore
         address currentTreasury = qaContract.treasury();
-        address currentVault = qaContract.vaultContract();
+        address currentVault = qaContract.vault();
 
         // Test successful admin operations
         vm.startPrank(admin);
-        qaContract.updateTreasury(newTreasury);
+        qaContract.setTreasury(newTreasury);
         assertEq(qaContract.treasury(), newTreasury);
 
-        qaContract.updateVaultContract(newVault);
-        assertEq(qaContract.vaultContract(), newVault);
+        qaContract.setVault(newVault);
+        assertEq(qaContract.vault(), newVault);
         vm.stopPrank();
 
         // Test unauthorized access - this should cover the revert path in onlyAdmin
         vm.prank(unauthorized);
         vm.expectRevert();
-        qaContract.updateTreasury(currentTreasury);
+        qaContract.setTreasury(currentTreasury);
 
         vm.prank(unauthorized);
         vm.expectRevert();
-        qaContract.updateVaultContract(currentVault);
+        qaContract.setVault(currentVault);
 
         // Test with user1 (should also fail)
         vm.prank(user1);
         vm.expectRevert();
-        qaContract.updateTreasury(currentTreasury);
+        qaContract.setTreasury(currentTreasury);
     }
 
     function test_QA_AccessControl_QAManagerRole() public view {
@@ -222,10 +230,10 @@ contract SapienQATest is Test {
         vm.startPrank(admin);
 
         vm.expectRevert(ISapienQA.ZeroAddress.selector);
-        qaContract.updateTreasury(address(0));
+        qaContract.setTreasury(address(0));
 
         vm.expectRevert(ISapienQA.ZeroAddress.selector);
-        qaContract.updateVaultContract(address(0));
+        qaContract.setVault(address(0));
 
         vm.stopPrank();
     }
@@ -382,18 +390,18 @@ contract SapienQATest is Test {
 
         // Original admin updates treasury
         vm.prank(admin);
-        qaContract.updateTreasury(testTreasury1);
+        qaContract.setTreasury(testTreasury1);
         assertEq(qaContract.treasury(), testTreasury1);
 
         // New admin can also update treasury
         vm.prank(newAdmin);
-        qaContract.updateTreasury(testTreasury2);
+        qaContract.setTreasury(testTreasury2);
         assertEq(qaContract.treasury(), testTreasury2);
 
         // Test non-admin cannot perform admin functions
         vm.prank(user1);
         vm.expectRevert();
-        qaContract.updateTreasury(testTreasury1);
+        qaContract.setTreasury(testTreasury1);
     }
 
     function test_QA_AccessControl_ViewFunctionsPublicAccess() public {
@@ -414,7 +422,7 @@ contract SapienQATest is Test {
             qaContract.isDecisionProcessed(DECISION_ID);
             qaContract.getQAStatistics();
             qaContract.treasury();
-            qaContract.vaultContract();
+            qaContract.vault();
             qaContract.hasRole(Constants.QA_MANAGER_ROLE, qaManager);
         }
     }
@@ -488,15 +496,42 @@ contract SapienQATest is Test {
         assertEq(token.balanceOf(treasury), initialTreasuryBalance + penaltyAmount);
     }
 
-    function test_QA_ConstructorValidation() public {
+    function test_QA_InitializeValidation() public {
+        // Test zero treasury address via proxy
+        SapienQA qaImpl1 = new SapienQA();
+        bytes memory badInitData1 =
+            abi.encodeWithSelector(SapienQA.initialize.selector, address(0), address(vault), qaManager, qaSigner, admin);
         vm.expectRevert(ISapienQA.ZeroAddress.selector);
-        new SapienQA(address(0), address(vault), qaManager, admin);
+        new TransparentUpgradeableProxy(address(qaImpl1), admin, badInitData1);
 
+        // Test zero vault address via proxy
+        SapienQA qaImpl2 = new SapienQA();
+        bytes memory badInitData2 =
+            abi.encodeWithSelector(SapienQA.initialize.selector, treasury, address(0), qaManager, qaSigner, admin);
         vm.expectRevert(ISapienQA.ZeroAddress.selector);
-        new SapienQA(treasury, address(0), qaManager, admin);
+        new TransparentUpgradeableProxy(address(qaImpl2), admin, badInitData2);
 
+        // Test zero qa manager address via proxy
+        SapienQA qaImpl3 = new SapienQA();
+        bytes memory badInitData3 =
+            abi.encodeWithSelector(SapienQA.initialize.selector, treasury, address(vault), address(0), qaSigner, admin);
         vm.expectRevert(ISapienQA.ZeroAddress.selector);
-        new SapienQA(treasury, address(vault), address(0), address(0));
+        new TransparentUpgradeableProxy(address(qaImpl3), admin, badInitData3);
+
+        // Test zero qa signer address via proxy
+        SapienQA qaImpl4 = new SapienQA();
+        bytes memory badInitData4 =
+            abi.encodeWithSelector(SapienQA.initialize.selector, treasury, address(vault), qaManager, address(0), admin);
+        vm.expectRevert(ISapienQA.ZeroAddress.selector);
+        new TransparentUpgradeableProxy(address(qaImpl4), admin, badInitData4);
+
+        // Test zero admin address via proxy
+        SapienQA qaImpl5 = new SapienQA();
+        bytes memory badInitData5 = abi.encodeWithSelector(
+            SapienQA.initialize.selector, treasury, address(vault), qaManager, qaSigner, address(0)
+        );
+        vm.expectRevert(ISapienQA.ZeroAddress.selector);
+        new TransparentUpgradeableProxy(address(qaImpl5), admin, badInitData5);
     }
 
     function test_QA_ProcessQualityAssessmentWarning() public {
@@ -907,7 +942,7 @@ contract SapienQATest is Test {
 
         // Update QA contract to use mock vault temporarily
         vm.prank(admin);
-        qaContract.updateVaultContract(address(mockVault));
+        qaContract.setVault(address(mockVault));
 
         bytes32 stringErrorDecisionId = keccak256("string_error_decision");
         uint256 requestedPenalty = 1000 * 1e18;
@@ -936,7 +971,7 @@ contract SapienQATest is Test {
 
         // Restore original vault
         vm.prank(admin);
-        qaContract.updateVaultContract(address(vault));
+        qaContract.setVault(address(vault));
     }
 
     /**
@@ -1358,7 +1393,7 @@ contract SapienQATest is Test {
             )
         );
 
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(QA_MANAGER_PRIVATE_KEY, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(QA_SIGNER_PRIVATE_KEY, digest);
         return abi.encodePacked(r, s, v);
     }
 }
