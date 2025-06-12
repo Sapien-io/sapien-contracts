@@ -1,6 +1,40 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity 0.8.30;
 
+/**
+ * @file SapienVault.sol
+ * @notice Sapien AI Staking Vault & Reputation System
+ *
+ * @dev This contract implements a collateral staking mechanism that forms the backbone of the
+ *      Sapien AI reputation system.
+ *
+ * KEY FEATURES:
+ * - Flexible staking with lockup periods (30, 90, 180, 365 days) for higher multipliers
+ * - Dynamic multiplier system based on both stake amount and commitment duration
+ * - Two-phase unstaking: lockup expiration → cooldown period → withdrawal
+ * - Early unstaking with penalties (20%) and cooldown protection against QA penalties
+ * - Quality Assurance (QA) integration for stake penalties based on contribution quality
+ * - Weighted averaging when combining stakes to prevent lockup period gaming
+ * - Single stake per user design for simplified reputation calculations
+ *
+ * STAKING STATES:
+ * 1. LOCKED: Tokens in lockup period (cannot initiate unstaking)
+ * 2. UNLOCKED: Lockup completed, can initiate unstaking (moves to cooldown)
+ * 3. COOLDOWN: Unstaking initiated, waiting for cooldown period completion
+ * 4. READY: Cooldown completed, can execute final withdrawal
+ *
+ * REPUTATION SYSTEM:
+ * - Higher stake amounts and longer lockups result in higher reputation multipliers
+ * - Multipliers range from 1.05x (30 days) to 1.50x+ (365 days + high amounts)
+ * - QA system can reduce stakes for poor quality contributions
+ * - Reputation affects reward distribution and platform privileges
+ *
+ * SECURITY:
+ * - Cooldown periods prevent immediate unstaking to avoid QA penalty gaming
+ * - Weighted averaging prevents users from reducing effective lockup periods
+ * - Emergency functions for critical security situations
+ * - Role-based access control for administrative functions
+ */
 import {
     IERC20,
     SafeERC20,

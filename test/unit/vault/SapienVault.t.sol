@@ -2911,7 +2911,7 @@ contract SapienVaultBasicTest is Test {
         assertEq(sapienVault.getTotalStaked(user1), 0); // Penalty should have reduced stake to 0
     }
 
-    function test_Vault_RoleFunctions() public {
+    function test_Vault_RoleFunctions() public view {
         // Test PAUSER_ROLE function
         bytes32 pauserRole = sapienVault.PAUSER_ROLE();
         assertEq(pauserRole, Const.PAUSER_ROLE);

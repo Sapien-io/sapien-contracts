@@ -1,6 +1,34 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity 0.8.30;
 
+/**
+ * @file SapienRewards.sol
+ * @notice Sapien AI Rewards Distribution Contract
+ *
+ * @dev This contract enables secure reward distribution to contributors in the Sapien AI ecosystem.
+ *      Contributors earn rewards based on their participation and contributions to the platform.
+ *
+ * KEY FEATURES:
+ * - EIP-712 signature-based reward claims for security and off-chain validation
+ * - Order-based tracking system to prevent double claims and replay attacks
+ * - Role-based access control for administrators and reward managers
+ * - Deposit/withdrawal functionality for reward token management
+ * - Emergency pause functionality for security incidents
+ * - Balance reconciliation to handle direct token transfers
+ *
+ * WORKFLOW:
+ * 1. Reward administrators deposit reward tokens into the contract
+ * 2. Off-chain systems calculate contributor rewards based on participation
+ * 3. Authorized reward managers generate EIP-712 signatures for valid claims
+ * 4. Contributors use these signatures to claim their earned rewards
+ * 5. The contract validates signatures and transfers tokens to claimants
+ *
+ * SECURITY:
+ * - Multi-signature validation ensures only authorized rewards are distributed
+ * - Reentrancy protection prevents attack vectors during token transfers
+ * - Order ID tracking prevents replay attacks and double spending
+ * - Role separation limits access to critical functions
+ */
 import {
     ECDSA,
     IERC20,
