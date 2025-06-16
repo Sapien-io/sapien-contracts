@@ -105,8 +105,8 @@ contract MultiplierInvariant is StdInvariant, Test {
             lockup <= Const.LOCKUP_365_DAYS) {
             // Valid inputs should produce multipliers in expected range
             uint256 mult = Multiplier.calculateMultiplier(amount, lockup);
-            assertGe(mult, Const.MIN_MULTIPLIER, "Valid multiplier should be >= MIN_MULTIPLIER (1.05x)");
-            assertLe(mult, 19500, "Valid multiplier should be <= 19500 (1.95x max)"); // Max possible: 1.50x + 0.45x
+            assertGe(mult, Const.MIN_MULTIPLIER, "Valid multiplier should be >= MIN_MULTIPLIER (1.00x)");
+            assertLe(mult, 15000, "Valid multiplier should be <= 15000 (1.50x max)"); // New multiplicative model max
         } else {
             // Invalid inputs should revert - we can't test this directly with try/catch
             // since Multiplier.calculateMultiplier is an internal library function
@@ -143,20 +143,17 @@ contract MultiplierInvariant is StdInvariant, Test {
         
         // Test key tier boundaries (based on actual tier logic)
         // Tier 1 (1000-2499) vs Tier 2 (2500-4999): boundary is 2499 to 2500
-        uint256 mult2499 = Multiplier.calculateMultiplier(2499 * Const.TOKEN_DECIMALS, lockup);
+        uint256 mult2000 = Multiplier.calculateMultiplier(2000 * Const.TOKEN_DECIMALS, lockup);
+        uint256 mult2250 = Multiplier.calculateMultiplier(2250 * Const.TOKEN_DECIMALS, lockup);
         uint256 mult2500 = Multiplier.calculateMultiplier(2500 * Const.TOKEN_DECIMALS, lockup);
         
-        // Tier 2 (2500-4999) vs Tier 3 (5000-7499): boundary is 4999 to 5000  
-        uint256 mult4999 = Multiplier.calculateMultiplier(4999 * Const.TOKEN_DECIMALS, lockup);
-        uint256 mult5000 = Multiplier.calculateMultiplier(5000 * Const.TOKEN_DECIMALS, lockup);
-        
         // At tier boundaries, multiplier should increase
-        if (mult2499 > 0 && mult2500 > 0) {
-            assertLt(mult2499, mult2500, "Multiplier should increase when crossing from 2499 to 2500 tokens");
+        if (mult2000 > 0 && mult2250 > 0) {
+            assertLt(mult2000, mult2250, "Multiplier should increase when crossing from 2000 to 2250 tokens");
         }
         
-        if (mult4999 > 0 && mult5000 > 0) {
-            assertLt(mult4999, mult5000, "Multiplier should increase when crossing from 4999 to 5000 tokens");
+        if (mult2250 > 0 && mult2500 > 0) {
+            assertLt(mult2250, mult2500, "Multiplier should increase when crossing from 2250 to 2500 tokens");
         }
     }
 
@@ -188,8 +185,8 @@ contract MultiplierInvariant is StdInvariant, Test {
     }
 
     /**
-     * @notice Amount tier consistency invariant
-     * @dev Within the same tier, only duration should affect multiplier
+     * @notice Amount scaling consistency invariant
+     * @dev Higher amounts should always result in equal or higher multipliers (continuous scaling)
      */
     function invariant_TierConsistency() public view {
         uint256 lockup = handler.getCurrentLockup();
@@ -199,12 +196,12 @@ contract MultiplierInvariant is StdInvariant, Test {
             return;
         }
         
-        // Test two amounts in the same tier (e.g., 1200 and 1800 both in tier 1)
+        // Test continuous scaling: higher amounts should have higher or equal multipliers
         uint256 mult1200 = Multiplier.calculateMultiplier(1200 * Const.TOKEN_DECIMALS, lockup);
         uint256 mult1800 = Multiplier.calculateMultiplier(1800 * Const.TOKEN_DECIMALS, lockup);
         
         if (mult1200 > 0 && mult1800 > 0) {
-            assertEq(mult1200, mult1800, "Amounts in same tier should have same multiplier");
+            assertLe(mult1200, mult1800, "Higher amounts should have equal or higher multipliers (continuous scaling)");
         }
     }
 
@@ -218,8 +215,8 @@ contract MultiplierInvariant is StdInvariant, Test {
         
         uint256 maxMult = Multiplier.calculateMultiplier(maxAmount, maxLockup);
         
-        // Should be 1.95x (19500 basis points)
-        assertEq(maxMult, 19500, "Maximum multiplier should be 1.95x (19500 basis points)");
+        // Should be 1.50x (15000 basis points)
+        assertEq(maxMult, 15000, "Maximum multiplier should be 1.50x (15000 basis points)");
     }
 
     /**
@@ -232,8 +229,7 @@ contract MultiplierInvariant is StdInvariant, Test {
         
         uint256 minMult = Multiplier.calculateMultiplier(minAmount, minLockup);
         
-        // Should be 1.14x (11400 basis points) - 1000 tokens gets Tier 1 bonus (1.05x + 0.09x)
-        assertEq(minMult, 10500, "Minimum multiplier should be 1.05x (10500 basis points) with tier bonus");
+        assertEq(minMult, 10000, "Minimum multiplier should be 1.00x (10000 basis points) with tier bonus");
     }
 }
 

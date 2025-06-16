@@ -38,9 +38,9 @@ contract TenderlyVaultIntegrationTest is Test {
     // Test constants
     uint256 public constant USER_INITIAL_BALANCE = 1_000_000 * 1e18;
     uint256 public constant SMALL_STAKE = 5_000 * 1e18;
-    uint256 public constant MEDIUM_STAKE = 25_000 * 1e18;
-    uint256 public constant LARGE_STAKE = 100_000 * 1e18;
-    uint256 public constant MAX_STAKE = 1_000_000 * 1e18;
+    uint256 public constant MEDIUM_STAKE = 6_000 * 1e18; // 6K tokens (within 10K limit)
+    uint256 public constant LARGE_STAKE = 8_000 * 1e18; // 8K tokens (within 10K limit)
+    uint256 public constant MAX_STAKE = 10_000 * 1e18; // 10K tokens (max allowed)
     
     function setUp() public {
         // Setup fork to use Tenderly Base mainnet virtual testnet
@@ -233,7 +233,7 @@ contract TenderlyVaultIntegrationTest is Test {
         vm.warp(block.timestamp + 30 days);
         
         uint256 earlyUnstakeAmount = LARGE_STAKE / 3;
-        uint256 expectedPenalty = (earlyUnstakeAmount * Const.EARLY_WITHDRAWAL_PENALTY) / 100;
+        uint256 expectedPenalty = (earlyUnstakeAmount * Const.EARLY_WITHDRAWAL_PENALTY) / Const.BASIS_POINTS;
         uint256 expectedReturn = earlyUnstakeAmount - expectedPenalty;
         
         uint256 userBalanceBefore = sapienToken.balanceOf(emergencyUser);

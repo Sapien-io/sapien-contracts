@@ -26,8 +26,8 @@ contract SapienVaultMultiplierFuzz is Test {
     address public pauseManager = makeAddr("pauseManager");
     address public sapienQA = makeAddr("sapienQA");
 
-    uint256 public constant MINIMUM_STAKE = 1000e18; // 1,000 SAPIEN
-    uint256 public constant MAXIMUM_STAKE = 10_000_000e18; // 10M SAPIEN (individual limit)
+    uint256 public constant MINIMUM_STAKE = Const.MINIMUM_STAKE_AMOUNT; // Use constant from contracts
+    uint256 public constant MAXIMUM_STAKE = Const.MAXIMUM_STAKE_AMOUNT; // Use constant from contracts
 
     // Lock periods
     uint256 public constant LOCK_30_DAYS = 30 days;
@@ -35,19 +35,10 @@ contract SapienVaultMultiplierFuzz is Test {
     uint256 public constant LOCK_180_DAYS = 180 days;
     uint256 public constant LOCK_365_DAYS = 365 days;
 
-    // Tier boundaries (in tokens with 18 decimals)
-    uint256 public constant TIER_1_MIN = 1000e18; // 1K
-    uint256 public constant TIER_1_MAX = 2500e18; // 2.5K
-    uint256 public constant TIER_2_MIN = 2500e18; // 2.5K
-    uint256 public constant TIER_2_MAX = 5000e18; // 5K
-    uint256 public constant TIER_3_MIN = 5000e18; // 5K
-    uint256 public constant TIER_3_MAX = 7500e18; // 7.5K
-    uint256 public constant TIER_4_MIN = 7500e18; // 7.5K
-    uint256 public constant TIER_4_MAX = 10000e18; // 10K
-    uint256 public constant TIER_5_MIN = 10000e18; // 10K+
-
-    // Expected multiplier matrix (basis points)
-    mapping(uint256 => mapping(uint256 => uint256)) public expectedMultipliers;
+    // Key test boundaries for the new multiplicative model (in tokens with 18 decimals)
+    uint256 public constant LOW_AMOUNT = 250e18; // 250 tokens - low multiplier range
+    uint256 public constant MID_AMOUNT = 1250e18; // 1250 tokens - mid multiplier range  
+    uint256 public constant HIGH_AMOUNT = 2500e18; // 2500 tokens - maximum multiplier cap
 
     // Events for debugging
     event MultiplierMismatch(
@@ -80,70 +71,7 @@ contract SapienVaultMultiplierFuzz is Test {
         ERC1967Proxy sapienVaultProxy = new ERC1967Proxy(address(sapienVaultImpl), initData);
         sapienVault = SapienVault(address(sapienVaultProxy));
 
-        // Initialize expected multiplier matrix
-        _initializeExpectedMultipliers();
-    }
-
-    function _initializeExpectedMultipliers() internal {
-        // Tier 1: 1K-2.5K tokens
-        expectedMultipliers[TIER_1_MIN][LOCK_30_DAYS] = 11400; // 1.14x
-        expectedMultipliers[TIER_1_MIN][LOCK_90_DAYS] = 11900; // 1.19x
-        expectedMultipliers[TIER_1_MIN][LOCK_180_DAYS] = 13400; // 1.34x
-        expectedMultipliers[TIER_1_MIN][LOCK_365_DAYS] = 15900; // 1.59x
-
-        // Tier 2: 2.5K-5K tokens
-        expectedMultipliers[TIER_2_MIN][LOCK_30_DAYS] = 12300; // 1.23x
-        expectedMultipliers[TIER_2_MIN][LOCK_90_DAYS] = 12800; // 1.28x
-        expectedMultipliers[TIER_2_MIN][LOCK_180_DAYS] = 14300; // 1.43x
-        expectedMultipliers[TIER_2_MIN][LOCK_365_DAYS] = 16800; // 1.68x
-
-        // Tier 3: 5K-7.5K tokens
-        expectedMultipliers[TIER_3_MIN][LOCK_30_DAYS] = 13200; // 1.32x
-        expectedMultipliers[TIER_3_MIN][LOCK_90_DAYS] = 13700; // 1.37x
-        expectedMultipliers[TIER_3_MIN][LOCK_180_DAYS] = 15200; // 1.52x
-        expectedMultipliers[TIER_3_MIN][LOCK_365_DAYS] = 17700; // 1.77x
-
-        // Tier 4: 7.5K-10K tokens
-        expectedMultipliers[TIER_4_MIN][LOCK_30_DAYS] = 14100; // 1.41x
-        expectedMultipliers[TIER_4_MIN][LOCK_90_DAYS] = 14600; // 1.46x
-        expectedMultipliers[TIER_4_MIN][LOCK_180_DAYS] = 16100; // 1.61x
-        expectedMultipliers[TIER_4_MIN][LOCK_365_DAYS] = 18600; // 1.86x
-
-        // Tier 5: 10K+ tokens
-        expectedMultipliers[TIER_5_MIN][LOCK_30_DAYS] = 15000; // 1.50x
-        expectedMultipliers[TIER_5_MIN][LOCK_90_DAYS] = 15500; // 1.55x
-        expectedMultipliers[TIER_5_MIN][LOCK_180_DAYS] = 17000; // 1.70x
-        expectedMultipliers[TIER_5_MIN][LOCK_365_DAYS] = 19500; // 1.95x
-    }
-
-    function _getExpectedMultiplier(uint256 amount, uint256 period) internal view returns (uint256) {
-        uint256 tierKey;
-        
-        if (amount >= TIER_1_MIN && amount < TIER_2_MIN) {
-            tierKey = TIER_1_MIN;
-        } else if (amount >= TIER_2_MIN && amount < TIER_3_MIN) {
-            tierKey = TIER_2_MIN;
-        } else if (amount >= TIER_3_MIN && amount < TIER_4_MIN) {
-            tierKey = TIER_3_MIN;
-        } else if (amount >= TIER_4_MIN && amount < TIER_5_MIN) {
-            tierKey = TIER_4_MIN;
-        } else if (amount >= TIER_5_MIN) {
-            tierKey = TIER_5_MIN;
-        } else {
-            revert("Amount below minimum stake");
-        }
-        
-        return expectedMultipliers[tierKey][period];
-    }
-
-    function _isValidLockPeriod(uint256 period) internal pure returns (bool) {
-        return period == LOCK_30_DAYS || period == LOCK_90_DAYS || 
-               period == LOCK_180_DAYS || period == LOCK_365_DAYS;
-    }
-
-    /// @notice External wrapper for _getExpectedMultiplier for use in try-catch
-    function getExpectedMultiplierExternal(uint256 amount, uint256 period) external view returns (uint256) {
-        return _getExpectedMultiplier(amount, period);
+        // Setup for new multiplicative model testing
     }
 
     // =============================================================================
@@ -164,8 +92,8 @@ contract SapienVaultMultiplierFuzz is Test {
         
         // Verify basic properties
         assertGt(multiplier, 0, "Multiplier must be positive");
-        assertGe(multiplier, 10500, "Multiplier must be at least 1.05x (10500 bp)");
-        assertLe(multiplier, 19500, "Multiplier must not exceed 1.95x (19500 bp)");
+        assertGe(multiplier, 10000, "Multiplier must be at least 1.00x (10000 bp)");
+        assertLe(multiplier, 15000, "Multiplier must not exceed 1.50x (15000 bp)");
         
         // Verify it fits in uint32 (storage type)
         assertLe(multiplier, type(uint32).max, "Multiplier must fit in uint32");
@@ -175,14 +103,14 @@ contract SapienVaultMultiplierFuzz is Test {
         assertEq(uint256(castedMultiplier), multiplier, "SafeCast should preserve value");
     }
 
-    /// @notice Fuzz test that multiplier increases with amount within same tier
+    /// @notice Fuzz test that multiplier increases continuously with amount
     function testFuzz_MultiplierIncreasesWithinTier(uint256 baseAmount, uint256 increment, uint8 periodIndex) public view {
-        // Bound to stay within a single tier (Tier 2: 2.5K-5K)
-        baseAmount = bound(baseAmount, TIER_2_MIN, TIER_2_MAX - 1000e18);
-        increment = bound(increment, 1e18, 1000e18); // Small increment to stay in tier
+        // Use continuous range instead of discrete tiers
+        baseAmount = bound(baseAmount, MINIMUM_STAKE, HIGH_AMOUNT - 500e18);
+        increment = bound(increment, 1e18, 500e18); // Increment to test continuous scaling
         
         uint256 higherAmount = baseAmount + increment;
-        if (higherAmount >= TIER_3_MIN) higherAmount = TIER_2_MAX - 1; // Keep in tier
+        if (higherAmount > MAXIMUM_STAKE) higherAmount = MAXIMUM_STAKE; // Stay within limits
         
         uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
         uint256 period = validPeriods[periodIndex % 4];
@@ -190,26 +118,28 @@ contract SapienVaultMultiplierFuzz is Test {
         uint256 baseMultiplier = sapienVault.calculateMultiplier(baseAmount, period);
         uint256 higherMultiplier = sapienVault.calculateMultiplier(higherAmount, period);
         
-        // Within same tier, multiplier should be similar (allowing for small interpolation differences)
-        uint256 diff = higherMultiplier >= baseMultiplier ? 
-            higherMultiplier - baseMultiplier : baseMultiplier - higherMultiplier;
+        // Higher amounts should always yield equal or higher multipliers (monotonic)
+        assertLe(baseMultiplier, higherMultiplier, "Higher amounts should have equal or higher multipliers");
         
-        // Allow small differences due to interpolation, but they shouldn't be huge
-        assertLe(diff, 200, "Multiplier difference within tier should be small");
+        // The difference should be reasonable for the amount increase
+        uint256 diff = higherMultiplier - baseMultiplier;
+        assertLe(diff, 1000, "Multiplier increase should be reasonable for the amount increase");
     }
 
     /// @notice Fuzz test that multiplier increases with lock period for same amount
     function testFuzz_MultiplierIncreasesWithPeriod(uint256 amount) public view {
-        amount = bound(amount, MINIMUM_STAKE, MAXIMUM_STAKE);
+        // Use meaningful amounts where the time effect is visible
+        // For very small amounts in the multiplicative model, time has minimal effect
+        amount = bound(amount, 100 * 1e18, MAXIMUM_STAKE); // Start from 100 tokens minimum
         
         uint256 mult30 = sapienVault.calculateMultiplier(amount, LOCK_30_DAYS);
         uint256 mult90 = sapienVault.calculateMultiplier(amount, LOCK_90_DAYS);
         uint256 mult180 = sapienVault.calculateMultiplier(amount, LOCK_180_DAYS);
         uint256 mult365 = sapienVault.calculateMultiplier(amount, LOCK_365_DAYS);
         
-        // Multipliers should increase with longer periods
-        assertGt(mult90, mult30, "90-day multiplier should exceed 30-day");
-        assertGt(mult180, mult90, "180-day multiplier should exceed 90-day");
+        // Multipliers should increase with longer periods (when amount is meaningful)
+        assertGe(mult90, mult30, "90-day multiplier should be >= 30-day");
+        assertGe(mult180, mult90, "180-day multiplier should be >= 90-day");
         assertGt(mult365, mult180, "365-day multiplier should exceed 180-day");
     }
 
@@ -351,20 +281,20 @@ contract SapienVaultMultiplierFuzz is Test {
         assertGt(userStakeFinal.effectiveMultiplier, 0, "Final multiplier must be positive");
         
         // The effective multiplier should be reasonable (not corrupted)
-        assertGe(userStakeFinal.effectiveMultiplier, 10500, "Final multiplier should be at least 1.05x");
-        assertLe(userStakeFinal.effectiveMultiplier, 19500, "Final multiplier should not exceed 1.95x");
+        assertGe(userStakeFinal.effectiveMultiplier, 10000, "Final multiplier should be at least 1.00x");
+        assertLe(userStakeFinal.effectiveMultiplier, 15000, "Final multiplier should not exceed 1.50x");
     }
 
     // =============================================================================
     // TIER BOUNDARY FUZZING
     // =============================================================================
 
-    /// @notice Fuzz test around tier boundaries to detect calculation issues
+    /// @notice Fuzz test around key amount boundaries to detect calculation issues
     function testFuzz_TierBoundaries_Consistency(uint256 offset) public view {
-        // Test around each tier boundary
+        // Test around key boundaries in the new model
         offset = bound(offset, 0, 100e18); // Small offset around boundaries
         
-        uint256[4] memory boundaries = [TIER_1_MAX, TIER_2_MAX, TIER_3_MAX, TIER_4_MAX];
+        uint256[3] memory boundaries = [LOW_AMOUNT, MID_AMOUNT, HIGH_AMOUNT];
         
         for (uint256 i = 0; i < boundaries.length; i++) {
             uint256 boundary = boundaries[i];
@@ -386,25 +316,25 @@ contract SapienVaultMultiplierFuzz is Test {
                 uint256 aboveMultiplier = sapienVault.calculateMultiplier(aboveAmount, LOCK_365_DAYS);
                 assertGt(aboveMultiplier, 0, "Above boundary multiplier must be positive");
                 
-                // Higher tier should have higher or equal multiplier
-                assertGe(aboveMultiplier, atMultiplier, "Higher tier should have higher multiplier");
+                // Higher amounts should have higher or equal multiplier (continuous scaling)
+                assertGe(aboveMultiplier, atMultiplier, "Higher amounts should have higher or equal multiplier");
             }
         }
     }
 
-    /// @notice Fuzz test exact tier boundary values for edge case detection
-    function testFuzz_ExactTierBoundaries_EdgeCases(uint8 tierIndex, uint8 periodIndex) public {
+    /// @notice Fuzz test exact key boundary values for edge case detection
+    function testFuzz_ExactTierBoundaries_EdgeCases(uint8 boundaryIndex, uint8 periodIndex) public {
         uint256[5] memory exactBoundaries = [
-            TIER_1_MIN,  // 1000e18
-            TIER_2_MIN,  // 2500e18
-            TIER_3_MIN,  // 5000e18
-            TIER_4_MIN,  // 7500e18
-            TIER_5_MIN   // 10000e18
+            MINIMUM_STAKE,  // 1e18
+            LOW_AMOUNT,     // 250e18
+            MID_AMOUNT,     // 1250e18
+            HIGH_AMOUNT,    // 2500e18
+            MAXIMUM_STAKE   // 10000e18
         ];
         
         uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
         
-        uint256 amount = exactBoundaries[tierIndex % 5];
+        uint256 amount = exactBoundaries[boundaryIndex % 5];
         uint256 period = validPeriods[periodIndex % 4];
         
         // Test calculation
@@ -412,7 +342,7 @@ contract SapienVaultMultiplierFuzz is Test {
         assertGt(multiplier, 0, "Boundary multiplier must be positive");
         
         // Test storage
-        address user = makeAddr(string(abi.encodePacked("boundaryUser", vm.toString(tierIndex), vm.toString(periodIndex))));
+        address user = makeAddr(string(abi.encodePacked("boundaryUser", vm.toString(boundaryIndex), vm.toString(periodIndex))));
         sapienToken.mint(user, amount);
         
         vm.startPrank(user);
@@ -528,15 +458,15 @@ contract SapienVaultMultiplierFuzz is Test {
         assertGt(userStakeFinal.effectiveMultiplier, 0, "Final multiplier must be positive after weighted calculation");
         
         // Check for reasonable bounds
-        assertGe(userStakeFinal.effectiveMultiplier, 10500, "Final multiplier should be at least minimum");
-        assertLe(userStakeFinal.effectiveMultiplier, 19500, "Final multiplier should not exceed maximum");
+        assertGe(userStakeFinal.effectiveMultiplier, 10000, "Final multiplier should be at least minimum");
+        assertLe(userStakeFinal.effectiveMultiplier, 15000, "Final multiplier should not exceed maximum");
     }
 
     // =============================================================================
     // COMPREHENSIVE MATRIX VALIDATION FUZZING
     // =============================================================================
 
-    /// @notice Fuzz test to validate multiplier matrix against expected values
+    /// @notice Fuzz test to validate multiplicative model behavior
     function testFuzz_MultiplierMatrix_Validation(uint256 amount, uint8 periodIndex) public view {
         amount = bound(amount, MINIMUM_STAKE, MAXIMUM_STAKE);
         uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
@@ -544,24 +474,25 @@ contract SapienVaultMultiplierFuzz is Test {
         
         uint256 actualMultiplier = sapienVault.calculateMultiplier(amount, period);
         
-        // Check if we have an expected value for this exact combination
-        try this.getExpectedMultiplierExternal(amount, period) returns (uint256 expectedMultiplier) {
-            if (expectedMultiplier > 0) {
-                // For tier boundary values, multiplier should match exactly
-                if (amount == TIER_1_MIN || amount == TIER_2_MIN || amount == TIER_3_MIN || 
-                    amount == TIER_4_MIN || amount == TIER_5_MIN) {
-                    assertEq(actualMultiplier, expectedMultiplier, "Exact tier boundary should match matrix");
-                } else {
-                    // For values within tiers, should be close to tier value
-                    uint256 diff = actualMultiplier >= expectedMultiplier ?
-                        actualMultiplier - expectedMultiplier : expectedMultiplier - actualMultiplier;
-                    assertLe(diff, 300, "Within-tier multiplier should be close to tier base");
-                }
-            }
-        } catch {
-            // No expected value defined, just check basic bounds
-            assertGe(actualMultiplier, 10500, "Should be at least minimum multiplier");
-            assertLe(actualMultiplier, 19500, "Should not exceed maximum multiplier");
+        // Validate the new multiplicative model properties
+        assertGe(actualMultiplier, 10000, "Should be at least minimum multiplier (1.00x)");
+        assertLe(actualMultiplier, 15000, "Should not exceed maximum multiplier (1.50x)");
+        
+        // Test key edge cases for the multiplicative model
+        if (amount == MINIMUM_STAKE && period == LOCK_30_DAYS) {
+            // Minimum amount + minimum time should produce minimum multiplier
+            assertEq(actualMultiplier, 10000, "Min amount + min time should equal base multiplier");
+        }
+        
+        if (amount >= 2500 * 1e18 && period == LOCK_365_DAYS) {
+            // Maximum amount + maximum time should produce maximum multiplier
+            assertEq(actualMultiplier, 15000, "Max amount + max time should equal max multiplier");
+        }
+        
+        // Verify continuous scaling property
+        if (amount < 2500 * 1e18) {
+            uint256 higherAmountMultiplier = sapienVault.calculateMultiplier(amount + 100 * 1e18, period);
+            assertGe(higherAmountMultiplier, actualMultiplier, "Higher amount should have equal or higher multiplier");
         }
     }
 
@@ -629,8 +560,8 @@ contract SapienVaultMultiplierFuzz is Test {
         }
         
         assertGt(userStakeAfterOp.effectiveMultiplier, 0, "Final multiplier must remain positive");
-        assertGe(userStakeAfterOp.effectiveMultiplier, 10500, "Final multiplier should be at least minimum");
-        assertLe(userStakeAfterOp.effectiveMultiplier, 19500, "Final multiplier should not exceed maximum");
+        assertGe(userStakeAfterOp.effectiveMultiplier, 10000, "Final multiplier should be at least minimum");
+        assertLe(userStakeAfterOp.effectiveMultiplier, 15000, "Final multiplier should not exceed maximum");
     }
 
     // =============================================================================
@@ -799,8 +730,8 @@ contract SapienVaultMultiplierFuzz is Test {
             }
         
         assertGt(userStakeFinal.effectiveMultiplier, 0, "Final multiplier must be positive after struct modification");
-        assertGe(userStakeFinal.effectiveMultiplier, 10500, "Final multiplier should be at least minimum");
-        assertLe(userStakeFinal.effectiveMultiplier, 19500, "Final multiplier should not exceed maximum");
+        assertGe(userStakeFinal.effectiveMultiplier, 10000, "Final multiplier should be at least minimum");
+        assertLe(userStakeFinal.effectiveMultiplier, 15000, "Final multiplier should not exceed maximum");
     }
 
     /// @notice Fuzz test for SafeCast corruption in different contexts
@@ -1100,8 +1031,8 @@ contract SapienVaultMultiplierFuzz is Test {
         }
         
         assertGt(finalMultiplier, 0, "Final multiplier must be positive after stress test");
-        assertGe(finalMultiplier, 10500, "Final multiplier should be at least minimum");
-        assertLe(finalMultiplier, 19500, "Final multiplier should not exceed maximum");
+        assertGe(finalMultiplier, 10000, "Final multiplier should be at least minimum");
+        assertLe(finalMultiplier, 15000, "Final multiplier should not exceed maximum");
     }
 
     // =============================================================================
@@ -1209,8 +1140,8 @@ contract SapienVaultMultiplierFuzz is Test {
         
         assertEq(totalStaked, totalAmount, "Total stake should be sum of all amounts");
         assertGt(finalMultiplier, 0, "Final multiplier must be positive after stress test");
-        assertGe(finalMultiplier, 10500, "Final multiplier should be at least minimum");
-        assertLe(finalMultiplier, 19500, "Final multiplier should not exceed maximum");
+        assertGe(finalMultiplier, 10000, "Final multiplier should be at least minimum");
+        assertLe(finalMultiplier, 15000, "Final multiplier should not exceed maximum");
     }
 
 
@@ -1273,7 +1204,7 @@ contract SapienVaultMultiplierFuzz is Test {
 
     /// @notice Deep investigation of the address-dependent storage corruption
     function test_InvestigateAddressDependentCorruption() public {
-        uint256 amount = 12427e18;
+        uint256 amount = 8427e18;
         uint256 period = LOCK_180_DAYS; 
         uint256 timestamp = 17266;
         

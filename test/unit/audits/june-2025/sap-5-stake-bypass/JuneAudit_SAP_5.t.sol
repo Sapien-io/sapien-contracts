@@ -32,7 +32,7 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
     // Test parameters
     uint256 public constant INITIAL_BALANCE = 10_000_000 * 10 ** 18; // 10M tokens
     uint256 public constant MINIMUM_STAKE = 1000 * 10 ** 18; // 1K tokens
-    uint256 public constant LARGE_STAKE = 100_000 * 10 ** 18; // 100K tokens
+    uint256 public constant LARGE_STAKE = 9_000 * 10 ** 18; // 9K tokens (within 10K limit)
     uint256 public constant SMALL_STAKE = 5_000 * 10 ** 18; // 5K tokens
 
     // Lockup periods

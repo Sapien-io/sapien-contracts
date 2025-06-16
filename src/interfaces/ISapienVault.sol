@@ -59,6 +59,7 @@ interface ISapienVault {
     event QAStakeReduced(address indexed user, uint256 fromActiveStake, uint256 fromCooldownStake);
     event QACooldownAdjusted(address indexed user, uint256 adjustedAmount);
     event QAUserStakeReset(address indexed user);
+    event MaximumStakeAmountUpdated(uint256 oldMaximumStakeAmount, uint256 newMaximumStakeAmount);
 
     // -------------------------------------------------------------
     // Errors
@@ -102,6 +103,7 @@ interface ISapienVault {
     function pause() external;
     function unpause() external;
     function setTreasury(address newTreasury) external;
+    function setMaximumStakeAmount(uint256 newMaximumStakeAmount) external;
 
     // -------------------------------------------------------------
     // Staking Functions
@@ -120,6 +122,7 @@ interface ISapienVault {
     // -------------------------------------------------------------
 
     function totalStaked() external view returns (uint256);
+    function maximumStakeAmount() external view returns (uint256);
     function getTotalStaked(address user) external view returns (uint256);
     function getTotalUnlocked(address user) external view returns (uint256);
     function getTotalLocked(address user) external view returns (uint256);

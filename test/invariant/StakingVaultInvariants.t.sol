@@ -469,11 +469,11 @@ contract SapienVaultInvariantsTest is StdInvariant, Test {
     // BUSINESS LOGIC INVARIANTS
     // =============================================================================
     
-    /// @dev Early unstake penalty should always be 20%
+    /// @dev Early unstake penalty should always be 20% (2000 basis points)
     function invariant_EarlyUnstakePenalty() public pure {
         // This is tested implicitly through the handler tracking
-        // The penalty calculation is: penalty = amount * EARLY_WITHDRAWAL_PENALTY / 100
-        assertEq(Const.EARLY_WITHDRAWAL_PENALTY, 20, "Penalty rate should be constant at 20%");
+        // The penalty calculation is: penalty = amount * EARLY_WITHDRAWAL_PENALTY / BASIS_POINTS
+        assertEq(Const.EARLY_WITHDRAWAL_PENALTY, 2000, "Penalty rate should be constant at 2000 basis points (20%)");
     }
     
     /// @dev Stakes should only be unlocked after lock period
@@ -555,11 +555,11 @@ contract SapienVaultInvariantsTest is StdInvariant, Test {
                         "Multiplier should be in valid range (1.0x - 2.0x) for new system"
                     );
                     
-                    // Minimum multiplier for any valid lockup should be at least 1.05x
+                    // Minimum multiplier for any valid lockup should be at least 1.00x
                     if (effectiveLockUpPeriod >= Const.LOCKUP_30_DAYS) {
                         assertTrue(
-                            effectiveMultiplier >= 10500,
-                            "Multiplier should be at least 1.05x for valid lockup periods"
+                            effectiveMultiplier >= 10000,
+                            "Multiplier should be at least 1.00x for valid lockup periods"
                         );
                     }
                 }

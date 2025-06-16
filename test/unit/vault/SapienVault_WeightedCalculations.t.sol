@@ -215,8 +215,8 @@ contract SapienVaultWeightedCalculationsTest is Test {
     // =============================================================================
 
     function test_Vault_EdgeCase_VeryLargeAmounts() public {
-        // Test with large amounts near the limit
-        uint256 largeStake = 1_000_000 * 1e18; // 1M tokens
+        // Test with large amounts but within the maximum limit (MAX_TOKENS = 2500)
+        uint256 largeStake = 1250 * 1e18; // 1250 tokens (half of max)
 
         // Mint additional tokens for this test
         sapienToken.mint(user1, largeStake * 2);
@@ -226,7 +226,7 @@ contract SapienVaultWeightedCalculationsTest is Test {
         sapienVault.stake(largeStake, LOCK_180_DAYS);
         vm.stopPrank();
 
-        // Add another large stake
+        // Add another large stake (total will be 2500, exactly at max)
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), largeStake);
         sapienVault.stake(largeStake, LOCK_365_DAYS);
@@ -234,7 +234,7 @@ contract SapienVaultWeightedCalculationsTest is Test {
 
         // Should complete without overflow
         ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
-        assertEq(userStake.userTotalStaked, largeStake * 2, "Should handle large amounts");
+        assertEq(userStake.userTotalStaked, largeStake * 2, "Should handle large amounts within limit");
         assertGt(userStake.effectiveLockUpPeriod, LOCK_180_DAYS, "Should calculate weighted lockup correctly");
     }
 

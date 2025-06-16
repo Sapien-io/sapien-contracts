@@ -222,15 +222,16 @@ update_typescript_contracts() {
     # Extract all addresses from deployment logs
     local token_addr=$(grep "SapienToken deployed at:" /tmp/DeployToken_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
     local timelock_addr=$(grep "Timelock deployed at:" /tmp/DeployTimelock_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
-    local qa_addr=$(grep "SapienQA deployed at:" /tmp/DeployQA_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
+    local qa_impl_addr=$(grep "SapienQA implementation deployed at:" /tmp/DeployQA_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
+    local qa_proxy_addr=$(grep "SapienQA proxy deployed at:" /tmp/DeployQA_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
     
     # Extract rewards addresses (both implementation and proxy)
     local rewards_impl_addr=$(grep "SapienRewards deployed at:" /tmp/DeployRewards_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
-    local rewards_proxy_addr=$(grep "Rewards Proxy deployed at:" /tmp/DeployRewards_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
+    local rewards_proxy_addr=$(grep "Rewards proxy deployed at:" /tmp/DeployRewards_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
     
     # Extract vault addresses (both implementation and proxy)
     local vault_impl_addr=$(grep "SapienVault implementation deployed at:" /tmp/DeployVault_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
-    local vault_proxy_addr=$(grep "Vault Proxy deployed at:" /tmp/DeployVault_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
+    local vault_proxy_addr=$(grep "Vault proxy deployed at:" /tmp/DeployVault_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
     
     # Backup the current contracts.ts
     cp deployments/contracts.ts deployments/contracts.ts.backup
@@ -238,7 +239,8 @@ update_typescript_contracts() {
     # Update the LOCAL addresses in contracts.ts using sed
     sed -i.tmp "s/const LOCAL_SAPAIEN_TOKEN = \"0x[0-9a-fA-F]\{40\}\";/const LOCAL_SAPAIEN_TOKEN = \"$token_addr\";/g" deployments/contracts.ts
     sed -i.tmp "s/const LOCAL_TIMELOCK = \"0x[0-9a-fA-F]\{40\}\";/const LOCAL_TIMELOCK = \"$timelock_addr\";/g" deployments/contracts.ts
-    sed -i.tmp "s/const LOCAL_SAPIEN_QA = \"0x[0-9a-fA-F]\{40\}\";/const LOCAL_SAPIEN_QA = \"$qa_addr\";/g" deployments/contracts.ts
+    sed -i.tmp "s/const LOCAL_SAPIEN_QA = \"0x[0-9a-fA-F]\{40\}\";/const LOCAL_SAPIEN_QA = \"$qa_impl_addr\";/g" deployments/contracts.ts
+    sed -i.tmp "s/const LOCAL_SAPIEN_QA_PROXY = \"0x[0-9a-fA-F]\{40\}\";/const LOCAL_SAPIEN_QA_PROXY = \"$qa_proxy_addr\";/g" deployments/contracts.ts
     sed -i.tmp "s/const LOCAL_SAPIEN_REWARDS = \"0x[0-9a-fA-F]\{40\}\";/const LOCAL_SAPIEN_REWARDS = \"$rewards_impl_addr\";/g" deployments/contracts.ts
     sed -i.tmp "s/const LOCAL_SAPIEN_REWARDS_PROXY = \"0x[0-9a-fA-F]\{40\}\";/const LOCAL_SAPIEN_REWARDS_PROXY = \"$rewards_proxy_addr\";/g" deployments/contracts.ts
     sed -i.tmp "s/const LOCAL_SAPIEN_VAULT = \"0x[0-9a-fA-F]\{40\}\";/const LOCAL_SAPIEN_VAULT = \"$vault_impl_addr\";/g" deployments/contracts.ts
@@ -254,7 +256,8 @@ update_typescript_contracts() {
     print_status "Updated LOCAL addresses in contracts.ts:"
     echo "  LOCAL_SAPAIEN_TOKEN: $token_addr"
     echo "  LOCAL_TIMELOCK: $timelock_addr"
-    echo "  LOCAL_SAPIEN_QA: $qa_addr"
+    echo "  LOCAL_SAPIEN_QA: $qa_impl_addr"
+    echo "  LOCAL_SAPIEN_QA_PROXY: $qa_proxy_addr"
     echo "  LOCAL_SAPIEN_REWARDS: $rewards_impl_addr"
     echo "  LOCAL_SAPIEN_REWARDS_PROXY: $rewards_proxy_addr"
     echo "  LOCAL_SAPIEN_VAULT: $vault_impl_addr"
@@ -268,16 +271,22 @@ update_local_contract_addresses() {
     # Extract specific addresses
     local token_addr=$(grep "SapienToken deployed at:" /tmp/DeployToken_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
     local timelock_addr=$(grep "Timelock deployed at:" /tmp/DeployTimelock_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
-    local qa_addr=$(grep "SapienQA deployed at:" /tmp/DeployQA_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
-    local rewards_addr=$(grep "Rewards Proxy deployed at:" /tmp/DeployRewards_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
-    local vault_addr=$(grep "Vault Proxy deployed at:" /tmp/DeployVault_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
-    
+    local qa_impl_addr=$(grep "SapienQA implementation deployed at:" /tmp/DeployQA_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
+    local qa_proxy_addr=$(grep "SapienQA proxy deployed at:" /tmp/DeployQA_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
+    local rewards_addr=$(grep "SapienRewards deployed at:" /tmp/DeployRewards_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
+    local rewards_proxy_addr=$(grep "Rewards proxy deployed at:" /tmp/DeployRewards_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
+    local vault_impl_addr=$(grep "Vault proxy deployed at:" /tmp/DeployVault_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
+    local vault_proxy_addr=$(grep "Vault proxy deployed at:" /tmp/DeployVault_deploy.log 2>/dev/null | awk '{print $NF}' | tr -d '\n\r')
+
     # Show what was updated
     echo "  SAPIEN_TOKEN: $token_addr"
     echo "  TIMELOCK: $timelock_addr"
-    echo "  SAPIEN_QA: $qa_addr"
+    echo "  SAPIEN_QA: $qa_impl_addr"
+    echo "  SAPIEN_QA_PROXY: $qa_proxy_addr"
     echo "  SAPIEN_REWARDS: $rewards_addr"
-    echo "  SAPIEN_VAULT: $vault_addr"
+    echo "  SAPIEN_REWARDS_PROXY: $rewards_proxy_addr"
+    echo "  SAPIEN_VAULT: $vault_impl_addr"
+    echo "  SAPIEN_VAULT_PROXY: $vault_proxy_addr"
 }
 
 # Function to create deployment summary

@@ -70,6 +70,9 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     /// @notice Mapping of user addresses to their aggregated stake data.
     mapping(address => UserStake) public userStakes;
 
+    /// @notice Maximum amount that can be staked in a single operation (configurable)
+    uint256 public maximumStakeAmount;
+
     // -------------------------------------------------------------
     // Constructor
     // -------------------------------------------------------------
@@ -116,6 +119,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         sapienToken = IERC20(token);
         treasury = newTreasury;
+        maximumStakeAmount = Const.MAXIMUM_STAKE_AMOUNT; // Start at maximum from constants
     }
 
     // -------------------------------------------------------------
@@ -188,6 +192,20 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         treasury = newTreasury;
         emit SapienTreasuryUpdated(newTreasury);
+    }
+
+    /**
+     * @notice Updates the maximum stake amount for individual staking operations.
+     * @param newMaximumStakeAmount The new maximum stake amount.
+     */
+    function setMaximumStakeAmount(uint256 newMaximumStakeAmount) external onlyAdmin {
+        if (newMaximumStakeAmount == 0) {
+            revert InvalidAmount();
+        }
+
+        uint256 oldMaximumStakeAmount = maximumStakeAmount;
+        maximumStakeAmount = newMaximumStakeAmount;
+        emit MaximumStakeAmountUpdated(oldMaximumStakeAmount, newMaximumStakeAmount);
     }
 
     /**
@@ -314,7 +332,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      *
      * BUSINESS CONTEXT:
      * - Multipliers incentivize longer commitments and larger stakes
-     * - They create a dynamic system where early adopters and committed stakers get higher rewards
      * - The system balances individual commitment (amount + lockup)
      *
      * MULTIPLIER FACTORS:
@@ -702,7 +719,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             revert EarlyUnstakeCooldownRequired();
         }
 
-        uint256 penalty = (amount * Const.EARLY_WITHDRAWAL_PENALTY) / 100;
+        uint256 penalty = (amount * Const.EARLY_WITHDRAWAL_PENALTY) / Const.BASIS_POINTS;
 
         uint256 payout = amount - penalty;
 
@@ -729,12 +746,12 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param amount The amount to stake
      * @param lockUpPeriod The lockup period
      */
-    function _validateStakeInputs(uint256 amount, uint256 lockUpPeriod) private pure {
+    function _validateStakeInputs(uint256 amount, uint256 lockUpPeriod) private view {
         if (amount < Const.MINIMUM_STAKE_AMOUNT) {
             revert MinimumStakeAmountRequired();
         }
 
-        if (amount > Const.MAXIMUM_STAKE_AMOUNT) {
+        if (amount > maximumStakeAmount) {
             revert StakeAmountTooLarge();
         }
 
@@ -934,13 +951,13 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @notice Validates amount for increase operations
      * @param additionalAmount The amount to validate
      */
-    function _validateIncreaseAmount(uint256 additionalAmount) private pure {
+    function _validateIncreaseAmount(uint256 additionalAmount) private view {
         if (additionalAmount == 0) {
             revert InvalidAmount();
         }
 
         // Prevent potential DOS attacks with extremely large stakes
-        if (additionalAmount > Const.MAXIMUM_STAKE_AMOUNT) {
+        if (additionalAmount > maximumStakeAmount) {
             revert StakeAmountTooLarge();
         }
     }

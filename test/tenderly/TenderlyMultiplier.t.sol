@@ -32,7 +32,7 @@ contract TenderlyMultiplierIntegrationTest is Test {
     
     // Expected multipliers for validation (adjusted to match actual system behavior)
     uint256 public constant BASE_MULTIPLIER = 10000;    // 1.0x
-    uint256 public constant MIN_MULTIPLIER = 10500;     // 1.05x
+    uint256 public constant MIN_MULTIPLIER = 10000;     // 1.00x
     uint256 public constant LOW_MID_MULTIPLIER = 12000; // 1.20x
     uint256 public constant MID_MULTIPLIER = 13000;     // 1.30x
     uint256 public constant HIGH_MULTIPLIER = 14000;    // 1.40x

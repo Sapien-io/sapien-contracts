@@ -20,7 +20,7 @@ contract JuneAudit_SAP_3 is Test {
     MockERC20 public sapienToken;
 
     uint256 public constant STAKE_AMOUNT = 1000 * 1e18;
-    uint256 public constant EARLY_WITHDRAWAL_PENALTY_RATE = 20; // 20%
+    uint256 public constant EARLY_WITHDRAWAL_PENALTY_RATE = 2000; // 20% in basis points
 
     address public admin = makeAddr("admin");
     address public treasury = makeAddr("treasury");
@@ -160,7 +160,7 @@ contract JuneAudit_SAP_3 is Test {
         vm.warp(block.timestamp - Const.LOCKUP_30_DAYS - 1);
 
         uint256 earlyUnstakeAmount = STAKE_AMOUNT / 2; // 500 tokens
-        uint256 expectedEarlyPenalty = (earlyUnstakeAmount * EARLY_WITHDRAWAL_PENALTY_RATE) / 100; // 100 tokens
+        uint256 expectedEarlyPenalty = (earlyUnstakeAmount * EARLY_WITHDRAWAL_PENALTY_RATE) / 10000; // 100 tokens
         uint256 expectedPayout = earlyUnstakeAmount - expectedEarlyPenalty; // 400 tokens
 
         // User initiates early unstake cooldown

@@ -29,6 +29,7 @@ Comprehensive technical specifications for each smart contract:
 - **[SapienRewards](notes/SapienRewards.md)** - Off-chain signed reward claims and distribution mechanisms
 - **[Multiplier](notes/Multiplier.md)** - Reward calculation algorithms and multiplier mechanics
 - **[SAPIEN Whitepaper](notes/whitepaper.md)** - Complete tokenomics and protocol design specification
+- **[Multiplier Paper](notes/multiplier.pdf)** - Paper on the multiplier math
 
 ---
 

@@ -22,6 +22,9 @@ library Constants {
     /// @notice Token decimals (18 for most ERC20 tokens)
     uint256 internal constant TOKEN_DECIMALS = 10 ** 18;
 
+    /// @notice Token precision (1e18)
+    uint256 internal constant WAD = 1e18;
+
     /// @notice Total token supply (1 billion SAPIEN tokens with 18 decimals)
     uint256 public constant TOTAL_SUPPLY = 1_000_000_000 * TOKEN_DECIMALS;
 
@@ -90,7 +93,7 @@ library Constants {
 
     /// @notice Multiplier constants in basis points
     uint256 internal constant BASE_MULTIPLIER = 10000; // 1.00x
-    uint256 internal constant MIN_MULTIPLIER = 10500; // 1.05x at 30 days
+    uint256 internal constant MIN_MULTIPLIER = 10000; // 1.00x (new multiplicative model)
     uint256 internal constant MULTIPLIER_90_DAYS = 11000; // 1.10x at 90 days
     uint256 internal constant MULTIPLIER_180_DAYS = 12500; // 1.25x at 180 days
     uint256 internal constant MAX_MULTIPLIER = 15000; // 1.50x at 365 days
@@ -102,11 +105,14 @@ library Constants {
     uint256 internal constant TIER_4_THRESHOLD = 7500; // 7,500 tokens
     uint256 internal constant TIER_5_THRESHOLD = 10000; // 10,000 tokens
 
-    /// @notice Minimum stake amount (1,000 tokens)
-    uint256 internal constant MINIMUM_STAKE_AMOUNT = 250 * TOKEN_DECIMALS;
+    /// @notice Minimum stake amount (1 token)
+    uint256 internal constant MINIMUM_STAKE_AMOUNT = 1 * TOKEN_DECIMALS;
 
-    /// @notice Maximum stake amount (10,000,000 tokens)
-    uint256 internal constant MAXIMUM_STAKE_AMOUNT = 10_000_000 * TOKEN_DECIMALS;
+    /// @notice Default Maximum stake amount (10,000 tokens)
+    uint256 public constant DEFAULT_MAXIMUM_STAKE_AMOUNT = 10_000 * TOKEN_DECIMALS;
+
+    /// @notice Maximum stake amount (10,000 tokens)
+    uint256 public constant MAXIMUM_STAKE_AMOUNT = 10_000 * TOKEN_DECIMALS;
 
     /// @notice Minimum unstake amount to prevent precision loss in penalty calculations
     /// @dev Set to 500 wei to ensure at least 100 wei penalty (500 * 20 / 100 = 100)
@@ -121,8 +127,8 @@ library Constants {
     /// @notice Standard cooldown period for unstaking
     uint256 internal constant COOLDOWN_PERIOD = 2 days;
 
-    /// @notice Standard penalty percentage for early withdrawal
-    uint256 internal constant EARLY_WITHDRAWAL_PENALTY = 20; // 20%
+    /// @notice Standard penalty for early withdrawal in basis points
+    uint256 internal constant EARLY_WITHDRAWAL_PENALTY = 2000; // 20% (2000 basis points)
 
     // -------------------------------------------------------------
     // Reward Constants

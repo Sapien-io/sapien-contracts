@@ -37,11 +37,11 @@ contract SapienVaultEndToEndTest is Test {
     // Test parameters aligned with contract constants
     uint256 public constant INITIAL_BALANCE = 10_000_000 * 10 ** 18; // 10M tokens per user
     uint256 public constant MINIMUM_STAKE = 1000 * 10 ** 18; // 1K tokens
-    uint256 public constant LARGE_STAKE = 100_000 * 10 ** 18; // 100K tokens
-    uint256 public constant MEDIUM_STAKE = 25_000 * 10 ** 18; // 25K tokens
-    uint256 public constant SMALL_STAKE = 5_000 * 10 ** 18; // 5K tokens
+    uint256 public constant LARGE_STAKE = 9_000 * 10 ** 18; // 9K tokens (within 10k limit)
+    uint256 public constant MEDIUM_STAKE = 5_000 * 10 ** 18; // 5K tokens (within 10k limit)
+    uint256 public constant SMALL_STAKE = 2_000 * 10 ** 18; // 2K tokens
     uint256 public constant COOLDOWN_PERIOD = 2 days;
-    uint256 public constant EARLY_WITHDRAWAL_PENALTY = 20; // 20%
+    uint256 public constant EARLY_WITHDRAWAL_PENALTY = 2000; // 20% in basis points
 
     // Lockup periods
     uint256 public constant LOCK_30_DAYS = 30 days;
@@ -218,8 +218,8 @@ contract SapienVaultEndToEndTest is Test {
         sapienVault.stake(MEDIUM_STAKE, LOCK_180_DAYS);
         totalCurrentStaked += MEDIUM_STAKE;
 
-        // Test boundary: max staker tests system limits
-        uint256 maxTestAmount = 1_000_000 * 10 ** 18; // 1M tokens
+        // Test boundary: max staker tests system limits (within 10k limit)
+        uint256 maxTestAmount = 9_500 * 10 ** 18; // 9.5k tokens (within 10k limit)
         vm.prank(maxStaker);
         sapienVault.stake(maxTestAmount, LOCK_365_DAYS);
         totalCurrentStaked += maxTestAmount;
@@ -450,7 +450,7 @@ contract SapienVaultEndToEndTest is Test {
     function _phaseEmergencyAndEdgeCases() internal {
         // Emergency user needs instant liquidity - uses early unstake (with cooldown)
         uint256 emergencyAmount = MEDIUM_STAKE;
-        uint256 expectedPenalty = (emergencyAmount * EARLY_WITHDRAWAL_PENALTY) / 100;
+        uint256 expectedPenalty = (emergencyAmount * EARLY_WITHDRAWAL_PENALTY) / 10000;
         uint256 expectedPayout = emergencyAmount - expectedPenalty;
 
         uint256 userBalanceBefore = sapienToken.balanceOf(emergencyUser);
@@ -595,8 +595,8 @@ contract SapienVaultEndToEndTest is Test {
 
         // Max staker tests system with large operations
         vm.prank(maxStaker);
-        sapienVault.increaseAmount(500_000 * 10 ** 18); // Another 500K
-        totalCurrentStaked += 500_000 * 10 ** 18;
+        sapienVault.increaseAmount(500 * 10 ** 18); // Another 500 tokens (keeping within 10K limit)
+        totalCurrentStaked += 500 * 10 ** 18;
 
         console.log("Max staker: Large late-stage increase");
 
@@ -769,7 +769,7 @@ contract SapienVaultEndToEndTest is Test {
 
         // Calculate optimal early exit amount
         uint256 exitAmount = stakeAmount / 3; // Exit 1/3
-        uint256 expectedPenalty = (exitAmount * EARLY_WITHDRAWAL_PENALTY) / 100;
+        uint256 expectedPenalty = (exitAmount * EARLY_WITHDRAWAL_PENALTY) / 10000;
         uint256 expectedReceived = exitAmount - expectedPenalty;
 
         uint256 balanceBefore = sapienToken.balanceOf(optimizer);
@@ -841,6 +841,6 @@ contract SapienVaultEndToEndTest is Test {
         console.log("Remaining stake:", remainingStake / 10 ** 18, "SAPIEN");
 
         // Test full cycle completion
-        assertTrue(remainingStake > MINIMUM_STAKE * 25, "Manager should have substantial remaining stake");
+        assertTrue(remainingStake > 7999 ether, "Manager should have substantial remaining stake");
     }
 }

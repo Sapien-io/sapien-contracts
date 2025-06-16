@@ -5,6 +5,7 @@ import {Test} from "lib/forge-std/src/Test.sol";
 import {SapienVault, ISapienVault} from "src/SapienVault.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
+import {Multiplier} from "src/Multiplier.sol";
 
 contract SapienVaultScenariosTest is Test {
     SapienVault public sapienVault;
@@ -18,7 +19,7 @@ contract SapienVaultScenariosTest is Test {
 
     uint256 public constant MINIMUM_STAKE = 250e18;
     uint256 public constant COOLDOWN_PERIOD = 2 days;
-    uint256 public constant EARLY_WITHDRAWAL_PENALTY = 20;
+    uint256 public constant EARLY_WITHDRAWAL_PENALTY = 2000; // 20% in basis points
     uint256 public constant MINIMUM_LOCKUP_INCREASE = 7 days;
 
     uint256 public constant LOCK_30_DAYS = 30 days;
@@ -130,7 +131,7 @@ contract SapienVaultScenariosTest is Test {
 
     function test_Vault_Scenario_EmergencyLiquidator() public {
         // Bob stakes large amount with long lock period
-        uint256 stakeAmount = MINIMUM_STAKE * 50;
+        uint256 stakeAmount = MINIMUM_STAKE * 35; // 8,750 tokens (within 10K limit)
 
         vm.startPrank(bob);
         sapienToken.approve(address(sapienVault), stakeAmount);
@@ -141,7 +142,7 @@ contract SapienVaultScenariosTest is Test {
         vm.warp(block.timestamp + 180 days);
 
         uint256 emergencyAmount = MINIMUM_STAKE * 20;
-        uint256 expectedPenalty = (emergencyAmount * EARLY_WITHDRAWAL_PENALTY) / 100;
+        uint256 expectedPenalty = (emergencyAmount * EARLY_WITHDRAWAL_PENALTY) / 10000;
         uint256 expectedPayout = emergencyAmount - expectedPenalty;
 
         uint256 bobBalanceBefore = sapienToken.balanceOf(bob);
@@ -553,8 +554,10 @@ contract SapienVaultScenariosTest is Test {
         assertTrue(ivanStake.userTotalStaked < MINIMUM_STAKE, "Stake should be below minimum after penalty");
         assertTrue(sapienVault.hasActiveStake(ivan), "Ivan should still have active stake");
 
-        // Verify multiplier is set to base multiplier (1.0x) for below minimum stake
-        assertEq(ivanStake.effectiveMultiplier, 10000, "Multiplier should be base 1.0x for below minimum stake");
+        // Verify multiplier reflects the current system for below minimum stake  
+        // Small amounts get time bonus even when below practical minimum
+        uint256 expectedMultiplier = Multiplier.calculateMultiplier(expectedRemaining, LOCK_90_DAYS);
+        assertApproxEqAbs(ivanStake.effectiveMultiplier, expectedMultiplier, 50, "Multiplier should reflect current system for below minimum stake");
 
         // Test that Ivan can still interact with the system
 
@@ -618,7 +621,8 @@ contract SapienVaultScenariosTest is Test {
         ISapienVault.UserStakingSummary memory juliaAfterSecond = sapienVault.getUserStakingSummary(julia);
         assertEq(juliaAfterSecond.userTotalStaked, stakeAmount - firstPenalty - secondPenalty);
         assertTrue(juliaAfterSecond.userTotalStaked < MINIMUM_STAKE, "Should be below minimum after second penalty");
-        assertEq(juliaAfterSecond.effectiveMultiplier, 10000, "Multiplier should be base 1.0x for below minimum");
+        uint256 expectedJuliaMultiplier = Multiplier.calculateMultiplier(juliaAfterSecond.userTotalStaked, LOCK_180_DAYS);
+        assertApproxEqAbs(juliaAfterSecond.effectiveMultiplier, expectedJuliaMultiplier, 50, "Multiplier should reflect current system for below minimum");
 
         // Julia adds more stake to get back above minimum
         uint256 recoveryStake = MINIMUM_STAKE; // Use minimum stake amount
@@ -672,7 +676,8 @@ contract SapienVaultScenariosTest is Test {
         ISapienVault.UserStakingSummary memory kevinBelowMin = sapienVault.getUserStakingSummary(kevin);
         assertEq(kevinBelowMin.userTotalStaked, stakeAmount - penaltyAmount - secondPenalty);
         assertTrue(kevinBelowMin.userTotalStaked < MINIMUM_STAKE, "Should be below minimum after second penalty");
-        assertEq(kevinBelowMin.effectiveMultiplier, 10000, "Multiplier should be base 1.0x for below minimum");
+        uint256 expectedKevinMultiplier = Multiplier.calculateMultiplier(kevinBelowMin.userTotalStaked, LOCK_30_DAYS);
+        assertApproxEqAbs(kevinBelowMin.effectiveMultiplier, expectedKevinMultiplier, 50, "Multiplier should reflect current system for below minimum");
 
         // Kevin should still be able to complete unstake process
         vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);

@@ -45,8 +45,8 @@ contract TenderlyQAIntegrationTest is Test {
     
     // Test constants
     uint256 public constant USER_INITIAL_BALANCE = 1_000_000 * 1e18;
-    uint256 public constant STAKE_AMOUNT = 100_000 * 1e18;
-    uint256 public constant LARGE_STAKE = 500_000 * 1e18;
+    uint256 public constant STAKE_AMOUNT = 7_000 * 1e18;
+    uint256 public constant LARGE_STAKE = 8_000 * 1e18;
     uint256 public constant SMALL_PENALTY = 1_000 * 1e18;
     uint256 public constant MEDIUM_PENALTY = 5_000 * 1e18;
     uint256 public constant LARGE_PENALTY = 25_000 * 1e18;
