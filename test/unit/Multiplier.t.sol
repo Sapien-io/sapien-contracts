@@ -8,7 +8,6 @@ import {Constants as Const} from "src/utils/Constants.sol";
 import {ISapienVault} from "src/interfaces/ISapienVault.sol";
 
 contract MultiplierTest is Test {
-
     // Test constants
     uint256 public constant TOKEN_DECIMALS = 10 ** 18;
     uint256 public constant MIN_TOKENS = 1;
@@ -22,7 +21,7 @@ contract MultiplierTest is Test {
 
     // Expected multipliers for exponential model
     uint256 public constant BASE_MULTIPLIER = 10000; // 1.00x
-    uint256 public constant MAX_MULTIPLIER = 15000;  // 1.50x
+    uint256 public constant MAX_MULTIPLIER = 15000; // 1.50x
 
     // =============================================================================
     // BASIC FUNCTIONALITY TESTS
@@ -115,7 +114,7 @@ contract MultiplierTest is Test {
         // The difference between consecutive points should decrease (exponential behavior)
         uint256 diff1 = result1500 - result500;
         uint256 diff2 = result2500 - result1500;
-        
+
         // For an exponential curve approaching asymptote, later differences should be smaller
         assertLe(diff2, diff1, "Exponential curve should have decreasing or equal increments");
     }
@@ -155,7 +154,7 @@ contract MultiplierTest is Test {
         amounts[4] = 2500 ether;
 
         for (uint256 i = 1; i < amounts.length; i++) {
-            uint256 prevResult = Multiplier.calculateMultiplier(amounts[i-1], lockup);
+            uint256 prevResult = Multiplier.calculateMultiplier(amounts[i - 1], lockup);
             uint256 currResult = Multiplier.calculateMultiplier(amounts[i], lockup);
             assertLe(prevResult, currResult, "Multiplier should increase or stay same with amount");
         }
@@ -169,7 +168,7 @@ contract MultiplierTest is Test {
         durations[3] = LOCK_365_DAYS;
 
         for (uint256 i = 1; i < durations.length; i++) {
-            uint256 prevResult = Multiplier.calculateMultiplier(amount, durations[i-1]);
+            uint256 prevResult = Multiplier.calculateMultiplier(amount, durations[i - 1]);
             uint256 currResult = Multiplier.calculateMultiplier(amount, durations[i]);
             assertLt(prevResult, currResult, "Multiplier should increase with duration");
         }
@@ -194,7 +193,10 @@ contract MultiplierTest is Test {
         assertLe(result, MAX_MULTIPLIER, "Should be <= max multiplier");
     }
 
-    function testFuzz_Multiplier_CalculateMultiplier_Monotonic(uint256 amount1, uint256 amount2, uint256 lockup) public pure {
+    function testFuzz_Multiplier_CalculateMultiplier_Monotonic(uint256 amount1, uint256 amount2, uint256 lockup)
+        public
+        pure
+    {
         // Bound inputs
         amount1 = bound(amount1, MIN_TOKENS, MAX_TOKENS);
         amount2 = bound(amount2, MIN_TOKENS, MAX_TOKENS);
@@ -207,15 +209,13 @@ contract MultiplierTest is Test {
         }
     }
 
-
-
     // =============================================================================
     // SPECIFIC VALUE TESTS
     // =============================================================================
 
     function test_Multiplier_SpecificValues() public pure {
         // Test some specific expected values based on the exponential model
-        
+
         // Minimum case: 1 token, 30 days
         uint256 minResult = Multiplier.calculateMultiplier(1 ether, LOCK_30_DAYS);
         assertEq(minResult, BASE_MULTIPLIER, "Minimum should equal base multiplier");

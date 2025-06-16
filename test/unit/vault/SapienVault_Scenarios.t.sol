@@ -554,10 +554,15 @@ contract SapienVaultScenariosTest is Test {
         assertTrue(ivanStake.userTotalStaked < MINIMUM_STAKE, "Stake should be below minimum after penalty");
         assertTrue(sapienVault.hasActiveStake(ivan), "Ivan should still have active stake");
 
-        // Verify multiplier reflects the current system for below minimum stake  
+        // Verify multiplier reflects the current system for below minimum stake
         // Small amounts get time bonus even when below practical minimum
         uint256 expectedMultiplier = Multiplier.calculateMultiplier(expectedRemaining, LOCK_90_DAYS);
-        assertApproxEqAbs(ivanStake.effectiveMultiplier, expectedMultiplier, 50, "Multiplier should reflect current system for below minimum stake");
+        assertApproxEqAbs(
+            ivanStake.effectiveMultiplier,
+            expectedMultiplier,
+            50,
+            "Multiplier should reflect current system for below minimum stake"
+        );
 
         // Test that Ivan can still interact with the system
 
@@ -621,8 +626,14 @@ contract SapienVaultScenariosTest is Test {
         ISapienVault.UserStakingSummary memory juliaAfterSecond = sapienVault.getUserStakingSummary(julia);
         assertEq(juliaAfterSecond.userTotalStaked, stakeAmount - firstPenalty - secondPenalty);
         assertTrue(juliaAfterSecond.userTotalStaked < MINIMUM_STAKE, "Should be below minimum after second penalty");
-        uint256 expectedJuliaMultiplier = Multiplier.calculateMultiplier(juliaAfterSecond.userTotalStaked, LOCK_180_DAYS);
-        assertApproxEqAbs(juliaAfterSecond.effectiveMultiplier, expectedJuliaMultiplier, 50, "Multiplier should reflect current system for below minimum");
+        uint256 expectedJuliaMultiplier =
+            Multiplier.calculateMultiplier(juliaAfterSecond.userTotalStaked, LOCK_180_DAYS);
+        assertApproxEqAbs(
+            juliaAfterSecond.effectiveMultiplier,
+            expectedJuliaMultiplier,
+            50,
+            "Multiplier should reflect current system for below minimum"
+        );
 
         // Julia adds more stake to get back above minimum
         uint256 recoveryStake = MINIMUM_STAKE; // Use minimum stake amount
@@ -677,7 +688,12 @@ contract SapienVaultScenariosTest is Test {
         assertEq(kevinBelowMin.userTotalStaked, stakeAmount - penaltyAmount - secondPenalty);
         assertTrue(kevinBelowMin.userTotalStaked < MINIMUM_STAKE, "Should be below minimum after second penalty");
         uint256 expectedKevinMultiplier = Multiplier.calculateMultiplier(kevinBelowMin.userTotalStaked, LOCK_30_DAYS);
-        assertApproxEqAbs(kevinBelowMin.effectiveMultiplier, expectedKevinMultiplier, 50, "Multiplier should reflect current system for below minimum");
+        assertApproxEqAbs(
+            kevinBelowMin.effectiveMultiplier,
+            expectedKevinMultiplier,
+            50,
+            "Multiplier should reflect current system for below minimum"
+        );
 
         // Kevin should still be able to complete unstake process
         vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);

@@ -134,10 +134,10 @@ contract SapienVaultBasicTest is Test {
 
         // Expected effective multipliers in new system (actual values from multiplier matrix)
         uint256[] memory expectedEffectiveMultipliers = new uint256[](4);
-        expectedEffectiveMultipliers[0] = 10500; // 1.05x for 250 @ 30 days 
-        expectedEffectiveMultipliers[1] = 11232; // 1.12x for 250 @ 90 days 
-        expectedEffectiveMultipliers[2] = 12500; // 1.25x for 250 @ 180 days 
-        expectedEffectiveMultipliers[3] = 15000; // 1.50x for 250 @ 365 days 
+        expectedEffectiveMultipliers[0] = 10500; // 1.05x for 250 @ 30 days
+        expectedEffectiveMultipliers[1] = 11232; // 1.12x for 250 @ 90 days
+        expectedEffectiveMultipliers[2] = 12500; // 1.25x for 250 @ 180 days
+        expectedEffectiveMultipliers[3] = 15000; // 1.50x for 250 @ 365 days
 
         uint256 amount = 2500 ether;
 
@@ -239,10 +239,10 @@ contract SapienVaultBasicTest is Test {
 
         // Test setting new maximum stake amount
         uint256 newMaximum = 20_000 * 1e18; // 20k tokens
-        
+
         vm.expectEmit(true, true, false, true);
         emit ISapienVault.MaximumStakeAmountUpdated(10_000 * 1e18, newMaximum);
-        
+
         vm.prank(admin);
         sapienVault.setMaximumStakeAmount(newMaximum);
 
@@ -836,7 +836,9 @@ contract SapienVaultBasicTest is Test {
 
         // Expected multiplier for 500 tokens @ 30 days
         uint256 expectedMultiplier = Multiplier.calculateMultiplier(stakeAmount, LOCK_30_DAYS);
-        assertApproxEqAbs(userMultiplier, expectedMultiplier, 100, "500 tokens @ 30 days should get expected multiplier");
+        assertApproxEqAbs(
+            userMultiplier, expectedMultiplier, 100, "500 tokens @ 30 days should get expected multiplier"
+        );
 
         // Test multiplier after increasing amount to 1500 tokens total (still within limit)
         uint256 additionalAmount = 1000e18; // Add 1000 more tokens for total of 1500
@@ -2078,7 +2080,6 @@ contract SapienVaultBasicTest is Test {
     // MULTIPLIER MATRIX VALIDATION TESTS
     // =============================================================================
 
-     
     function test_Vault_MultiplierMatrix_ExactValues() public {
         // Test amounts within 10k limit
         uint256[] memory testAmounts = new uint256[](11);
@@ -2114,7 +2115,7 @@ contract SapienVaultBasicTest is Test {
             [uint256(10287), 10575, 10862, 11725, 13500], // 1750: actual exponential values
             [uint256(10328), 10657, 10986, 11972, 14000], // 2000: actual exponential values
             [uint256(10369), 10739, 11109, 12218, 14500], // 2250: actual exponential values
-            [uint256(10410), 10821, 11232, 12465, 15000]  // 2500: actual exponential values
+            [uint256(10410), 10821, 11232, 12465, 15000] // 2500: actual exponential values
         ];
 
         // Test each combination
@@ -2270,15 +2271,22 @@ contract SapienVaultBasicTest is Test {
      */
     function test_Vault_MultiplierMatrix_KeyValues() public {
         // Test key combinations using current multiplier implementation
-        uint256[5] memory amounts = [uint256(1000 * 1e18), uint256(2500 * 1e18), uint256(1000 * 1e18), uint256(1500 * 1e18), uint256(2500 * 1e18)];
-        uint256[5] memory periods = [uint256(LOCK_30_DAYS), uint256(LOCK_90_DAYS), uint256(LOCK_180_DAYS), uint256(LOCK_365_DAYS), uint256(LOCK_365_DAYS)];
-        string[5] memory descriptions = [
-            "1K @ 30 days",
-            "2.5K @ 90 days", 
-            "1K @ 180 days",
-            "1.5K @ 365 days",
-            "2.5K @ 365 days"
+        uint256[5] memory amounts = [
+            uint256(1000 * 1e18),
+            uint256(2500 * 1e18),
+            uint256(1000 * 1e18),
+            uint256(1500 * 1e18),
+            uint256(2500 * 1e18)
         ];
+        uint256[5] memory periods = [
+            uint256(LOCK_30_DAYS),
+            uint256(LOCK_90_DAYS),
+            uint256(LOCK_180_DAYS),
+            uint256(LOCK_365_DAYS),
+            uint256(LOCK_365_DAYS)
+        ];
+        string[5] memory descriptions =
+            ["1K @ 30 days", "2.5K @ 90 days", "1K @ 180 days", "1.5K @ 365 days", "2.5K @ 365 days"];
 
         for (uint256 i = 0; i < amounts.length; i++) {
             address testUser = makeAddr(string(abi.encodePacked("keyUser", vm.toString(i))));

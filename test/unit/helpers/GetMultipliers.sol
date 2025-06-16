@@ -16,7 +16,8 @@ contract GetMultipliers is Test {
         twenthy_five_hundred();
         ten_thousand();
     }
-    function one() public view returns (uint256)  {
+
+    function one() public view returns (uint256) {
         uint256 amount = 1 ether;
         console.log("--------------------------------");
         console.log("1 token multipliers:");
@@ -26,7 +27,7 @@ contract GetMultipliers is Test {
         console.log("365 days:", Multiplier.calculateMultiplier(amount, 365 days));
     }
 
-    function ten() public view returns (uint256)  {
+    function ten() public view returns (uint256) {
         uint256 amount = 10 ether;
         console.log("--------------------------------");
         console.log("10 token multipliers:");
@@ -36,7 +37,7 @@ contract GetMultipliers is Test {
         console.log("365 days:", Multiplier.calculateMultiplier(amount, 365 days));
     }
 
-    function one_hundred() public view returns (uint256)  {
+    function one_hundred() public view returns (uint256) {
         uint256 amount = 100 ether;
         console.log("--------------------------------");
         console.log("100 token multipliers:");
@@ -65,7 +66,7 @@ contract GetMultipliers is Test {
         console.log("180 days:", Multiplier.calculateMultiplier(amount, 180 days));
         console.log("365 days:", Multiplier.calculateMultiplier(amount, 365 days));
     }
-    
+
     function thousand() public view returns (uint256) {
         uint256 amount = 1000 ether;
         console.log("--------------------------------");
@@ -75,7 +76,7 @@ contract GetMultipliers is Test {
         console.log("180 days:", Multiplier.calculateMultiplier(amount, 180 days));
         console.log("365 days:", Multiplier.calculateMultiplier(amount, 365 days));
     }
-    
+
     function twenthy_five_hundred() public view returns (uint256) {
         uint256 amount = 2500 ether;
         console.log("--------------------------------");
@@ -85,7 +86,8 @@ contract GetMultipliers is Test {
         console.log("180 days:", Multiplier.calculateMultiplier(amount, 180 days));
         console.log("365 days:", Multiplier.calculateMultiplier(amount, 365 days));
     }
-        function ten_thousand() public view returns (uint256) {
+
+    function ten_thousand() public view returns (uint256) {
         uint256 amount = 5_000 ether;
         console.log("--------------------------------");
         console.log("5000 token multipliers:");
@@ -94,4 +96,4 @@ contract GetMultipliers is Test {
         console.log("180 days:", Multiplier.calculateMultiplier(amount, 180 days));
         console.log("365 days:", Multiplier.calculateMultiplier(amount, 365 days));
     }
-} 
+}
