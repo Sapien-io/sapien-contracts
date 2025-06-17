@@ -37,7 +37,6 @@ pragma solidity 0.8.30;
 import {
     IERC20,
     SafeERC20,
-    Initializable,
     PausableUpgradeable,
     AccessControlUpgradeable,
     ReentrancyGuardUpgradeable

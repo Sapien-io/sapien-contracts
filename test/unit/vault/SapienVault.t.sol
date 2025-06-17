@@ -3006,4 +3006,127 @@ contract SapienVaultBasicTest is Test {
         bytes32 sapienQARole = sapienVault.SAPIEN_QA_ROLE();
         assertEq(sapienQARole, Const.SAPIEN_QA_ROLE);
     }
+
+    function test_Vault_GetUserStake_staking() public {
+        uint256 amount = 2500e18;
+        uint256 period = LOCK_365_DAYS;
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), amount);
+        sapienVault.stake(amount, period);
+        vm.stopPrank();
+
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        assertEq(userStake.amount, amount);
+        assertEq(userStake.cooldownAmount, 0);
+        assertEq(userStake.effectiveLockUpPeriod, period);
+        assertEq(userStake.cooldownStart, 0);
+        assertEq(userStake.earlyUnstakeCooldownStart, 0);
+        assertEq(userStake.effectiveMultiplier, 15000);
+    }
+
+    function test_Vault_GetUserStake_unstaking() public {
+        uint256 amount = 2500e18;
+        uint256 period = LOCK_365_DAYS;
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), amount);
+        sapienVault.stake(amount, period);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 366 days);
+        vm.prank(user1);
+        sapienVault.initiateUnstake(amount);
+        vm.stopPrank();
+
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        assertEq(userStake.amount, amount);
+        assertEq(userStake.cooldownAmount, amount);
+        assertEq(userStake.effectiveLockUpPeriod, period);
+        assertEq(userStake.cooldownStart, block.timestamp);
+        assertEq(userStake.earlyUnstakeCooldownStart, 0);
+        assertEq(userStake.effectiveMultiplier, 15000);
+
+        vm.warp(block.timestamp + 50 hours);
+        vm.prank(user1);
+        sapienVault.unstake(amount);
+        vm.stopPrank();
+
+        userStake = sapienVault.getUserStake(user1);
+
+        assertEq(userStake.amount, 0);
+        assertEq(userStake.cooldownAmount, 0);
+        assertEq(userStake.effectiveLockUpPeriod, 0);
+        assertEq(userStake.cooldownStart, 0);
+        assertEq(userStake.earlyUnstakeCooldownStart, 0);
+        assertEq(userStake.effectiveMultiplier, 0);
+    }
+
+    function test_Vault_GetUserStake_cooldown() public {
+        uint256 amount = 2500e18;
+        uint256 period = LOCK_365_DAYS;
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), amount);
+        sapienVault.stake(amount, period);
+        vm.stopPrank();
+
+        uint256 unstakeAmount = 5 ether;
+        vm.warp(block.timestamp + 366 days);
+        vm.prank(user1);
+        sapienVault.initiateUnstake(unstakeAmount);
+        vm.stopPrank();
+
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        assertEq(userStake.cooldownAmount, unstakeAmount);
+        assertEq(userStake.cooldownStart, block.timestamp);
+        assertEq(userStake.earlyUnstakeCooldownStart, 0);
+        assertEq(userStake.effectiveMultiplier, 15000);
+    }
+
+    function test_Vault_GetUserStake_earlyUnstake_revert_LockPeriodCompleted() public {
+        uint256 amount = 2500e18;
+        uint256 period = LOCK_365_DAYS;
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), amount);
+        sapienVault.stake(amount, period);
+
+        vm.warp(block.timestamp + 366 days);
+        vm.expectRevert(abi.encodeWithSignature("LockPeriodCompleted()"));
+        sapienVault.initiateEarlyUnstake(amount);
+        vm.stopPrank();
+    }
+
+    function test_Vault_GetUserStake_earlyUnstake_revert_NotEnoughBalance() public {
+        uint256 amount = 2500e18;
+        uint256 period = LOCK_365_DAYS;
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), amount);
+        sapienVault.stake(amount, period);
+        vm.stopPrank();
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature("AmountExceedsAvailableBalance()"));
+        sapienVault.initiateEarlyUnstake(amount * 2);
+        vm.stopPrank();
+    }
+
+    function test_Vault_GetUserStake_earlyUnstake_earlyUnstakeUserStake() public {
+        uint256 amount = 2500e18;
+        uint256 period = LOCK_365_DAYS;
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), amount);
+        sapienVault.stake(amount, period);
+        vm.stopPrank();
+
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(amount);
+        vm.stopPrank();
+
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        assertEq(userStake.earlyUnstakeCooldownStart, block.timestamp);
+    }
 }

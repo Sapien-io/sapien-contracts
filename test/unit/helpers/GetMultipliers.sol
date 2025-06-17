@@ -6,7 +6,7 @@ import "forge-std/console.sol";
 import "forge-std/Test.sol";
 
 contract GetMultipliers is Test {
-    function run() external view {
+    function run() external pure {
         one();
         ten();
         one_hundred();
@@ -17,7 +17,7 @@ contract GetMultipliers is Test {
         ten_thousand();
     }
 
-    function one() public view returns (uint256) {
+    function one() public pure {
         uint256 amount = 1 ether;
         console.log("--------------------------------");
         console.log("1 token multipliers:");
@@ -27,7 +27,7 @@ contract GetMultipliers is Test {
         console.log("365 days:", Multiplier.calculateMultiplier(amount, 365 days));
     }
 
-    function ten() public view returns (uint256) {
+    function ten() public pure {
         uint256 amount = 10 ether;
         console.log("--------------------------------");
         console.log("10 token multipliers:");
@@ -37,7 +37,7 @@ contract GetMultipliers is Test {
         console.log("365 days:", Multiplier.calculateMultiplier(amount, 365 days));
     }
 
-    function one_hundred() public view returns (uint256) {
+    function one_hundred() public pure {
         uint256 amount = 100 ether;
         console.log("--------------------------------");
         console.log("100 token multipliers:");
@@ -47,7 +47,7 @@ contract GetMultipliers is Test {
         console.log("365 days:", Multiplier.calculateMultiplier(amount, 365 days));
     }
 
-    function two_fifty() public view returns (uint256) {
+    function two_fifty() public pure {
         uint256 amount = 250 ether;
         console.log("--------------------------------");
         console.log("250 token multipliers:");
@@ -57,7 +57,7 @@ contract GetMultipliers is Test {
         console.log("365 days:", Multiplier.calculateMultiplier(amount, 365 days));
     }
 
-    function five_hundred() public view returns (uint256) {
+    function five_hundred() public pure {
         uint256 amount = 500 ether;
         console.log("--------------------------------");
         console.log("500 token multipliers:");
@@ -67,7 +67,7 @@ contract GetMultipliers is Test {
         console.log("365 days:", Multiplier.calculateMultiplier(amount, 365 days));
     }
 
-    function thousand() public view returns (uint256) {
+    function thousand() public pure {
         uint256 amount = 1000 ether;
         console.log("--------------------------------");
         console.log("1000 token multipliers:");
@@ -77,7 +77,7 @@ contract GetMultipliers is Test {
         console.log("365 days:", Multiplier.calculateMultiplier(amount, 365 days));
     }
 
-    function twenthy_five_hundred() public view returns (uint256) {
+    function twenthy_five_hundred() public pure {
         uint256 amount = 2500 ether;
         console.log("--------------------------------");
         console.log("2500 token multipliers:");
@@ -87,7 +87,7 @@ contract GetMultipliers is Test {
         console.log("365 days:", Multiplier.calculateMultiplier(amount, 365 days));
     }
 
-    function ten_thousand() public view returns (uint256) {
+    function ten_thousand() public pure {
         uint256 amount = 5_000 ether;
         console.log("--------------------------------");
         console.log("5000 token multipliers:");

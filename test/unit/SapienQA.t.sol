@@ -1396,6 +1396,10 @@ contract SapienQATest is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(QA_SIGNER_PRIVATE_KEY, digest);
         return abi.encodePacked(r, s, v);
     }
+
+    function test_QA_Version() public view {
+        assertEq(qaContract.version(), "0.1.3");
+    }
 }
 
 // Mock contract for testing string error scenarios
