@@ -1400,6 +1400,11 @@ contract SapienQATest is Test {
     function test_QA_Version() public view {
         assertEq(qaContract.version(), "0.1.3");
     }
+
+    function test_QA_Roles() public view {
+        assertEq(qaContract.QA_MANAGER_ROLE(), keccak256("QA_MANAGER_ROLE"));
+        assertEq(qaContract.QA_SIGNER_ROLE(), keccak256("QA_SIGNER_ROLE"));
+    }
 }
 
 // Mock contract for testing string error scenarios

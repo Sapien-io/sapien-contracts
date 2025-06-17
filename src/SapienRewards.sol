@@ -78,34 +78,6 @@ contract SapienRewards is
     }
 
     // -------------------------------------------------------------
-    // Modifiers
-    // -------------------------------------------------------------
-
-    /// @dev Admin Access modifier
-    modifier onlyAdmin() {
-        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
-            revert AccessControlUnauthorizedAccount(msg.sender, DEFAULT_ADMIN_ROLE);
-        }
-        _;
-    }
-
-    /// @dev Pauser Access modifier
-    modifier onlyPauser() {
-        if (!hasRole(Const.PAUSER_ROLE, msg.sender)) {
-            revert AccessControlUnauthorizedAccount(msg.sender, Const.PAUSER_ROLE);
-        }
-        _;
-    }
-
-    /// @dev Reward Admin Access modifier
-    modifier onlyRewardAdmin() {
-        if (!hasRole(Const.REWARD_ADMIN_ROLE, msg.sender)) {
-            revert AccessControlUnauthorizedAccount(msg.sender, Const.REWARD_ADMIN_ROLE);
-        }
-        _;
-    }
-
-    // -------------------------------------------------------------
     // Initialization
     // -------------------------------------------------------------
 
@@ -149,8 +121,60 @@ contract SapienRewards is
     }
 
     // -------------------------------------------------------------
-    // Admin and Operation Functions
+    // Access Control Modifiers
     // -------------------------------------------------------------
+
+    /// @dev Admin Access modifier
+    modifier onlyAdmin() {
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
+            revert AccessControlUnauthorizedAccount(msg.sender, DEFAULT_ADMIN_ROLE);
+        }
+        _;
+    }
+
+    /// @dev Pauser Access modifier
+    modifier onlyPauser() {
+        if (!hasRole(Const.PAUSER_ROLE, msg.sender)) {
+            revert AccessControlUnauthorizedAccount(msg.sender, Const.PAUSER_ROLE);
+        }
+        _;
+    }
+
+    /// @dev Reward Admin Access modifier
+    modifier onlyRewardAdmin() {
+        if (!hasRole(Const.REWARD_ADMIN_ROLE, msg.sender)) {
+            revert AccessControlUnauthorizedAccount(msg.sender, Const.REWARD_ADMIN_ROLE);
+        }
+        _;
+    }
+
+    // -------------------------------------------------------------
+    // Role-Based Functions
+    // -------------------------------------------------------------
+
+    /**
+     * @notice Returns the pauser role identifier
+     * @return bytes32 The keccak256 hash of "PAUSER_ROLE"
+     */
+    function PAUSER_ROLE() external pure returns (bytes32) {
+        return Const.PAUSER_ROLE;
+    }
+
+    /**
+     * @notice Returns the Sapien QA role identifier
+     * @return bytes32 The keccak256 hash of "SAPIEN_QA_ROLE"
+     */
+    function REWARD_ADMIN_ROLE() external pure returns (bytes32) {
+        return Const.REWARD_ADMIN_ROLE;
+    }
+
+    /**
+     * @notice Returns the reward manager role identifier
+     * @return bytes32 The keccak256 hash of "REWARD_MANAGER_ROLE"
+     */
+    function REWARD_MANAGER_ROLE() external pure returns (bytes32) {
+        return Const.REWARD_MANAGER_ROLE;
+    }
 
     /**
      * @notice Sets the reward token for the contract.

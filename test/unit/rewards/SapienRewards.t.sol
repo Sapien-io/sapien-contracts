@@ -752,4 +752,10 @@ contract SapienRewardsTest is Test {
         vm.prank(to);
         rewardToken.approve(address(sapienRewards), amount);
     }
+
+    function test_Rewards_Roles() public view {
+        assertEq(sapienRewards.PAUSER_ROLE(), keccak256("PAUSER_ROLE"));
+        assertEq(sapienRewards.REWARD_ADMIN_ROLE(), keccak256("REWARD_ADMIN_ROLE"));
+        assertEq(sapienRewards.REWARD_MANAGER_ROLE(), keccak256("REWARD_MANAGER_ROLE"));
+    }
 }

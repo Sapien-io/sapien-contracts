@@ -64,6 +64,10 @@ contract SapienQA is ISapienQA, AccessControlUpgradeable, EIP712Upgradeable {
         _disableInitializers();
     }
 
+    // -------------------------------------------------------------
+    // Initialization
+    // -------------------------------------------------------------
+
     function version() public pure returns (string memory) {
         return Const.QA_VERSION;
     }
@@ -112,6 +116,22 @@ contract SapienQA is ISapienQA, AccessControlUpgradeable, EIP712Upgradeable {
             revert AccessControlUnauthorizedAccount(msg.sender, Const.QA_MANAGER_ROLE);
         }
         _;
+    }
+
+    /**
+     * @notice Returns the reward manager role identifier
+     * @return bytes32 The keccak256 hash of "REWARD_MANAGER_ROLE"
+     */
+    function QA_MANAGER_ROLE() external pure returns (bytes32) {
+        return Const.QA_MANAGER_ROLE;
+    }
+
+    /**
+     * @notice Returns the QA signer role identifier
+     * @return bytes32 The keccak256 hash of "QA_SIGNER_ROLE"
+     */
+    function QA_SIGNER_ROLE() external pure returns (bytes32) {
+        return Const.QA_SIGNER_ROLE;
     }
 
     // -------------------------------------------------------------
