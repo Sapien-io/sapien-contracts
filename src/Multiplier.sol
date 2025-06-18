@@ -2,7 +2,6 @@
 pragma solidity 0.8.30;
 
 library Multiplier {
-
     uint256 public constant BASIS_POINTS = 10000; // 100% = 10000 basis points
     uint256 public constant BASE_MULTIPLIER = 10000; // Base multiplier (1.00x)
     uint256 public constant MAX_TOKENS = 2500 ether; // Maximum token stake (2500 tokens)
