@@ -368,9 +368,9 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
         ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user);
         uint256 timeUntilUnlock = userStake.timeUntilUnlock;
 
-        // Should preserve the original weighted start time, so remaining time should be around 265 days (365-100)
-        // The exact value may vary due to weighted calculations with the new amount
-        uint256 expectedRemainingTime = 365 - 100; // Approximately 265 days
+        // The weighted calculation considers both the original stake (aged 100 days) and the new larger amount
+        // When LARGE_STAKE >> SMALL_STAKE, the weighted start time shifts significantly toward the current time
+        // This results in a remaining lockup closer to the original 365 days rather than the simple 265 day expectation
         assertTrue(timeUntilUnlock / 1 days >= 250, "Should have at least 250 days remaining");
         assertTrue(timeUntilUnlock / 1 days <= 365, "Should not exceed original lockup period");
 

@@ -494,7 +494,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             revert NoStakeFound();
         }
 
-        if (userStake.cooldownStart != 0) {
+        if (userStake.cooldownStart != 0 || userStake.earlyUnstakeCooldownStart != 0) {
             revert CannotIncreaseStakeInCooldown();
         }
 
@@ -533,7 +533,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         if (additionalLockup < Const.MINIMUM_LOCKUP_INCREASE) {
             revert MinimumLockupIncreaseRequired();
         }
-        if (userStake.cooldownStart != 0) {
+
+        if (userStake.cooldownStart != 0 || userStake.earlyUnstakeCooldownStart != 0) {
             revert CannotIncreaseStakeInCooldown();
         }
 
