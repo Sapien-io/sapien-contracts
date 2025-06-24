@@ -49,7 +49,7 @@ contract LocalIntegrationTest is Test {
     uint256 public constant INITIAL_USER_BALANCE = 1_000_000 * 1e18; // 1M tokens per user
     uint256 public constant SMALL_STAKE = 5_000 * 1e18;
     uint256 public constant MEDIUM_STAKE = 6_000 * 1e18; // 6K tokens (within 10K limit)
-    uint256 public constant LARGE_STAKE = 8_000 * 1e18; // 8K tokens (within 10K limit)
+    uint256 public constant LARGE_STAKE = 2_000 * 1e18; // 2K tokens (within 2.5K limit)
     
     // EIP-712 setup for signatures
     bytes32 public constant REWARD_CLAIM_TYPEHASH = 

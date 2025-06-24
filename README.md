@@ -89,7 +89,7 @@ forge test --match-test "test_EndToEnd_CompleteUserJourney" -v
 make unit
 
 # Run variable testing scenarios
-make var
+make invar
 
 # Generate code coverage reports
 make cover

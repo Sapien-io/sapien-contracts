@@ -818,18 +818,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     // Helper Functions
     // -------------------------------------------------------------
 
-    /**
-     * @notice Calculate remaining lockup time for a user's stake
-     * @param userStake The user's stake storage reference
-     * @return remainingTime Remaining lockup time in seconds (0 if expired)
-     */
-    function _getRemainingLockupTime(UserStake storage userStake) private view returns (uint256 remainingTime) {
-        if (_isUnlocked(userStake)) return 0;
-
-        uint256 timeElapsed = block.timestamp - userStake.weightedStartTime;
-        return userStake.effectiveLockUpPeriod > timeElapsed ? userStake.effectiveLockUpPeriod - timeElapsed : 0;
-    }
-
     function _isUnlocked(UserStake memory userStake) private view returns (bool) {
         return userStake.amount > 0 && block.timestamp >= userStake.weightedStartTime + userStake.effectiveLockUpPeriod;
     }

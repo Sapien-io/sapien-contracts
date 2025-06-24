@@ -154,7 +154,7 @@ contract SapienVaultUncoveredLinesTest is Test {
 
         // Start with a very large stake at maximum lockup
         vm.prank(user);
-        vault.stake(Const.MINIMUM_STAKE_AMOUNT * 50, Const.LOCKUP_365_DAYS);
+        vault.stake(Const.MINIMUM_STAKE_AMOUNT * 2, Const.LOCKUP_365_DAYS); // 2000 tokens (within 2.5K limit)
 
         // Fast forward to make the stake expire completely
         vm.warp(block.timestamp + Const.LOCKUP_365_DAYS + 1);
@@ -198,7 +198,7 @@ contract SapienVaultUncoveredLinesTest is Test {
         // - userStake.cooldownAmount = 300e18 (30% in cooldown)
 
         // Apply a penalty that's smaller than total but exercises the cooldown reduction logic
-        uint256 penalty = Const.MINIMUM_STAKE_AMOUNT * 50 / 100; // 50% penalty
+        uint256 penalty = Const.MINIMUM_STAKE_AMOUNT * 2 / 100; // 50% penalty
 
         vm.prank(dummyQA);
         uint256 actualPenalty = vault.processQAPenalty(user, penalty);
@@ -238,7 +238,7 @@ contract SapienVaultUncoveredLinesTest is Test {
 
         // Apply penalty that will exhaust the primary stake and trigger cooldown reduction
         // This ensures we reach line 1038 where remainingPenalty > 0
-        uint256 penalty = Const.MINIMUM_STAKE_AMOUNT * 120 / 100; // 1200e18 (more than total)
+        uint256 penalty = Const.MINIMUM_STAKE_AMOUNT * 240 / 100; // 2400e18 (more than total 2000)
 
         vm.prank(dummyQA);
         uint256 actualPenalty = vault.processQAPenalty(user, penalty);
@@ -482,7 +482,7 @@ contract SapienVaultUncoveredLinesTest is Test {
     function test_Vault_lockupCapCheck_floorProtectionInteraction() public {
         // Test with maximum possible values to understand the behavior
         uint256 largeStake1 = 1000e18; // 1K tokens
-        uint256 largeStake2 = 9000e18; // 9K tokens (creates 9:1 ratio)
+        uint256 largeStake2 = 1400e18; // 1.4K tokens (stays within 2.5K limit)
 
         // Initial stake with maximum lockup
         vm.prank(user);
@@ -491,7 +491,7 @@ contract SapienVaultUncoveredLinesTest is Test {
         // Fast forward to create a very small remaining time (1 second)
         vm.warp(block.timestamp + Const.LOCKUP_365_DAYS - 1);
 
-        // Now remaining time is 1 second, but we add a huge amount
+        // Now remaining time is 1 second, but we add a significant amount
         // Since lockup is already at 365 days, we just increase amount
         vm.prank(user);
         vault.increaseAmount(largeStake2);

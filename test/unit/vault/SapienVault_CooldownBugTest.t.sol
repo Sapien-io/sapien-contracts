@@ -87,7 +87,7 @@ contract SapienVaultCooldownBugTest is Test {
     // =============================================================================
 
     function test_Vault_CooldownLogic_PartialUnstakeCorrectlyTracked() public {
-        uint256 stakeAmount = MINIMUM_STAKE * 10;
+        uint256 stakeAmount = MINIMUM_STAKE * 2; // 2K tokens (within 2.5K limit)
 
         // Alice stakes tokens
         vm.startPrank(alice);
@@ -104,7 +104,7 @@ contract SapienVaultCooldownBugTest is Test {
         assertEq(sapienVault.getTotalInCooldown(alice), 0, "No tokens should be in cooldown");
 
         // Alice initiates cooldown for part of the stake
-        uint256 cooldownAmount = MINIMUM_STAKE * 3;
+        uint256 cooldownAmount = MINIMUM_STAKE;
         vm.prank(alice);
         sapienVault.initiateUnstake(cooldownAmount);
 
@@ -118,7 +118,7 @@ contract SapienVaultCooldownBugTest is Test {
     }
 
     function test_Vault_CooldownLogic_InstantUnstakeExcludesStakesInCooldown() public {
-        uint256 stakeAmount = MINIMUM_STAKE * 10;
+        uint256 stakeAmount = MINIMUM_STAKE * 2; // 2K tokens (within 2.5K limit)
 
         // Alice stakes tokens
         vm.startPrank(alice);
@@ -130,7 +130,7 @@ contract SapienVaultCooldownBugTest is Test {
         vm.warp(block.timestamp + LOCK_30_DAYS + 1);
 
         // Alice initiates cooldown for part of the stake
-        uint256 cooldownAmount = MINIMUM_STAKE * 3;
+        uint256 cooldownAmount = MINIMUM_STAKE;
         vm.prank(alice);
         sapienVault.initiateUnstake(cooldownAmount);
 
@@ -138,18 +138,18 @@ contract SapienVaultCooldownBugTest is Test {
         // Since the lock period is completed, instant unstake should fail
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSignature("LockPeriodCompleted()"));
-        sapienVault.earlyUnstake(MINIMUM_STAKE);
+        sapienVault.earlyUnstake(MINIMUM_STAKE / 2);
 
         // But we should be able to initiate more cooldown on remaining unlocked amounts
         vm.prank(alice);
-        sapienVault.initiateUnstake(MINIMUM_STAKE * 2);
+        sapienVault.initiateUnstake(MINIMUM_STAKE);
 
-        assertEq(sapienVault.getTotalInCooldown(alice), MINIMUM_STAKE * 5, "Total cooldown should be 5000");
-        assertEq(sapienVault.getTotalUnlocked(alice), MINIMUM_STAKE * 5, "Remaining unlocked should be 5000");
+        assertEq(sapienVault.getTotalInCooldown(alice), MINIMUM_STAKE * 2, "Total cooldown should be 2000");
+        assertEq(sapienVault.getTotalUnlocked(alice), 0, "Nothing should be unlocked");
     }
 
     function test_Vault_CooldownLogic_InstantUnstakeWorksOnLockedStake() public {
-        uint256 stakeAmount = MINIMUM_STAKE * 10;
+        uint256 stakeAmount = MINIMUM_STAKE * 2; // 2K tokens (within 2.5K limit)
 
         // Alice stakes tokens
         vm.startPrank(alice);
@@ -160,7 +160,7 @@ contract SapienVaultCooldownBugTest is Test {
         // While still locked, early unstake now requires cooldown
         assertEq(sapienVault.getTotalLocked(alice), stakeAmount, "All tokens should be locked");
 
-        uint256 instantAmount = MINIMUM_STAKE * 3;
+        uint256 instantAmount = MINIMUM_STAKE; // Can't unstake more than half of 2K
         uint256 expectedPenalty = (instantAmount * 20) / 100; // 20% penalty
         uint256 expectedPayout = instantAmount - expectedPenalty;
 
@@ -190,7 +190,7 @@ contract SapienVaultCooldownBugTest is Test {
     }
 
     function test_Vault_CooldownLogic_CannotIncreaseAmountDuringCooldown() public {
-        uint256 stakeAmount = MINIMUM_STAKE * 10;
+        uint256 stakeAmount = MINIMUM_STAKE * 2; // 2K tokens (within 2.5K limit)
 
         // Alice stakes tokens
         vm.startPrank(alice);
@@ -201,9 +201,9 @@ contract SapienVaultCooldownBugTest is Test {
         // Time passes, stake becomes unlocked
         vm.warp(block.timestamp + LOCK_30_DAYS + 1);
 
-        // Alice initiates cooldown
+        // Alice initiates cooldown (can't unstake more than staked)
         vm.prank(alice);
-        sapienVault.initiateUnstake(MINIMUM_STAKE * 3);
+        sapienVault.initiateUnstake(MINIMUM_STAKE);
 
         // Alice tries to increase stake amount during cooldown - should fail
         vm.startPrank(alice);
@@ -214,7 +214,7 @@ contract SapienVaultCooldownBugTest is Test {
     }
 
     function test_Vault_CooldownLogic_CannotIncreaseLockupDuringCooldown() public {
-        uint256 stakeAmount = MINIMUM_STAKE * 10;
+        uint256 stakeAmount = MINIMUM_STAKE * 2; // 2K tokens (within 2.5K limit)
 
         // Alice stakes tokens
         vm.startPrank(alice);
@@ -225,9 +225,9 @@ contract SapienVaultCooldownBugTest is Test {
         // Time passes, stake becomes unlocked
         vm.warp(block.timestamp + LOCK_30_DAYS + 1);
 
-        // Alice initiates cooldown
+        // Alice initiates cooldown (can't unstake more than staked)
         vm.prank(alice);
-        sapienVault.initiateUnstake(MINIMUM_STAKE * 3);
+        sapienVault.initiateUnstake(MINIMUM_STAKE);
 
         // Alice tries to increase lockup during cooldown - should fail
         vm.prank(alice);
@@ -236,7 +236,7 @@ contract SapienVaultCooldownBugTest is Test {
     }
 
     function test_Vault_CooldownLogic_MultiplePartialCooldowns() public {
-        uint256 stakeAmount = MINIMUM_STAKE * 10;
+        uint256 stakeAmount = MINIMUM_STAKE * 2; // 2K tokens (within 2.5K limit)
 
         // Alice stakes tokens
         vm.startPrank(alice);
@@ -249,28 +249,21 @@ contract SapienVaultCooldownBugTest is Test {
 
         // First partial cooldown
         vm.prank(alice);
-        sapienVault.initiateUnstake(MINIMUM_STAKE * 3);
+        sapienVault.initiateUnstake(MINIMUM_STAKE);
 
-        assertEq(sapienVault.getTotalInCooldown(alice), MINIMUM_STAKE * 3, "First cooldown should be 3000");
-        assertEq(sapienVault.getTotalUnlocked(alice), MINIMUM_STAKE * 7, "Remaining unlocked should be 7000");
+        assertEq(sapienVault.getTotalInCooldown(alice), MINIMUM_STAKE, "First cooldown should be 1000");
+        assertEq(sapienVault.getTotalUnlocked(alice), MINIMUM_STAKE, "Remaining unlocked should be 1000");
 
-        // Second partial cooldown
+        // Second partial cooldown - all remaining
         vm.prank(alice);
-        sapienVault.initiateUnstake(MINIMUM_STAKE * 2);
+        sapienVault.initiateUnstake(MINIMUM_STAKE);
 
-        assertEq(sapienVault.getTotalInCooldown(alice), MINIMUM_STAKE * 5, "Total cooldown should be 5000");
-        assertEq(sapienVault.getTotalUnlocked(alice), MINIMUM_STAKE * 5, "Remaining unlocked should be 5000");
-
-        // Third partial cooldown - all remaining
-        vm.prank(alice);
-        sapienVault.initiateUnstake(MINIMUM_STAKE * 5);
-
-        assertEq(sapienVault.getTotalInCooldown(alice), MINIMUM_STAKE * 10, "All should be in cooldown");
+        assertEq(sapienVault.getTotalInCooldown(alice), MINIMUM_STAKE * 2, "All should be in cooldown");
         assertEq(sapienVault.getTotalUnlocked(alice), 0, "Nothing should be unlocked");
     }
 
     function test_Vault_CooldownLogic_CooldownReadyAfterPeriod() public {
-        uint256 stakeAmount = MINIMUM_STAKE * 10;
+        uint256 stakeAmount = MINIMUM_STAKE * 2; // 2K tokens (within 2.5K limit)
 
         // Alice stakes tokens
         vm.startPrank(alice);
@@ -282,7 +275,7 @@ contract SapienVaultCooldownBugTest is Test {
         vm.warp(block.timestamp + LOCK_30_DAYS + 1);
 
         // Alice initiates cooldown
-        uint256 cooldownAmount = MINIMUM_STAKE * 3;
+        uint256 cooldownAmount = MINIMUM_STAKE;
         vm.prank(alice);
         sapienVault.initiateUnstake(cooldownAmount);
 
@@ -310,8 +303,8 @@ contract SapienVaultCooldownBugTest is Test {
     }
 
     function test_Vault_CooldownLogic_PartialUnstakeFromCooldown() public {
-        uint256 stakeAmount = MINIMUM_STAKE * 10;
-        uint256 cooldownAmount = MINIMUM_STAKE * 6;
+        uint256 stakeAmount = MINIMUM_STAKE * 2; // 2K tokens (within 2.5K limit)
+        uint256 cooldownAmount = MINIMUM_STAKE;
 
         // Alice stakes and waits for unlock
         vm.startPrank(alice);
@@ -329,7 +322,7 @@ contract SapienVaultCooldownBugTest is Test {
         vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
 
         // Partial unstake from cooldown
-        uint256 partialUnstake = MINIMUM_STAKE * 2;
+        uint256 partialUnstake = MINIMUM_STAKE / 2;
         uint256 aliceBalanceBefore = mockToken.balanceOf(alice);
 
         vm.prank(alice);

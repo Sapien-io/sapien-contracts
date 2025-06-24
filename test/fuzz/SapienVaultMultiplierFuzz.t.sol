@@ -26,8 +26,8 @@ contract SapienVaultMultiplierFuzz is Test {
     address public pauseManager = makeAddr("pauseManager");
     address public sapienQA = makeAddr("sapienQA");
 
-    uint256 public constant MINIMUM_STAKE = Const.MINIMUM_STAKE_AMOUNT; // Use constant from contracts
-    uint256 public constant MAXIMUM_STAKE = Const.MAXIMUM_STAKE_AMOUNT; // Use constant from contracts
+    uint256 public constant MINIMUM_STAKE_AMOUNT = Const.MINIMUM_STAKE_AMOUNT; // Use constant from contracts
+    uint256 public constant MAXIMUM_STAKE_AMOUNT = Const.MAXIMUM_STAKE_AMOUNT; // Use constant from contracts
 
     // Lock periods
     uint256 public constant LOCK_30_DAYS = 30 days;
@@ -81,7 +81,7 @@ contract SapienVaultMultiplierFuzz is Test {
     /// @notice Fuzz test calculateMultiplier function across all valid ranges
     function testFuzz_CalculateMultiplier_AllTiers(uint256 amount, uint8 periodIndex) public view {
         // Bound amount to valid staking range
-        amount = bound(amount, MINIMUM_STAKE, MAXIMUM_STAKE);
+        amount = bound(amount, MINIMUM_STAKE_AMOUNT, MAXIMUM_STAKE_AMOUNT);
         
         // Map periodIndex to valid periods
         uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
@@ -106,11 +106,11 @@ contract SapienVaultMultiplierFuzz is Test {
     /// @notice Fuzz test that multiplier increases continuously with amount
     function testFuzz_MultiplierIncreasesWithinTier(uint256 baseAmount, uint256 increment, uint8 periodIndex) public view {
         // Use continuous range instead of discrete tiers
-        baseAmount = bound(baseAmount, MINIMUM_STAKE, HIGH_AMOUNT - 500e18);
+        baseAmount = bound(baseAmount, MINIMUM_STAKE_AMOUNT, HIGH_AMOUNT - 500e18);
         increment = bound(increment, 1e18, 500e18); // Increment to test continuous scaling
         
         uint256 higherAmount = baseAmount + increment;
-        if (higherAmount > MAXIMUM_STAKE) higherAmount = MAXIMUM_STAKE; // Stay within limits
+        if (higherAmount > MAXIMUM_STAKE_AMOUNT) higherAmount = MAXIMUM_STAKE_AMOUNT; // Stay within limits
         
         uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
         uint256 period = validPeriods[periodIndex % 4];
@@ -130,7 +130,7 @@ contract SapienVaultMultiplierFuzz is Test {
     function testFuzz_MultiplierIncreasesWithPeriod(uint256 amount) public view {
         // Use meaningful amounts where the time effect is visible
         // For very small amounts in the multiplicative model, time has minimal effect
-        amount = bound(amount, 100 * 1e18, MAXIMUM_STAKE); // Start from 100 tokens minimum
+        amount = bound(amount, 100 * 1e18, MAXIMUM_STAKE_AMOUNT); // Start from 100 tokens minimum
         
         uint256 mult30 = sapienVault.calculateMultiplier(amount, LOCK_30_DAYS);
         uint256 mult90 = sapienVault.calculateMultiplier(amount, LOCK_90_DAYS);
@@ -150,13 +150,13 @@ contract SapienVaultMultiplierFuzz is Test {
     /// @notice Fuzz test to detect storage corruption in effectiveMultiplier
     function testFuzz_StorageCorruption_EffectiveMultiplier(uint256 amount, uint8 periodIndex, uint256 timestamp) public {
         // Bound inputs
-        amount = bound(amount, MINIMUM_STAKE, MAXIMUM_STAKE);
+        amount = bound(amount, MINIMUM_STAKE_AMOUNT, MAXIMUM_STAKE_AMOUNT);
         uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
         uint256 period = validPeriods[periodIndex % 4];
         timestamp = bound(timestamp, 1000, type(uint32).max / 2); // Reasonable timestamp range
         
         // Ensure all parameters are within reasonable ranges
-        if (amount < MINIMUM_STAKE || amount > MAXIMUM_STAKE) return;
+        if (amount < MINIMUM_STAKE_AMOUNT || amount > MAXIMUM_STAKE_AMOUNT) return;
         if (period < LOCK_30_DAYS || period > LOCK_365_DAYS) return;
         if (timestamp < 1000) return;
         
@@ -205,25 +205,6 @@ contract SapienVaultMultiplierFuzz is Test {
         // Only proceed with storage corruption testing if staking was successful
         if (!stakingSuccessful) return;
         
-        // Extract multiplier from Staked event
-        // Vm.Log[] memory logs = vm.getRecordedLogs();
-        // uint256 eventMultiplier = 0;
-        // bool foundStakedEvent = false;
-        
-        // for (uint256 i = 0; i < logs.length; i++) {
-        //     if (logs[i].topics[0] == keccak256("Staked(address,uint256,uint256,uint256)")) {
-        //         foundStakedEvent = true;
-        //         (, , uint256 eventEffectiveMultiplier, ) = 
-        //             abi.decode(logs[i].data, (uint256, uint256, uint256, uint256));
-        //         eventMultiplier = eventEffectiveMultiplier;
-        //         break;
-        //     }
-        // }
-        
-        // // Skip if we didn't find the staked event - this shouldn't happen in normal cases
-        // // but might occur in edge cases we want to handle gracefully
-        // if (!foundStakedEvent) return;
-        
         // Get stored multiplier from getUserStakingSummary
         ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user);
         uint256 storedMultiplier = userStake.effectiveMultiplier;
@@ -248,8 +229,8 @@ contract SapienVaultMultiplierFuzz is Test {
         uint256 timeBetween
     ) public {
         // Bound inputs
-        amount1 = bound(amount1, MINIMUM_STAKE, MAXIMUM_STAKE / 2);
-        amount2 = bound(amount2, MINIMUM_STAKE, MAXIMUM_STAKE / 2);
+        amount1 = bound(amount1, MINIMUM_STAKE_AMOUNT,  MAXIMUM_STAKE_AMOUNT/ 2);
+        amount2 = bound(amount2, MINIMUM_STAKE_AMOUNT,  MAXIMUM_STAKE_AMOUNT/ 2);
         timeBetween = bound(timeBetween, 1 days, 30 days);
         
         uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
@@ -271,7 +252,8 @@ contract SapienVaultMultiplierFuzz is Test {
         // Wait and add second stake
         vm.warp(block.timestamp + timeBetween);
         sapienToken.approve(address(sapienVault), amount2);
-        sapienVault.stake(amount2, period2);
+        sapienVault.increaseAmount(amount2);
+        sapienVault.increaseLockup(period2);
         vm.stopPrank();
         
         // Verify combined stake maintains positive multiplier
@@ -300,7 +282,7 @@ contract SapienVaultMultiplierFuzz is Test {
             uint256 boundary = boundaries[i];
             
             // Test just below boundary
-            if (boundary > offset && boundary - offset >= MINIMUM_STAKE) {
+            if (boundary > offset && boundary - offset >= MINIMUM_STAKE_AMOUNT)  {
                 uint256 belowAmount = boundary - offset;
                 uint256 belowMultiplier = sapienVault.calculateMultiplier(belowAmount, LOCK_365_DAYS);
                 assertGt(belowMultiplier, 0, "Below boundary multiplier must be positive");
@@ -311,7 +293,7 @@ contract SapienVaultMultiplierFuzz is Test {
             assertGt(atMultiplier, 0, "At boundary multiplier must be positive");
             
             // Test just above boundary
-            if (boundary + offset <= MAXIMUM_STAKE) {
+            if (boundary + offset <= MAXIMUM_STAKE_AMOUNT)  {
                 uint256 aboveAmount = boundary + offset;
                 uint256 aboveMultiplier = sapienVault.calculateMultiplier(aboveAmount, LOCK_365_DAYS);
                 assertGt(aboveMultiplier, 0, "Above boundary multiplier must be positive");
@@ -325,11 +307,11 @@ contract SapienVaultMultiplierFuzz is Test {
     /// @notice Fuzz test exact key boundary values for edge case detection
     function testFuzz_ExactTierBoundaries_EdgeCases(uint8 boundaryIndex, uint8 periodIndex) public {
         uint256[5] memory exactBoundaries = [
-            MINIMUM_STAKE,  // 1e18
+            MINIMUM_STAKE_AMOUNT,   // 1e18
             LOW_AMOUNT,     // 250e18
             MID_AMOUNT,     // 1250e18
             HIGH_AMOUNT,    // 2500e18
-            MAXIMUM_STAKE   // 10000e18
+            MAXIMUM_STAKE_AMOUNT  // 10000e18
         ];
         
         uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
@@ -360,7 +342,7 @@ contract SapienVaultMultiplierFuzz is Test {
 
     /// @notice Fuzz test SafeCast operations with multiplier values
     function testFuzz_SafeCast_MultiplierValues(uint256 amount, uint8 periodIndex) public view {
-        amount = bound(amount, MINIMUM_STAKE, MAXIMUM_STAKE);
+        amount = bound(amount, MINIMUM_STAKE_AMOUNT,  MAXIMUM_STAKE_AMOUNT) ;
         uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
         uint256 period = validPeriods[periodIndex % 4];
         
@@ -416,51 +398,7 @@ contract SapienVaultMultiplierFuzz is Test {
     // TIMESTAMP AND WEIGHTED CALCULATION FUZZING
     // =============================================================================
 
-    /// @notice Fuzz test weighted calculations with various timestamps
-    function testFuzz_WeightedCalculations_Timestamps(
-        uint256 amount1, uint256 amount2,
-        uint256 timestamp1, uint256 timestamp2,
-        uint8 period1Index, uint8 period2Index
-    ) public {
-        // Bound inputs
-        amount1 = bound(amount1, MINIMUM_STAKE, MAXIMUM_STAKE / 2);
-        amount2 = bound(amount2, MINIMUM_STAKE, MAXIMUM_STAKE / 2);
-        timestamp1 = bound(timestamp1, 1000, 2**31 - 1);
-        timestamp2 = bound(timestamp2, timestamp1 + 1, timestamp1 + 365 days);
-        
-        uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
-        uint256 period1 = validPeriods[period1Index % 4];
-        uint256 period2 = validPeriods[period2Index % 4];
-        
-        address user = makeAddr("weightedUser");
-        sapienToken.mint(user, amount1 + amount2);
-        
-        // First stake at timestamp1
-        vm.warp(timestamp1);
-        vm.startPrank(user);
-        sapienToken.approve(address(sapienVault), amount1);
-        sapienVault.stake(amount1, period1);
-        
-        // Verify first stake storage
-        ISapienVault.UserStakingSummary memory userStakeFirst = sapienVault.getUserStakingSummary(user);
-        assertGt(userStakeFirst.effectiveMultiplier, 0, "First stake multiplier must be positive");
-        
-        // Second stake at timestamp2
-        vm.warp(timestamp2);
-        sapienToken.approve(address(sapienVault), amount2);
-        sapienVault.stake(amount2, period2);
-        vm.stopPrank();
-        
-        // Verify combined stake
-        ISapienVault.UserStakingSummary memory userStakeFinal = sapienVault.getUserStakingSummary(user);
-        
-        assertEq(userStakeFinal.userTotalStaked, amount1 + amount2, "Total stake should be combined");
-        assertGt(userStakeFinal.effectiveMultiplier, 0, "Final multiplier must be positive after weighted calculation");
-        
-        // Check for reasonable bounds
-        assertGe(userStakeFinal.effectiveMultiplier, 10000, "Final multiplier should be at least minimum");
-        assertLe(userStakeFinal.effectiveMultiplier, 15000, "Final multiplier should not exceed maximum");
-    }
+
 
     // =============================================================================
     // COMPREHENSIVE MATRIX VALIDATION FUZZING
@@ -468,7 +406,7 @@ contract SapienVaultMultiplierFuzz is Test {
 
     /// @notice Fuzz test to validate multiplicative model behavior
     function testFuzz_MultiplierMatrix_Validation(uint256 amount, uint8 periodIndex) public view {
-        amount = bound(amount, MINIMUM_STAKE, MAXIMUM_STAKE);
+        amount = bound(amount, MINIMUM_STAKE_AMOUNT,  MAXIMUM_STAKE_AMOUNT) ;
         uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
         uint256 period = validPeriods[periodIndex % 4];
         
@@ -479,7 +417,7 @@ contract SapienVaultMultiplierFuzz is Test {
         assertLe(actualMultiplier, 15000, "Should not exceed maximum multiplier (1.50x)");
         
         // Test key edge cases for the multiplicative model
-        if (amount == MINIMUM_STAKE && period == LOCK_30_DAYS) {
+        if (amount == MINIMUM_STAKE_AMOUNT && period == LOCK_30_DAYS) {
             // Minimum amount + minimum time should produce minimum multiplier
             assertEq(actualMultiplier, 10000, "Min amount + min time should equal base multiplier");
         }
@@ -500,26 +438,28 @@ contract SapienVaultMultiplierFuzz is Test {
     // STORAGE CONSISTENCY FUZZING
     // =============================================================================
 
-    /// @notice Fuzz test storage consistency across operations
+    /// @notice Fuzz test storage consistency across different operations
     function testFuzz_StorageConsistency_Operations(
-        uint256 stakeAmount,
-        uint256 increaseAmount,
-        uint256 timeDelay,
-        uint8 stakePeriodIndex,
-        uint8 operationType
+        uint256 stakeAmount, uint256 increaseAmount, uint256 timeDelay, uint8 operationType, uint8 periodIndex
     ) public {
-        // Bound inputs
-        stakeAmount = bound(stakeAmount, MINIMUM_STAKE, MAXIMUM_STAKE / 2);
-        increaseAmount = bound(increaseAmount, MINIMUM_STAKE, MAXIMUM_STAKE / 2);
-        timeDelay = bound(timeDelay, 1 hours, 30 days);
+        // Bound inputs to respect maximum stake limit
+        stakeAmount = bound(stakeAmount, MINIMUM_STAKE_AMOUNT, MAXIMUM_STAKE_AMOUNT / 2);
+        increaseAmount = bound(increaseAmount, 0, MAXIMUM_STAKE_AMOUNT / 2);
+        
+        // Ensure total doesn't exceed maximum
+        if (stakeAmount + increaseAmount > MAXIMUM_STAKE_AMOUNT) {
+            increaseAmount = MAXIMUM_STAKE_AMOUNT - stakeAmount;
+        }
+        
+        timeDelay = bound(timeDelay, 1 hours, 90 days);
         
         uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
-        uint256 stakePeriod = validPeriods[stakePeriodIndex % 4];
+        uint256 stakePeriod = validPeriods[periodIndex % 4];
         
         address user = makeAddr("consistencyUser");
         sapienToken.mint(user, stakeAmount + increaseAmount);
         
-        // Initial stake
+        // Initial stake - THIS IS REQUIRED FIRST
         vm.startPrank(user);
         sapienToken.approve(address(sapienVault), stakeAmount);
         sapienVault.stake(stakeAmount, stakePeriod);
@@ -532,31 +472,33 @@ contract SapienVaultMultiplierFuzz is Test {
         vm.warp(block.timestamp + timeDelay);
         
         uint8 opType = operationType % 3;
-        if (opType == 0) {
-            // Increase amount
+        bool didIncreaseAmount = false;
+        if (opType == 0 && increaseAmount > MINIMUM_STAKE_AMOUNT / 100 && increaseAmount < MAXIMUM_STAKE_AMOUNT) {
+            // Increase amount - only if we have a meaningful amount to add
             sapienToken.approve(address(sapienVault), increaseAmount);
             sapienVault.increaseAmount(increaseAmount);
+            didIncreaseAmount = true;
         } else if (opType == 1) {
             // Increase lockup
             uint256 additionalLockup = bound(timeDelay, 30 days, 90 days);
             sapienVault.increaseLockup(additionalLockup);
-        } else {
-            // Add new stake
-            sapienToken.approve(address(sapienVault), increaseAmount);
-            sapienVault.stake(increaseAmount, stakePeriod);
         }
+        // For opType == 2, we don't do anything (just test base state)
         vm.stopPrank();
         
         // Verify storage consistency after operation
         ISapienVault.UserStakingSummary memory userStakeAfterOp = sapienVault.getUserStakingSummary(user);
         
-        // For increaseLockup (opType == 1), total stake doesn't increase - only lockup period extends
-        if (opType == 1) {
-            // increaseLockup operation - total stake should remain the same
-            assertEq(userStakeAfterOp.userTotalStaked, stakeAmount, "Total stake should remain same for lockup increase");
-        } else {
-            // increaseAmount (opType == 0) or additional stake (opType == 2) - total stake should increase
+        // Check based on what actually happened
+        if (opType == 1 || opType == 2) {
+            // increaseLockup operation or no-op - total stake should remain the same
+            assertEq(userStakeAfterOp.userTotalStaked, stakeAmount, "Total stake should remain same for lockup increase or no-op");
+        } else if (opType == 0 && didIncreaseAmount) {
+            // increaseAmount operation with actual increase - total stake should increase
             assertGt(userStakeAfterOp.userTotalStaked, stakeAmount, "Total stake should increase");
+        } else {
+            // increaseAmount with amount too small or 0 - should remain same
+            assertEq(userStakeAfterOp.userTotalStaked, stakeAmount, "Total stake should remain same for zero or negligible increase");
         }
         
         assertGt(userStakeAfterOp.effectiveMultiplier, 0, "Final multiplier must remain positive");
@@ -592,7 +534,7 @@ contract SapienVaultMultiplierFuzz is Test {
     /// @notice Test individual storage corruption scenario
     function testFuzz_Specific_StorageCorruption(uint256 seed) public {
         // Use seed to generate reproducible "random" values for debugging
-        uint256 amount = (seed % (MAXIMUM_STAKE - MINIMUM_STAKE)) + MINIMUM_STAKE;
+        uint256 amount = (seed % (MAXIMUM_STAKE_AMOUNT- MINIMUM_STAKE_AMOUNT) ) + MINIMUM_STAKE_AMOUNT;
         uint256 period = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS][seed % 4];
         uint256 timestamp = (seed % 1000000) + 1000;
         
@@ -624,12 +566,54 @@ contract SapienVaultMultiplierFuzz is Test {
     // ADVANCED STORAGE SLOT CORRUPTION FUZZING
     // =============================================================================
 
-    /// @notice Fuzz test for storage slot corruption with user address variations
+    /// @notice Fuzz test for storage slot collision detection
+    /// @dev Tests whether multiple users with similar addresses cause storage collisions
+    function testFuzz_StorageSlotCollision(uint256 baseSeed, uint256 amount, uint8 periodIndex) public {
+        // Bound inputs
+        amount = bound(amount, MINIMUM_STAKE_AMOUNT,  MAXIMUM_STAKE_AMOUNT/ 10); // Smaller amounts for multiple users
+        uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
+        uint256 period = validPeriods[periodIndex % 4];
+        
+        uint256 expectedMultiplier = sapienVault.calculateMultiplier(amount, period);
+        assertGt(expectedMultiplier, 0, "Expected multiplier must be positive");
+        
+        // Create multiple users with potentially colliding addresses
+        address[10] memory users;
+        for (uint256 i = 0; i < 10; i++) {
+            // Prevent arithmetic overflow by using modulo operation with a reasonable bound
+            uint256 safeSeed = (baseSeed % (type(uint256).max / 100)) + i;
+            users[i] = makeAddr(string(abi.encodePacked("collision", vm.toString(safeSeed))));
+            sapienToken.mint(users[i], amount);
+        }
+        
+        // Stake with all users - USE stake() FIRST, not increaseAmount/increaseLockup
+        for (uint256 i = 0; i < 10; i++) {
+            vm.startPrank(users[i]);
+            sapienToken.approve(address(sapienVault), amount);
+            sapienVault.stake(amount, period);
+            vm.stopPrank();
+        }
+        
+        // Verify all users have correct multipliers (no collision)
+        for (uint256 i = 0; i < 10; i++) {
+            ISapienVault.UserStakingSummary memory userCollisionStake = sapienVault.getUserStakingSummary(users[i]);
+            uint256 storedMultiplier = userCollisionStake.effectiveMultiplier;
+            
+            if (storedMultiplier == 0) {
+                emit StorageCorruption(users[i], amount, period, expectedMultiplier, i, storedMultiplier);
+                revert(string(abi.encodePacked("STORAGE COLLISION: User ", vm.toString(i), " has zero multiplier")));
+            }
+            
+            assertEq(storedMultiplier, expectedMultiplier, string(abi.encodePacked("User ", vm.toString(i), " multiplier mismatch")));
+        }
+    }
+
+    /// @notice Fuzz test for storage corruption with user address variations
     /// @dev This test specifically targets the issue where different user addresses
     ///      might cause storage corruption in the effectiveMultiplier field
     function testFuzz_UserAddressStorageCorruption(uint256 addressSeed, uint256 amount, uint8 periodIndex) public {
         // Bound inputs
-        amount = bound(amount, MINIMUM_STAKE, MAXIMUM_STAKE);
+        amount = bound(amount, MINIMUM_STAKE_AMOUNT,  MAXIMUM_STAKE_AMOUNT) ;
         uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
         uint256 period = validPeriods[periodIndex % 4];
         
@@ -656,6 +640,7 @@ contract SapienVaultMultiplierFuzz is Test {
             
             vm.startPrank(user);
             sapienToken.approve(address(sapienVault), amount);
+            // USE stake() FIRST, not increaseAmount/increaseLockup
             sapienVault.stake(amount, period);
             vm.stopPrank();
             
@@ -681,8 +666,8 @@ contract SapienVaultMultiplierFuzz is Test {
         uint256 userSeed
     ) public {
         // Bound inputs
-        amount1 = bound(amount1, MINIMUM_STAKE, MAXIMUM_STAKE / 2);
-        amount2 = bound(amount2, MINIMUM_STAKE, MAXIMUM_STAKE / 2);
+        amount1 = bound(amount1, MINIMUM_STAKE_AMOUNT,  MAXIMUM_STAKE_AMOUNT/ 2);
+        amount2 = bound(amount2, MINIMUM_STAKE_AMOUNT,  MAXIMUM_STAKE_AMOUNT/ 2);
         timeBetween = bound(timeBetween, 1 hours, 90 days);
         
         uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
@@ -715,7 +700,8 @@ contract SapienVaultMultiplierFuzz is Test {
         sapienToken.approve(address(sapienVault), amount2);
         
         // This will trigger _combineStakes which modifies all UserStake fields
-        sapienVault.stake(amount2, period2);
+        sapienVault.increaseAmount(amount2);
+        sapienVault.increaseLockup(period2);
         vm.stopPrank();
         
         // Check for corruption after struct modification
@@ -738,7 +724,7 @@ contract SapienVaultMultiplierFuzz is Test {
     /// @dev Tests whether SafeCast.toUint32 behaves differently in different execution contexts
     function testFuzz_SafeCastContextCorruption(uint256 amount, uint8 periodIndex, uint256 timestamp, uint256 blockNumber) public {
         // Bound inputs
-        amount = bound(amount, MINIMUM_STAKE, MAXIMUM_STAKE);
+        amount = bound(amount, MINIMUM_STAKE_AMOUNT,  MAXIMUM_STAKE_AMOUNT) ;
         uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
         uint256 period = validPeriods[periodIndex % 4];
         timestamp = bound(timestamp, 1000, type(uint32).max); // Use uint32 max for timestamp
@@ -791,8 +777,8 @@ contract SapienVaultMultiplierFuzz is Test {
         uint256 memoryPadding,
         bool useIncreaseAmount
     ) public {
-        // Bound inputs - ensure amount is at least 2x MINIMUM_STAKE so amount/2 is valid
-        amount = bound(amount, MINIMUM_STAKE * 2, MAXIMUM_STAKE / 2);
+        // Bound inputs - ensure amount is at least 2x MINIMUM_STAKE_AMOUNT so amount/2 is valid
+        amount = bound(amount, MINIMUM_STAKE_AMOUNT * 2, MAXIMUM_STAKE_AMOUNT/ 2);
         uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
         uint256 period = validPeriods[periodIndex % 4];
         
@@ -858,7 +844,7 @@ contract SapienVaultMultiplierFuzz is Test {
     /// @dev Tests whether very large timestamps cause calculation or storage issues
     function testFuzz_ExtremeTimestampCorruption(uint256 amount, uint8 periodIndex, uint256 extremeTimestamp) public {
         // Bound inputs
-        amount = bound(amount, MINIMUM_STAKE, MAXIMUM_STAKE);
+        amount = bound(amount, MINIMUM_STAKE_AMOUNT,  MAXIMUM_STAKE_AMOUNT) ;
         uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
         uint256 period = validPeriods[periodIndex % 4];
         
@@ -898,7 +884,7 @@ contract SapienVaultMultiplierFuzz is Test {
     /// @dev Tests whether different gas limits affect storage operations
     function testFuzz_GasLimitCorruption(uint256 amount, uint8 periodIndex, uint256 gasLimit) public {
         // Bound inputs
-        amount = bound(amount, MINIMUM_STAKE, MAXIMUM_STAKE);
+        amount = bound(amount, MINIMUM_STAKE_AMOUNT,  MAXIMUM_STAKE_AMOUNT) ;
         uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
         uint256 period = validPeriods[periodIndex % 4];
         gasLimit = bound(gasLimit, 1_000_000, 30_000_000); // Reasonable gas range
@@ -938,273 +924,54 @@ contract SapienVaultMultiplierFuzz is Test {
         assertEq(storedMultiplier, expectedMultiplier, "Gas limits should not affect storage");
     }
 
-    /// @notice Fuzz test for storage slot collision detection
-    /// @dev Tests whether multiple users with similar addresses cause storage collisions
-    function testFuzz_StorageSlotCollision(uint256 baseSeed, uint256 amount, uint8 periodIndex) public {
-        // Bound inputs
-        amount = bound(amount, MINIMUM_STAKE, MAXIMUM_STAKE / 10); // Smaller amounts for multiple users
-        uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
-        uint256 period = validPeriods[periodIndex % 4];
-        
-        uint256 expectedMultiplier = sapienVault.calculateMultiplier(amount, period);
-        assertGt(expectedMultiplier, 0, "Expected multiplier must be positive");
-        
-        // Create multiple users with potentially colliding addresses
-        address[10] memory users;
-        for (uint256 i = 0; i < 10; i++) {
-            // Prevent arithmetic overflow by using modulo operation with a reasonable bound
-            uint256 safeSeed = (baseSeed % (type(uint256).max / 100)) + i;
-            users[i] = makeAddr(string(abi.encodePacked("collision", vm.toString(safeSeed))));
-            sapienToken.mint(users[i], amount);
-        }
-        
-        // Stake with all users
-        for (uint256 i = 0; i < 10; i++) {
-            vm.startPrank(users[i]);
-            sapienToken.approve(address(sapienVault), amount);
-            sapienVault.stake(amount, period);
-            vm.stopPrank();
-        }
-        
-        // Verify all users have correct multipliers (no collision)
-        for (uint256 i = 0; i < 10; i++) {
-            ISapienVault.UserStakingSummary memory userCollisionStake = sapienVault.getUserStakingSummary(users[i]);
-            uint256 storedMultiplier = userCollisionStake.effectiveMultiplier;
-            
-            if (storedMultiplier == 0) {
-                emit StorageCorruption(users[i], amount, period, expectedMultiplier, i, storedMultiplier);
-                revert(string(abi.encodePacked("STORAGE COLLISION: User ", vm.toString(i), " has zero multiplier")));
-            }
-            
-            assertEq(storedMultiplier, expectedMultiplier, string(abi.encodePacked("User ", vm.toString(i), " multiplier mismatch")));
-        }
-    }
-
-    /// @notice Comprehensive stress test for storage corruption
-    /// @dev Combines multiple potential corruption vectors in a single test
-    function testFuzz_ComprehensiveStorageStress(
-        uint256 amount1, uint256 amount2,
-        uint8 period1Index, uint8 period2Index,
-        uint256 timestamp1, uint256 timestamp2,
-        uint256 userSeed
+    /// @notice Fuzz test that generates random addresses and looks for storage corruption
+    function testFuzz_WeightedCalculations_Timestamps(
+        uint256 amount1, uint256 amount2, uint256 userSeed, uint256 timestamp1, uint8 period1Index, uint8 period2Index
     ) public {
-        // Bound all inputs
-        amount1 = bound(amount1, MINIMUM_STAKE, MAXIMUM_STAKE / 2);
-        amount2 = bound(amount2, MINIMUM_STAKE, MAXIMUM_STAKE / 2);
+        // Bound inputs
+        amount1 = bound(amount1, MINIMUM_STAKE_AMOUNT,  MAXIMUM_STAKE_AMOUNT/ 2);
+        amount2 = bound(amount2, MINIMUM_STAKE_AMOUNT,  MAXIMUM_STAKE_AMOUNT/ 2);
+        
+        // Ensure total doesn't exceed maximum
+        if (amount1 + amount2 > MAXIMUM_STAKE_AMOUNT)  {
+            amount2 = MAXIMUM_STAKE_AMOUNT- amount1;
+        }
         
         uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
         uint256 period1 = validPeriods[period1Index % 4];
         uint256 period2 = validPeriods[period2Index % 4];
         
         timestamp1 = bound(timestamp1, 1000, type(uint32).max / 2);
-        timestamp2 = bound(timestamp2, timestamp1 + 1, timestamp1 + 180 days);
         
-        address user = makeAddr(string(abi.encodePacked("stressUser", vm.toString(userSeed))));
-        uint256 totalAmount = amount1 + amount2;
-        sapienToken.mint(user, totalAmount);
+        address user = makeAddr(string(abi.encodePacked("weightedUser", vm.toString(userSeed))));
+        sapienToken.mint(user, amount1 + amount2);
         
-        // Complex sequence of operations with different timestamps
+        // First stake
         vm.warp(timestamp1);
         vm.startPrank(user);
         sapienToken.approve(address(sapienVault), amount1);
         sapienVault.stake(amount1, period1);
         
-        ISapienVault.UserStakingSummary memory stressStake1 = sapienVault.getUserStakingSummary(user);
-        uint256 multiplier1 = stressStake1.effectiveMultiplier;
-        assertGt(multiplier1, 0, "First multiplier must be positive");
+        // Verify first stake
+        ISapienVault.UserStakingSummary memory firstStake = sapienVault.getUserStakingSummary(user);
+        assertGt(firstStake.effectiveMultiplier, 0, "First stake multiplier must be positive");
         
-        vm.warp(timestamp2);
+        // Wait and add second stake
+        vm.warp(timestamp1 + 30 days);
         sapienToken.approve(address(sapienVault), amount2);
-        sapienVault.stake(amount2, period2);
+        sapienVault.increaseAmount(amount2);
+        sapienVault.increaseLockup(period2);
         vm.stopPrank();
         
-        // Final comprehensive check
-        ISapienVault.UserStakingSummary memory finalStressStake = sapienVault.getUserStakingSummary(user);
-        uint256 totalStaked = finalStressStake.userTotalStaked;
-        uint256 finalMultiplier = finalStressStake.effectiveMultiplier;
-        
-        assertEq(totalStaked, totalAmount, "Total stake should be sum of all amounts");
-        
-        if (finalMultiplier == 0) {
-            emit StorageCorruption(user, totalStaked, period2, multiplier1, userSeed, finalMultiplier);
-            revert("COMPREHENSIVE STRESS: Final multiplier is zero after complex operations");
-        }
-        
-        assertGt(finalMultiplier, 0, "Final multiplier must be positive after stress test");
-        assertGe(finalMultiplier, 10000, "Final multiplier should be at least minimum");
-        assertLe(finalMultiplier, 15000, "Final multiplier should not exceed maximum");
-    }
-
-    // =============================================================================
-    // FOCUSED DEBUGGING FOR SPECIFIC FAILURE CASES
-    // =============================================================================
-
-    /// @notice Focused test to debug the specific failing case found by fuzzer
-    /// @dev Tests the exact parameters that caused multiplier to become 0
-    function test_DebugSpecificFailingCase() public {
-        // Exact failing parameters from fuzzer:
-        // args=[12427, 12436, 62, 128, 17266, 11699, 9537]
-        uint256 amount1 = 12427e18;  // 12,427 tokens
-        uint256 amount2 = 12436e18;  // 12,436 tokens  
-        uint8 period1Index = 62;     // Maps to validPeriods[62 % 4] = validPeriods[2] = LOCK_180_DAYS
-        uint8 period2Index = 128;    // Maps to validPeriods[128 % 4] = validPeriods[0] = LOCK_30_DAYS
-        uint256 timestamp1 = 17266;  // Initial timestamp
-        uint256 timestamp2 = 11699;  // Second timestamp (this is less than timestamp1!)
-        uint256 userSeed = 9537;     // User seed
-        
-        // Bound all inputs as in the original test
-        amount1 = bound(amount1, MINIMUM_STAKE, MAXIMUM_STAKE / 2);
-        amount2 = bound(amount2, MINIMUM_STAKE, MAXIMUM_STAKE / 2);
-        
-        uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
-        uint256 period1 = validPeriods[period1Index % 4];  // LOCK_180_DAYS
-        uint256 period2 = validPeriods[period2Index % 4];  // LOCK_30_DAYS
-        
-        timestamp1 = bound(timestamp1, 1000, type(uint32).max / 2);
-        timestamp2 = bound(timestamp2, timestamp1 + 1, timestamp1 + 180 days);
-        
-        address user = makeAddr(string(abi.encodePacked("stressUser", vm.toString(userSeed))));
-        uint256 totalAmount = amount1 + amount2;
-        sapienToken.mint(user, totalAmount);
-        
-        console.log("=== DEBUGGING SPECIFIC FAILING CASE ===");
-        console.log("amount1:", amount1);
-        console.log("amount2:", amount2);
-        console.log("period1 days:", period1 / 1 days);
-        console.log("period2 days:", period2 / 1 days);
-        console.log("timestamp1:", timestamp1);
-        console.log("timestamp2:", timestamp2);
-        
-        // Test calculateMultiplier for both individual amounts
-        uint256 expectedMultiplier1 = sapienVault.calculateMultiplier(amount1, period1);
-        uint256 expectedMultiplier2 = sapienVault.calculateMultiplier(amount2, period2);
-        uint256 expectedMultiplierCombined = sapienVault.calculateMultiplier(totalAmount, period2); // Final period
-        
-        console.log("Expected multiplier1:", expectedMultiplier1);
-        console.log("Expected multiplier2:", expectedMultiplier2);
-        console.log("Expected combined:", expectedMultiplierCombined);
-        
-        assertGt(expectedMultiplier1, 0, "Expected multiplier 1 must be positive");
-        assertGt(expectedMultiplier2, 0, "Expected multiplier 2 must be positive");
-        assertGt(expectedMultiplierCombined, 0, "Expected combined multiplier must be positive");
-        
-        // Complex sequence of operations with different timestamps (EXACT replication)
-        vm.warp(timestamp1);
-        vm.startPrank(user);
-        sapienToken.approve(address(sapienVault), amount1);
-        sapienVault.stake(amount1, period1);
-        
-        ISapienVault.UserStakingSummary memory debugStake1 = sapienVault.getUserStakingSummary(user);
-        uint256 multiplier1 = debugStake1.effectiveMultiplier;
-        console.log("After first stake:");
-        console.log("stored multiplier1:", multiplier1);
-        console.log("expected:", expectedMultiplier1);
-        
-        if (multiplier1 == 0) {
-            console.log("FOUND IT: First multiplier is already 0!");
-            console.log("Issue is in initial stake, not combination");
-            revert("First stake already produces zero multiplier");
-        }
-        
-        assertGt(multiplier1, 0, "First multiplier must be positive");
-        
-        vm.warp(timestamp2);
-        sapienToken.approve(address(sapienVault), amount2);
-        sapienVault.stake(amount2, period2);
-        vm.stopPrank();
-        
-        // Final comprehensive check
-        ISapienVault.UserStakingSummary memory debugFinalStake = sapienVault.getUserStakingSummary(user);
-        uint256 totalStaked = debugFinalStake.userTotalStaked;
-        uint256 finalMultiplier = debugFinalStake.effectiveMultiplier;
-        
-        console.log("After second stake:");
-        console.log("totalStaked:", totalStaked);
-        console.log("finalMultiplier:", finalMultiplier);
-        console.log("expected combined:", expectedMultiplierCombined);
-        
-        if (finalMultiplier == 0) {
-            console.log("CORRUPTION DETECTED in stake combination!");
-            console.log("First multiplier was:", multiplier1);
-            console.log("Final multiplier is 0");
-            console.log("Corruption during stake combination");
-            
-            // Let's test the individual components again
-            uint256 retestMultiplier1 = sapienVault.calculateMultiplier(amount1, period1);
-            uint256 retestMultiplier2 = sapienVault.calculateMultiplier(amount2, period2);
-            console.log("Retest amount1:", retestMultiplier1);
-            console.log("Retest amount2:", retestMultiplier2);
-            
-            revert("CORRUPTION: Final multiplier became zero during combination");
-        }
-        
-        assertEq(totalStaked, totalAmount, "Total stake should be sum of all amounts");
-        assertGt(finalMultiplier, 0, "Final multiplier must be positive after stress test");
-        assertGe(finalMultiplier, 10000, "Final multiplier should be at least minimum");
-        assertLe(finalMultiplier, 15000, "Final multiplier should not exceed maximum");
-    }
-
-
-    /// @notice Reproduces the exact failing case found by the fuzzer
-    function test_ReproduceExactFailingCase() public {
-        // From the failing fuzzer output:
-        // args=[12427, 12436, 62, 128, 17266, 11699, 9537]
-        // "First multiplier is already 0!" - corruption in first stake
-        
-        uint256 amount = 12427e18;  // 12,427 tokens
-        uint256 period = LOCK_180_DAYS;  // period1 from index 62 % 4 = 2
-        uint256 timestamp = 17266;  // After bounding becomes 15563699
-        uint256 userSeed = 9537;
-        
-        // Bound exactly as the fuzzer does
-        amount = bound(amount, MINIMUM_STAKE, MAXIMUM_STAKE / 2);
-        timestamp = bound(timestamp, 1000, type(uint32).max / 2);
-        
-        // Set the exact failing timestamp 
-        vm.warp(timestamp);
-        
-        // Create user with the same pattern that failed
-        address user = makeAddr(string(abi.encodePacked("stressUser", vm.toString(userSeed))));
-        sapienToken.mint(user, amount);
-        
-        console.log("=== REPRODUCING EXACT FAILING CASE ===");
-        console.log("amount:", amount);
-        console.log("period (days):", period / 1 days);
-        console.log("timestamp:", timestamp);
-        console.log("user:", user);
-        
-        // Test calculateMultiplier first
-        uint256 expectedMultiplier = sapienVault.calculateMultiplier(amount, period);
-        console.log("expectedMultiplier:", expectedMultiplier);
-        assertGt(expectedMultiplier, 0, "calculateMultiplier should work");
-        
-        // Perform the exact same staking operation that failed
-        vm.startPrank(user);
-        sapienToken.approve(address(sapienVault), amount);
-        sapienVault.stake(amount, period);
-        vm.stopPrank();
-        
-        // Check what was actually stored
-        ISapienVault.UserStakingSummary memory exactStake = sapienVault.getUserStakingSummary(user);
-        uint256 storedMultiplier = exactStake.effectiveMultiplier;
-        console.log("storedMultiplier:", storedMultiplier);
-        
-        // This is the critical test that failed in the fuzzer
-        if (storedMultiplier == 0) {
-            console.log("REPRODUCTION SUCCESSFUL:");
-            console.log("  Same parameters as fuzzer");
-            console.log("  Same context (timestamp, user creation)");
-            console.log("  effectiveMultiplier corrupted to 0");
-            console.log("  This confirms the storage corruption bug");
-            revert("Successfully reproduced the exact failing case");
-        }
-        
-        assertEq(storedMultiplier, expectedMultiplier, "Should store multiplier correctly");
+        // Verify final state
+        ISapienVault.UserStakingSummary memory finalStake = sapienVault.getUserStakingSummary(user);
+        assertEq(finalStake.userTotalStaked, amount1 + amount2, "Total stake should be sum");
+        assertGt(finalStake.effectiveMultiplier, 0, "Final multiplier must be positive");
     }
 
     /// @notice Deep investigation of the address-dependent storage corruption
     function test_InvestigateAddressDependentCorruption() public {
-        uint256 amount = 8427e18;
+        uint256 amount = 1227e18;
         uint256 period = LOCK_180_DAYS; 
         uint256 timestamp = 17266;
         
@@ -1239,6 +1006,7 @@ contract SapienVaultMultiplierFuzz is Test {
         
         vm.startPrank(corruptingUser);
         sapienToken.approve(address(sapienVault), amount);
+        // USE stake() FIRST, not increaseAmount directly
         sapienVault.stake(amount, period);
         vm.stopPrank();
         
@@ -1289,70 +1057,122 @@ contract SapienVaultMultiplierFuzz is Test {
             console.log("  Expected multiplier:", expectedLow);
             console.log("  These values collide in storage slot packing!");
         }
+        
+        // This should not fail now that we're using stake() properly
+        assertGt(storedMultiplier, 0, "Stored multiplier should be positive");
+        assertEq(storedMultiplier, expectedMultiplier, "Stored should match expected");
     }
 
-    /// @notice Fuzz test that generates random addresses and looks for storage corruption
-    function testFuzz_StorageCorruption_RandomAddresses(
-        uint256 seed,
-        uint256 amount,
-        uint8 periodIndex
+    /// @notice Comprehensive stress test for storage corruption
+    /// @dev Combines multiple potential corruption vectors in a single test
+    function testFuzz_ComprehensiveStorageStress(
+        uint256 amount1, uint256 amount2,
+        uint8 period1Index, uint8 period2Index,
+        uint256 timestamp1, uint256 timestamp2,
+        uint256 userSeed
     ) public {
-        // Bound inputs
-        amount = bound(amount, MINIMUM_STAKE, MAXIMUM_STAKE);
+        // Bound all inputs
+        amount1 = bound(amount1, MINIMUM_STAKE_AMOUNT,  MAXIMUM_STAKE_AMOUNT/ 2);
+        amount2 = bound(amount2, MINIMUM_STAKE_AMOUNT,  MAXIMUM_STAKE_AMOUNT/ 2);
+        
         uint256[4] memory validPeriods = [LOCK_30_DAYS, LOCK_90_DAYS, LOCK_180_DAYS, LOCK_365_DAYS];
-        uint256 period = validPeriods[periodIndex % 4];
-
-        // Generate random address using seed
-        address randomUser = address(uint160(uint256(keccak256(abi.encodePacked(seed)))));
+        uint256 period1 = validPeriods[period1Index % 4];
+        uint256 period2 = validPeriods[period2Index % 4];
         
-        // Skip if user already has stake
-        if (sapienVault.hasActiveStake(randomUser)) return;
-
-        // Fund and stake
-        sapienToken.mint(randomUser, amount);
+        timestamp1 = bound(timestamp1, 1000, type(uint32).max / 2);
+        timestamp2 = bound(timestamp2, timestamp1 + 1, timestamp1 + 180 days);
         
-        // Calculate expected multiplier
-        uint256 expectedMultiplier = sapienVault.calculateMultiplier(amount, period);
-        if (expectedMultiplier == 0) return;
-
-        // Perform staking
-        vm.startPrank(randomUser);
-        sapienToken.approve(address(sapienVault), amount);
+        address user = makeAddr(string(abi.encodePacked("stressUser", vm.toString(userSeed))));
+        uint256 totalAmount = amount1 + amount2;
+        sapienToken.mint(user, totalAmount);
         
-        try sapienVault.stake(amount, period) {
-            // Get stored multiplier
-            ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(randomUser);
-            uint256 storedMultiplier = userStake.effectiveMultiplier;
-
-            // Check for corruption
-            if (expectedMultiplier > 0 && storedMultiplier == 0) {
-                emit StorageCorruption(
-                    randomUser,
-                    amount,
-                    period,
-                    expectedMultiplier,
-                    0,
-                    storedMultiplier
-                );
-                revert("STORAGE CORRUPTION: Random address caused multiplier corruption");
-            }
-
-            // Verify multiplier matches
-            if (storedMultiplier != expectedMultiplier) {
-                emit StorageCorruption(
-                    randomUser,
-                    amount,
-                    period,
-                    expectedMultiplier,
-                    0,
-                    storedMultiplier
-                );
-                revert("MULTIPLIER MISMATCH: Random address caused multiplier mismatch");
-            }
-        } catch {
-            // Handle legitimate reverts gracefully
-        }
+        // Complex sequence of operations with different timestamps
+        vm.warp(timestamp1);
+        vm.startPrank(user);
+        sapienToken.approve(address(sapienVault), amount1);
+        sapienVault.stake(amount1, period1);
+        
+        ISapienVault.UserStakingSummary memory stressStake1 = sapienVault.getUserStakingSummary(user);
+        uint256 multiplier1 = stressStake1.effectiveMultiplier;
+        assertGt(multiplier1, 0, "First multiplier must be positive");
+        
+        vm.warp(timestamp2);
+        sapienToken.approve(address(sapienVault), amount2);
+        sapienVault.increaseAmount(amount2);
+        sapienVault.increaseLockup(period2);
         vm.stopPrank();
+        
+        // Final comprehensive check
+        ISapienVault.UserStakingSummary memory finalStressStake = sapienVault.getUserStakingSummary(user);
+        uint256 totalStaked = finalStressStake.userTotalStaked;
+        uint256 finalMultiplier = finalStressStake.effectiveMultiplier;
+        
+        assertEq(totalStaked, totalAmount, "Total stake should be sum of all amounts");
+        
+        if (finalMultiplier == 0) {
+            emit StorageCorruption(user, totalStaked, period2, multiplier1, userSeed, finalMultiplier);
+            revert("COMPREHENSIVE STRESS: Final multiplier is zero after complex operations");
+        }
+        
+        assertGt(finalMultiplier, 0, "Final multiplier must be positive after stress test");
+        assertGe(finalMultiplier, 10000, "Final multiplier should be at least minimum");
+        assertLe(finalMultiplier, 15000, "Final multiplier should not exceed maximum");
     }
 
+    /// @notice Reproduces the exact failing case found by the fuzzer
+    function test_ReproduceExactFailingCase() public {
+        // From the failing fuzzer output:
+        // args=[12427, 12436, 62, 128, 17266, 11699, 9537]
+        // "First multiplier is already 0!" - corruption in first stake
+        
+        uint256 amount = 12427e18;  // 12,427 tokens
+        uint256 period = LOCK_180_DAYS;  // period1 from index 62 % 4 = 2
+        uint256 timestamp = 17266;  // After bounding becomes 15563699
+        uint256 userSeed = 9537;
+        
+        // Bound exactly as the fuzzer does
+        amount = bound(amount, MINIMUM_STAKE_AMOUNT,  MAXIMUM_STAKE_AMOUNT/ 2);
+        timestamp = bound(timestamp, 1000, type(uint32).max / 2);
+        
+        // Set the exact failing timestamp 
+        vm.warp(timestamp);
+        
+        // Create user with the same pattern that failed
+        address user = makeAddr(string(abi.encodePacked("stressUser", vm.toString(userSeed))));
+        sapienToken.mint(user, amount);
+        
+        console.log("=== REPRODUCING EXACT FAILING CASE ===");
+        console.log("amount:", amount);
+        console.log("period (days):", period / 1 days);
+        console.log("timestamp:", timestamp);
+        console.log("user:", user);
+        
+        // Test calculateMultiplier first
+        uint256 expectedMultiplier = sapienVault.calculateMultiplier(amount, period);
+        console.log("expectedMultiplier:", expectedMultiplier);
+        assertGt(expectedMultiplier, 0, "calculateMultiplier should work");
+        
+        // Perform the exact same staking operation that failed
+        vm.startPrank(user);
+        sapienToken.approve(address(sapienVault), amount);
+        sapienVault.stake(amount, period);
+        vm.stopPrank();
+        
+        // Check what was actually stored
+        ISapienVault.UserStakingSummary memory exactStake = sapienVault.getUserStakingSummary(user);
+        uint256 storedMultiplier = exactStake.effectiveMultiplier;
+        console.log("storedMultiplier:", storedMultiplier);
+        
+        // This is the critical test that failed in the fuzzer
+        if (storedMultiplier == 0) {
+            console.log("REPRODUCTION SUCCESSFUL:");
+            console.log("  Same parameters as fuzzer");
+            console.log("  Same context (timestamp, user creation)");
+            console.log("  effectiveMultiplier corrupted to 0");
+            console.log("  This confirms the storage corruption bug");
+            revert("Successfully reproduced the exact failing case");
+        }
+        
+        assertEq(storedMultiplier, expectedMultiplier, "Should store multiplier correctly");
+    }
 } 

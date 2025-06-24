@@ -48,7 +48,7 @@ contract SapienVault_QADoubleCountingTest is Test {
      * @dev This test shows that cooldownAmount is incorrectly added to amount in _calculateApplicablePenalty
      */
     function test_QA_DoubleCounting_Issue() public {
-        uint256 stakeAmount = 5000 * 1e18;
+        uint256 stakeAmount = 2000 * 1e18;
 
         // User stakes tokens
         vm.startPrank(user1);
@@ -65,9 +65,9 @@ contract SapienVault_QADoubleCountingTest is Test {
         sapienVault.initiateUnstake(cooldownAmount);
 
         // At this point:
-        // - userStake.userTotalStaked = 5000 * 1e18 (total staked)
+        // - userStake.userTotalStaked = 2000 * 1e18 (total staked)
         // - userStake.cooldownAmount = 2000 * 1e18 (subset of amount)
-        // - Available for penalties should be 5000 * 1e18 (not 7000 * 1e18)
+        // - Available for penalties should be 2000 * 1e18 (not 4000 * 1e18)
 
         console.log("=== BEFORE QA PENALTY ===");
         console.log("Total staked amount:", sapienVault.getTotalStaked(user1) / 1e18);
@@ -79,13 +79,13 @@ contract SapienVault_QADoubleCountingTest is Test {
 
         // The issue: Request penalty equal to total staked + some cooldown amount
         // This should NOT be possible, but current implementation allows it due to double counting
-        uint256 penaltyAmount = 5500 * 1e18; // Between staked (5000) and staked+cooldown (7000 with bug)
+        uint256 penaltyAmount = 3000 * 1e18; // Between staked (2000) and staked+cooldown (4000 with bug)
 
         uint256 treasuryBalanceBefore = sapienToken.balanceOf(treasury);
 
         // Current implementation incorrectly calculates totalAvailable as:
         // uint256 totalAvailable = uint256(userStake.userTotalStaked) + uint256(userStake.cooldownAmount);
-        // = 5000 + 2000 = 7000 (WRONG - double counting cooldown tokens)
+        // = 2000 + 2000 = 4000 (WRONG - double counting cooldown tokens)
 
         vm.prank(qaContract);
         uint256 actualPenalty = sapienVault.processQAPenalty(user1, penaltyAmount);
@@ -100,7 +100,7 @@ contract SapienVault_QADoubleCountingTest is Test {
         console.log("Remaining in cooldown:", sapienVault.getTotalInCooldown(user1) / 1e18);
 
         // The bug: actualPenalty allows more than actual staked amount
-        // With the bug, the penalty can be up to 5500 even though only 5000 tokens are actually staked
+        // With the bug, the penalty can be up to 3000 even though only 2000 tokens are actually staked
         // This demonstrates double counting: cooldown tokens counted as both part of amount AND additional
 
         console.log("=== PROBLEM ANALYSIS ===");
@@ -119,7 +119,7 @@ contract SapienVault_QADoubleCountingTest is Test {
      * @notice Test showing a specific scenario where the double counting causes incorrect behavior
      */
     function test_QA_DoubleCounting_ProofOfBug() public {
-        uint256 stakeAmount = 3000 * 1e18;
+        uint256 stakeAmount = 2400 * 1e18; // Within 2.5K limit
 
         // User stakes tokens
         vm.startPrank(user1);
@@ -137,10 +137,10 @@ contract SapienVault_QADoubleCountingTest is Test {
         console.log("All in cooldown:", sapienVault.getTotalInCooldown(user1) / 1e18);
 
         // With the bug, the calculation would be:
-        // totalAvailable = amount + cooldownAmount = 3000 + 3000 = 6000
+        // totalAvailable = amount + cooldownAmount = 2400 + 2400 = 4800
         // This is WRONG because cooldownAmount is the same tokens as amount!
 
-        uint256 penaltyAmount = 4000 * 1e18; // More than staked but less than "calculated available"
+        uint256 penaltyAmount = 2450 * 1e18; // More than staked but less than "calculated available"
 
         vm.prank(qaContract);
         uint256 actualPenalty = sapienVault.processQAPenalty(user1, penaltyAmount);
@@ -149,8 +149,8 @@ contract SapienVault_QADoubleCountingTest is Test {
         console.log("Actual penalty applied:", actualPenalty / 1e18);
         console.log("Remaining stake:", sapienVault.getTotalStaked(user1) / 1e18);
 
-        // The actual penalty should be limited to 3000 (the real staked amount)
-        // But with the bug, it tries to apply 4000, which is impossible
+        // The actual penalty should be limited to 2400 (the real staked amount)
+        // But with the bug, it tries to apply 2450, which is impossible
         // The function should only allow penalties up to the actual staked amount
         assertEq(actualPenalty, stakeAmount, "Penalty should be capped at actual staked amount");
     }

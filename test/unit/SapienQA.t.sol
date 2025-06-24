@@ -165,7 +165,7 @@ contract SapienQATest is Test {
 
     function test_QA_AccessControl_ProcessQualityAssessment_UnauthorizedCaller() public {
         // Create user stake for the test
-        _createUserStake(user1, 5000 * 1e18, Constants.LOCKUP_90_DAYS);
+        _createUserStake(user1, 2000 * 1e18, Constants.LOCKUP_90_DAYS);
 
         bytes32 testDecisionId = keccak256("unauthorized_test");
         uint256 penaltyAmount = 1000 * 1e18;
@@ -201,7 +201,7 @@ contract SapienQATest is Test {
 
     function test_QA_AccessControl_ProcessQualityAssessment_ValidQAManager() public {
         // Create user stake for the test
-        _createUserStake(user1, 5000 * 1e18, Constants.LOCKUP_90_DAYS);
+        _createUserStake(user1, 2000 * 1e18, Constants.LOCKUP_90_DAYS);
 
         bytes32 testDecisionId = keccak256("valid_qa_manager_test");
         uint256 penaltyAmount = 1000 * 1e18;
@@ -271,7 +271,7 @@ contract SapienQATest is Test {
 
     function test_QA_AccessControl_SignatureValidation_UnauthorizedSigner() public {
         // Create user stake
-        _createUserStake(user1, 5000 * 1e18, Constants.LOCKUP_90_DAYS);
+        _createUserStake(user1, 2000 * 1e18, Constants.LOCKUP_90_DAYS);
 
         bytes32 testDecisionId = keccak256("unauthorized_signer_test");
         uint256 penaltyAmount = 1000 * 1e18;
@@ -299,7 +299,7 @@ contract SapienQATest is Test {
 
     function test_QA_AccessControl_SignatureValidation_InvalidSignatureLength() public {
         // Create user stake
-        _createUserStake(user1, 5000 * 1e18, Constants.LOCKUP_90_DAYS);
+        _createUserStake(user1, 2000 * 1e18, Constants.LOCKUP_90_DAYS);
 
         bytes32 testDecisionId = keccak256("invalid_sig_length_test");
         uint256 penaltyAmount = 1000 * 1e18;
@@ -334,7 +334,7 @@ contract SapienQATest is Test {
         qaContract.grantRole(Constants.QA_SIGNER_ROLE, qaManager2);
 
         // Create user stake
-        _createUserStake(user1, 5000 * 1e18, Constants.LOCKUP_90_DAYS);
+        _createUserStake(user1, 2000 * 1e18, Constants.LOCKUP_90_DAYS);
 
         // Test that both QA managers can process assessments
         bytes32 decision1 = keccak256("qa_manager_1_decision");
@@ -474,8 +474,8 @@ contract SapienQATest is Test {
     function test_QA_VaultIntegration() public {
         // Create user stake
         vm.startPrank(user1);
-        token.approve(address(vault), 5000 * 1e18);
-        vault.stake(5000 * 1e18, Constants.LOCKUP_90_DAYS);
+        token.approve(address(vault), 2000 * 1e18);
+        vault.stake(2000 * 1e18, Constants.LOCKUP_90_DAYS);
         vm.stopPrank();
 
         uint256 penaltyAmount = 1000 * 1e18;
@@ -536,7 +536,7 @@ contract SapienQATest is Test {
 
     function test_QA_ProcessQualityAssessmentWarning() public {
         // Create stake for user1
-        _createUserStake(user1, 5000 * 1e18, Constants.LOCKUP_90_DAYS);
+        _createUserStake(user1, 2000 * 1e18, Constants.LOCKUP_90_DAYS);
 
         // Generate valid signature for warning
         bytes memory signature = _generateSignature(
@@ -575,7 +575,7 @@ contract SapienQATest is Test {
 
     function test_QA_ProcessQualityAssessmentMinorPenalty() public {
         // Create stake for user1
-        _createUserStake(user1, 5000 * 1e18, Constants.LOCKUP_90_DAYS);
+        _createUserStake(user1, 2000 * 1e18, Constants.LOCKUP_90_DAYS);
 
         uint256 initialUserBalance = vault.getTotalStaked(user1);
         uint256 initialTreasuryBalance = token.balanceOf(treasury);
@@ -684,7 +684,7 @@ contract SapienQATest is Test {
 
     function test_QA_SignatureExpiration() public {
         // Create user stake for the test
-        _createUserStake(user1, 5000 * 1e18, Constants.LOCKUP_90_DAYS);
+        _createUserStake(user1, 2000 * 1e18, Constants.LOCKUP_90_DAYS);
 
         bytes32 testDecisionId = keccak256("expiration_test");
         uint256 penaltyAmount = 1000 * 1e18;
@@ -812,7 +812,7 @@ contract SapienQATest is Test {
         assertEq(qaContract.getUserQARecordCount(user1), 0);
 
         // Create stake for user1
-        _createUserStake(user1, 5000 * 1e18, Constants.LOCKUP_90_DAYS);
+        _createUserStake(user1, 2000 * 1e18, Constants.LOCKUP_90_DAYS);
 
         // Add a warning
         bytes memory signature = _generateSignature(user1, ISapienQA.QAActionType.WARNING, 0, DECISION_ID, REASON);
@@ -843,7 +843,7 @@ contract SapienQATest is Test {
 
     function test_QA_ProcessQualityAssessmentPenalty() public {
         // Create stake for user1
-        _createUserStake(user1, 5000 * 1e18, Constants.LOCKUP_90_DAYS);
+        _createUserStake(user1, 2000 * 1e18, Constants.LOCKUP_90_DAYS);
 
         uint256 initialUserBalance = vault.getTotalStaked(user1);
         uint256 initialTreasuryBalance = token.balanceOf(treasury);
@@ -883,7 +883,7 @@ contract SapienQATest is Test {
 
     function test_QA_PenaltyProcessingVaultPausedError() public {
         // Create user with stake
-        _createUserStake(user1, 5000 * 1e18, Constants.LOCKUP_90_DAYS);
+        _createUserStake(user1, 2000 * 1e18, Constants.LOCKUP_90_DAYS);
 
         // Pause the vault to force a specific error when processing penalty
         vm.prank(makeAddr("pauseManager"));
@@ -1037,7 +1037,7 @@ contract SapienQATest is Test {
     function _setupEndToEndUser() internal {
         console.log("=== Phase 1: User stakes tokens ===");
 
-        uint256 stakeAmount = 10000 * 1e18;
+        uint256 stakeAmount = 2500 * 1e18;
 
         vm.startPrank(user1);
         token.approve(address(vault), stakeAmount);

@@ -85,7 +85,7 @@ contract SapienVaultWeightedCalculationsTest is Test {
     function test_Vault_WeightedStartTime_DifferentAmounts() public {
         // Test case: different amounts should weight properly
         uint256 initialStake = MINIMUM_STAKE;
-        uint256 secondStake = MINIMUM_STAKE * 3; // 3x larger
+        uint256 secondStake = MINIMUM_STAKE; // Same size (total: 2000 tokens, within 2.5K limit)
 
         // First stake at time 100
         vm.warp(100);
@@ -101,14 +101,14 @@ contract SapienVaultWeightedCalculationsTest is Test {
         sapienVault.increaseAmount(secondStake);
         vm.stopPrank();
 
-        // Expected weighted start time: (100 * 1000 + 200 * 3000) / 4000 = (100000 + 600000) / 4000 = 175
+        // Expected weighted start time: (100 * 1000 + 200 * 1000) / 2000 = (100000 + 200000) / 2000 = 150
         ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
         assertTrue(userStake.timeUntilUnlock > 0, "Time until unlock should be greater than 0");
 
-        // Verify the weighted average favors the larger, later stake
-        uint256 expectedUnlockTime = 175 + LOCK_30_DAYS;
+        // Verify the weighted average is properly calculated
+        uint256 expectedUnlockTime = 150 + LOCK_30_DAYS;
         uint256 currentTimeUntilUnlock = expectedUnlockTime > block.timestamp ? expectedUnlockTime - block.timestamp : 0;
-        assertEq(userStake.timeUntilUnlock, currentTimeUntilUnlock, "Weighted start should favor larger stake");
+        assertEq(userStake.timeUntilUnlock, currentTimeUntilUnlock, "Weighted start should be properly calculated");
     }
 
     // =============================================================================
@@ -140,7 +140,7 @@ contract SapienVaultWeightedCalculationsTest is Test {
     function test_Vault_WeightedLockup_DifferentAmounts() public {
         // Test case: different amounts with floor protection - existing longer lockup is preserved
         uint256 smallStake = MINIMUM_STAKE;
-        uint256 largeStake = MINIMUM_STAKE * 9; // 9x larger
+        uint256 largeStake = MINIMUM_STAKE + 400e18; // 1400 tokens (within 2.5K limit: 1000 + 1400 = 2400)
 
         // Small stake with long lockup (365 days)
         vm.startPrank(user1);
@@ -245,7 +245,8 @@ contract SapienVaultWeightedCalculationsTest is Test {
         // Test multiple small stakes to ensure precision is maintained
         uint256 smallStake = MINIMUM_STAKE;
 
-        for (uint256 i = 0; i < 5; i++) {
+        for (uint256 i = 0; i < 2; i++) {
+            // Reduce to stay under 2.5K limit: 1000 * 2 = 2000
             vm.warp(block.timestamp + 1 days);
             vm.startPrank(user1);
             sapienToken.approve(address(sapienVault), smallStake);
@@ -262,7 +263,7 @@ contract SapienVaultWeightedCalculationsTest is Test {
 
         // Should complete without error
         ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
-        assertEq(userStake.userTotalStaked, smallStake * 5, "Should accumulate all stakes");
+        assertEq(userStake.userTotalStaked, smallStake * 2, "Should accumulate all stakes");
         assertEq(userStake.effectiveLockUpPeriod, LOCK_30_DAYS, "Should maintain 30-day lockup with amount increases");
         assertLe(userStake.effectiveLockUpPeriod, LOCK_365_DAYS, "Should not exceed maximum lockup");
     }
@@ -277,7 +278,7 @@ contract SapienVaultWeightedCalculationsTest is Test {
         sapienToken.mint(user2, 1000000e18);
 
         uint256 stake1 = MINIMUM_STAKE;
-        uint256 stake2 = MINIMUM_STAKE * 2;
+        uint256 stake2 = MINIMUM_STAKE; // Keep total under 2500 limit (1000 + 1000 = 2000)
 
         // User1: small stake first, then large stake
         vm.warp(100);

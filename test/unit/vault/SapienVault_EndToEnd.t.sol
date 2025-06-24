@@ -37,9 +37,9 @@ contract SapienVaultEndToEndTest is Test {
     // Test parameters aligned with contract constants
     uint256 public constant INITIAL_BALANCE = 10_000_000 * 10 ** 18; // 10M tokens per user
     uint256 public constant MINIMUM_STAKE = 1000 * 10 ** 18; // 1K tokens
-    uint256 public constant LARGE_STAKE = 9_000 * 10 ** 18; // 9K tokens (within 10k limit)
-    uint256 public constant MEDIUM_STAKE = 5_000 * 10 ** 18; // 5K tokens (within 10k limit)
-    uint256 public constant SMALL_STAKE = 2_000 * 10 ** 18; // 2K tokens
+    uint256 public constant LARGE_STAKE = 2_250 * 10 ** 18; // 2.25K tokens (within 2.5k limit)
+    uint256 public constant MEDIUM_STAKE = 1_750 * 10 ** 18; // 1.75K tokens (within 2.5k limit)
+    uint256 public constant SMALL_STAKE = 1_000 * 10 ** 18; // 1K tokens
     uint256 public constant COOLDOWN_PERIOD = 2 days;
     uint256 public constant EARLY_WITHDRAWAL_PENALTY = 2000; // 20% in basis points
 
@@ -193,12 +193,13 @@ contract SapienVaultEndToEndTest is Test {
     }
 
     function _phaseStakeOptimization() internal {
-        // Conservative staker gains confidence, increases amount
+        // Conservative staker gains confidence, increases amount (within 2.5K limit)
+        uint256 conservativeIncrease = 1000 * 10 ** 18; // 1K increase to stay within 2.5K total limit
         vm.prank(conservativeStaker);
-        sapienVault.increaseAmount(SMALL_STAKE * 2); // 3x total now
-        totalCurrentStaked += SMALL_STAKE * 2;
+        sapienVault.increaseAmount(conservativeIncrease); // 2K total now
+        totalCurrentStaked += conservativeIncrease;
 
-        console.log("Conservative staker: Increased stake by", (SMALL_STAKE * 2) / 10 ** 18, "SAPIEN");
+        console.log("Conservative staker: Increased stake by", conservativeIncrease / 10 ** 18, "SAPIEN");
 
         // Strategic staker extends lockup for better multiplier
         vm.prank(strategicStaker);
@@ -218,8 +219,13 @@ contract SapienVaultEndToEndTest is Test {
         sapienVault.stake(MEDIUM_STAKE, LOCK_180_DAYS);
         totalCurrentStaked += MEDIUM_STAKE;
 
-        // Test boundary: max staker tests system limits (within 10k limit)
-        uint256 maxTestAmount = 9_500 * 10 ** 18; // 9.5k tokens (within 10k limit)
+        // Emergency user sets up stake for later emergency testing
+        vm.prank(emergencyUser);
+        sapienVault.stake(LARGE_STAKE, LOCK_365_DAYS);
+        totalCurrentStaked += LARGE_STAKE;
+
+        // Test boundary: max staker tests system limits (within 2.5k limit)
+        uint256 maxTestAmount = 2_400 * 10 ** 18; // 2.4k tokens (within 2.5k limit)
         vm.prank(maxStaker);
         sapienVault.stake(maxTestAmount, LOCK_365_DAYS);
         totalCurrentStaked += maxTestAmount;
@@ -232,9 +238,9 @@ contract SapienVaultEndToEndTest is Test {
     }
 
     function _phaseStrategicAdjustments() internal {
-        // Compound staker executes growth strategy
+        // Compound staker executes growth strategy (keeping within 2.5K limit)
         for (uint256 i = 0; i < 3; i++) {
-            uint256 increaseAmount = SMALL_STAKE * (i + 1);
+            uint256 increaseAmount = SMALL_STAKE / 2; // 500 tokens each time, safe for 2.5K limit
             vm.prank(compoundStaker);
             sapienVault.increaseAmount(increaseAmount);
             totalCurrentStaked += increaseAmount;
@@ -247,12 +253,14 @@ contract SapienVaultEndToEndTest is Test {
             console.log("Compound staker: Iteration increased by", increaseAmount / 10 ** 18, "SAPIEN");
         }
 
-        // Strategic staker rebalances again
+        // Strategic staker rebalances again (keeping within 2.5K limit)
+        // Strategic staker already has MEDIUM_STAKE (1.75K), so can only add 750 tokens to stay within 2.5K limit
+        uint256 strategicIncrease = 750 * 10 ** 18; // 750 tokens to total 2.5K
         vm.prank(strategicStaker);
-        sapienVault.increaseAmount(LARGE_STAKE);
-        totalCurrentStaked += LARGE_STAKE;
+        sapienVault.increaseAmount(strategicIncrease);
+        totalCurrentStaked += strategicIncrease;
 
-        console.log("Strategic staker: Major rebalance +", LARGE_STAKE / 10 ** 18, "SAPIEN");
+        console.log("Strategic staker: Major rebalance +", strategicIncrease / 10 ** 18, "SAPIEN");
 
         // Conservative staker decides to extend lockup for first time
         vm.prank(conservativeStaker);
@@ -359,9 +367,9 @@ contract SapienVaultEndToEndTest is Test {
 
         // SOCIAL STAKER UNSTAKING - COMPLETELY REWRITTEN USING FIXED TIMESTAMPS
 
-        // Social staker first unstake
+        // Social staker first unstake (half of their MEDIUM_STAKE)
         console.log("\n=== Social Staker First Unstake ===");
-        uint256 socialUnstakeAmount = SMALL_STAKE;
+        uint256 socialUnstakeAmount = MEDIUM_STAKE / 2; // 875 tokens (half of 1.75K)
 
         // Capture state before unstaking
         uint256 beforeBalance = sapienToken.balanceOf(socialStaker);
@@ -399,13 +407,16 @@ contract SapienVaultEndToEndTest is Test {
         totalCurrentStaked -= socialUnstakeAmount;
         console.log("Social staker: Successfully unstaked first amount");
 
-        // Social staker second unstake
+        // Social staker second unstake (remaining half)
         console.log("\n=== Social Staker Second Unstake ===");
 
         // Reset variables for clarity
         beforeBalance = sapienToken.balanceOf(socialStaker);
         console.log("Social staker balance before second unstake:", beforeBalance / 10 ** 18, "SAPIEN");
         console.log("Social staker remaining staked:", sapienVault.getTotalStaked(socialStaker) / 10 ** 18, "SAPIEN");
+
+        // Second unstake should be the remaining half
+        uint256 socialSecondUnstakeAmount = MEDIUM_STAKE / 2; // Other 875 tokens
 
         // Use fixed timestamps for testing
         uint256 secondInitiateTime = 21_000_000;
@@ -414,7 +425,7 @@ contract SapienVaultEndToEndTest is Test {
 
         // Step 1: Initiate second unstake
         vm.prank(socialStaker);
-        sapienVault.initiateUnstake(socialUnstakeAmount);
+        sapienVault.initiateUnstake(socialSecondUnstakeAmount);
         console.log("Social staker initiated second unstake at time:", block.timestamp);
 
         // Step 2: Wait for second cooldown period to complete
@@ -427,21 +438,23 @@ contract SapienVaultEndToEndTest is Test {
 
         // Step 3: Complete the second unstake
         vm.prank(socialStaker);
-        sapienVault.unstake(socialUnstakeAmount);
+        sapienVault.unstake(socialSecondUnstakeAmount);
 
         // Verify second unstake was successful
         afterBalance = sapienToken.balanceOf(socialStaker);
         console.log("Social staker balance after second unstake:", afterBalance / 10 ** 18, "SAPIEN");
         console.log("Balance increase from second unstake:", (afterBalance - beforeBalance) / 10 ** 18, "SAPIEN");
-        assertEq(afterBalance - beforeBalance, socialUnstakeAmount);
+        assertEq(afterBalance - beforeBalance, socialSecondUnstakeAmount);
 
-        totalCurrentStaked -= socialUnstakeAmount;
+        totalCurrentStaked -= socialSecondUnstakeAmount;
         console.log("Social staker: Successfully unstaked second amount");
 
-        // Emergency user setup for next phase
+        // Emergency user increases their stake for next phase (keeping within 2.5K limit)
+        // Emergency user already has LARGE_STAKE (2.25K), so they can only add 250 tokens to stay within 2.5K limit
+        uint256 emergencyIncrease = 250 * 10 ** 18; // 250 tokens to total 2.5K
         vm.prank(emergencyUser);
-        sapienVault.stake(LARGE_STAKE, LOCK_365_DAYS);
-        totalCurrentStaked += LARGE_STAKE;
+        sapienVault.increaseAmount(emergencyIncrease);
+        totalCurrentStaked += emergencyIncrease;
 
         vm.warp(block.timestamp + 90 days); // Total: 270 days
         console.log("Time advanced: 90 days (total: 270 days)");
@@ -593,10 +606,12 @@ contract SapienVaultEndToEndTest is Test {
 
         console.log("Aggressive staker: Long-term unstake completed");
 
-        // Max staker tests system with large operations
+        // Max staker tests system with large operations (keeping within 2.5K limit)
+        // Max staker already has 2.4K, so can only add 100 tokens to stay within 2.5K limit
+        uint256 maxStakerIncrease = 100 * 10 ** 18; // 100 tokens to total 2.5K
         vm.prank(maxStaker);
-        sapienVault.increaseAmount(500 * 10 ** 18); // Another 500 tokens (keeping within 10K limit)
-        totalCurrentStaked += 500 * 10 ** 18;
+        sapienVault.increaseAmount(maxStakerIncrease);
+        totalCurrentStaked += maxStakerIncrease;
 
         console.log("Max staker: Large late-stage increase");
 
@@ -721,10 +736,10 @@ contract SapienVaultEndToEndTest is Test {
         vm.prank(builder);
         sapienVault.increaseLockup(60 days);
 
-        // Week 3: Add more stake
+        // Week 3: Add more stake (keeping within limits)
         vm.warp(block.timestamp + 7 days);
         vm.prank(builder);
-        sapienVault.increaseAmount(MINIMUM_STAKE * 3);
+        sapienVault.increaseAmount(MINIMUM_STAKE);
 
         // Week 4: Final extension
         vm.warp(block.timestamp + 7 days);
@@ -737,7 +752,7 @@ contract SapienVaultEndToEndTest is Test {
         uint256 effectiveMultiplier = builderStake.effectiveMultiplier;
         uint256 lockup = builderStake.effectiveLockUpPeriod;
 
-        assertEq(totalStaked, MINIMUM_STAKE * 5); // 1 + 1 + 3 = 5x minimum
+        assertEq(totalStaked, MINIMUM_STAKE * 3); // 1 + 1 + 1 = 3x minimum
         assertTrue(lockup > LOCK_30_DAYS); // Should be longer than original 30 days
         assertTrue(effectiveMultiplier > 0);
 
@@ -746,7 +761,7 @@ contract SapienVaultEndToEndTest is Test {
         console.log("Final multiplier:", effectiveMultiplier);
 
         // Verify the builder can handle complex patterns
-        assertTrue(totalStaked > MINIMUM_STAKE * 4, "Builder should have substantial stake");
+        assertTrue(totalStaked > MINIMUM_STAKE * 2, "Builder should have substantial stake");
         assertTrue(effectiveMultiplier > 10000, "Builder should have multiplier > 1.0x");
         assertTrue(lockup >= LOCK_30_DAYS, "Builder should have reasonable lockup");
     }
@@ -793,7 +808,7 @@ contract SapienVaultEndToEndTest is Test {
 
         // Test partial unstaking
         assertTrue(remainingStake > 0, "Optimizer should have remaining stake");
-        assertTrue(remainingStake < MINIMUM_STAKE * 75, "Should have less than starting amount");
+        assertTrue(remainingStake < LARGE_STAKE, "Should have less than starting amount");
     }
 
     function test_StakingPattern_LiquidityManager() public {
@@ -841,6 +856,6 @@ contract SapienVaultEndToEndTest is Test {
         console.log("Remaining stake:", remainingStake / 10 ** 18, "SAPIEN");
 
         // Test full cycle completion
-        assertTrue(remainingStake > 7999 ether, "Manager should have substantial remaining stake");
+        assertTrue(remainingStake > 2000 ether, "Manager should have substantial remaining stake");
     }
 }

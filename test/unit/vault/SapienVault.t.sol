@@ -236,13 +236,13 @@ contract SapienVaultBasicTest is Test {
 
     function test_Vault_SetMaximumStakeAmount() public {
         // Test initial value
-        assertEq(sapienVault.maximumStakeAmount(), 10_000 * 1e18, "Initial maximum stake should be 10k tokens");
+        assertEq(sapienVault.maximumStakeAmount(), 2_500 * 1e18, "Initial maximum stake should be 2.5k tokens");
 
         // Test setting new maximum stake amount
         uint256 newMaximum = 20_000 * 1e18; // 20k tokens
 
         vm.expectEmit(true, true, false, true);
-        emit ISapienVault.MaximumStakeAmountUpdated(10_000 * 1e18, newMaximum);
+        emit ISapienVault.MaximumStakeAmountUpdated(2_500 * 1e18, newMaximum);
 
         vm.prank(admin);
         sapienVault.setMaximumStakeAmount(newMaximum);
@@ -1026,7 +1026,7 @@ contract SapienVaultBasicTest is Test {
         // Test the StakeAmountTooLarge revert when cooldown amount would overflow uint128.max
         // This is similar to the other uint128 overflow cases - practically impossible but exists for safety
 
-        uint256 stakeAmount = 9_000 * 1e18; // 9k tokens - within 10k limit
+        uint256 stakeAmount = 1_000 * 1e18;
         sapienToken.mint(user1, stakeAmount);
 
         // Create a stake and wait for unlock
@@ -1321,7 +1321,7 @@ contract SapienVaultBasicTest is Test {
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
 
         // Try to increase by excessive amount
-        uint256 excessiveAmount = 10_000_001 * 1e18; // Exceeds 10M limit
+        uint256 excessiveAmount = 2_501 * 1e18; // Exceeds 2.5K limit
         sapienToken.mint(user1, excessiveAmount);
         sapienToken.approve(address(sapienVault), excessiveAmount);
 
@@ -1428,8 +1428,7 @@ contract SapienVaultBasicTest is Test {
         // This is practically impossible to test due to the 10M token limit,
         // but we can test the boundary condition conceptually
 
-        // The maximum individual stake is 10k tokens
-        uint256 maxStake = 9_000 * 1e18;
+        uint256 maxStake = 2_500 * 1e18;
         sapienToken.mint(user1, maxStake * 2);
 
         // Start with maximum allowed stake
@@ -1520,7 +1519,7 @@ contract SapienVaultBasicTest is Test {
         // Test line 506: StakeAmountTooLarge when cooldown amount overflows uint128.max
         // This is practically impossible with current limits but exists for safety
 
-        uint256 stakeAmount = 9_000 * 1e18; // Large stake within 10k limits
+        uint256 stakeAmount = 1_000 * 1e18;
         sapienToken.mint(user1, stakeAmount);
 
         // Create stake and wait for unlock
@@ -1549,7 +1548,7 @@ contract SapienVaultBasicTest is Test {
         // Test lines 667 and 674: Weighted calculation overflow protection
         // These are practically impossible to trigger but exist for extreme edge cases
 
-        uint256 moderateStake = 4_500 * 1e18; // Moderate stake within 10k limits
+        uint256 moderateStake = 1_500 * 1e18;
         sapienToken.mint(user1, moderateStake * 2);
 
         // Create initial stake at a reasonable timestamp
@@ -2170,10 +2169,10 @@ contract SapienVaultBasicTest is Test {
         boundaryAmounts[1] = 1000 * 1e18; // Exact minimum - Tier 1
         boundaryAmounts[2] = 2499 * 1e18; // Just below Tier 2
         boundaryAmounts[3] = 2500 * 1e18; // Exact Tier 2 boundary
-        boundaryAmounts[4] = 4999 * 1e18; // Just below Tier 3
-        boundaryAmounts[5] = 5000 * 1e18; // Exact Tier 3 boundary
-        boundaryAmounts[6] = 9999 * 1e18; // Just below Tier 5
-        boundaryAmounts[7] = 10000 * 1e18; // Exact Tier 5 boundary
+        boundaryAmounts[4] = 1999 * 1e18; // Just below large stake
+        boundaryAmounts[5] = 2000 * 1e18; // Large stake amount
+        boundaryAmounts[6] = 2499 * 1e18; // Just below max stake
+        boundaryAmounts[7] = 2500 * 1e18; // Exact max stake boundary
 
         uint256[] memory expectedMultipliers = new uint256[](8);
         expectedMultipliers[0] = 0; // Should fail (below minimum)
@@ -2828,9 +2827,9 @@ contract SapienVaultBasicTest is Test {
         uint256[] memory testAmounts = new uint256[](5);
         testAmounts[0] = 1000 * 1e18;
         testAmounts[1] = 2500 * 1e18;
-        testAmounts[2] = 5000 * 1e18;
-        testAmounts[3] = 7500 * 1e18;
-        testAmounts[4] = 10000 * 1e18;
+        testAmounts[2] = 1500 * 1e18;
+        testAmounts[3] = 2000 * 1e18;
+        testAmounts[4] = 2500 * 1e18;
 
         uint256[] memory testExpected = new uint256[](5);
         testExpected[0] = 15900; // Tier 1

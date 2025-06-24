@@ -62,12 +62,6 @@ library Constants {
     // Time Constants
     // -------------------------------------------------------------
 
-    /// @notice Standard time periods in seconds
-    uint256 internal constant SECONDS_PER_MINUTE = 60;
-    uint256 internal constant SECONDS_PER_HOUR = 3600;
-    uint256 internal constant SECONDS_PER_DAY = 86400;
-    uint256 internal constant SECONDS_PER_WEEK = 604800;
-
     /// @notice Standard lockup periods
     uint256 internal constant LOCKUP_30_DAYS = 30 days;
     uint256 internal constant LOCKUP_90_DAYS = 90 days;
@@ -91,22 +85,13 @@ library Constants {
     /// @notice Multiplier constants in basis points
     uint256 internal constant BASE_MULTIPLIER = 10000; // 1.00x
     uint256 internal constant MIN_MULTIPLIER = 10000; // 1.00x (new multiplicative model)
-    uint256 internal constant MULTIPLIER_90_DAYS = 11000; // 1.10x at 90 days
-    uint256 internal constant MULTIPLIER_180_DAYS = 12500; // 1.25x at 180 days
     uint256 internal constant MAX_MULTIPLIER = 15000; // 1.50x at 365 days
-
-    /// @notice Amount tier thresholds in tokens (not including decimals)
-    uint256 internal constant TIER_1_THRESHOLD = 1000; // 1,000 tokens
-    uint256 internal constant TIER_2_THRESHOLD = 2500; // 2,500 tokens
-    uint256 internal constant TIER_3_THRESHOLD = 5000; // 5,000 tokens
-    uint256 internal constant TIER_4_THRESHOLD = 7500; // 7,500 tokens
-    uint256 internal constant TIER_5_THRESHOLD = 10000; // 10,000 tokens
 
     /// @notice Minimum stake amount (1 token)
     uint256 internal constant MINIMUM_STAKE_AMOUNT = 1 * TOKEN_DECIMALS;
 
     /// @notice Maximum stake amount (10,000 tokens)
-    uint256 public constant MAXIMUM_STAKE_AMOUNT = 10_000 * TOKEN_DECIMALS;
+    uint256 public constant MAXIMUM_STAKE_AMOUNT = 2500 * TOKEN_DECIMALS;
 
     /// @notice Minimum unstake amount to prevent precision loss in penalty calculations
     /// @dev Set to 500 wei to ensure at least 100 wei penalty (500 * 20 / 100 = 100)
