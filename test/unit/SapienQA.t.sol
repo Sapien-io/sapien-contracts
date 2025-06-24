@@ -1398,7 +1398,7 @@ contract SapienQATest is Test {
     }
 
     function test_QA_Version() public view {
-        assertEq(qaContract.version(), "0.1.3");
+        assertEq(qaContract.version(), "1");
     }
 
     function test_QA_Roles() public view {
