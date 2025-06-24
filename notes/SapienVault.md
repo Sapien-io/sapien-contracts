@@ -248,7 +248,7 @@ Returns comprehensive UserStakingSummary struct containing:
 - `totalInCooldown`: Tokens queued for unstaking
 - `totalReadyForUnstake`: Tokens ready for immediate withdrawal
 - `effectiveMultiplier`: Current reward multiplier
-- `effectiveLockUpPeriod`: Weighted average lockup duration
+- `effectiveLockUpPeriod`: Lockup duration
 - `timeUntilUnlock`: Seconds until stake unlocks (0 if unlocked)
 
 ### Individual Query Functions

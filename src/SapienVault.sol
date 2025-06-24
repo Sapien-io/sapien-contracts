@@ -248,7 +248,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * - totalInCooldown: Tokens queued for unstaking but still in cooldown period
      * - totalReadyForUnstake: Tokens that completed cooldown and can be withdrawn immediately
      * - effectiveMultiplier: Current multiplier applied to this user's stake for rewards
-     * - effectiveLockUpPeriod: Weighted average lockup period for the user's position
+     * - effectiveLockUpPeriod: Lockup period for the user's position
      * - timeUntilUnlock: Seconds remaining until the stake becomes unlocked (0 if already unlocked)
      *
      * STAKING STATES:
@@ -303,7 +303,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * RETURN VALUES:
      * - amount: Total tokens staked by the user
      * - effectiveMultiplier: Current multiplier applied to the stake
-     * - effectiveLockUpPeriod: Weighted average lockup period
+     * - effectiveLockUpPeriod: Lockup period
      * - lockupEndTime: Timestamp when the lockup period ends
      * - cooldownEndTime: Timestamp when the cooldown period ends
      *
@@ -796,42 +796,44 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         // Use standardized expired stake handling
         bool isExistingStakeExpired = _handleExpiredStakeCheck(userStake);
 
-        WeightedValues memory newValues;
+        uint256 newWeightedStartTime;
+        uint256 newEffectiveLockup;
 
         if (isExistingStakeExpired) {
             // Standardized expired stake handling
-            newValues.weightedStartTime = block.timestamp;
-            newValues.effectiveLockup = lockUpPeriod;
+            newWeightedStartTime = block.timestamp;
+            newEffectiveLockup = lockUpPeriod;
         } else {
             // Calculate new weighted values normally for non-expired stakes
-            newValues = _calculateWeightedValues(userStake, amount, lockUpPeriod, newTotalAmount);
+            (newWeightedStartTime, newEffectiveLockup) =
+                _calculateWeightedValues(userStake, amount, lockUpPeriod, newTotalAmount);
         }
 
         // Update stake with new values
         userStake.amount = newTotalAmount.toUint128();
-        userStake.weightedStartTime = newValues.weightedStartTime.toUint64();
-        userStake.effectiveLockUpPeriod = newValues.effectiveLockup.toUint64();
-        userStake.effectiveMultiplier = calculateMultiplier(newTotalAmount, newValues.effectiveLockup).toUint32();
+        userStake.weightedStartTime = newWeightedStartTime.toUint64();
+        userStake.effectiveLockUpPeriod = newEffectiveLockup.toUint64();
+        userStake.effectiveMultiplier = calculateMultiplier(newTotalAmount, newEffectiveLockup).toUint32();
         userStake.lastUpdateTime = block.timestamp.toUint64();
     }
 
     /**
-     * @notice Calculates weighted values when combining existing and new stakes
-     * @dev Refactored into smaller functions for better auditability
+     * @notice Calculates weighted start time and lockup period when combining stakes
      * @param userStake The current user stake storage reference
      * @param amount The new amount being added
      * @param lockUpPeriod The lockup period for the new amount
-     * @param newTotalAmount The total amount after addition (existing + new)
-     * @return newValues Struct containing the calculated weighted start time and lockup period
+     * @param newTotalAmount The total amount after addition
+     * @return weightedStartTime The calculated weighted start time
+     * @return lockupPeriod The calculated lockup period (max of existing and new)
      */
     function _calculateWeightedValues(
         UserStake storage userStake,
         uint256 amount,
         uint256 lockUpPeriod,
         uint256 newTotalAmount
-    ) private view returns (WeightedValues memory newValues) {
+    ) private view returns (uint256 weightedStartTime, uint256 lockupPeriod) {
         // Calculate weighted start time
-        newValues.weightedStartTime =
+        weightedStartTime =
             _calculateWeightedStartTimeValue(userStake.weightedStartTime, userStake.amount, amount, newTotalAmount);
 
         // Calculate remaining lockup time for existing stake
@@ -839,10 +841,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         uint256 remainingExistingLockup =
             userStake.effectiveLockUpPeriod > timeElapsed ? userStake.effectiveLockUpPeriod - timeElapsed : 0;
 
-        // Calculate weighted lockup period using remaining time
-        newValues.effectiveLockup = _calculateWeightedLockupPeriod(
-            remainingExistingLockup, userStake.amount, lockUpPeriod, amount, newTotalAmount
-        );
+        // Return maximum of existing remaining and new lockup period
+        lockupPeriod = remainingExistingLockup > lockUpPeriod ? remainingExistingLockup : lockUpPeriod;
     }
 
     /**
@@ -870,57 +870,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         uint256 remainder = totalWeight % totalAmount;
         if (remainder > totalAmount / 2) {
             weightedStartTime += 1;
-        }
-    }
-
-    /**
-     * @notice Calculates weighted lockup period for combining stakes with proper lockup floor protection
-     * @dev This implementation ensures users cannot reduce their existing lockup commitments by adding new stakes
-     *      The effective lockup is calculated as the maximum of:
-     *      1. The weighted average of existing and new lockup periods
-     *      2. The remaining lockup time on existing committed tokens
-     *      3. The lockup period of the new stake being added
-     * @param existingLockupPeriod The remaining lockup time for existing stake (already calculated by caller)
-     * @param existingAmount The current stake amount
-     * @param newLockupPeriod The lockup period for the new amount
-     * @param newAmount The new amount being added
-     * @param totalAmount The total amount after addition
-     * @return weightedLockup The calculated weighted lockup period with proper protection
-     */
-    function _calculateWeightedLockupPeriod(
-        uint256 existingLockupPeriod,
-        uint256 existingAmount,
-        uint256 newLockupPeriod,
-        uint256 newAmount,
-        uint256 totalAmount
-    ) private pure returns (uint256 weightedLockup) {
-        uint256 existingLockupWeight = existingLockupPeriod * existingAmount;
-        uint256 newLockupWeight = newLockupPeriod * newAmount;
-
-        uint256 totalLockupWeight = existingLockupWeight + newLockupWeight;
-        weightedLockup = totalLockupWeight / totalAmount;
-
-        // Apply banker's rounding: round up if remainder > 50%
-        uint256 remainder = totalLockupWeight % totalAmount;
-        if (remainder > totalAmount / 2) {
-            weightedLockup += 1;
-        }
-
-        // 🛡️ PROPER LOCKUP FLOOR PROTECTION:
-        // Users cannot reduce their lockup period below their existing commitment
-        // Take the maximum of:
-        // 1. Weighted average calculation (calculated above)
-        // 2. Remaining lockup time on existing tokens (existingLockupPeriod)
-        // 3. Lockup period of new stake (newLockupPeriod)
-
-        // Cannot reduce below remaining commitment of existing tokens
-        if (weightedLockup < existingLockupPeriod) {
-            weightedLockup = existingLockupPeriod;
-        }
-
-        // Cannot reduce below new stake's lockup period
-        if (weightedLockup < newLockupPeriod) {
-            weightedLockup = newLockupPeriod;
         }
     }
 

@@ -22,11 +22,6 @@ interface ISapienVault {
             // Total: 4 storage slots, with 4 bytes free in slot 4
     }
 
-    struct WeightedValues {
-        uint256 weightedStartTime;
-        uint256 effectiveLockup;
-    }
-
     struct UserStakingSummary {
         uint256 userTotalStaked; // Total amount staked by the user
         uint256 totalUnlocked; // Amount available for unstaking initiation
@@ -34,7 +29,7 @@ interface ISapienVault {
         uint256 totalInCooldown; // Amount currently in unstaking cooldown
         uint256 totalReadyForUnstake; // Amount ready for immediate withdrawal
         uint256 effectiveMultiplier; // Current multiplier for rewards (basis points)
-        uint256 effectiveLockUpPeriod; // Weighted average lockup period (seconds)
+        uint256 effectiveLockUpPeriod; // Lockup period (seconds)
         uint256 timeUntilUnlock; // Time remaining until unlock (seconds, 0 if unlocked)
     }
 
