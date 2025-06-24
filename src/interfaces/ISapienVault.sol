@@ -67,6 +67,7 @@ interface ISapienVault {
 
     error InvalidAmount();
     error NoStakeFound();
+    error ExistingStakeFound(); // Users with existing stakes must use increaseAmount() or increaseLockup()
     error CannotIncreaseStakeInCooldown();
     error StakeAmountTooLarge();
     error MinimumLockupIncreaseRequired();

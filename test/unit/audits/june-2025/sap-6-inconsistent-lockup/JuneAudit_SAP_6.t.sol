@@ -27,6 +27,7 @@ import {Constants as Const} from "src/utils/Constants.sol";
  * - Added centralized helper functions for consistent behavior
  * - Modified increaseLockup() to handle expired stakes the same way as other operations
  * - Users can no longer game the system by choosing different operations
+ * - Added security fix: Users with existing stakes must use increaseAmount() or increaseLockup() instead of stake()
  */
 contract JuneAudit_SAP_6_Test is Test {
     SapienVault public sapienVault;
@@ -108,12 +109,16 @@ contract JuneAudit_SAP_6_Test is Test {
         assertEq(userStake2.timeUntilUnlock, 0, "User2 stake should be expired");
         assertEq(userStake3.timeUntilUnlock, 0, "User3 stake should be expired");
 
-        // User1: Add new stake (combines with expired stake)
+        // With the security fix, users with existing stakes cannot call stake() again
+        // They must use increaseAmount() or increaseLockup()
+
+        // User1: First increase lockup to desired period, then increase amount
         vm.startPrank(user1);
-        sapienVault.stake(additionalAmount, additionalLockup);
+        sapienVault.increaseLockup(additionalLockup);
+        sapienVault.increaseAmount(additionalAmount);
         vm.stopPrank();
 
-        // User2: Increase amount on expired stake
+        // User2: Increase amount on expired stake (maintains original lockup)
         vm.startPrank(user2);
         sapienVault.increaseAmount(additionalAmount);
         vm.stopPrank();
@@ -137,7 +142,7 @@ contract JuneAudit_SAP_6_Test is Test {
             ) = sapienVault.userStakes(user1);
 
             assertEq(amount, stakeAmount + additionalAmount, "User1 should have combined stake amount");
-            assertEq(effectiveLockup, additionalLockup, "User1 effective lockup should be new lockup period");
+            assertEq(effectiveLockup, additionalLockup, "User1 effective lockup should be additional lockup period");
         }
 
         // Verify User2 stake details (scoped to avoid stack too deep)
@@ -184,6 +189,7 @@ contract JuneAudit_SAP_6_Test is Test {
         // 1. All operations consistently reset weighted start time for expired stakes
         // 2. Users cannot game the system by choosing different operations
         // 3. Expired stake handling is standardized across all functions
+        // 4. Security fix prevents multiple stake() calls on existing stakes
     }
 
     /**
@@ -261,12 +267,17 @@ contract JuneAudit_SAP_6_Test is Test {
         // Fast forward to expire both stakes
         vm.warp(block.timestamp + longLockup + 1);
 
-        // Gamer1 tries to game by adding a new stake with short lockup
+        // With the security fix, users cannot call stake() again on existing stakes
+        // They must use increaseAmount() or increaseLockup()
+
+        // Both users try to achieve short lockup using different methods:
+
+        // Gamer1: tries to use increaseLockup with short period
         vm.startPrank(gamer1);
-        sapienVault.stake(stakeAmount, shortLockup);
+        sapienVault.increaseLockup(shortLockup);
         vm.stopPrank();
 
-        // Gamer2 tries to game by increasing lockup with short period
+        // Gamer2: also uses increaseLockup with short period
         vm.startPrank(gamer2);
         sapienVault.increaseLockup(shortLockup);
         vm.stopPrank();
@@ -276,10 +287,17 @@ contract JuneAudit_SAP_6_Test is Test {
         (,,, uint256 gamer2Lockup,,,,) = sapienVault.userStakes(gamer2);
 
         // With the fix, both should have predictable and consistent lockup periods
-        assertEq(gamer1Lockup, shortLockup, "Gamer1 should get new short lockup for expired stake");
+        assertEq(gamer1Lockup, shortLockup, "Gamer1 should get short lockup for expired stake");
         assertEq(gamer2Lockup, shortLockup, "Gamer2 should get short lockup for expired stake");
 
         // Both users get the same result - no gaming advantage
         assertEq(gamer1Lockup, gamer2Lockup, "Both approaches should yield identical results");
+
+        // Verify that attempting to stake again would fail
+        vm.startPrank(gamer1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        vm.expectRevert(ISapienVault.ExistingStakeFound.selector);
+        sapienVault.stake(stakeAmount, shortLockup);
+        vm.stopPrank();
     }
 }

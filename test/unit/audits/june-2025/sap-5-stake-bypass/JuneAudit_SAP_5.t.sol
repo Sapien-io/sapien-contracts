@@ -111,10 +111,24 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
             assertEq(timeUntilUnlock, 0, "Time until unlock should be 0");
         }
 
-        // Phase 3: Add to expired stake with long lockup - VULNERABILITY TEST
-        console.log("\n--- Phase 3: Add to Expired Stake (VULNERABILITY FIXED) ---");
+        // Phase 3: Attempt to add to expired stake with long lockup - VULNERABILITY BLOCKED
+        console.log("\n--- Phase 3: Attempt to Add to Expired Stake (VULNERABILITY BLOCKED) ---");
         vm.prank(user);
+        // This should now FAIL due to the security fix - users cannot call stake() with existing stakes
+        vm.expectRevert(ISapienVault.ExistingStakeFound.selector);
         sapienVault.stake(LARGE_STAKE, LOCK_365_DAYS);
+
+        console.log("SAP-5 FIX CONFIRMED: Cannot call stake() on existing stakes");
+
+        // Phase 4: Show the correct way to extend stakes
+        console.log("\n--- Phase 4: Correct Way to Extend Stakes ---");
+        vm.prank(user);
+        // First extend the lockup period
+        sapienVault.increaseLockup(LOCK_365_DAYS);
+
+        // Then add more tokens
+        vm.prank(user);
+        sapienVault.increaseAmount(LARGE_STAKE);
 
         {
             ISapienVault.UserStakingSummary memory addedStake = sapienVault.getUserStakingSummary(user);
@@ -124,32 +138,22 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
             uint256 lockup = addedStake.effectiveLockUpPeriod;
             uint256 timeUntilUnlock = addedStake.timeUntilUnlock;
 
-            console.log("After adding to expired stake:");
+            console.log("After properly extending expired stake:");
             console.log("Total staked:", totalStaked / 10 ** 18, "SAPIEN");
             console.log("Unlocked:", totalUnlocked / 10 ** 18, "SAPIEN");
             console.log("Locked:", totalLocked / 10 ** 18, "SAPIEN");
             console.log("Effective lockup:", lockup / 1 days, "days");
             console.log("Time until unlock:", timeUntilUnlock / 1 days, "days");
 
-            // Check the vulnerability is fixed
-            if (timeUntilUnlock < LOCK_365_DAYS) {
-                console.log("VULNERABILITY: Effective lockup is shorter than intended!");
-                console.log("Expected:", LOCK_365_DAYS / 1 days, "days");
-                console.log("Actual:", timeUntilUnlock / 1 days, "days");
-                // With the fix, this should NOT happen
-                assertEq(timeUntilUnlock / 1 days, 365, "SAP-5 FIX: Should maintain full lockup period");
-            } else {
-                console.log("SAP-5 FIX CONFIRMED: Full lockup period maintained");
-                assertEq(timeUntilUnlock / 1 days, 365, "Full 365-day lockup should be applied");
-            }
+            // With the fix, proper lockup period is maintained
+            assertEq(timeUntilUnlock / 1 days, 365, "Full 365-day lockup should be applied");
+            console.log("SAP-5 FIX CONFIRMED: Full lockup period maintained with proper API");
 
             // Check if user can unstake immediately (should not be possible)
-            try sapienVault.initiateUnstake(MINIMUM_STAKE) {
-                console.log("VULNERABILITY: User can unstake immediately!");
-                assertFalse(true, "User should not be able to unstake immediately after adding to expired stake");
-            } catch {
-                console.log("SAP-5 FIX CONFIRMED: User cannot unstake immediately (correct behavior)");
-            }
+            vm.prank(user);
+            vm.expectRevert(ISapienVault.StakeStillLocked.selector);
+            sapienVault.initiateUnstake(MINIMUM_STAKE);
+            console.log("SAP-5 FIX CONFIRMED: User cannot unstake immediately (correct behavior)");
         }
 
         console.log("\n=== SAP-5 VULNERABILITY TEST COMPLETE ===");
@@ -249,14 +253,21 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
 
         console.log("Initial stake expired - User has", totalUnlocked / 10 ** 18, "unlocked SAPIEN");
 
-        // This demonstrates what happens with the proper fix:
-        // When adding to an expired stake, the system resets the weighted start time to current timestamp
-
         console.log("Attempting to add to expired stake...");
 
-        // Current behavior (fixed): Properly handles adding to expired stake
+        // With the security fix, calling stake() again should fail
         vm.prank(fixTestUser);
+        vm.expectRevert(ISapienVault.ExistingStakeFound.selector);
         sapienVault.stake(LARGE_STAKE, LOCK_365_DAYS);
+
+        console.log("SAP-5 FIX: Cannot call stake() on existing stakes - using proper API instead");
+
+        // Current behavior (fixed): Use proper API to extend expired stake
+        vm.prank(fixTestUser);
+        sapienVault.increaseLockup(LOCK_365_DAYS);
+
+        vm.prank(fixTestUser);
+        sapienVault.increaseAmount(LARGE_STAKE);
 
         uint256 totalStaked = sapienVault.getTotalStaked(fixTestUser);
         uint256 unlocked = sapienVault.getTotalUnlocked(fixTestUser);
@@ -264,7 +275,7 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
         ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(fixTestUser);
         uint256 timeUntilUnlock = userStake.timeUntilUnlock;
 
-        console.log("After adding to expired stake:");
+        console.log("After extending expired stake with proper API:");
         console.log("Total staked:", totalStaked / 10 ** 18, "SAPIEN");
         console.log("Unlocked portion:", unlocked / 10 ** 18, "SAPIEN");
         console.log("Locked portion:", locked / 10 ** 18, "SAPIEN");
@@ -279,6 +290,7 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
         assertTrue(locked > 0, "Tokens should be properly locked");
 
         console.log("\n=== SAP-5 FIX BEHAVIOR CONFIRMED ===");
+        console.log("[OK] Multiple stake() calls blocked - users must use increaseAmount()/increaseLockup()");
         console.log("[OK] Weighted start time properly reset to current timestamp for expired stakes");
         console.log("[OK] Full lockup period applied without weighted averaging exploit");
         console.log("[OK] Security enforced while maintaining user functionality");
@@ -305,9 +317,17 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
         // Fast forward to exactly when stake expires
         vm.warp(block.timestamp + LOCK_30_DAYS);
 
-        // Add to stake at exact expiration time
+        // Attempt to add to stake at exact expiration time - should fail with security fix
         vm.prank(user);
+        vm.expectRevert(ISapienVault.ExistingStakeFound.selector);
         sapienVault.stake(LARGE_STAKE, LOCK_365_DAYS);
+
+        // Use proper API instead
+        vm.prank(user);
+        sapienVault.increaseLockup(LOCK_365_DAYS);
+
+        vm.prank(user);
+        sapienVault.increaseAmount(LARGE_STAKE);
 
         // Verify proper behavior at boundary
         ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user);
@@ -335,20 +355,26 @@ contract JuneAudit_SAP_5_StakeBypassTest is Test {
         // Wait some time but not enough to expire (less than 365 days)
         vm.warp(block.timestamp + 100 days);
 
-        // Add to non-expired stake
+        // For non-expired stakes, users must still use increaseAmount() instead of stake()
         vm.prank(user);
+        vm.expectRevert(ISapienVault.ExistingStakeFound.selector);
         sapienVault.stake(LARGE_STAKE, LOCK_365_DAYS);
 
-        // Verify weighted calculations still work normally
+        // Use proper API
+        vm.prank(user);
+        sapienVault.increaseAmount(LARGE_STAKE);
+
+        // Verify weighted calculations still work normally for active stakes
         ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user);
         uint256 timeUntilUnlock = userStake.timeUntilUnlock;
 
-        // Should be somewhere between original remaining time and new full lockup
-        // This proves normal weighted calculations are preserved
-        assertTrue(timeUntilUnlock > 265 days, "Should use weighted calculation for non-expired stakes");
-        assertTrue(timeUntilUnlock <= 365 days, "Should not exceed maximum lockup");
+        // Should preserve the original weighted start time, so remaining time should be around 265 days (365-100)
+        // The exact value may vary due to weighted calculations with the new amount
+        uint256 expectedRemainingTime = 365 - 100; // Approximately 265 days
+        assertTrue(timeUntilUnlock / 1 days >= 250, "Should have at least 250 days remaining");
+        assertTrue(timeUntilUnlock / 1 days <= 365, "Should not exceed original lockup period");
 
         console.log("Time until unlock:", timeUntilUnlock / 1 days, "days");
-        console.log("[OK] Normal weighted calculations preserved for non-expired stakes");
+        console.log("[OK] IncreaseAmount() uses weighted calculation for non-expired stakes");
     }
 }

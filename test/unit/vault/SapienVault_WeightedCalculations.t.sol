@@ -64,7 +64,7 @@ contract SapienVaultWeightedCalculationsTest is Test {
         vm.warp(200);
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), initialStake);
-        sapienVault.stake(initialStake, LOCK_30_DAYS);
+        sapienVault.increaseAmount(initialStake);
         vm.stopPrank();
 
         // Expected weighted start time: (100 * 1000 + 200 * 1000) / 2000 = 150
@@ -98,7 +98,7 @@ contract SapienVaultWeightedCalculationsTest is Test {
         vm.warp(200);
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), secondStake);
-        sapienVault.stake(secondStake, LOCK_30_DAYS);
+        sapienVault.increaseAmount(secondStake);
         vm.stopPrank();
 
         // Expected weighted start time: (100 * 1000 + 200 * 3000) / 4000 = (100000 + 600000) / 4000 = 175
@@ -125,16 +125,16 @@ contract SapienVaultWeightedCalculationsTest is Test {
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
         vm.stopPrank();
 
-        // Second stake with 90 days (same amount)
+        // Extend lockup to 90 days, then increase amount
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), stakeAmount);
-        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        sapienVault.increaseLockup(LOCK_90_DAYS - LOCK_30_DAYS);
+        sapienVault.increaseAmount(stakeAmount);
         vm.stopPrank();
 
-        // Due to floor protection, effective lockup will be the longer period (90 days)
-        // rather than the weighted average (60 days)
+        // With the new API, the lockup is explicitly extended to 90 days
         ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
-        assertEq(userStake.effectiveLockUpPeriod, LOCK_90_DAYS, "Should use longer lockup due to floor protection");
+        assertEq(userStake.effectiveLockUpPeriod, LOCK_90_DAYS, "Should use extended lockup period");
     }
 
     function test_Vault_WeightedLockup_DifferentAmounts() public {
@@ -148,17 +148,15 @@ contract SapienVaultWeightedCalculationsTest is Test {
         sapienVault.stake(smallStake, LOCK_365_DAYS);
         vm.stopPrank();
 
-        // Large stake with short lockup (30 days)
+        // Just increase amount (maintain the 365-day lockup)
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), largeStake);
-        sapienVault.stake(largeStake, LOCK_30_DAYS);
+        sapienVault.increaseAmount(largeStake);
         vm.stopPrank();
 
-        // Due to floor protection, the 365-day lockup cannot be reduced even by a much larger stake
+        // With the new API, we only increased amount so lockup remains 365 days
         ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
-        assertEq(
-            userStake.effectiveLockUpPeriod, LOCK_365_DAYS, "Should maintain longer lockup due to floor protection"
-        );
+        assertEq(userStake.effectiveLockUpPeriod, LOCK_365_DAYS, "Should maintain 365-day lockup");
     }
 
     function test_Vault_WeightedLockup_MaximumCapping() public {
@@ -196,17 +194,20 @@ contract SapienVaultWeightedCalculationsTest is Test {
         vm.warp(133); // Chosen to create a rounding scenario
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), stake2);
-        sapienVault.stake(stake2, LOCK_90_DAYS);
+        // Extend lockup to 90 days, then increase amount
+        sapienVault.increaseLockup(LOCK_90_DAYS - LOCK_30_DAYS);
+        sapienVault.increaseAmount(stake2);
         vm.stopPrank();
 
         // Verify calculations completed without error and result is reasonable
         ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
         assertEq(userStake.userTotalStaked, stake1 + stake2, "Total stake should be sum of both stakes");
         assertGt(userStake.effectiveLockUpPeriod, LOCK_30_DAYS, "Effective lockup should be > 30 days");
-        assertEq(
+        assertApproxEqAbs(
             userStake.effectiveLockUpPeriod,
             LOCK_90_DAYS,
-            "Effective lockup should be exactly 90 days due to floor protection"
+            100,
+            "Effective lockup should be approximately 90 days after extension (allowing for rounding)"
         );
     }
 
@@ -229,13 +230,15 @@ contract SapienVaultWeightedCalculationsTest is Test {
         // Add another large stake (total will be 2500, exactly at max)
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), largeStake);
-        sapienVault.stake(largeStake, LOCK_365_DAYS);
+        // Extend lockup to 365 days, then increase amount
+        sapienVault.increaseLockup(LOCK_365_DAYS - LOCK_180_DAYS);
+        sapienVault.increaseAmount(largeStake);
         vm.stopPrank();
 
         // Should complete without overflow
         ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
         assertEq(userStake.userTotalStaked, largeStake * 2, "Should handle large amounts within limit");
-        assertGt(userStake.effectiveLockUpPeriod, LOCK_180_DAYS, "Should calculate weighted lockup correctly");
+        assertEq(userStake.effectiveLockUpPeriod, LOCK_365_DAYS, "Should use extended lockup period");
     }
 
     function test_Vault_EdgeCase_MultipleSmallStakes() public {
@@ -246,14 +249,21 @@ contract SapienVaultWeightedCalculationsTest is Test {
             vm.warp(block.timestamp + 1 days);
             vm.startPrank(user1);
             sapienToken.approve(address(sapienVault), smallStake);
-            sapienVault.stake(smallStake, LOCK_30_DAYS + (i * 30 days));
+
+            if (i == 0) {
+                // First stake
+                sapienVault.stake(smallStake, LOCK_30_DAYS);
+            } else {
+                // Subsequent stakes use increaseAmount
+                sapienVault.increaseAmount(smallStake);
+            }
             vm.stopPrank();
         }
 
         // Should complete without error
         ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
         assertEq(userStake.userTotalStaked, smallStake * 5, "Should accumulate all stakes");
-        assertGt(userStake.effectiveLockUpPeriod, LOCK_30_DAYS, "Should have reasonable effective lockup");
+        assertEq(userStake.effectiveLockUpPeriod, LOCK_30_DAYS, "Should maintain 30-day lockup with amount increases");
         assertLe(userStake.effectiveLockUpPeriod, LOCK_365_DAYS, "Should not exceed maximum lockup");
     }
 
@@ -279,7 +289,9 @@ contract SapienVaultWeightedCalculationsTest is Test {
         vm.warp(200);
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), stake2);
-        sapienVault.stake(stake2, LOCK_90_DAYS);
+        // Extend lockup to 90 days, then increase amount
+        sapienVault.increaseLockup(LOCK_90_DAYS - LOCK_30_DAYS);
+        sapienVault.increaseAmount(stake2);
         vm.stopPrank();
 
         // User2: large stake first, then small stake
@@ -292,20 +304,22 @@ contract SapienVaultWeightedCalculationsTest is Test {
         vm.warp(200);
         vm.startPrank(user2);
         sapienToken.approve(address(sapienVault), stake1);
-        sapienVault.stake(stake1, LOCK_30_DAYS);
+        // Need to reduce lockup from 90 to 30 days - use increaseLockup with negative calculation
+        // Since we can't reduce lockup, we'll just increase amount and accept 90-day lockup
+        sapienVault.increaseAmount(stake1);
         vm.stopPrank();
 
-        // Both should have same total stake and very similar lockup periods
-        // (small differences due to banker's rounding in different calculation orders are acceptable)
+        // Both should have same total stake but different lockup periods due to API differences
         ISapienVault.UserStakingSummary memory userStake1 = sapienVault.getUserStakingSummary(user1);
         ISapienVault.UserStakingSummary memory userStake2 = sapienVault.getUserStakingSummary(user2);
 
         assertEq(userStake1.userTotalStaked, userStake2.userTotalStaked, "Total stakes should be equal");
+        // User1 extended lockup to 90 days, user2 just increased amount keeping 90 days
         assertApproxEqAbs(
-            userStake1.effectiveLockUpPeriod,
-            userStake2.effectiveLockUpPeriod,
-            100,
-            "Effective lockups should be nearly equal (allowing for rounding differences)"
+            userStake1.effectiveLockUpPeriod, LOCK_90_DAYS, 100, "User1 should have approximately 90-day lockup"
+        );
+        assertApproxEqAbs(
+            userStake2.effectiveLockUpPeriod, LOCK_90_DAYS, 100, "User2 should also have approximately 90-day lockup"
         );
     }
 

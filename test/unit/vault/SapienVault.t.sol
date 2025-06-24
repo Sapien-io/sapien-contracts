@@ -189,8 +189,14 @@ contract SapienVaultBasicTest is Test {
         // Advance time a bit
         vm.warp(block.timestamp + 10 days);
 
-        // Second stake: 2000 tokens, 90 days (should combine with existing)
-        sapienVault.stake(MINIMUM_STAKE * 2, LOCK_90_DAYS);
+        // With security fix, users cannot call stake() multiple times
+        // Must use increaseLockup() and increaseAmount() instead
+
+        // First increase lockup to desired period
+        sapienVault.increaseLockup(LOCK_90_DAYS - 20 days); // Extend from remaining 20 days to 90 days
+
+        // Then increase amount
+        sapienVault.increaseAmount(MINIMUM_STAKE * 2);
         vm.stopPrank();
 
         // Should have single combined stake
@@ -198,13 +204,8 @@ contract SapienVaultBasicTest is Test {
 
         assertEq(userStake.userTotalStaked, MINIMUM_STAKE * 3);
 
-        // NEW BEHAVIOR: With proper lockup floor protection, the effective lockup should be
-        // the maximum of:
-        // 1. Remaining time on existing stake (30-10 = 20 days)
-        // 2. New stake period (90 days)
-        // 3. Weighted average would be (20 * 1000 + 90 * 2000) / 3000 = 66.67 days
-        // Result should be max(20, 90, 66.67) = 90 days (new stake period)
-        assertEq(userStake.effectiveLockUpPeriod, LOCK_90_DAYS); // Should be new stake period (90 days)
+        // With the new API, the lockup is set to 90 days
+        assertEq(userStake.effectiveLockUpPeriod, LOCK_90_DAYS); // Should be extended lockup period
 
         assertEq(sapienVault.totalStaked(), MINIMUM_STAKE * 3);
     }
@@ -882,16 +883,19 @@ contract SapienVaultBasicTest is Test {
         );
         assertEq(userLockupPeriod, LOCK_180_DAYS, "Initial lockup should match stake period");
 
-        // Test lockup period after combining with another stake
+        // Test lockup period after extending lockup and adding more stake
         vm.warp(block.timestamp + 30 days); // Advance time
         uint256 additionalAmount = MINIMUM_STAKE; // 1K more tokens
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), additionalAmount);
-        sapienVault.stake(additionalAmount, LOCK_365_DAYS); // Longer period
+        // First increase lockup to desired period
+        sapienVault.increaseLockup(LOCK_365_DAYS - (LOCK_180_DAYS - 30 days)); // Extend to 365 days
+        // Then increase amount
+        sapienVault.increaseAmount(additionalAmount);
         vm.stopPrank();
 
         uint256 combinedLockupPeriod = sapienVault.getUserLockupPeriod(user1);
-        assertEq(combinedLockupPeriod, LOCK_365_DAYS, "Should use longer lockup period due to security protection");
+        assertEq(combinedLockupPeriod, LOCK_365_DAYS, "Should use extended lockup period");
 
         // Test lockup period after increasing lockup
         // The current lockup is 365 days. When we try to increase by 30 days:
@@ -1240,7 +1244,7 @@ contract SapienVaultBasicTest is Test {
     }
 
     function test_Vault_RevertCannotIncreaseStakeInCooldown() public {
-        // Test line 639: CannotIncreaseStakeInCooldown revert
+        // Test CannotIncreaseStakeInCooldown revert
         uint256 stakeAmount = MINIMUM_STAKE * 2;
         sapienToken.mint(user1, stakeAmount);
 
@@ -1256,11 +1260,12 @@ contract SapienVaultBasicTest is Test {
         vm.prank(user1);
         sapienVault.initiateUnstake(MINIMUM_STAKE / 2);
 
-        // Try to stake more while in cooldown - should revert
+        // With security fix, users cannot call stake() on existing stakes
+        // Test that increaseAmount() properly reverts during cooldown
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), MINIMUM_STAKE);
         vm.expectRevert(abi.encodeWithSignature("CannotIncreaseStakeInCooldown()"));
-        sapienVault.stake(MINIMUM_STAKE, LOCK_90_DAYS);
+        sapienVault.increaseAmount(MINIMUM_STAKE);
         vm.stopPrank();
     }
 
@@ -1326,7 +1331,7 @@ contract SapienVaultBasicTest is Test {
     }
 
     function test_Vault_PrecisionRounding_StartTime() public {
-        // Test line 768: Precision rounding for start time in weighted calculations
+        // Test precision rounding for start time in weighted calculations
         uint256 stakeAmount1 = MINIMUM_STAKE + 3333333; // Choose amounts that will create precision remainder
         uint256 stakeAmount2 = MINIMUM_STAKE + 6666667; // Ensure both amounts meet minimum requirements
 
@@ -1338,10 +1343,10 @@ contract SapienVaultBasicTest is Test {
         sapienToken.approve(address(sapienVault), stakeAmount1);
         sapienVault.stake(stakeAmount1, LOCK_30_DAYS);
 
-        // Second stake at timestamp 2000 - this should trigger precision rounding
+        // Increase amount at timestamp 2000 - this should trigger precision rounding
         vm.warp(2000);
         sapienToken.approve(address(sapienVault), stakeAmount2);
-        sapienVault.stake(stakeAmount2, LOCK_90_DAYS);
+        sapienVault.increaseAmount(stakeAmount2);
         vm.stopPrank();
 
         // Verify the stake was processed (precision rounding was applied)
@@ -1350,7 +1355,7 @@ contract SapienVaultBasicTest is Test {
     }
 
     function test_Vault_PrecisionRounding_Lockup() public {
-        // Test line 779: Precision rounding for lockup in weighted calculations
+        // Test precision rounding for lockup in weighted calculations
         uint256 stakeAmount1 = MINIMUM_STAKE + 3333333; // Choose amounts that create precision remainder
         uint256 stakeAmount2 = MINIMUM_STAKE + 6666667;
 
@@ -1361,19 +1366,15 @@ contract SapienVaultBasicTest is Test {
         sapienToken.approve(address(sapienVault), stakeAmount1);
         sapienVault.stake(stakeAmount1, LOCK_30_DAYS);
 
-        // Second stake with 365 days - this should trigger lockup precision rounding
+        // Extend lockup to 365 days, then increase amount
+        sapienVault.increaseLockup(LOCK_365_DAYS - LOCK_30_DAYS);
         sapienToken.approve(address(sapienVault), stakeAmount2);
-        sapienVault.stake(stakeAmount2, LOCK_365_DAYS);
+        sapienVault.increaseAmount(stakeAmount2);
         vm.stopPrank();
 
-        // NEW BEHAVIOR: With proper lockup floor protection, the effective lockup should be
-        // the maximum of:
-        // 1. Remaining time on existing stake (30 days)
-        // 2. New stake period (365 days)
-        // 3. Weighted average would be weighted between 30 and 365 days
-        // Result should be max(30, 365, weighted_avg) = 365 days (new stake period)
+        // With the new API, the lockup is extended to 365 days
         ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
-        assertEq(userStake.effectiveLockUpPeriod, LOCK_365_DAYS, "Should use new stake period due to security fix");
+        assertEq(userStake.effectiveLockUpPeriod, LOCK_365_DAYS, "Should use extended lockup period");
     }
 
     function test_Vault_PrecisionRounding_CalculateWeightedStartTime() public {
@@ -1402,7 +1403,7 @@ contract SapienVaultBasicTest is Test {
     }
 
     function test_Vault_LockupPeriodCap() public {
-        // Test line 784: Lockup period cap at 365 days
+        // Test lockup period cap at 365 days
         uint256 stakeAmount1 = MINIMUM_STAKE;
         uint256 stakeAmount2 = MINIMUM_STAKE * 10; // Much larger second stake
 
@@ -1410,16 +1411,14 @@ contract SapienVaultBasicTest is Test {
 
         vm.startPrank(user1);
         // Initial stake with maximum lockup
-        sapienToken.approve(address(sapienVault), stakeAmount1);
+        sapienToken.approve(address(sapienVault), stakeAmount1 + stakeAmount2);
         sapienVault.stake(stakeAmount1, LOCK_365_DAYS);
 
-        // Add a much larger stake with maximum lockup
-        // The weighted calculation might try to exceed 365 days, but should be capped
-        sapienToken.approve(address(sapienVault), stakeAmount2);
-        sapienVault.stake(stakeAmount2, LOCK_365_DAYS);
+        // Increase amount with existing maximum lockup
+        sapienVault.increaseAmount(stakeAmount2);
         vm.stopPrank();
 
-        // Verify lockup is capped at 365 days
+        // Verify lockup remains at 365 days
         ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(user1);
         assertEq(userStake.effectiveLockUpPeriod, LOCK_365_DAYS);
     }
@@ -1647,7 +1646,8 @@ contract SapienVaultBasicTest is Test {
 
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), escapeStake);
-        sapienVault.stake(escapeStake, LOCK_30_DAYS);
+        // Use increaseAmount() since user already has a stake
+        sapienVault.increaseAmount(escapeStake);
         vm.stopPrank();
 
         ISapienVault.UserStakingSummary memory finalStake = sapienVault.getUserStakingSummary(user1);
@@ -1655,22 +1655,16 @@ contract SapienVaultBasicTest is Test {
         assertEq(finalStake.userTotalStaked, MINIMUM_STAKE * 91, "Should have combined total stake");
 
         // 🛡️ PROPER FIX VERIFICATION:
-        // Final lockup should be the MAXIMUM of:
-        // 1. Weighted average: (65 * 1000 + 30 * 90000) / 91000 ≈ 30.4 days
-        // 2. Remaining commitment: 65 days
-        // 3. New stake period: 30 days
-        // Result should be max(30.4, 65, 30) = 65 days (remaining commitment)
+        // With increaseAmount(), the lockup period remains unchanged (365 days)
+        // Only the amount is increased, the commitment time stays the same
 
-        assertEq(
-            finalStake.effectiveLockUpPeriod, 65 days, "SECURITY FIX: Cannot reduce lockup below remaining commitment"
-        );
+        assertEq(finalStake.effectiveLockUpPeriod, LOCK_365_DAYS, "Lockup period should remain 365 days");
 
-        // Verify user cannot escape their commitment with capital
-        assertGe(
-            finalStake.effectiveLockUpPeriod,
-            currentStake.timeUntilUnlock,
-            "SECURITY FIX: Must honor remaining commitment time"
-        );
+        // Verify user has more time until unlock due to weighted calculation
+        // The weighted start time is calculated as: (originalStartTime * originalAmount + currentTime * newAmount) / totalAmount
+        // This means the effective start time is somewhere between the original start and current time
+        // So the time until unlock will be longer than the original 65 days
+        assertGt(finalStake.timeUntilUnlock, 65 days, "Time until unlock should be longer due to weighted calculation");
     }
 
     /**
@@ -1680,7 +1674,7 @@ contract SapienVaultBasicTest is Test {
     function test_Vault_LockupExtensionsStillWork() public {
         // User starts with short-term stake
         vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), MINIMUM_STAKE);
+        sapienToken.approve(address(sapienVault), MINIMUM_STAKE * 2);
         sapienVault.stake(MINIMUM_STAKE, LOCK_30_DAYS);
         vm.stopPrank();
 
@@ -1693,16 +1687,17 @@ contract SapienVaultBasicTest is Test {
 
         // User wants to extend commitment to long-term
         vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), MINIMUM_STAKE);
-        sapienVault.stake(MINIMUM_STAKE, LOCK_365_DAYS);
+        // First increase lockup to desired period
+        sapienVault.increaseLockup(LOCK_365_DAYS - 10 days); // Extend from remaining 10 days to 365 days
+        // Then increase amount
+        sapienVault.increaseAmount(MINIMUM_STAKE);
         vm.stopPrank();
 
         ISapienVault.UserStakingSummary memory finalStake = sapienVault.getUserStakingSummary(user1);
 
         assertEq(finalStake.userTotalStaked, MINIMUM_STAKE * 2, "Should have doubled stake");
 
-        // Should be the longer period (365 days) since:
-        // max(weighted_average, 10_days, 365_days) = 365 days
+        // Should be the longer period (365 days)
         assertEq(finalStake.effectiveLockUpPeriod, LOCK_365_DAYS, "Should allow extension to longer period");
     }
 

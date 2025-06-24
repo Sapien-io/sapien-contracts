@@ -121,11 +121,11 @@ contract SapienVaultUncoveredLinesTest is Test {
 
         // Test operations on expired stake - should trigger expired handling
         vm.prank(user);
-        vault.stake(Const.MINIMUM_STAKE_AMOUNT, Const.LOCKUP_90_DAYS); // Should reset start time due to expiration
+        vault.increaseAmount(Const.MINIMUM_STAKE_AMOUNT); // Should reset start time due to expiration
 
-        // Verify the stake was handled as expired
+        // Verify the stake was handled as expired - lockup remains 30 days since we only increased amount
         ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
-        assertEq(userStake.effectiveLockUpPeriod, Const.LOCKUP_90_DAYS); // Should be new lockup period, not weighted
+        assertEq(userStake.effectiveLockUpPeriod, Const.LOCKUP_30_DAYS); // Should maintain original lockup period
     }
 
     /**
@@ -162,7 +162,7 @@ contract SapienVaultUncoveredLinesTest is Test {
         // Now stake again - this should trigger the expired stake handling
         // and ensure lockup doesn't exceed maximum
         vm.prank(user);
-        vault.stake(Const.MINIMUM_STAKE_AMOUNT, Const.LOCKUP_365_DAYS);
+        vault.increaseAmount(Const.MINIMUM_STAKE_AMOUNT);
 
         // Verify lockup period is capped at maximum
         ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
@@ -332,9 +332,9 @@ contract SapienVaultUncoveredLinesTest is Test {
         vm.prank(user);
         vault.stake(Const.MINIMUM_STAKE_AMOUNT, Const.LOCKUP_30_DAYS);
 
-        // Try to stake with minimum valid lockup
+        // Try to increase amount with existing stake
         vm.prank(user);
-        vault.stake(Const.MINIMUM_STAKE_AMOUNT, Const.LOCKUP_30_DAYS);
+        vault.increaseAmount(Const.MINIMUM_STAKE_AMOUNT);
 
         // Verify the weighted calculation worked correctly
         ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
@@ -412,7 +412,7 @@ contract SapienVaultUncoveredLinesTest is Test {
 
         // Add stake that creates a remainder > 50% in weighted calculation
         vm.prank(user);
-        vault.stake(Const.MINIMUM_STAKE_AMOUNT, Const.LOCKUP_90_DAYS);
+        vault.increaseAmount(Const.MINIMUM_STAKE_AMOUNT);
 
         // Verify the calculation completed successfully
         ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
@@ -435,10 +435,9 @@ contract SapienVaultUncoveredLinesTest is Test {
         // Wait exactly 1 second (creates edge case in remaining time calculation)
         vm.warp(block.timestamp + 1);
 
-        // Add stake with maximum lockup - this could trigger the cap due to banker's rounding
-        // The weighted calculation with remaining time + rounding could theoretically exceed 365 days
+        // Add stake with existing maximum lockup - this tests the cap
         vm.prank(user);
-        vault.stake(stakeAmount2, Const.LOCKUP_365_DAYS);
+        vault.increaseAmount(stakeAmount2);
 
         // Verify the lockup is properly capped at 365 days
         ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
@@ -463,11 +462,9 @@ contract SapienVaultUncoveredLinesTest is Test {
         // Wait exactly 1 second to create remaining time of 365 days - 1 second
         vm.warp(block.timestamp + 1);
 
-        // Add another stake with max lockup - the weighted average of:
-        // (364 days, 23:59:59) * amount1 + (365 days) * amount2
-        // divided by total amount, with banker's rounding, might exceed 365 days
+        // Add another amount to existing stake - since lockup is already 365 days, we increase amount
         vm.prank(user);
-        vault.stake(stakeAmount2, Const.LOCKUP_365_DAYS);
+        vault.increaseAmount(stakeAmount2);
 
         // Check that lockup is capped properly
         ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
@@ -494,10 +491,10 @@ contract SapienVaultUncoveredLinesTest is Test {
         // Fast forward to create a very small remaining time (1 second)
         vm.warp(block.timestamp + Const.LOCKUP_365_DAYS - 1);
 
-        // Now remaining time is 1 second, but we add a huge stake with 365 days
-        // Due to floor protection, result should be max(weighted_avg, 1_second, 365_days) = 365_days
+        // Now remaining time is 1 second, but we add a huge amount
+        // Since lockup is already at 365 days, we just increase amount
         vm.prank(user);
-        vault.stake(largeStake2, Const.LOCKUP_365_DAYS);
+        vault.increaseAmount(largeStake2);
 
         // With floor protection, this should be exactly 365 days, not exceeding it
         ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
@@ -531,10 +528,10 @@ contract SapienVaultUncoveredLinesTest is Test {
         // Advance time slightly to test remaining time calculation
         vm.warp(block.timestamp + 1 days);
 
-        // Test case 2: Add large stake with maximum lockup
-        // Even with extreme weighting, the floor protection ensures lockup ≤ 365 days
+        // Test case 2: Add large amount to existing stake
+        // Even with extreme weighting, the lockup remains ≤ 365 days
         vm.prank(user);
-        vault.stake(stakeAmount2, Const.LOCKUP_365_DAYS);
+        vault.increaseAmount(stakeAmount2);
 
         // Verify the effective lockup never exceeds 365 days
         ISapienVault.UserStakingSummary memory userStake = vault.getUserStakingSummary(user);
@@ -554,17 +551,20 @@ contract SapienVaultUncoveredLinesTest is Test {
         // Actually, let's just use the main user who already has tokens set up
         vm.stopPrank();
 
-        // Use the main user instead since they already have token setup
-        vm.prank(user);
+        // Use user2 instead since user already has a stake
+        // Set up user2 with tokens properly
+        sapienToken.mint(user2, oddAmount1 + oddAmount2);
+        vm.startPrank(user2);
+        sapienToken.approve(address(vault), oddAmount1 + oddAmount2);
         vault.stake(oddAmount1, Const.LOCKUP_365_DAYS);
 
         vm.warp(block.timestamp + 1); // Advance 1 second to create edge case
 
-        vm.prank(user);
-        vault.stake(oddAmount2, Const.LOCKUP_365_DAYS);
+        vault.increaseAmount(oddAmount2);
+        vm.stopPrank();
 
         // Even with banker's rounding, floor protection prevents exceeding 365 days
-        ISapienVault.UserStakingSummary memory userStake2 = vault.getUserStakingSummary(user);
+        ISapienVault.UserStakingSummary memory userStake2 = vault.getUserStakingSummary(user2);
         assertLe(
             userStake2.effectiveLockUpPeriod, Const.LOCKUP_365_DAYS, "Floor protection prevents exceeding max lockup"
         );
