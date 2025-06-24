@@ -11,9 +11,9 @@ library Constants {
     // Version Constants
     // -------------------------------------------------------------
 
-    string internal constant QA_VERSION = "0.1.3";
-    string internal constant REWARDS_VERSION = "0.1.3";
-    string internal constant VAULT_VERSION = "0.1.3";
+    string internal constant QA_VERSION = "1";
+    string internal constant REWARDS_VERSION = "1";
+    string internal constant VAULT_VERSION = "1";
 
     // -------------------------------------------------------------
     // Token Constants

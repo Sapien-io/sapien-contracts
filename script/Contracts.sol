@@ -12,11 +12,11 @@ struct DeployedContracts {
 
 // These are the proxies
 library LocalContracts {
-    address public constant SAPIEN_TOKEN = 0xD8a5a9b31c3C0232E196d518E89Fd8bF83AcAd43;
+    address public constant SAPIEN_TOKEN = 0x5FbDB2315678afecb367f032d93F642f64180aa3;
     address public constant SAPIEN_VAULT = 0x0165878A594ca255338adfa4d48449f69242Eb8F;
     address public constant SAPIEN_REWARDS = 0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9;
     address public constant SAPIEN_QA = 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0;
-    address public constant TIMELOCK = 0xDC11f7E700A4c898AE5CAddB1082cFfa76512aDD;
+    address public constant TIMELOCK = 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512;
 }
 
 library TenderlyContracts {
