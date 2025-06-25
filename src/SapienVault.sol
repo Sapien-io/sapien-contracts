@@ -45,7 +45,6 @@ import {
 import {SafeCast} from "src/utils/SafeCast.sol";
 import {Constants as Const} from "src/utils/Constants.sol";
 import {ISapienVault} from "src/interfaces/ISapienVault.sol";
-import {Multiplier} from "src/Multiplier.sol";
 
 using SafeCast for uint256;
 using SafeERC20 for IERC20;
@@ -324,7 +323,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     // -------------------------------------------------------------
 
     /**
-     * @notice Calculates the multiplier for a stake position using the multiplier contract
+     * @notice Calculates the multiplier for a stake position
      * @dev This is a core function that determines the reward multiplier applied to a user's stake.
      * The multiplier affects how much weight this stake carries in the reputation system and
      * potentially in reward distribution calculations.
@@ -345,7 +344,21 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @return uint256 calculated effective multiplier
      */
     function calculateMultiplier(uint256 amount, uint256 effectiveLockup) public pure returns (uint256) {
-        return Multiplier.calculateMultiplier(amount, effectiveLockup);
+        // Clamp inputs to valid ranges
+        uint256 maxTokens = Const.MAXIMUM_STAKE_AMOUNT;
+
+        if (amount > maxTokens) {
+            amount = maxTokens;
+        }
+
+        if (effectiveLockup > Const.LOCKUP_365_DAYS) {
+            effectiveLockup = Const.LOCKUP_365_DAYS;
+        }
+
+        // Calculate bonus with single division to minimize precision loss
+        uint256 bonus = (effectiveLockup * amount * Const.MAX_BONUS) / (Const.LOCKUP_365_DAYS * maxTokens);
+
+        return Const.BASE_MULTIPLIER + bonus;
     }
 
     /**
@@ -1065,7 +1078,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             if (userStake.amount >= Const.MINIMUM_STAKE_AMOUNT) {
                 // Normal case: use calculated multiplier
                 userStake.effectiveMultiplier =
-                    Multiplier.calculateMultiplier(userStake.amount, userStake.effectiveLockUpPeriod).toUint32();
+                    calculateMultiplier(userStake.amount, userStake.effectiveLockUpPeriod).toUint32();
             } else {
                 // Below minimum stake due to penalty: use base multiplier (1x)
                 userStake.effectiveMultiplier = Const.BASE_MULTIPLIER.toUint32();

@@ -4,7 +4,6 @@ pragma solidity 0.8.30;
 import {Test} from "lib/forge-std/src/Test.sol";
 import {SapienVault, ISapienVault} from "src/SapienVault.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {Multiplier} from "src/Multiplier.sol";
 
 // Simple mock ERC20 token for testing
 contract MockToken {

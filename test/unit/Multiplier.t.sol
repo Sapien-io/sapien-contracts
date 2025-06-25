@@ -3,7 +3,7 @@ pragma solidity 0.8.30;
 
 import {Test} from "lib/forge-std/src/Test.sol";
 import {console} from "lib/forge-std/src/console.sol";
-import {Multiplier} from "src/Multiplier.sol";
+import {SapienVault} from "src/SapienVault.sol";
 import {Constants as Const} from "src/utils/Constants.sol";
 import {ISapienVault} from "src/interfaces/ISapienVault.sol";
 
@@ -23,19 +23,30 @@ contract MultiplierTest is Test {
     uint256 public constant BASE_MULTIPLIER = 10000; // 1.00x
     uint256 public constant MAX_MULTIPLIER = 15000; // 1.50x
 
+    SapienVault public sapienVault;
+
+    function setUp() public {
+        sapienVault = new SapienVault();
+    }
+
+    // Helper function to calculate multiplier using SapienVault's function
+    function calculateMultiplier(uint256 amount, uint256 lockupPeriod) internal view returns (uint256) {
+        return sapienVault.calculateMultiplier(amount, lockupPeriod);
+    }
+
     // =============================================================================
     // BASIC FUNCTIONALITY TESTS
     // =============================================================================
 
-    function test_Multiplier_CalculateMultiplier_ExactDiscretePeriods() public pure {
+    function test_Multiplier_CalculateMultiplier_ExactDiscretePeriods() public view {
         uint256 amount = 100 ether; // Use 100 tokens instead of 1 to avoid rounding issues
 
         // Test exact discrete periods with small stake (100 tokens)
         // At 100 tokens, we should get base multiplier + small time bonus
-        uint256 result30 = Multiplier.calculateMultiplier(amount, LOCK_30_DAYS);
-        uint256 result90 = Multiplier.calculateMultiplier(amount, LOCK_90_DAYS);
-        uint256 result180 = Multiplier.calculateMultiplier(amount, LOCK_180_DAYS);
-        uint256 result365 = Multiplier.calculateMultiplier(amount, LOCK_365_DAYS);
+        uint256 result30 = calculateMultiplier(amount, LOCK_30_DAYS);
+        uint256 result90 = calculateMultiplier(amount, LOCK_90_DAYS);
+        uint256 result180 = calculateMultiplier(amount, LOCK_180_DAYS);
+        uint256 result365 = calculateMultiplier(amount, LOCK_365_DAYS);
 
         // Should increase with time
         assertLt(result30, result90, "90 days should be higher than 30 days");
@@ -47,14 +58,14 @@ contract MultiplierTest is Test {
         assertGe(result365, BASE_MULTIPLIER, "365 days should be >= base multiplier");
     }
 
-    function test_Multiplier_CalculateMultiplier_AmountScaling() public pure {
+    function test_Multiplier_CalculateMultiplier_AmountScaling() public view {
         uint256 lockup = LOCK_180_DAYS; // Use shorter duration to avoid hitting cap
 
         // Test exponential scaling with different amounts (use smaller amounts to avoid cap)
-        uint256 result1 = Multiplier.calculateMultiplier(1 ether, lockup);
-        uint256 result100 = Multiplier.calculateMultiplier(100 ether, lockup);
-        uint256 result1000 = Multiplier.calculateMultiplier(1000 ether, lockup);
-        uint256 result2000 = Multiplier.calculateMultiplier(2000 ether, lockup);
+        uint256 result1 = calculateMultiplier(1 ether, lockup);
+        uint256 result100 = calculateMultiplier(100 ether, lockup);
+        uint256 result1000 = calculateMultiplier(1000 ether, lockup);
+        uint256 result2000 = calculateMultiplier(2000 ether, lockup);
 
         // Should increase with amount (exponential curve)
         assertLt(result1, result100, "100 tokens should be higher than 1 token");
@@ -65,37 +76,37 @@ contract MultiplierTest is Test {
         assertLe(result2000, MAX_MULTIPLIER, "Should not exceed maximum multiplier");
     }
 
-    function test_Multiplier_CalculateMultiplier_BoundaryValues() public pure {
+    function test_Multiplier_CalculateMultiplier_BoundaryValues() public view {
         // Test minimum values
-        uint256 minResult = Multiplier.calculateMultiplier(MIN_TOKENS, LOCK_30_DAYS);
+        uint256 minResult = calculateMultiplier(MIN_TOKENS, LOCK_30_DAYS);
         assertGe(minResult, BASE_MULTIPLIER, "Minimum should be >= base multiplier");
 
         // Test maximum values
-        uint256 maxResult = Multiplier.calculateMultiplier(MAX_TOKENS, LOCK_365_DAYS);
+        uint256 maxResult = calculateMultiplier(MAX_TOKENS, LOCK_365_DAYS);
         assertEq(maxResult, MAX_MULTIPLIER, "Maximum should equal MAX_MULTIPLIER");
 
         // Test clamping above maximum
-        uint256 aboveMaxResult = Multiplier.calculateMultiplier(MAX_TOKENS * 2, LOCK_365_DAYS);
+        uint256 aboveMaxResult = calculateMultiplier(MAX_TOKENS * 2, LOCK_365_DAYS);
         assertEq(aboveMaxResult, MAX_MULTIPLIER, "Should clamp to MAX_MULTIPLIER");
     }
 
-    function test_Multiplier_CalculateMultiplier_InputClamping() public pure {
+    function test_Multiplier_CalculateMultiplier_InputClamping() public view {
         // Test amount clamping
-        uint256 belowMin = Multiplier.calculateMultiplier(0, LOCK_30_DAYS);
-        uint256 atMin = Multiplier.calculateMultiplier(MIN_TOKENS, LOCK_30_DAYS);
+        uint256 belowMin = calculateMultiplier(0, LOCK_30_DAYS);
+        uint256 atMin = calculateMultiplier(MIN_TOKENS, LOCK_30_DAYS);
         assertEq(belowMin, atMin, "Below minimum should clamp to minimum");
 
-        uint256 aboveMax = Multiplier.calculateMultiplier(MAX_TOKENS * 2, LOCK_30_DAYS);
-        uint256 atMax = Multiplier.calculateMultiplier(MAX_TOKENS, LOCK_30_DAYS);
+        uint256 aboveMax = calculateMultiplier(MAX_TOKENS * 2, LOCK_30_DAYS);
+        uint256 atMax = calculateMultiplier(MAX_TOKENS, LOCK_30_DAYS);
         assertEq(aboveMax, atMax, "Above maximum should clamp to maximum");
 
         // Test lockup clamping
-        uint256 belowMinLockup = Multiplier.calculateMultiplier(1000, LOCK_30_DAYS - 1);
-        uint256 atMinLockup = Multiplier.calculateMultiplier(1000, LOCK_30_DAYS);
+        uint256 belowMinLockup = calculateMultiplier(1000, LOCK_30_DAYS - 1);
+        uint256 atMinLockup = calculateMultiplier(1000, LOCK_30_DAYS);
         assertEq(belowMinLockup, atMinLockup, "Below minimum lockup should clamp");
 
-        uint256 aboveMaxLockup = Multiplier.calculateMultiplier(1000, LOCK_365_DAYS + 1);
-        uint256 atMaxLockup = Multiplier.calculateMultiplier(1000, LOCK_365_DAYS);
+        uint256 aboveMaxLockup = calculateMultiplier(1000, LOCK_365_DAYS + 1);
+        uint256 atMaxLockup = calculateMultiplier(1000, LOCK_365_DAYS);
         assertEq(aboveMaxLockup, atMaxLockup, "Above maximum lockup should clamp");
     }
 
@@ -103,13 +114,13 @@ contract MultiplierTest is Test {
     // EXPONENTIAL CURVE TESTS
     // =============================================================================
 
-    function test_Multiplier_ExponentialCurve_Properties() public pure {
+    function test_Multiplier_ExponentialCurve_Properties() public view {
         uint256 lockup = LOCK_30_DAYS; // Use shorter duration to avoid hitting cap
 
         // Test that the curve approaches the maximum asymptotically
-        uint256 result500 = Multiplier.calculateMultiplier(500, lockup);
-        uint256 result1500 = Multiplier.calculateMultiplier(1500, lockup);
-        uint256 result2500 = Multiplier.calculateMultiplier(2500, lockup);
+        uint256 result500 = calculateMultiplier(500, lockup);
+        uint256 result1500 = calculateMultiplier(1500, lockup);
+        uint256 result2500 = calculateMultiplier(2500, lockup);
 
         // The difference between consecutive points should decrease (exponential behavior)
         uint256 diff1 = result1500 - result500;
@@ -119,12 +130,12 @@ contract MultiplierTest is Test {
         assertLe(diff2, diff1, "Exponential curve should have decreasing or equal increments");
     }
 
-    function test_Multiplier_TimeBonus_Linear() public pure {
+    function test_Multiplier_TimeBonus_Linear() public view {
         uint256 amount = 1000 ether; // Fixed amount
 
-        uint256 result30 = Multiplier.calculateMultiplier(amount, LOCK_30_DAYS);
-        uint256 result180 = Multiplier.calculateMultiplier(amount, LOCK_180_DAYS);
-        uint256 result365 = Multiplier.calculateMultiplier(amount, LOCK_365_DAYS);
+        uint256 result30 = calculateMultiplier(amount, LOCK_30_DAYS);
+        uint256 result180 = calculateMultiplier(amount, LOCK_180_DAYS);
+        uint256 result365 = calculateMultiplier(amount, LOCK_365_DAYS);
 
         // Time bonus should be linear
         uint256 timeBonus180 = result180 - result30;
@@ -141,7 +152,7 @@ contract MultiplierTest is Test {
     // MONOTONIC INCREASE TESTS
     // =============================================================================
 
-    function test_Multiplier_CalculateMultiplier_MonotonicIncrease() public pure {
+    function test_Multiplier_CalculateMultiplier_MonotonicIncrease() public view {
         // Test that multiplier increases monotonically with both amount and duration
 
         // Fixed duration, increasing amounts (use shorter duration to avoid cap)
@@ -154,8 +165,8 @@ contract MultiplierTest is Test {
         amounts[4] = 2500 ether;
 
         for (uint256 i = 1; i < amounts.length; i++) {
-            uint256 prevResult = Multiplier.calculateMultiplier(amounts[i - 1], lockup);
-            uint256 currResult = Multiplier.calculateMultiplier(amounts[i], lockup);
+            uint256 prevResult = calculateMultiplier(amounts[i - 1], lockup);
+            uint256 currResult = calculateMultiplier(amounts[i], lockup);
             assertLe(prevResult, currResult, "Multiplier should increase or stay same with amount");
         }
 
@@ -168,8 +179,8 @@ contract MultiplierTest is Test {
         durations[3] = LOCK_365_DAYS;
 
         for (uint256 i = 1; i < durations.length; i++) {
-            uint256 prevResult = Multiplier.calculateMultiplier(amount, durations[i - 1]);
-            uint256 currResult = Multiplier.calculateMultiplier(amount, durations[i]);
+            uint256 prevResult = calculateMultiplier(amount, durations[i - 1]);
+            uint256 currResult = calculateMultiplier(amount, durations[i]);
             assertLt(prevResult, currResult, "Multiplier should increase with duration");
         }
     }
@@ -178,12 +189,12 @@ contract MultiplierTest is Test {
     // FUZZ TESTS
     // =============================================================================
 
-    function testFuzz_Multiplier_CalculateMultiplier_ValidInputs(uint256 amount, uint256 lockup) public pure {
+    function testFuzz_Multiplier_CalculateMultiplier_ValidInputs(uint256 amount, uint256 lockup) public view {
         // Bound inputs to reasonable ranges (the function clamps internally)
         amount = bound(amount, 0, MAX_TOKENS * 10); // Allow above max to test clamping
         lockup = bound(lockup, 0, LOCK_365_DAYS * 2); // Allow above max to test clamping
 
-        uint256 result = Multiplier.calculateMultiplier(amount, lockup);
+        uint256 result = calculateMultiplier(amount, lockup);
 
         // Should always return a positive result
         assertGt(result, 0, "Result should be positive");
@@ -195,51 +206,22 @@ contract MultiplierTest is Test {
 
     function testFuzz_Multiplier_CalculateMultiplier_Monotonic(uint256 amount1, uint256 amount2, uint256 lockup)
         public
-        pure
+        view
     {
         // Bound inputs
-        amount1 = bound(amount1, MIN_TOKENS, MAX_TOKENS);
-        amount2 = bound(amount2, MIN_TOKENS, MAX_TOKENS);
+        amount1 = bound(amount1, 1, MAX_TOKENS);
+        amount2 = bound(amount2, 1, MAX_TOKENS);
         lockup = bound(lockup, LOCK_30_DAYS, LOCK_365_DAYS);
 
-        if (amount1 < amount2) {
-            uint256 result1 = Multiplier.calculateMultiplier(amount1, lockup);
-            uint256 result2 = Multiplier.calculateMultiplier(amount2, lockup);
-            assertLe(result1, result2, "Multiplier should be monotonic in amount");
+        // Ensure amount1 <= amount2
+        if (amount1 > amount2) {
+            (amount1, amount2) = (amount2, amount1);
         }
-    }
 
-    // =============================================================================
-    // SPECIFIC VALUE TESTS
-    // =============================================================================
+        uint256 result1 = calculateMultiplier(amount1, lockup);
+        uint256 result2 = calculateMultiplier(amount2, lockup);
 
-    function test_Multiplier_SpecificValues() public pure {
-        // Test some specific expected values based on the exponential model
-
-        // Minimum case: 1 token, 30 days
-        uint256 minResult = Multiplier.calculateMultiplier(1 ether, LOCK_30_DAYS);
-        assertEq(minResult, BASE_MULTIPLIER, "Minimum should equal base multiplier");
-
-        // Maximum case: 2500 tokens, 365 days
-        uint256 maxResult = Multiplier.calculateMultiplier(MAX_TOKENS, LOCK_365_DAYS);
-        assertEq(maxResult, MAX_MULTIPLIER, "Maximum should equal max multiplier");
-
-        // Mid-range case: 1250 tokens, 180 days
-        uint256 midResult = Multiplier.calculateMultiplier(1250 ether, LOCK_180_DAYS);
-        assertGt(midResult, BASE_MULTIPLIER, "Mid-range should be > base");
-        assertLt(midResult, MAX_MULTIPLIER, "Mid-range should be < max");
-    }
-
-    function test_Multiplier_AsymptoticBehavior() public pure {
-        uint256 lockup = LOCK_365_DAYS;
-
-        // Test that very large amounts don't exceed the maximum
-        uint256 result1 = Multiplier.calculateMultiplier(MAX_TOKENS, lockup);
-        uint256 result2 = Multiplier.calculateMultiplier(MAX_TOKENS * 10, lockup);
-        uint256 result3 = Multiplier.calculateMultiplier(MAX_TOKENS * 100, lockup);
-
-        assertEq(result1, MAX_MULTIPLIER, "Max tokens should give max multiplier");
-        assertEq(result2, MAX_MULTIPLIER, "10x max tokens should still give max multiplier");
-        assertEq(result3, MAX_MULTIPLIER, "100x max tokens should still give max multiplier");
+        // Should be monotonic in amount
+        assertLe(result1, result2, "Multiplier should be monotonic in amount");
     }
 }

@@ -5,7 +5,6 @@ import {Test, console} from "lib/forge-std/src/Test.sol";
 import {SapienVault, ISapienVault} from "src/SapienVault.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
-import {Multiplier} from "src/Multiplier.sol";
 
 contract SapienVaultScenariosTest is Test {
     SapienVault public sapienVault;
@@ -556,7 +555,7 @@ contract SapienVaultScenariosTest is Test {
 
         // Verify multiplier reflects the current system for below minimum stake
         // Small amounts get time bonus even when below practical minimum
-        uint256 expectedMultiplier = Multiplier.calculateMultiplier(expectedRemaining, LOCK_90_DAYS);
+        uint256 expectedMultiplier = sapienVault.calculateMultiplier(expectedRemaining, LOCK_90_DAYS);
         assertApproxEqAbs(
             ivanStake.effectiveMultiplier,
             expectedMultiplier,
@@ -627,7 +626,7 @@ contract SapienVaultScenariosTest is Test {
         assertEq(juliaAfterSecond.userTotalStaked, stakeAmount - firstPenalty - secondPenalty);
         assertTrue(juliaAfterSecond.userTotalStaked < MINIMUM_STAKE, "Should be below minimum after second penalty");
         uint256 expectedJuliaMultiplier =
-            Multiplier.calculateMultiplier(juliaAfterSecond.userTotalStaked, LOCK_180_DAYS);
+            sapienVault.calculateMultiplier(juliaAfterSecond.userTotalStaked, LOCK_180_DAYS);
         assertApproxEqAbs(
             juliaAfterSecond.effectiveMultiplier,
             expectedJuliaMultiplier,
@@ -687,7 +686,7 @@ contract SapienVaultScenariosTest is Test {
         ISapienVault.UserStakingSummary memory kevinBelowMin = sapienVault.getUserStakingSummary(kevin);
         assertEq(kevinBelowMin.userTotalStaked, stakeAmount - penaltyAmount - secondPenalty);
         assertTrue(kevinBelowMin.userTotalStaked < MINIMUM_STAKE, "Should be below minimum after second penalty");
-        uint256 expectedKevinMultiplier = Multiplier.calculateMultiplier(kevinBelowMin.userTotalStaked, LOCK_30_DAYS);
+        uint256 expectedKevinMultiplier = sapienVault.calculateMultiplier(kevinBelowMin.userTotalStaked, LOCK_30_DAYS);
         assertApproxEqAbs(
             kevinBelowMin.effectiveMultiplier,
             expectedKevinMultiplier,
@@ -876,7 +875,7 @@ contract SapienVaultScenariosTest is Test {
         );
 
         // Path C should match the target multiplier closely
-        uint256 expectedMultiplier = Multiplier.calculateMultiplier(finalStake, targetLockupDays);
+        uint256 expectedMultiplier = sapienVault.calculateMultiplier(finalStake, targetLockupDays);
         assertApproxEqAbs(
             charlieFinal.effectiveMultiplier,
             expectedMultiplier,

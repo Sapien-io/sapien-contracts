@@ -36,9 +36,9 @@ contract SapienRewardsScenariosTest is Test {
 
     // Test constants
     uint256 public constant INITIAL_SUPPLY = 10000000 * 10 ** 18; // 10M tokens
-    uint256 public constant LARGE_REWARD = 50000 * 10 ** 18; // 50K tokens
-    uint256 public constant MEDIUM_REWARD = 10000 * 10 ** 18; // 10K tokens
-    uint256 public constant SMALL_REWARD = 1000 * 10 ** 18; // 1K tokens
+    uint256 public constant LARGE_REWARD = 10_000 * 10 ** 18; // 50K tokens
+    uint256 public constant MEDIUM_REWARD = 5_000 * 10 ** 18; // 10K tokens
+    uint256 public constant SMALL_REWARD = 1_000 * 10 ** 18; // 1K tokens
 
     // Order IDs for scenarios
     bytes32 public constant ALICE_ORDER_1 = keccak256("alice_contribution_1");
@@ -182,7 +182,7 @@ contract SapienRewardsScenariosTest is Test {
 
         for (uint256 i = 0; i < 20; i++) {
             users[i] = makeAddr(string(abi.encodePacked("user", i)));
-            amounts[i] = (i + 1) * 5000 * 10 ** 18; // Varying amounts from 5K to 100K
+            amounts[i] = (i + 1) * 500 * 10 ** 18; // Varying amounts from 5K to 100K
             orderIds[i] = keccak256(abi.encodePacked("batch_order", i));
 
             // Alternate between reward managers

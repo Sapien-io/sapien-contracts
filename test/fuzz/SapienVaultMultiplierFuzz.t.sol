@@ -5,7 +5,7 @@ import {Test} from "lib/forge-std/src/Test.sol";
 import {Vm} from "lib/forge-std/src/Vm.sol";
 import {console} from "lib/forge-std/src/console.sol";
 import {SapienVault, ISapienVault} from "src/SapienVault.sol";
-import {Multiplier} from "src/Multiplier.sol";
+
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
 import {Constants as Const} from "src/utils/Constants.sol";

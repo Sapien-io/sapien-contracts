@@ -5,7 +5,7 @@ import {Test} from "lib/forge-std/src/Test.sol";
 import {Vm} from "lib/forge-std/src/Vm.sol";
 import {console} from "lib/forge-std/src/console.sol";
 import {SapienVault, ISapienVault} from "src/SapienVault.sol";
-import {Multiplier} from "src/Multiplier.sol";
+// Multiplier functionality now integrated into SapienVault
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
 import {Constants as Const} from "src/utils/Constants.sol";
@@ -342,8 +342,8 @@ contract SapienVaultBasicTest is Test {
         assertEq(userStake.userTotalStaked, initialAmount + increaseAmount);
 
         // Calculate expected multipliers
-        uint256 expectedInitialMultiplier = Multiplier.calculateMultiplier(initialAmount, LOCK_180_DAYS);
-        uint256 expectedFinalMultiplier = Multiplier.calculateMultiplier(initialAmount + increaseAmount, LOCK_180_DAYS);
+        uint256 expectedInitialMultiplier = sapienVault.calculateMultiplier(initialAmount, LOCK_180_DAYS);
+        uint256 expectedFinalMultiplier = sapienVault.calculateMultiplier(initialAmount + increaseAmount, LOCK_180_DAYS);
 
         // Verify multipliers match expected
         assertEq(initialMultiplier, expectedInitialMultiplier, "Initial multiplier should match expected");
@@ -769,7 +769,7 @@ contract SapienVaultBasicTest is Test {
         assertEq(userStake.effectiveLockUpPeriod, LOCK_30_DAYS);
 
         // Use the actual multiplier from our current implementation
-        uint256 expectedMultiplier = Multiplier.calculateMultiplier(stakeAmount, LOCK_30_DAYS);
+        uint256 expectedMultiplier = sapienVault.calculateMultiplier(stakeAmount, LOCK_30_DAYS);
         assertApproxEqAbs(
             userStake.effectiveMultiplier,
             expectedMultiplier,
@@ -804,8 +804,8 @@ contract SapienVaultBasicTest is Test {
         assertGt(multiplier60, multiplier30, "Should be better than 30-day multiplier");
 
         // Interpolated for 3K tokens @ 60 days should be between 30 and 90 day multiplier for 3K tokens
-        uint256 multiplier30Days3K = Multiplier.calculateMultiplier(stakeAmount, LOCK_30_DAYS);
-        uint256 multiplier90Days3K = Multiplier.calculateMultiplier(stakeAmount, LOCK_90_DAYS);
+        uint256 multiplier30Days3K = sapienVault.calculateMultiplier(stakeAmount, LOCK_30_DAYS);
+        uint256 multiplier90Days3K = sapienVault.calculateMultiplier(stakeAmount, LOCK_90_DAYS);
 
         assertTrue(
             multiplier60 > multiplier30Days3K && multiplier60 < multiplier90Days3K,
@@ -836,7 +836,7 @@ contract SapienVaultBasicTest is Test {
         assertGt(userMultiplier, 0, "User with active stake should have positive multiplier");
 
         // Expected multiplier for 500 tokens @ 30 days
-        uint256 expectedMultiplier = Multiplier.calculateMultiplier(stakeAmount, LOCK_30_DAYS);
+        uint256 expectedMultiplier = sapienVault.calculateMultiplier(stakeAmount, LOCK_30_DAYS);
         assertApproxEqAbs(
             userMultiplier, expectedMultiplier, 100, "500 tokens @ 30 days should get expected multiplier"
         );
@@ -2482,7 +2482,7 @@ contract SapienVaultBasicTest is Test {
 
         // The key test - verify multiplier matches our current implementation
         assertGt(effectiveMultiplier, 0, "Effective multiplier should be positive");
-        uint256 expectedMultiplier = Multiplier.calculateMultiplier(amount, period);
+        uint256 expectedMultiplier = sapienVault.calculateMultiplier(amount, period);
         assertEq(effectiveMultiplier, expectedMultiplier, "Multiplier should match current implementation");
     }
 
@@ -2521,7 +2521,7 @@ contract SapienVaultBasicTest is Test {
             // Get multiplier
             ISapienVault.UserStakingSummary memory userStake = sapienVault.getUserStakingSummary(testUser);
             uint256 actualMultiplier = userStake.effectiveMultiplier;
-            uint256 expectedMultiplier = Multiplier.calculateMultiplier(amounts[i], periods[i]);
+            uint256 expectedMultiplier = sapienVault.calculateMultiplier(amounts[i], periods[i]);
 
             assertEq(actualMultiplier, expectedMultiplier, descriptions[i]);
         }
@@ -2833,7 +2833,7 @@ contract SapienVaultBasicTest is Test {
         assertTrue(sapienVault.hasActiveStake(testUser), "hasActiveStake should work");
 
         // The critical test - effectiveMultiplier should NOT be 0
-        uint256 expectedMultiplier = Multiplier.calculateMultiplier(amount, period); // Use actual multiplier calculation
+        uint256 expectedMultiplier = sapienVault.calculateMultiplier(amount, period); // Use actual multiplier calculation
         assertGt(effectiveMultiplier, 0, "effectiveMultiplier MUST be positive");
         assertEq(effectiveMultiplier, expectedMultiplier, "effectiveMultiplier should match expected value");
     }
@@ -3700,7 +3700,7 @@ contract SapienVaultBasicTest is Test {
     }
 
     function test_Vault_QAPenalty_EarlyUnstakeLockingVulnerabilityFixed() public {
-        // Test the locking vulnerability fix: user should not get locked when 
+        // Test the locking vulnerability fix: user should not get locked when
         // QA penalty reduces early unstake cooldown amount below minimum
         uint256 stakeAmount = 1000e18; // 1000 tokens
         uint256 earlyUnstakeAmount = 100e18; // 100 tokens for early unstake
@@ -3730,12 +3730,14 @@ contract SapienVaultBasicTest is Test {
         // The early unstake cooldown amount should be reduced to 300 wei, which is < 500 wei minimum
         // so it should be canceled
         assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), 0, "Early unstake cooldown should be canceled");
-        assertEq(sapienVault.getUserStake(user1).earlyUnstakeCooldownStart, 0, "Early unstake cooldown start should be reset");
+        assertEq(
+            sapienVault.getUserStake(user1).earlyUnstakeCooldownStart, 0, "Early unstake cooldown start should be reset"
+        );
 
         // User should now be able to increase their stake (proving they're not locked)
         uint256 additionalAmount = 500e18;
         sapienToken.mint(user1, additionalAmount);
-        
+
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), additionalAmount);
         // This should NOT revert - user is no longer locked
@@ -3773,7 +3775,10 @@ contract SapienVaultBasicTest is Test {
         // The early unstake cooldown amount should be reduced to 600 wei, which is >= 500 wei minimum
         // so it should NOT be canceled
         assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), 600, "Early unstake cooldown should remain active");
-        assertTrue(sapienVault.getUserStake(user1).earlyUnstakeCooldownStart != 0, "Early unstake cooldown should remain active");
+        assertTrue(
+            sapienVault.getUserStake(user1).earlyUnstakeCooldownStart != 0,
+            "Early unstake cooldown should remain active"
+        );
 
         // Wait for cooldown period to complete
         vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
@@ -3784,7 +3789,9 @@ contract SapienVaultBasicTest is Test {
 
         // Verify early unstake was completed
         assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), 0, "Early unstake cooldown should be cleared");
-        assertEq(sapienVault.getUserStake(user1).earlyUnstakeCooldownStart, 0, "Early unstake cooldown start should be reset");
+        assertEq(
+            sapienVault.getUserStake(user1).earlyUnstakeCooldownStart, 0, "Early unstake cooldown start should be reset"
+        );
         assertEq(sapienVault.getTotalStaked(user1), 0, "All stake should be withdrawn");
     }
 
@@ -3838,7 +3845,7 @@ contract SapienVaultBasicTest is Test {
         // Verify user is not locked and can stake again
         uint256 newStakeAmount = 1000e18;
         sapienToken.mint(user1, newStakeAmount);
-        
+
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), newStakeAmount);
         // This should work - user is completely unlocked

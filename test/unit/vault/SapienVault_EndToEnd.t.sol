@@ -9,7 +9,7 @@ import {TransparentUpgradeableProxy} from
 
 import {SapienVault} from "src/SapienVault.sol";
 import {SapienQA} from "src/SapienQA.sol";
-import {Multiplier} from "src/Multiplier.sol";
+
 import {ISapienVault} from "src/interfaces/ISapienVault.sol";
 import {Constants as Const} from "src/utils/Constants.sol";
 

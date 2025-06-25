@@ -87,6 +87,9 @@ library Constants {
     uint256 internal constant MIN_MULTIPLIER = 10000; // 1.00x (new multiplicative model)
     uint256 internal constant MAX_MULTIPLIER = 15000; // 1.50x at 365 days
 
+    /// @notice Maximum bonus in basis points, 50%
+    uint256 internal constant MAX_BONUS = 5000;
+
     /// @notice Minimum stake amount (1 token)
     uint256 internal constant MINIMUM_STAKE_AMOUNT = 1 * TOKEN_DECIMALS;
 
@@ -114,7 +117,7 @@ library Constants {
     // -------------------------------------------------------------
 
     // Add this constant at the contract level
-    uint256 internal constant MAX_REWARD_AMOUNT = 1000000 * 10 ** 18;
+    uint256 internal constant MAX_REWARD_AMOUNT = 10_000 * 10 ** 18;
 
     // -------------------------------------------------------------
     // QA Constants

@@ -4,7 +4,7 @@ pragma solidity 0.8.30;
 import {Test, console} from "forge-std/Test.sol";
 import {SapienVault} from "src/SapienVault.sol";
 import {SapienToken} from "src/SapienToken.sol";
-import {Multiplier} from "src/Multiplier.sol";
+
 import {ISapienVault} from "src/interfaces/ISapienVault.sol";
 import {Constants as Const} from "src/utils/Constants.sol";
 

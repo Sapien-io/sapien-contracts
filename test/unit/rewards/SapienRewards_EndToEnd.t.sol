@@ -39,8 +39,8 @@ contract SapienRewardsEndToEndTest is Test {
 
     // Test parameters
     uint256 public constant INITIAL_FUND = 50_000_000 * 10 ** 18; // 50M tokens
-    uint256 public constant LARGE_REWARD = 100_000 * 10 ** 18; // 100K tokens
-    uint256 public constant MEDIUM_REWARD = 25_000 * 10 ** 18; // 25K tokens
+    uint256 public constant LARGE_REWARD = 10_000 * 10 ** 18; // 100K tokens
+    uint256 public constant MEDIUM_REWARD = 2500 * 10 ** 18; // 25K tokens
     uint256 public constant SMALL_REWARD = 1_000 * 10 ** 18; // 1K tokens
     uint256 public constant MICRO_REWARD = 100 * 10 ** 18; // 100 tokens
 
@@ -134,7 +134,7 @@ contract SapienRewardsEndToEndTest is Test {
 
         console.log("Early user claimed:", LARGE_REWARD / 10 ** 18, "tokens");
 
-        // Regular user starts with smaller rewards
+        // // Regular user starts with smaller rewards
         orderId = _generateOrderId("regular_user_task_1");
         signature = _createSignature(regularUser, MEDIUM_REWARD, orderId, manager1PrivateKey);
 
@@ -421,7 +421,7 @@ contract SapienRewardsEndToEndTest is Test {
         } else if (user == earlyUser) {
             return (week % 3 == 0) ? LARGE_REWARD : 0; // Sporadic large rewards
         } else if (user == powerUser) {
-            return (week % 4 == 0) ? LARGE_REWARD * 2 : SMALL_REWARD; // Burst pattern
+            return (week % 4 == 0) ? LARGE_REWARD : SMALL_REWARD; // Burst pattern
         } else if (user == newUser) {
             return SMALL_REWARD; // Consistent small rewards
         }

@@ -16,7 +16,6 @@ The SAPIEN protocol bridges the gap between human wisdom and machine learning wh
 | **SapienVault** | Staking & lockup management | Progressive staking rewards, temporal lockup multipliers, emergency controls |
 | **SapienQA** | Quality assurance enforcement | Automated validation, progressive penalty system, comprehensive audit trails |
 | **SapienRewards** | Task reward distribution | EIP-712 cryptographic signatures, duplicate protection |
-| **Multiplier** | Reward calculation engine | Performance-based multipliers, time-weighted reward bonuses |
 
 ---
 
@@ -27,7 +26,6 @@ Comprehensive technical specifications for each smart contract:
 - **[SapienVault](notes/SapienVault.md)** - Staking mechanisms, lockup management, and vault operations
 - **[SapienQA](notes/SapienQA.md)** - Quality assurance system and penalty enforcement protocols  
 - **[SapienRewards](notes/SapienRewards.md)** - Off-chain signed reward claims and distribution mechanisms
-- **[Multiplier](notes/Multiplier.md)** - Reward calculation algorithms and multiplier mechanics
 - **[SAPIEN Whitepaper](notes/whitepaper.md)** - Complete tokenomics and protocol design specification
 - **[Multiplier Paper](notes/multiplier.pdf)** - Paper on the multiplier math
 
@@ -117,7 +115,6 @@ The protocol utilizes OpenZeppelin's upgradeable proxy pattern for critical cont
 - **SapienRewards**: Upgradeable proxy implementation  
 - **SapienQA**: Upgradeable proxy implementation
 - **SapienToken**: Standard ERC-20 implementation
-- **Multiplier**: Library implementation for gas optimization
 
 ## Gas Optimization
 
