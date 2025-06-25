@@ -467,8 +467,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      */
     function isEarlyUnstakeReady(address user) public view returns (bool ready) {
         UserStake memory userStake = userStakes[user];
-        return userStake.earlyUnstakeCooldownStart > 0 && 
-               block.timestamp >= userStake.earlyUnstakeCooldownStart + Const.COOLDOWN_PERIOD;
+        return userStake.earlyUnstakeCooldownStart > 0
+            && block.timestamp >= userStake.earlyUnstakeCooldownStart + Const.COOLDOWN_PERIOD;
     }
 
     // -------------------------------------------------------------
@@ -663,8 +663,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         emit Unstaked(msg.sender, amount);
     }
 
-
-
     /**
      * @notice Initiates early unstake cooldown for a specified amount.
      * @param amount The amount to initiate early unstake for.
@@ -757,7 +755,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         // Update early unstake cooldown amount
         userStake.earlyUnstakeCooldownAmount -= amount.toUint128();
-        
+
         // Reset early unstake cooldown if fully processed
         if (userStake.earlyUnstakeCooldownAmount == 0) {
             userStake.earlyUnstakeCooldownStart = 0;
@@ -774,8 +772,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         emit EarlyUnstake(msg.sender, payout, penalty);
     }
-
-
 
     /**
      * @notice Validates stake inputs and basic constraints
@@ -1003,8 +999,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         if (cooldownReduction > 0) {
             emit QACooldownAdjusted(userAddress, cooldownReduction);
         }
-        
-
 
         // Emit detailed breakdown - fromCooldownStake is always 0 since _reducePrimaryStake handles everything
         emit QAStakeReduced(userAddress, fromActiveStake, 0);
@@ -1035,14 +1029,14 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
                 userStake.cooldownStart = 0;
             }
         }
-        
+
         // SECURITY FIX: Handle early unstake cooldown amount when QA penalty reduces stake
         if (userStake.earlyUnstakeCooldownAmount > 0) {
             if (userStake.earlyUnstakeCooldownAmount > newAmount) {
                 // Reduce to available amount
                 userStake.earlyUnstakeCooldownAmount = newAmount.toUint128();
             }
-            
+
             // Cancel early unstake cooldown if amount falls below minimum
             if (newAmount < Const.MINIMUM_UNSTAKE_AMOUNT) {
                 userStake.earlyUnstakeCooldownStart = 0;
