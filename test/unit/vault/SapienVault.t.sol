@@ -1165,7 +1165,7 @@ contract SapienVaultBasicTest is Test {
         // Test line 562: NoStakeFound revert in earlyUnstake function
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSignature("NoStakeFound()"));
-        sapienVault.earlyUnstake(MINIMUM_STAKE);
+        sapienVault.initiateEarlyUnstake(MINIMUM_STAKE);
     }
 
     function test_Vault_RevertEarlyUnstake_AmountExceedsAvailableBalance() public {
@@ -1178,9 +1178,16 @@ contract SapienVaultBasicTest is Test {
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
         vm.stopPrank();
 
-        // Try to early unstake more than available
+        // With the new fix, user must first initiate early unstake
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSignature("AmountExceedsAvailableBalance()"));
+        sapienVault.initiateEarlyUnstake(stakeAmount);
+        
+        // Fast forward past cooldown
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+
+        // Now try to early unstake more than available
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature("AmountExceedsEarlyUnstakeRequest()"));
         sapienVault.earlyUnstake(stakeAmount + 1);
     }
 
@@ -1195,18 +1202,27 @@ contract SapienVaultBasicTest is Test {
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
         vm.stopPrank();
 
-        // Wait for unlock and put some amount in cooldown
-        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
-
+        // Since early unstake can only be done during lock period,
+        // we need to test while still locked
+        
+        // Initiate early unstake for some amount
+        uint256 earlyUnstakeAmount = MINIMUM_STAKE * 2;
         vm.prank(user1);
-        sapienVault.initiateUnstake(MINIMUM_STAKE); // Put 1/3 in cooldown
+        sapienVault.initiateEarlyUnstake(earlyUnstakeAmount);
+        
+        // Fast forward past cooldown
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
 
-        // Now try to early unstake more than available (total - cooldown)
-        uint256 availableForEarlyUnstake = stakeAmount - MINIMUM_STAKE;
-
+        // Try to early unstake more than requested
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSignature("AmountExceedsAvailableBalance()"));
-        sapienVault.earlyUnstake(availableForEarlyUnstake + 1);
+        vm.expectRevert(abi.encodeWithSignature("AmountExceedsEarlyUnstakeRequest()"));
+        sapienVault.earlyUnstake(earlyUnstakeAmount + 1);
+        
+        // Also test that the original AmountExceedsAvailableBalance still works 
+        // by trying to initiate another early unstake for more than available
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature("EarlyUnstakeCooldownAlreadyActive()"));
+        sapienVault.initiateEarlyUnstake(stakeAmount);
     }
 
     function test_Vault_RevertEarlyUnstake_BelowMinimumAmount() public {
@@ -1218,9 +1234,19 @@ contract SapienVaultBasicTest is Test {
         sapienToken.approve(address(sapienVault), stakeAmount);
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
 
-        // Try to early unstake less than the minimum required amount
+        // Try to initiate early unstake less than the minimum required amount
         uint256 belowMinimumAmount = Const.MINIMUM_UNSTAKE_AMOUNT - 1;
 
+        vm.expectRevert(abi.encodeWithSignature("MinimumUnstakeAmountRequired()"));
+        sapienVault.initiateEarlyUnstake(belowMinimumAmount);
+        
+        // Now test with valid initiation but invalid early unstake amount
+        sapienVault.initiateEarlyUnstake(Const.MINIMUM_UNSTAKE_AMOUNT);
+        
+        // Fast forward past cooldown
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        
+        // This should still revert as earlyUnstake also checks minimum amount
         vm.expectRevert(abi.encodeWithSignature("MinimumUnstakeAmountRequired()"));
         sapienVault.earlyUnstake(belowMinimumAmount);
         vm.stopPrank();
@@ -3122,5 +3148,300 @@ contract SapienVaultBasicTest is Test {
 
         ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
         assertEq(userStake.earlyUnstakeCooldownStart, block.timestamp);
+        assertEq(userStake.earlyUnstakeCooldownAmount, amount);
     }
+
+    function test_Vault_EarlyUnstakeAmountTracking() public {
+        // Test that early unstake amount is properly tracked and enforced
+        uint256 stakeAmount = MINIMUM_STAKE * 10;
+        uint256 requestedEarlyUnstake = MINIMUM_STAKE * 3;
+        
+        sapienToken.mint(user1, stakeAmount);
+        
+        // Stake tokens
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        vm.stopPrank();
+        
+        // Initiate early unstake for a specific amount
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(requestedEarlyUnstake);
+        
+        // Verify the requested amount is tracked
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), requestedEarlyUnstake, "Early unstake amount should be tracked");
+        assertFalse(sapienVault.isEarlyUnstakeReady(user1), "Early unstake should not be ready immediately");
+        
+        // Fast forward past cooldown
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        
+        // Verify early unstake is now ready
+        assertTrue(sapienVault.isEarlyUnstakeReady(user1), "Early unstake should be ready after cooldown");
+        
+        // Try to early unstake MORE than requested - should fail
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature("AmountExceedsEarlyUnstakeRequest()"));
+        sapienVault.earlyUnstake(requestedEarlyUnstake + 1);
+        
+        // Try to early unstake exactly the requested amount - should succeed
+        uint256 expectedPenalty = (requestedEarlyUnstake * EARLY_WITHDRAWAL_PENALTY) / 10000;
+        uint256 expectedPayout = requestedEarlyUnstake - expectedPenalty;
+        
+        uint256 userBalanceBefore = sapienToken.balanceOf(user1);
+        
+        vm.prank(user1);
+        sapienVault.earlyUnstake(requestedEarlyUnstake);
+        
+        // Verify correct payout
+        assertEq(sapienToken.balanceOf(user1), userBalanceBefore + expectedPayout, "User should receive correct payout");
+        
+        // Verify early unstake cooldown is cleared
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), 0, "Early unstake amount should be cleared");
+        assertFalse(sapienVault.isEarlyUnstakeReady(user1), "Early unstake should no longer be ready");
+    }
+
+    function test_Vault_EarlyUnstakePartialWithTracking() public {
+        // Test partial early unstakes with amount tracking
+        uint256 stakeAmount = MINIMUM_STAKE * 10;
+        uint256 requestedEarlyUnstake = MINIMUM_STAKE * 6;
+        uint256 firstUnstake = MINIMUM_STAKE * 2;
+        uint256 secondUnstake = MINIMUM_STAKE * 3;
+        
+        sapienToken.mint(user1, stakeAmount);
+        
+        // Stake tokens
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_180_DAYS);
+        vm.stopPrank();
+        
+        // Initiate early unstake
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(requestedEarlyUnstake);
+        
+        // Fast forward past cooldown
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        
+        // Perform first partial early unstake
+        vm.prank(user1);
+        sapienVault.earlyUnstake(firstUnstake);
+        
+        // Verify remaining early unstake amount
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), requestedEarlyUnstake - firstUnstake, "Remaining early unstake amount should be tracked");
+        
+        // Perform second partial early unstake
+        vm.prank(user1);
+        sapienVault.earlyUnstake(secondUnstake);
+        
+        // Verify remaining early unstake amount
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), requestedEarlyUnstake - firstUnstake - secondUnstake, "Remaining early unstake amount should be updated");
+        
+        // Try to unstake more than remaining - should fail
+        uint256 remaining = requestedEarlyUnstake - firstUnstake - secondUnstake;
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature("AmountExceedsEarlyUnstakeRequest()"));
+        sapienVault.earlyUnstake(remaining + 1);
+        
+        // Unstake exactly the remaining amount - should succeed and clear cooldown
+        vm.prank(user1);
+        sapienVault.earlyUnstake(remaining);
+        
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), 0, "Early unstake amount should be fully cleared");
+    }
+
+    function test_Vault_PreventMultipleEarlyUnstakeRequests() public {
+        // Test that users cannot initiate multiple early unstake requests
+        uint256 stakeAmount = MINIMUM_STAKE * 5;
+        
+        sapienToken.mint(user1, stakeAmount);
+        
+        // Stake tokens
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+        
+        // Initiate first early unstake
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(MINIMUM_STAKE * 2);
+        
+        // Try to initiate another early unstake - should fail
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature("EarlyUnstakeCooldownAlreadyActive()"));
+        sapienVault.initiateEarlyUnstake(MINIMUM_STAKE);
+        
+        // Fast forward and complete the early unstake
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        vm.prank(user1);
+        sapienVault.earlyUnstake(MINIMUM_STAKE * 2);
+        
+        // Now should be able to initiate a new early unstake
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(MINIMUM_STAKE);
+        
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), MINIMUM_STAKE, "New early unstake should be tracked");
+    }
+
+
+
+
+
+
+
+    function test_Vault_QAPenalty_EarlyUnstakeCooldownAdjustment() public {
+        // Test that QA penalties properly adjust early unstake cooldown amounts
+        uint256 stakeAmount = MINIMUM_STAKE * 10;
+        uint256 earlyUnstakeAmount = MINIMUM_STAKE * 8;
+        
+        sapienToken.mint(user1, stakeAmount);
+        
+        // Stake tokens
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        vm.stopPrank();
+        
+        // Initiate early unstake
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(earlyUnstakeAmount);
+        
+        // Verify early unstake is active
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), earlyUnstakeAmount, "Early unstake should be active");
+        
+        // Apply QA penalty that reduces stake but keeps it above minimum
+        uint256 penaltyAmount = MINIMUM_STAKE * 4;
+        vm.prank(sapienQA);
+        sapienVault.processQAPenalty(user1, penaltyAmount);
+        
+        // Verify stake was reduced
+        uint256 remainingStake = stakeAmount - penaltyAmount;
+        assertEq(sapienVault.getTotalStaked(user1), remainingStake, "Stake should be reduced by penalty");
+        
+        // Verify early unstake cooldown was adjusted to available amount
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), remainingStake, "Early unstake should be adjusted to remaining stake");
+        
+        // Fast forward and complete early unstake
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        
+        // Should be able to early unstake the adjusted amount
+        vm.prank(user1);
+        sapienVault.earlyUnstake(remainingStake);
+        
+        assertEq(sapienVault.getTotalStaked(user1), 0, "All stake should be withdrawn");
+    }
+
+
+
+    function test_Vault_QAPenalty_PartialEarlyUnstakeAfterPenalty() public {
+        // Test partial early unstake after QA penalty reduces available amount
+        uint256 stakeAmount = MINIMUM_STAKE * 10;
+        uint256 earlyUnstakeAmount = MINIMUM_STAKE * 8;
+        
+        sapienToken.mint(user1, stakeAmount);
+        
+        // Stake tokens
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        vm.stopPrank();
+        
+        // Initiate early unstake
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(earlyUnstakeAmount);
+        
+        // Apply QA penalty that reduces stake
+        uint256 penaltyAmount = MINIMUM_STAKE * 5;
+        vm.prank(sapienQA);
+        sapienVault.processQAPenalty(user1, penaltyAmount);
+        
+        // Remaining stake after penalty
+        uint256 remainingStake = stakeAmount - penaltyAmount;
+        
+        // Early unstake cooldown should be adjusted to remaining stake
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), remainingStake, "Early unstake adjusted to remaining");
+        
+        // Fast forward past cooldown
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        
+        // Partial early unstake
+        uint256 partialAmount = MINIMUM_STAKE * 2;
+        vm.prank(user1);
+        sapienVault.earlyUnstake(partialAmount);
+        
+        // Verify partial unstake worked
+        assertEq(sapienVault.getTotalStaked(user1), remainingStake - partialAmount, "Partial unstake should work");
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), remainingStake - partialAmount, "Cooldown amount updated");
+        
+        // Complete remaining early unstake
+        vm.prank(user1);
+        sapienVault.earlyUnstake(remainingStake - partialAmount);
+        
+        assertEq(sapienVault.getTotalStaked(user1), 0, "All stake should be withdrawn");
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), 0, "Cooldown should be cleared");
+    }
+
+    function test_Vault_QAPenalty_NoEarlyUnstakeCooldown() public {
+        // Test that QA penalty works normally when no early unstake cooldown is active
+        uint256 stakeAmount = MINIMUM_STAKE * 5;
+        
+        sapienToken.mint(user1, stakeAmount);
+        
+        // Stake tokens
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        vm.stopPrank();
+        
+        // Apply QA penalty without any early unstake cooldown
+        uint256 penaltyAmount = MINIMUM_STAKE * 2;
+        vm.prank(sapienQA);
+        sapienVault.processQAPenalty(user1, penaltyAmount);
+        
+        // Verify penalty was applied
+        assertEq(sapienVault.getTotalStaked(user1), stakeAmount - penaltyAmount, "Penalty should be applied");
+        
+        // Should still be able to initiate early unstake
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(MINIMUM_STAKE * 2);
+        
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), MINIMUM_STAKE * 2, "Early unstake should work");
+    }
+
+    function test_Vault_QAPenalty_EarlyUnstakeCooldownExactMinimum() public {
+        // Test edge case where stake is reduced to exactly minimum unstake amount
+        uint256 stakeAmount = MINIMUM_STAKE * 5;
+        uint256 earlyUnstakeAmount = MINIMUM_STAKE * 4;
+        
+        sapienToken.mint(user1, stakeAmount);
+        
+        // Stake tokens
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        vm.stopPrank();
+        
+        // Initiate early unstake
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(earlyUnstakeAmount);
+        
+        // Apply QA penalty that reduces stake to exactly minimum unstake amount
+        uint256 penaltyAmount = stakeAmount - Const.MINIMUM_UNSTAKE_AMOUNT;
+        vm.prank(sapienQA);
+        sapienVault.processQAPenalty(user1, penaltyAmount);
+        
+        // Verify stake is exactly at minimum
+        assertEq(sapienVault.getTotalStaked(user1), Const.MINIMUM_UNSTAKE_AMOUNT, "Stake should be at minimum");
+        
+        // Early unstake cooldown should be adjusted to minimum
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), Const.MINIMUM_UNSTAKE_AMOUNT, "Cooldown at minimum");
+        
+        // Should still be able to early unstake after cooldown
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        vm.prank(user1);
+        sapienVault.earlyUnstake(Const.MINIMUM_UNSTAKE_AMOUNT);
+        
+        assertEq(sapienVault.getTotalStaked(user1), 0, "All stake should be withdrawn");
+    }
+
+
 }

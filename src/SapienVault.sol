@@ -451,6 +451,26 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         return block.timestamp >= unlockTime ? 0 : unlockTime - block.timestamp;
     }
 
+    /**
+     * @notice Get the amount requested for early unstake
+     * @param user The address of the user to query
+     * @return amount The amount requested for early unstake
+     */
+    function getEarlyUnstakeCooldownAmount(address user) public view returns (uint256 amount) {
+        return userStakes[user].earlyUnstakeCooldownAmount;
+    }
+
+    /**
+     * @notice Check if user's early unstake cooldown has completed
+     * @param user The address of the user to query
+     * @return ready True if early unstake is ready, false otherwise
+     */
+    function isEarlyUnstakeReady(address user) public view returns (bool ready) {
+        UserStake memory userStake = userStakes[user];
+        return userStake.earlyUnstakeCooldownStart > 0 && 
+               block.timestamp >= userStake.earlyUnstakeCooldownStart + Const.COOLDOWN_PERIOD;
+    }
+
     // -------------------------------------------------------------
     //  Stake Management
     // -------------------------------------------------------------
@@ -643,6 +663,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         emit Unstaked(msg.sender, amount);
     }
 
+
+
     /**
      * @notice Initiates early unstake cooldown for a specified amount.
      * @param amount The amount to initiate early unstake for.
@@ -672,10 +694,16 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             revert LockPeriodCompleted();
         }
 
-        // Set early unstake cooldown start time
-        userStake.earlyUnstakeCooldownStart = block.timestamp.toUint64();
+        // Prevent multiple early unstake requests
+        if (userStake.earlyUnstakeCooldownStart != 0) {
+            revert EarlyUnstakeCooldownAlreadyActive();
+        }
 
-        emit EarlyUnstakeCooldownInitiated(msg.sender, block.timestamp);
+        // Set early unstake cooldown start time AND amount
+        userStake.earlyUnstakeCooldownStart = block.timestamp.toUint64();
+        userStake.earlyUnstakeCooldownAmount = amount.toUint128();
+
+        emit EarlyUnstakeCooldownInitiated(msg.sender, block.timestamp, amount);
     }
 
     /**
@@ -697,10 +725,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             revert NoStakeFound();
         }
 
-        if (amount > userStake.amount - userStake.cooldownAmount) {
-            revert AmountExceedsAvailableBalance();
-        }
-
         // Add check to ensure instant unstake is only possible during lock period
         if (_isUnlocked(userStake)) {
             revert LockPeriodCompleted();
@@ -715,6 +739,15 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             revert EarlyUnstakeCooldownRequired();
         }
 
+        // Check that amount doesn't exceed what was requested during initiation
+        if (amount > userStake.earlyUnstakeCooldownAmount) {
+            revert AmountExceedsEarlyUnstakeRequest();
+        }
+
+        if (amount > userStake.amount - userStake.cooldownAmount) {
+            revert AmountExceedsAvailableBalance();
+        }
+
         uint256 penalty = (amount * Const.EARLY_WITHDRAWAL_PENALTY) / Const.BASIS_POINTS;
 
         uint256 payout = amount - penalty;
@@ -722,8 +755,13 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         userStake.amount -= amount.toUint128();
         totalStaked -= amount;
 
-        // Reset early unstake cooldown after successful early unstake
-        userStake.earlyUnstakeCooldownStart = 0;
+        // Update early unstake cooldown amount
+        userStake.earlyUnstakeCooldownAmount -= amount.toUint128();
+        
+        // Reset early unstake cooldown if fully processed
+        if (userStake.earlyUnstakeCooldownAmount == 0) {
+            userStake.earlyUnstakeCooldownStart = 0;
+        }
 
         // Complete state reset if stake is fully withdrawn
         if (userStake.amount == 0) {
@@ -736,6 +774,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
         emit EarlyUnstake(msg.sender, payout, penalty);
     }
+
+
 
     /**
      * @notice Validates stake inputs and basic constraints
@@ -864,6 +904,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         delete userStake.lastUpdateTime;
         delete userStake.cooldownStart;
         delete userStake.earlyUnstakeCooldownStart;
+        delete userStake.earlyUnstakeCooldownAmount;
     }
 
     // -------------------------------------------------------------
@@ -962,6 +1003,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         if (cooldownReduction > 0) {
             emit QACooldownAdjusted(userAddress, cooldownReduction);
         }
+        
+
 
         // Emit detailed breakdown - fromCooldownStake is always 0 since _reducePrimaryStake handles everything
         emit QAStakeReduced(userAddress, fromActiveStake, 0);
@@ -990,6 +1033,20 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             // Clear cooldown start if no cooldown amount remains
             if (newAmount == 0) {
                 userStake.cooldownStart = 0;
+            }
+        }
+        
+        // SECURITY FIX: Handle early unstake cooldown amount when QA penalty reduces stake
+        if (userStake.earlyUnstakeCooldownAmount > 0) {
+            if (userStake.earlyUnstakeCooldownAmount > newAmount) {
+                // Reduce to available amount
+                userStake.earlyUnstakeCooldownAmount = newAmount.toUint128();
+            }
+            
+            // Cancel early unstake cooldown if amount falls below minimum
+            if (newAmount < Const.MINIMUM_UNSTAKE_AMOUNT) {
+                userStake.earlyUnstakeCooldownStart = 0;
+                userStake.earlyUnstakeCooldownAmount = 0;
             }
         }
     }

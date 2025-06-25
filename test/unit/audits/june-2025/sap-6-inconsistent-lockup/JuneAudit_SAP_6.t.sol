@@ -138,7 +138,8 @@ contract JuneAudit_SAP_6_Test is Test {
                 , // cooldownStart
                 , // lastUpdateTime
                 , // earlyUnstakeCooldownStart
-                    // effectiveMultiplier
+                , // effectiveMultiplier
+                  // earlyUnstakeCooldownAmount
             ) = sapienVault.userStakes(user1);
 
             assertEq(amount, stakeAmount + additionalAmount, "User1 should have combined stake amount");
@@ -156,7 +157,8 @@ contract JuneAudit_SAP_6_Test is Test {
                 , // cooldownStart
                 , // lastUpdateTime
                 , // earlyUnstakeCooldownStart
-                    // effectiveMultiplier
+                , // effectiveMultiplier
+                  // earlyUnstakeCooldownAmount
             ) = sapienVault.userStakes(user2);
 
             user2WeightedStart = weightedStart;
@@ -174,7 +176,8 @@ contract JuneAudit_SAP_6_Test is Test {
                 , // cooldownStart
                 , // lastUpdateTime
                 , // earlyUnstakeCooldownStart
-                    // effectiveMultiplier
+                , // effectiveMultiplier
+                  // earlyUnstakeCooldownAmount
             ) = sapienVault.userStakes(user3);
 
             assertEq(amount, stakeAmount, "User3 should have original stake amount");
@@ -212,7 +215,7 @@ contract JuneAudit_SAP_6_Test is Test {
         vm.stopPrank();
 
         // Record initial weighted start time
-        (,, uint256 initialWeightedStart,,,,,) = sapienVault.userStakes(user1);
+        (,, uint256 initialWeightedStart,,,,,,) = sapienVault.userStakes(user1);
 
         // Fast forward to expire the stake
         vm.warp(block.timestamp + lockupPeriod + 1);
@@ -228,7 +231,7 @@ contract JuneAudit_SAP_6_Test is Test {
         vm.stopPrank();
 
         // After the fix, weighted start time should be reset to current timestamp
-        (,, uint256 newWeightedStart, uint256 newLockup,,,,) = sapienVault.userStakes(user1);
+        (,, uint256 newWeightedStart, uint256 newLockup,,,,,) = sapienVault.userStakes(user1);
 
         // With the fix: weighted start time should be reset (different from initial)
         assertGt(newWeightedStart, initialWeightedStart, "Weighted start time should be reset for expired stakes");
@@ -283,8 +286,8 @@ contract JuneAudit_SAP_6_Test is Test {
         vm.stopPrank();
 
         // Get final lockup periods
-        (,,, uint256 gamer1Lockup,,,,) = sapienVault.userStakes(gamer1);
-        (,,, uint256 gamer2Lockup,,,,) = sapienVault.userStakes(gamer2);
+        (,,, uint256 gamer1Lockup,,,,,) = sapienVault.userStakes(gamer1);
+        (,,, uint256 gamer2Lockup,,,,,) = sapienVault.userStakes(gamer2);
 
         // With the fix, both should have predictable and consistent lockup periods
         assertEq(gamer1Lockup, shortLockup, "Gamer1 should get short lockup for expired stake");

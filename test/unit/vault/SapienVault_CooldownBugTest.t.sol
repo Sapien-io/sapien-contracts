@@ -134,11 +134,11 @@ contract SapienVaultCooldownBugTest is Test {
         vm.prank(alice);
         sapienVault.initiateUnstake(cooldownAmount);
 
-        // CRITICAL TEST: Instant unstake should not work after lock period expires
-        // Since the lock period is completed, instant unstake should fail
+        // CRITICAL TEST: Early unstake should not work after lock period expires
+        // Since the lock period is completed, initiateEarlyUnstake should fail
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSignature("LockPeriodCompleted()"));
-        sapienVault.earlyUnstake(MINIMUM_STAKE / 2);
+        sapienVault.initiateEarlyUnstake(MINIMUM_STAKE / 2);
 
         // But we should be able to initiate more cooldown on remaining unlocked amounts
         vm.prank(alice);

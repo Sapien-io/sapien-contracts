@@ -17,9 +17,10 @@ interface ISapienVault {
         uint64 lastUpdateTime; // 8 bytes - Last time stake was modified (slot 3)
         uint64 earlyUnstakeCooldownStart; // 8 bytes - When early unstake cooldown was initiated (slot 4)
         uint32 effectiveMultiplier; // 4 bytes - Calculated multiplier (slot 4)
+        uint128 earlyUnstakeCooldownAmount; // 16 bytes - Amount requested for early unstake (slot 5)
             // Note: hasStake field removed - stake existence determined by amount > 0
             // This eliminates storage corruption and reduces gas costs
-            // Total: 4 storage slots, with 4 bytes free in slot 4
+            // Total: 5 storage slots
     }
 
     struct UserStakingSummary {
@@ -47,7 +48,7 @@ interface ISapienVault {
     event UnstakingInitiated(address indexed user, uint256 cooldownStart, uint256 cooldownAmount);
     event Unstaked(address indexed user, uint256 amount);
     event EarlyUnstake(address indexed user, uint256 amount, uint256 penalty);
-    event EarlyUnstakeCooldownInitiated(address indexed user, uint256 cooldownStart);
+    event EarlyUnstakeCooldownInitiated(address indexed user, uint256 cooldownStart, uint256 amount);
     event SapienTreasuryUpdated(address indexed newSapienTreasury);
     event EmergencyWithdraw(address indexed token, address indexed to, uint256 amount);
     event QAPenaltyProcessed(address indexed user, uint256 penaltyAmount, address indexed qaContract);
@@ -81,6 +82,9 @@ interface ISapienVault {
 
     error InsufficientStakeForPenalty();
     error EarlyUnstakeCooldownRequired();
+
+    error AmountExceedsEarlyUnstakeRequest();
+    error EarlyUnstakeCooldownAlreadyActive();
 
     // -------------------------------------------------------------
     // Initialization Functions
@@ -125,6 +129,8 @@ interface ISapienVault {
     function getTotalReadyForUnstake(address user) external view returns (uint256);
     function getTotalInCooldown(address user) external view returns (uint256);
     function getUserMultiplier(address user) external view returns (uint256);
+    function getEarlyUnstakeCooldownAmount(address user) external view returns (uint256);
+    function isEarlyUnstakeReady(address user) external view returns (bool);
 
     function getUserStake(address user) external view returns (UserStake memory);
     function getUserStakingSummary(address user) external view returns (UserStakingSummary memory summary);
