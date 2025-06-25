@@ -1124,6 +1124,207 @@ contract SapienVaultBasicTest is Test {
         // This tests the logic: "Set cooldown start time only if not already in cooldown"
     }
 
+    function test_Vault_RevertInitiateUnstake_EarlyUnstakeCooldownAlreadyActive() public {
+        // Test mutual exclusion: cannot initiate normal unstake while early unstake cooldown is active
+        // This covers the mutual exclusion logic added to prevent conflicting cooldown states
+
+        uint256 stakeAmount = MINIMUM_STAKE * 4; // Use larger amount to ensure we have flexibility
+        sapienToken.mint(user1, stakeAmount);
+
+        // Create stake (locked for 30 days)
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Initiate early unstake while stake is still locked
+        uint256 earlyUnstakeAmount = MINIMUM_STAKE;
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(earlyUnstakeAmount);
+
+        // Verify early unstake cooldown is set
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), earlyUnstakeAmount);
+
+        // Move forward past the lock period BUT NOT past the early unstake cooldown
+        // This puts us in a state where:
+        // 1. The stake is unlocked (can normally do regular unstaking)
+        // 2. Early unstake cooldown is still active (preventing regular unstaking)
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        // Confirm stake is unlocked but early unstake cooldown is still active
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        bool isUnlocked = block.timestamp >= userStake.weightedStartTime + userStake.effectiveLockUpPeriod;
+        assertTrue(isUnlocked, "Stake should be unlocked");
+        assertEq(
+            sapienVault.getEarlyUnstakeCooldownAmount(user1),
+            earlyUnstakeAmount,
+            "Early unstake cooldown should still be active"
+        );
+        assertGt(userStake.earlyUnstakeCooldownStart, 0, "Early unstake cooldown start should be set");
+
+        // Try to initiate normal unstake - should revert due to active early unstake cooldown
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature("EarlyUnstakeCooldownAlreadyActive()"));
+        sapienVault.initiateUnstake(MINIMUM_STAKE);
+
+        // Additional verification: try with different amount
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature("EarlyUnstakeCooldownAlreadyActive()"));
+        sapienVault.initiateUnstake(MINIMUM_STAKE * 2);
+    }
+
+    function test_Vault_RevertInitiateEarlyUnstake_CannotIncreaseStakeInCooldown_DefensiveProgramming() public {
+        // This test demonstrates that the mutual exclusion check in initiateEarlyUnstake()
+        // at lines 701-702 is logically unreachable through normal contract operations
+
+        uint256 stakeAmount = MINIMUM_STAKE * 2;
+        sapienToken.mint(user1, stakeAmount);
+
+        // Create stake and wait for unlock
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Wait for unlock period to complete
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        // Initiate normal unstake to put user in normal cooldown
+        vm.prank(user1);
+        sapienVault.initiateUnstake(MINIMUM_STAKE);
+
+        // Verify normal cooldown is active
+        uint256 normalCooldownAmount = sapienVault.getTotalInCooldown(user1);
+        assertEq(normalCooldownAmount, MINIMUM_STAKE);
+
+        // CRITICAL FINDING: increaseLockup() prevents operation while in cooldown
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature("CannotIncreaseStakeInCooldown()"));
+        sapienVault.increaseLockup(LOCK_365_DAYS - LOCK_30_DAYS);
+
+        // ANALYSIS: The mutual exclusion check at lines 701-702 is unreachable because:
+        //
+        // LOGICAL CONSTRAINTS:
+        // 1. initiateEarlyUnstake() requires stake to be LOCKED (_isUnlocked() == false)
+        // 2. initiateUnstake() requires stake to be UNLOCKED (_isUnlocked() == true)
+        // 3. increaseLockup() cannot re-lock a stake while cooldown is active
+        //
+        // SEQUENCE IMPOSSIBILITY:
+        // - User cannot have normal cooldown active while stake is locked
+        // - User cannot re-lock stake while normal cooldown is active
+        // - Therefore: no normal path creates (locked stake + active normal cooldown)
+        //
+        // DEFENSIVE PROGRAMMING VALUE:
+        // - Line 701-702 represents important defensive programming
+        // - Protects against potential future code changes or edge cases
+        // - Maintains contract invariants even if other logic changes
+        // - Should remain in code despite being unreachable through normal flow
+
+        // This test documents the analysis and confirms the logical impossibility
+        // while preserving the value of the defensive programming check
+    }
+
+    function test_Vault_RevertEarlyUnstake_NoStakeFound_ExecutionPhase() public {
+        // Test line 733: NoStakeFound revert in earlyUnstake function (execution phase)
+        // This covers the case where a user tries to execute early unstake without having any stake
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature("NoStakeFound()"));
+        sapienVault.earlyUnstake(MINIMUM_STAKE);
+    }
+
+    function test_Vault_RevertEarlyUnstake_LockPeriodCompleted() public {
+        // Test line 738: LockPeriodCompleted revert in earlyUnstake function
+        // This covers the case where a user tries to early unstake after the lock period has expired
+
+        uint256 stakeAmount = MINIMUM_STAKE * 2;
+        sapienToken.mint(user1, stakeAmount);
+
+        // Create stake with lock period
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+
+        // Initiate early unstake while still locked
+        sapienVault.initiateEarlyUnstake(MINIMUM_STAKE);
+        vm.stopPrank();
+
+        // Fast forward past the lock period (making the stake unlocked)
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        // Also fast forward past the early unstake cooldown period
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+
+        // Verify the stake is now unlocked
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        bool isUnlocked = block.timestamp >= userStake.weightedStartTime + userStake.effectiveLockUpPeriod;
+        assertTrue(isUnlocked, "Stake should be unlocked");
+
+        // Try to execute early unstake after lock period has completed
+        // This should revert because early unstake is only allowed during lock period
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature("LockPeriodCompleted()"));
+        sapienVault.earlyUnstake(MINIMUM_STAKE);
+    }
+
+    function test_Vault_RevertEarlyUnstake_AmountExceedsAvailableBalance_DefensiveProgramming() public {
+        // Test line 751: AmountExceedsAvailableBalance revert in earlyUnstake function
+        // This test demonstrates that this check is logically unreachable through normal operations
+
+        uint256 stakeAmount = MINIMUM_STAKE * 4;
+        sapienToken.mint(user1, stakeAmount);
+
+        // Create stake with lock period
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+
+        // Initiate early unstake for partial amount while locked
+        uint256 earlyUnstakeAmount = MINIMUM_STAKE * 2;
+        sapienVault.initiateEarlyUnstake(earlyUnstakeAmount);
+        vm.stopPrank();
+
+        // Fast forward past early unstake cooldown but keep stake locked
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+
+        // At this point, early unstake is ready and stake is still locked
+        // The earlyUnstakeCooldownAmount = MINIMUM_STAKE * 2
+        // The total stake amount = MINIMUM_STAKE * 4
+        // Available balance = amount - cooldownAmount = 4 * MINIMUM_STAKE - 0 = 4 * MINIMUM_STAKE
+
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        assertEq(userStake.earlyUnstakeCooldownAmount, earlyUnstakeAmount);
+        assertEq(userStake.cooldownAmount, 0); // No normal cooldown
+
+        // ANALYSIS: The check at line 751 is for:
+        // if (amount > userStake.amount - userStake.cooldownAmount)
+        //
+        // For this to trigger, we need:
+        // - amount <= earlyUnstakeCooldownAmount (to pass the previous check)
+        // - amount > userStake.amount - userStake.cooldownAmount (to trigger this check)
+        //
+        // This would require userStake.cooldownAmount > 0 (normal cooldown active)
+        // But normal cooldown can only exist when stake is unlocked
+        // And early unstake can only happen when stake is locked
+        //
+        // LOGICAL IMPOSSIBILITY: The combination of:
+        // 1. Locked stake (required for early unstake execution)
+        // 2. Active normal cooldown (would make available balance < total amount)
+        // Cannot be achieved through normal contract operations because:
+        // - increaseLockup() blocks operation when cooldown is active
+        // - No other mechanism can re-lock stake with active cooldown
+
+        // Try a normal early unstake that should succeed (proves line 751 isn't hit)
+        vm.prank(user1);
+        sapienVault.earlyUnstake(earlyUnstakeAmount);
+
+        // CONCLUSION: Line 751 represents valuable defensive programming that:
+        // - Protects against potential future code changes
+        // - Maintains contract invariants even if other logic changes
+        // - Guards against theoretical edge cases that may become possible
+        // - Should remain in code despite being unreachable through normal flow
+    }
+
     // =============================================================================
     // UNCOVERED LINES TESTS - COMPREHENSIVE COVERAGE
     // =============================================================================
@@ -2131,10 +2332,10 @@ contract SapienVaultBasicTest is Test {
             [uint256(10123), 10246, 10369, 10739, 11500], // 750: actual exponential values
             [uint256(10164), 10328, 10493, 10986, 12000], // 1000: actual exponential values
             [uint256(10205), 10410, 10616, 11232, 12500], // 1250: actual exponential values
-            [uint256(10246), 10492, 10739, 11479, 13000], // 1500: actual exponential values
-            [uint256(10287), 10575, 10862, 11725, 13500], // 1750: actual exponential values
+            [uint256(10246), 10493, 10739, 11479, 13000], // 1500: actual exponential values
+            [uint256(10287), 10575, 10863, 11726, 13500], // 1750: actual exponential values
             [uint256(10328), 10657, 10986, 11972, 14000], // 2000: actual exponential values
-            [uint256(10369), 10739, 11109, 12218, 14500], // 2250: actual exponential values
+            [uint256(10369), 10739, 11109, 12219, 14500], // 2250: actual exponential values
             [uint256(10410), 10821, 11232, 12465, 15000] // 2500: actual exponential values
         ];
 

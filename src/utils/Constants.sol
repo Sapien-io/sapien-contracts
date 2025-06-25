@@ -23,7 +23,7 @@ library Constants {
     uint256 internal constant TOKEN_DECIMALS = 10 ** 18;
 
     /// @notice Total token supply (1 billion SAPIEN tokens with 18 decimals)
-    uint256 public constant TOTAL_SUPPLY = 1_000_000_000 * TOKEN_DECIMALS;
+    uint256 internal constant TOTAL_SUPPLY = 1_000_000_000 * TOKEN_DECIMALS;
 
     // -------------------------------------------------------------
     // Role Constants

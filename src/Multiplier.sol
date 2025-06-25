@@ -13,15 +13,9 @@ library Multiplier {
         if (amount > MAX_TOKENS) amount = MAX_TOKENS;
         if (lockupPeriod > MAX_LOCKUP) lockupPeriod = MAX_LOCKUP;
 
-        // Normalize to basis points (0-10000)
-        uint256 normalizedAmount = (amount * BASIS_POINTS) / MAX_TOKENS;
-        uint256 normalizedLockup = (lockupPeriod * BASIS_POINTS) / MAX_LOCKUP;
-
-        // Calculate combined effect (both amount and time contribute)
-        uint256 x = (normalizedLockup * normalizedAmount) / BASIS_POINTS;
-
-        // Apply bonus based on combined effect
-        uint256 bonus = (x * MAX_BONUS) / BASIS_POINTS;
+        // Calculate bonus with single division to minimize precision loss
+        // bonus = (lockupPeriod * amount * MAX_BONUS) / (MAX_LOCKUP * MAX_TOKENS)
+        uint256 bonus = (lockupPeriod * amount * MAX_BONUS) / (MAX_LOCKUP * MAX_TOKENS);
 
         return BASE_MULTIPLIER + bonus;
     }

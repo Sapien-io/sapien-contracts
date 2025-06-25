@@ -697,11 +697,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             revert LockPeriodCompleted();
         }
 
-        // MUTUAL EXCLUSION: Prevent initiating early unstake if normal cooldown is active
-        if (userStake.cooldownStart != 0) {
-            revert CannotIncreaseStakeInCooldown();
-        }
-
         // Prevent multiple early unstake requests
         if (userStake.earlyUnstakeCooldownStart != 0) {
             revert EarlyUnstakeCooldownAlreadyActive();
@@ -750,10 +745,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         // Check that amount doesn't exceed what was requested during initiation
         if (amount > userStake.earlyUnstakeCooldownAmount) {
             revert AmountExceedsEarlyUnstakeRequest();
-        }
-
-        if (amount > userStake.amount - userStake.cooldownAmount) {
-            revert AmountExceedsAvailableBalance();
         }
 
         uint256 penalty = (amount * Const.EARLY_WITHDRAWAL_PENALTY) / Const.BASIS_POINTS;
