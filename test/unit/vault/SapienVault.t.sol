@@ -3698,4 +3698,153 @@ contract SapienVaultBasicTest is Test {
         vm.expectRevert(abi.encodeWithSignature("MinimumUnstakeAmountRequired()"));
         sapienVault.initiateEarlyUnstake(remainingStake);
     }
+
+    function test_Vault_QAPenalty_EarlyUnstakeLockingVulnerabilityFixed() public {
+        // Test the locking vulnerability fix: user should not get locked when 
+        // QA penalty reduces early unstake cooldown amount below minimum
+        uint256 stakeAmount = 1000e18; // 1000 tokens
+        uint256 earlyUnstakeAmount = 100e18; // 100 tokens for early unstake
+        // Apply penalty that leaves only 300 wei (below 500 wei minimum)
+        uint256 penaltyAmount = stakeAmount - 300; // Leaves exactly 300 wei
+
+        sapienToken.mint(user1, stakeAmount);
+
+        // Stake tokens
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        vm.stopPrank();
+
+        // Initiate early unstake
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(earlyUnstakeAmount);
+
+        // Verify early unstake is active
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), earlyUnstakeAmount);
+        assertTrue(sapienVault.getUserStake(user1).earlyUnstakeCooldownStart != 0);
+
+        // Apply large QA penalty that would reduce early unstake amount below minimum
+        vm.prank(sapienQA);
+        sapienVault.processQAPenalty(user1, penaltyAmount);
+
+        // The early unstake cooldown amount should be reduced to 300 wei, which is < 500 wei minimum
+        // so it should be canceled
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), 0, "Early unstake cooldown should be canceled");
+        assertEq(sapienVault.getUserStake(user1).earlyUnstakeCooldownStart, 0, "Early unstake cooldown start should be reset");
+
+        // User should now be able to increase their stake (proving they're not locked)
+        uint256 additionalAmount = 500e18;
+        sapienToken.mint(user1, additionalAmount);
+        
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), additionalAmount);
+        // This should NOT revert - user is no longer locked
+        sapienVault.increaseAmount(additionalAmount);
+        vm.stopPrank();
+
+        // Verify the stake was increased
+        assertEq(sapienVault.getTotalStaked(user1), 300 + additionalAmount);
+    }
+
+    function test_Vault_QAPenalty_EarlyUnstakeCanStillCompleteIfAboveMinimum() public {
+        // Test edge case: when early unstake cooldown amount is reduced but still above minimum,
+        // user should be able to complete the early unstake (not locked)
+        uint256 stakeAmount = 1000e18; // 1000 tokens
+        uint256 earlyUnstakeAmount = 100e18; // 100 tokens for early unstake
+        // Apply penalty that leaves exactly 600 wei (above 500 wei minimum)
+        uint256 penaltyAmount = stakeAmount - 600; // Leaves exactly 600 wei
+
+        sapienToken.mint(user1, stakeAmount);
+
+        // Stake tokens
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        vm.stopPrank();
+
+        // Initiate early unstake
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(earlyUnstakeAmount);
+
+        // Apply QA penalty
+        vm.prank(sapienQA);
+        sapienVault.processQAPenalty(user1, penaltyAmount);
+
+        // The early unstake cooldown amount should be reduced to 600 wei, which is >= 500 wei minimum
+        // so it should NOT be canceled
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), 600, "Early unstake cooldown should remain active");
+        assertTrue(sapienVault.getUserStake(user1).earlyUnstakeCooldownStart != 0, "Early unstake cooldown should remain active");
+
+        // Wait for cooldown period to complete
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+
+        // User should be able to complete the early unstake for the reduced amount
+        vm.prank(user1);
+        sapienVault.earlyUnstake(600);
+
+        // Verify early unstake was completed
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), 0, "Early unstake cooldown should be cleared");
+        assertEq(sapienVault.getUserStake(user1).earlyUnstakeCooldownStart, 0, "Early unstake cooldown start should be reset");
+        assertEq(sapienVault.getTotalStaked(user1), 0, "All stake should be withdrawn");
+    }
+
+    function test_Vault_QAPenalty_NormalUnstakingFlowNoLockingIssue() public {
+        // Test that normal unstaking flow doesn't have locking issues even with tiny amounts
+        uint256 stakeAmount = 1000e18; // 1000 tokens
+        uint256 unstakeAmount = 100e18; // 100 tokens for normal unstake
+        // Apply penalty that leaves only 10 wei (way below early unstake minimum of 500 wei)
+        uint256 penaltyAmount = stakeAmount - 10; // Leaves exactly 10 wei
+
+        sapienToken.mint(user1, stakeAmount);
+
+        // Stake tokens
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        vm.stopPrank();
+
+        // Wait for lockup to expire
+        vm.warp(block.timestamp + LOCK_90_DAYS + 1);
+
+        // Initiate normal unstake
+        vm.prank(user1);
+        sapienVault.initiateUnstake(unstakeAmount);
+
+        // Verify normal unstake is active
+        assertEq(sapienVault.getTotalInCooldown(user1), unstakeAmount);
+        assertTrue(sapienVault.getUserStake(user1).cooldownStart != 0);
+
+        // Apply large QA penalty that reduces cooldown amount to tiny amount
+        vm.prank(sapienQA);
+        sapienVault.processQAPenalty(user1, penaltyAmount);
+
+        // The cooldown amount should be reduced to 10 wei (total remaining stake)
+        assertEq(sapienVault.getTotalInCooldown(user1), 10, "Cooldown should be reduced to remaining stake");
+        assertEq(sapienVault.getTotalStaked(user1), 10, "Total stake should be 10 wei");
+
+        // Wait for cooldown period to complete
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+
+        // User should be able to complete the normal unstake for the tiny amount
+        // Unlike early unstake, normal unstake has NO minimum amount requirement
+        vm.prank(user1);
+        sapienVault.unstake(10); // ✅ This should work! No minimum amount check
+
+        // Verify unstake was completed successfully
+        assertEq(sapienVault.getTotalInCooldown(user1), 0, "Cooldown should be cleared");
+        assertEq(sapienVault.getTotalStaked(user1), 0, "All stake should be withdrawn");
+        assertEq(sapienVault.getUserStake(user1).cooldownStart, 0, "Cooldown start should be reset");
+
+        // Verify user is not locked and can stake again
+        uint256 newStakeAmount = 1000e18;
+        sapienToken.mint(user1, newStakeAmount);
+        
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), newStakeAmount);
+        // This should work - user is completely unlocked
+        sapienVault.stake(newStakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        assertEq(sapienVault.getTotalStaked(user1), newStakeAmount);
+    }
 }

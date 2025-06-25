@@ -1038,8 +1038,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
                 userStake.earlyUnstakeCooldownAmount = newAmount.toUint128();
             }
 
-            // Cancel early unstake cooldown if amount falls below minimum
-            if (newAmount < Const.MINIMUM_UNSTAKE_AMOUNT) {
+            // Cancel early unstake cooldown if the cooldown amount falls below minimum
+            if (userStake.earlyUnstakeCooldownAmount < Const.MINIMUM_UNSTAKE_AMOUNT) {
                 userStake.earlyUnstakeCooldownStart = 0;
                 userStake.earlyUnstakeCooldownAmount = 0;
             }
