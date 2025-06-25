@@ -3655,4 +3655,47 @@ contract SapienVaultBasicTest is Test {
 
         assertEq(sapienVault.getTotalStaked(user1), 0, "All stake should be withdrawn");
     }
+
+    function test_Vault_QAPenalty_EarlyUnstakeCooldownBelowMinimum() public {
+        // Test scenario where QA penalty reduces stake BELOW minimum unstake amount
+        // This should trigger lines 1043-1044: canceling early unstake cooldown
+        uint256 stakeAmount = MINIMUM_STAKE * 2; // Start with 2000e18
+        uint256 earlyUnstakeAmount = MINIMUM_STAKE; // Request early unstake for 1000e18
+
+        sapienToken.mint(user1, stakeAmount);
+
+        // Stake tokens
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        vm.stopPrank();
+
+        // Initiate early unstake for half the stake
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(earlyUnstakeAmount);
+
+        // Verify early unstake is active
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), earlyUnstakeAmount, "Early unstake should be active");
+        assertTrue(sapienVault.getEarlyUnstakeCooldownAmount(user1) > 0, "Should have early unstake cooldown");
+
+        // Apply QA penalty that reduces stake below minimum unstake amount
+        // Penalty: 2000e18 - 400 wei = almost all stake, leaving only 400 wei (below 500 minimum)
+        uint256 penaltyAmount = stakeAmount - (Const.MINIMUM_UNSTAKE_AMOUNT - 100); // Leave 400 wei
+        vm.prank(sapienQA);
+        sapienVault.processQAPenalty(user1, penaltyAmount);
+
+        // Verify stake is below minimum unstake amount
+        uint256 remainingStake = sapienVault.getTotalStaked(user1);
+        assertLt(remainingStake, Const.MINIMUM_UNSTAKE_AMOUNT, "Stake should be below minimum unstake amount");
+
+        // THE KEY TEST: Early unstake cooldown should be CANCELED (lines 1043-1044)
+        // This verifies that the uncovered lines were executed
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), 0, "Early unstake cooldown should be canceled");
+        assertFalse(sapienVault.isEarlyUnstakeReady(user1), "Early unstake should not be ready");
+
+        // Additional verification: User cannot initiate new early unstake since stake is below minimum
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature("MinimumUnstakeAmountRequired()"));
+        sapienVault.initiateEarlyUnstake(remainingStake);
+    }
 }
