@@ -1,8 +1,0 @@
-{
-  "network": "base-sepolia",
-  "rewardsAddress": "0x1dFbCA9CAF1F093D57A20f41f837bC8EFFc0d6eF",
-  "deploymentTime": "2025-04-03T16:31:21.282Z",
-  "deployer": "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
-  "gnosisSafeAddress": "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f",
-  "authorizedSigner": "0xf21d8BCCf352aEa0D426F9B0Ee4cA94062cfc51f"
-}

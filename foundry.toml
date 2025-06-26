@@ -1,0 +1,40 @@
+[profile.default]
+src = "src"
+out = "out"
+test = "test/unit"
+libs = ["lib"]
+evm_version = "prague"
+solc_version = "0.8.30"
+optimizer = true
+optimizer_runs = 200
+allow_internal_expect_revert = true
+fs_permissions = [{ access = "read-write", path = "./deployments" }]
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+
+[profile.invariant]
+test = "test/invariant"
+
+[profile.fuzz]
+test = "test/fuzz"
+via_ir = true
+optimizer = true
+optimizer_runs = 200
+
+[profile.tenderly]
+test = "test/tenderly"
+fork_url = "${TENDERLY_VIRTUAL_TESTNET_RPC_URL}"
+fork_block_number = 0
+
+
+[profile.localhost]
+test = "test/localhost"
+fork_url = "http://localhost:8545"
+fork_block_number = 0
+
+[etherscan]
+unknown_chain = { key = "${TENDERLY_ACCESS_KEY}", chain = 8453420, url = "${TENDERLY_VIRTUAL_TESTNET_RPC_URL}/verify/etherscan" }
+
+
+

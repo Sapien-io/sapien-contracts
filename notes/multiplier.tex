@@ -1,0 +1,164 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{multirow}
+
+\title{Sapien Staking Multiplier Model}
+\author{Sapien AI}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Multiplier Formula}
+
+The Sapien staking multiplier is calculated using a multiplicative approach that combines both staking amount and lockup time into a unified bonus system:
+
+\begin{equation}
+M_{final} = M_{base} + \frac{x \times B_{max}}{10000}
+\end{equation}
+
+Where:
+\begin{equation}
+x = \frac{A_{norm} \times T_{norm}}{10000}
+\end{equation}
+
+And:
+\begin{itemize}
+    \item $M_{base} = 1.00$ (10000 basis points)
+    \item $A_{norm}$ is the normalized amount (0 to 10000 basis points)
+    \item $T_{norm}$ is the normalized time (0 to 10000 basis points)
+    \item $B_{max} = 0.50$ (5000 basis points maximum bonus)
+    \item $x$ is the combined effect of amount and time
+    \item $M_{final}$ ranges from 1.00x to 1.50x (10000 to 15000 basis points)
+\end{itemize}
+
+\section{Normalization}
+
+Both staking amount and lockup time are normalized to basis points (0-10000) based on their respective maximum values:
+
+\subsection{Amount Normalization}
+\begin{equation}
+A_{norm} = \frac{A \times 10000}{A_{max}}
+\end{equation}
+
+Where:
+\begin{itemize}
+    \item $A$ is the staked amount in tokens (clamped to $A_{max}$ if exceeded)
+    \item $A_{max} = 2500$ tokens
+    \item $A_{norm}$ ranges from 0 to 10000 basis points
+\end{itemize}
+
+\subsection{Time Normalization}
+\begin{equation}
+T_{norm} = \frac{T \times 10000}{T_{max}}
+\end{equation}
+
+Where:
+\begin{itemize}
+    \item $T$ is the lockup period in seconds (clamped to $T_{max}$ if exceeded)
+    \item $T_{max} = 365$ days = 31,536,000 seconds
+    \item $T_{norm}$ ranges from 0 to 10000 basis points
+\end{itemize}
+
+\section{Combined Effect Calculation}
+
+The key innovation in this model is the multiplicative combination of amount and time effects:
+
+\begin{equation}
+x = \frac{A_{norm} \times T_{norm}}{10000}
+\end{equation}
+
+This creates a synergistic effect where:
+\begin{itemize}
+    \item Small amounts with short lockups yield minimal bonus
+    \item Large amounts with short lockups yield moderate bonus
+    \item Small amounts with long lockups yield minimal bonus
+    \item Large amounts with long lockups yield maximum bonus
+\end{itemize}
+
+\section{Bonus Calculation}
+
+The final bonus is calculated as:
+
+\begin{equation}
+B_{final} = \frac{x \times B_{max}}{10000}
+\end{equation}
+
+Where:
+\begin{itemize}
+    \item $x$ is the combined effect (0 to 10000)
+    \item $B_{max} = 5000$ basis points (0.50x)
+    \item $B_{final}$ ranges from 0 to 5000 basis points
+\end{itemize}
+
+\section{Example Calculations}
+
+\subsection{Minimum Stake, Minimum Time (1 token, 30 days)}
+\begin{align*}
+A_{norm} &= \frac{1 \times 10000}{2500} = 4 \\
+T_{norm} &= \frac{30 \times 86400 \times 10000}{31536000} = 821 \\
+x &= \frac{4 \times 821}{10000} = 0.33 \\
+B_{final} &= \frac{0.33 \times 5000}{10000} = 0.16 \\
+M_{final} &= 10000 + 0.16 = 10000.16 \approx 10000
+\end{align*}
+
+\subsection{Medium Stake, Medium Time (1000 tokens, 180 days)}
+\begin{align*}
+A_{norm} &= \frac{1000 \times 10000}{2500} = 4000 \\
+T_{norm} &= \frac{180 \times 86400 \times 10000}{31536000} = 4932 \\
+x &= \frac{4000 \times 4932}{10000} = 1973 \\
+B_{final} &= \frac{1973 \times 5000}{10000} = 986 \\
+M_{final} &= 10000 + 986 = 10986
+\end{align*}
+
+\subsection{Maximum Stake, Maximum Time (2500 tokens, 365 days)}
+\begin{align*}
+A_{norm} &= \frac{2500 \times 10000}{2500} = 10000 \\
+T_{norm} &= \frac{365 \times 86400 \times 10000}{31536000} = 10000 \\
+x &= \frac{10000 \times 10000}{10000} = 10000 \\
+B_{final} &= \frac{10000 \times 5000}{10000} = 5000 \\
+M_{final} &= 10000 + 5000 = 15000
+\end{align*}
+
+\section{Visualization}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\textwidth]{multiplier_chart.png}
+    \caption{Sapien Staking Multiplier Surface showing the relationship between staked amount and lockup time. The multiplicative nature creates a curved surface where the maximum 1.50x multiplier is only achievable through the combination of maximum stake (2500 tokens) and maximum lockup (365 days).}
+    \label{fig:multiplier_surface}
+\end{figure}
+
+\section{Key Properties}
+
+\begin{enumerate}
+    \item \textbf{Base Reward}: All stakers receive a base 1.00x multiplier
+    \item \textbf{Multiplicative Synergy}: Amount and time bonuses multiply together, creating stronger incentives for combining both
+    \item \textbf{Progressive Scaling}: Higher multipliers require significant commitment in both dimensions
+    \item \textbf{Maximum Reward}: The maximum 1.50x multiplier requires both maximum stake (2500 tokens) and maximum time (365 days)
+    \item \textbf{Continuous Scaling}: The multiplier scales continuously based on the product of normalized inputs
+    \item \textbf{Input Clamping}: Amounts above 2500 tokens and lockups above 365 days are clamped to maximum values
+\end{enumerate}
+
+\section{Implementation Notes}
+
+The multiplier is implemented in Solidity using basis points (1.00x = 10000):
+\begin{itemize}
+    \item Base multiplier: 10000 basis points (1.00x)
+    \item Maximum tokens: 2500 × $10^{18}$ wei
+    \item Maximum lockup: 365 days = 31,536,000 seconds
+    \item Maximum bonus: 5000 basis points (0.50x)
+    \item Final multiplier range: 10000-15000 basis points (1.00x-1.50x)
+\end{itemize}
+
+The calculation ensures that:
+\begin{itemize}
+    \item Inputs are clamped to maximum values to prevent overflow
+    \item All calculations use integer arithmetic to avoid floating-point precision issues
+    \item The combined effect creates natural incentive alignment for long-term, high-value staking
+\end{itemize}
+
+\end{document}
