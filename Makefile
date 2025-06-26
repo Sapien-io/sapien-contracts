@@ -70,3 +70,11 @@ deploy-sepolia    :; forge script script/$(CONTRACT).s.sol:$(CONTRACT) \
                     --etherscan-api-key $(ETHERSCAN_API_KEY) \
                     --broadcast \
                     --verify
+
+deploy-contract   :; forge create \
+                    --account $(ACCOUNT) \
+                    --rpc-url  $(RPC_URL) \
+                    --etherscan-api-key $(ETHERSCAN_API_KEY) \
+                    --broadcast \
+                    --verify \
+                    src/$(CONTRACT).sol:$(CONTRACT)
