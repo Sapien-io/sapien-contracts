@@ -29,9 +29,9 @@ library TenderlyContracts {
 
 library SepoliaContracts {
     address public constant SAPIEN_TOKEN = 0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6;
-    address public constant SAPIEN_VAULT = 0x63962218ea90237d79E7833811E920BB7CE78311;
-    address public constant SAPIEN_REWARDS = 0xFfC83AF7b215a026A9A8BBE9c3E8835fB29f479B;
-    address public constant SAPIEN_QA = 0x93263cB5AfC26Aa8910D5038aC01a12e4881B478;
+    address public constant SAPIEN_VAULT = 0xBCC5e0913B3df10b08C88dea87F396Dc95cAd385;
+    address public constant SAPIEN_REWARDS = 0xFF443d92F80A12Fb7343bb16d44df60204c6eB08;
+    address public constant SAPIEN_QA = 0x575C1F6FBa0cA77AbAd28d8ca8b6f93727b36bbF;
     address public constant TIMELOCK = 0x2a5F9e1Be3A78C73EA1aB256D3Eb0C5A475742cC;
 }
 

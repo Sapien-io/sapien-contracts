@@ -1,11 +1,11 @@
-# 🛡️ Sapien Protocol Governance & Access Control
+# Sapien Protocol Governance & Access Control
 
 This document provides a comprehensive overview of the governance structure, role assignments, and access control across the Sapien protocol smart contracts.
 
 ---
 
-## 📋 Table of Contents
-1. [Multisig Architecture](#multisig-architecture)
+## Table of Contents
+1. [Multisig Architecture](#multisig-architecture) 
 2. [Smart Contract Roles](#smart-contract-roles)
 3. [Actor-to-Role Mapping](#actor-to-role-mapping)
 4. [Role Privileges by Contract](#role-privileges-by-contract)
@@ -14,7 +14,7 @@ This document provides a comprehensive overview of the governance structure, rol
 
 ---
 
-## 🔐 Multisig Architecture
+## Multisig Architecture
 
 | **Entity**            | **Type**        | **Threshold**    | **Primary Responsibilities**                |
 |-----------------------|-----------------|------------------|---------------------------------------------|
@@ -27,7 +27,7 @@ This document provides a comprehensive overview of the governance structure, rol
 
 ---
 
-## 🎭 Smart Contract Roles
+## Smart Contract Roles
 
 ### Global Roles (Cross-Contract)
 | **Role**              | **Purpose**                                      | **Used In**                    |
@@ -46,7 +46,7 @@ This document provides a comprehensive overview of the governance structure, rol
 
 ---
 
-## 👥 Actor-to-Role Mapping
+## Actor-to-Role Mapping
 
 ### Primary Actor Assignments
 
@@ -69,7 +69,7 @@ This document provides a comprehensive overview of the governance structure, rol
 
 ---
 
-## 🔑 Role Privileges by Contract
+## Role Privileges by Contract
 
 ### SapienToken
 | **Role**              | **Privileges**                                   |
@@ -100,7 +100,7 @@ This document provides a comprehensive overview of the governance structure, rol
 
 ---
 
-## 💰 Token Allocations
+## Token Allocations
 
 | **Category**          | **Allocation %** | **Controlled By**    | **Vesting/Notes**               |
 |-----------------------|------------------|----------------------|---------------------------------|
@@ -113,9 +113,9 @@ This document provides a comprehensive overview of the governance structure, rol
 
 ---
 
-## 📍 Deployment Addresses
+## Deployment Addresses
 
-### Multisigs on Mainnet (Base - Chain ID: 8453)
+### MAINNET multisigs (Base - Chain ID: 8453)
 | **Contract**          | **Address**                                      |
 |-----------------------|--------------------------------------------------|
 | Foundation Safe #1    | `TBD`                                            |
@@ -125,7 +125,7 @@ This document provides a comprehensive overview of the governance structure, rol
 | Blended MS            | `TBD`                                            |
 | Security Council      | `TBD`                                            |
 
-### Mainnet (Base - Chain ID: 8453)
+### MAINNET protocol (Base - Chain ID: 8453)
 | **Contract**          | **Address**                                      |
 |-----------------------|--------------------------------------------------|
 | SapienToken           | `TBD`                                            |
@@ -134,12 +134,12 @@ This document provides a comprehensive overview of the governance structure, rol
 | SapienQA              | `TBD`                                            |
 | Timelock              | `TBD`                                            |
 
-### Multisig on Testnet (Base Sepolia - Chain ID: 84532)
+### TESTNET multisigs (Base Sepolia - Chain ID: 84532)
 | **Contract**          | **Address**                                      |
 |-----------------------|--------------------------------------------------|
-| Core Team Admin       | `0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC`     |
+| Core Team Admin       | [`0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC`](https://sepolia.basescan.org/address/0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC)     |
 
-### Testnet (Base Sepolia - Chain ID: 84532)
+### TESTNET protocol (Base Sepolia - Chain ID: 84532)
 | **Contract**          | **Address**                                      |
 |-----------------------|--------------------------------------------------|
 | SapienToken           | [`0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6`](https://sepolia.basescan.org/address/0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6)     |
@@ -171,28 +171,10 @@ This document provides a comprehensive overview of the governance structure, rol
 - **Role Renunciation**: Role holders can renounce their own roles
 - **Admin Transfer**: Requires multi-step process with timelock
 
----
-
-## 🛡️ Security Considerations
-
 ### Separation of Concerns
 - **Signing vs Execution**: QA and Rewards separate signature creation from execution
 - **Admin vs Operations**: Day-to-day operations separated from admin functions
 - **Pause vs Admin**: Emergency pause separated from administrative control
-
-### Key Security Features
-- Multi-signature requirements for critical operations
-- Timelock delays for non-emergency changes
-- Role-based access control with minimal necessary privileges
-- EIP-712 signatures for off-chain authorization
-- Separate roles for different operational concerns
-
-### Risk Mitigation
-- No single point of failure
-- Time delays for non-emergency admin actions
-- Ability to pause in case of emergencies
-- Comprehensive event logging for all privileged actions
-- Regular security audits and monitoring
 
 ---
 
