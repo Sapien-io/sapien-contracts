@@ -24,7 +24,7 @@ pragma solidity 0.8.30;
  *
  * REPUTATION SYSTEM:
  * - Higher stake amounts and longer lockups result in higher reputation multipliers
- * - Multipliers range from 1.05x (30 days) to 1.50x+ (365 days + high amounts)
+ * - Multipliers range from 1.05x (30 days) to 1.50x (365 days + high amounts)
  * - QA system can reduce stakes for poor quality contributions
  * - Reputation affects reward distribution and platform privileges
  *
