@@ -40,13 +40,13 @@ contract SapienRewardsScenariosTest is Test {
     uint256 public constant MEDIUM_REWARD = 5_000 * 10 ** 18; // 10K tokens
     uint256 public constant SMALL_REWARD = 1_000 * 10 ** 18; // 1K tokens
 
-    // Order IDs for scenarios
-    bytes32 public constant ALICE_ORDER_1 = keccak256("alice_contribution_1");
-    bytes32 public constant ALICE_ORDER_2 = keccak256("alice_contribution_2");
-    bytes32 public constant BOB_ORDER_1 = keccak256("bob_development_1");
-    bytes32 public constant CHARLIE_ORDER_1 = keccak256("charlie_research_1");
-    bytes32 public constant DIANA_ORDER_1 = keccak256("diana_community_1");
-    bytes32 public constant EVE_ORDER_1 = keccak256("eve_marketing_1");
+    // Order IDs for scenarios - generated at runtime with proper expiry
+    bytes32 public ALICE_ORDER_1;
+    bytes32 public ALICE_ORDER_2;
+    bytes32 public BOB_ORDER_1;
+    bytes32 public CHARLIE_ORDER_1;
+    bytes32 public DIANA_ORDER_1;
+    bytes32 public EVE_ORDER_1;
 
     function setUp() public {
         // Deploy reward tokens
@@ -80,6 +80,8 @@ contract SapienRewardsScenariosTest is Test {
 
         vm.prank(rewardsAdmin);
         newRewardToken.approve(address(sapienRewards), INITIAL_SUPPLY);
+
+        // Note: orderIds will be created dynamically in tests to handle time progression
     }
 
     // ============================================
@@ -101,6 +103,7 @@ contract SapienRewardsScenariosTest is Test {
         uint256 totalClaimed = 0;
 
         // Alice claims large reward for major contribution
+        ALICE_ORDER_1 = _createOrderIdWithExpiry("alice_contribution_1");
         bytes memory aliceSignature = _createSignature(alice, LARGE_REWARD, ALICE_ORDER_1, rewardManager1PrivateKey);
         vm.prank(alice);
         sapienRewards.claimReward(LARGE_REWARD, ALICE_ORDER_1, aliceSignature);
@@ -108,6 +111,7 @@ contract SapienRewardsScenariosTest is Test {
 
         // Advance time and Bob claims medium reward
         vm.warp(block.timestamp + 1 days);
+        BOB_ORDER_1 = _createOrderIdWithExpiry("bob_development_1");
         bytes memory bobSignature = _createSignature(bob, MEDIUM_REWARD, BOB_ORDER_1, rewardManager2PrivateKey);
         vm.prank(bob);
         sapienRewards.claimReward(MEDIUM_REWARD, BOB_ORDER_1, bobSignature);
@@ -115,6 +119,7 @@ contract SapienRewardsScenariosTest is Test {
 
         // Multiple small claims
         vm.warp(block.timestamp + 2 days);
+        CHARLIE_ORDER_1 = _createOrderIdWithExpiry("charlie_research_1");
         bytes memory charlieSignature =
             _createSignature(charlie, SMALL_REWARD, CHARLIE_ORDER_1, rewardManager1PrivateKey);
         vm.prank(charlie);
@@ -137,10 +142,12 @@ contract SapienRewardsScenariosTest is Test {
         sapienRewards.depositRewards(additionalDeposit);
 
         // Diana and Eve claim rewards
+        DIANA_ORDER_1 = _createOrderIdWithExpiry("diana_community_1");
         bytes memory dianaSignature = _createSignature(diana, MEDIUM_REWARD, DIANA_ORDER_1, rewardManager2PrivateKey);
         vm.prank(diana);
         sapienRewards.claimReward(MEDIUM_REWARD, DIANA_ORDER_1, dianaSignature);
 
+        EVE_ORDER_1 = _createOrderIdWithExpiry("eve_marketing_1");
         bytes memory eveSignature = _createSignature(eve, SMALL_REWARD, EVE_ORDER_1, rewardManager1PrivateKey);
         vm.prank(eve);
         sapienRewards.claimReward(SMALL_REWARD, EVE_ORDER_1, eveSignature);
@@ -183,7 +190,12 @@ contract SapienRewardsScenariosTest is Test {
         for (uint256 i = 0; i < 20; i++) {
             users[i] = makeAddr(string(abi.encodePacked("user", i)));
             amounts[i] = (i + 1) * 500 * 10 ** 18; // Varying amounts from 5K to 100K
-            orderIds[i] = keccak256(abi.encodePacked("batch_order", i));
+            // Create orderId with valid expiry timestamp in the last 8 bytes
+            uint64 expiry = uint64(block.timestamp + Const.MAX_ORDER_EXPIRY_DURATION); // Max allowed duration
+            bytes32 prefix = keccak256(abi.encodePacked("batch_order", i));
+            orderIds[i] = bytes32(
+                (uint256(prefix) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF0000000000000000) | uint256(expiry)
+            );
 
             // Alternate between reward managers
             uint256 managerKey = (i % 2 == 0) ? rewardManager1PrivateKey : rewardManager2PrivateKey;
@@ -222,6 +234,7 @@ contract SapienRewardsScenariosTest is Test {
         sapienRewards.depositRewards(LARGE_REWARD * 4);
 
         // Some users claim rewards
+        ALICE_ORDER_1 = _createOrderIdWithExpiry("alice_contribution_1");
         bytes memory aliceSignature = _createSignature(alice, LARGE_REWARD, ALICE_ORDER_1, rewardManager1PrivateKey);
         vm.prank(alice);
         sapienRewards.claimReward(LARGE_REWARD, ALICE_ORDER_1, aliceSignature);
@@ -232,6 +245,7 @@ contract SapienRewardsScenariosTest is Test {
         sapienRewards.pause();
 
         // Verify claims are blocked when paused
+        BOB_ORDER_1 = _createOrderIdWithExpiry("bob_development_1");
         bytes memory bobSignature = _createSignature(bob, MEDIUM_REWARD, BOB_ORDER_1, rewardManager1PrivateKey);
         vm.prank(bob);
         vm.expectRevert();
@@ -283,6 +297,13 @@ contract SapienRewardsScenariosTest is Test {
         // Setup large reward pool
         vm.prank(rewardsAdmin);
         sapienRewards.depositRewards(INITIAL_SUPPLY / 2);
+
+        // Create fresh orderIds for this test
+        ALICE_ORDER_1 = _createOrderIdWithExpiry("alice_contribution_1");
+        BOB_ORDER_1 = _createOrderIdWithExpiry("bob_development_1");
+        CHARLIE_ORDER_1 = _createOrderIdWithExpiry("charlie_research_1");
+        DIANA_ORDER_1 = _createOrderIdWithExpiry("diana_community_1");
+        EVE_ORDER_1 = _createOrderIdWithExpiry("eve_marketing_1");
 
         // Manager 1 handles development rewards
         bytes memory devReward1 = _createSignature(alice, LARGE_REWARD, ALICE_ORDER_1, rewardManager1PrivateKey);
@@ -341,7 +362,12 @@ contract SapienRewardsScenariosTest is Test {
         for (uint256 i = 0; i < iterations; i++) {
             address user = makeAddr(string(abi.encodePacked("stressUser", i)));
             uint256 amount = ((i % 10) + 1) * 1000 * 10 ** 18; // 1K to 10K tokens
-            bytes32 orderId = keccak256(abi.encodePacked("stress_order", i));
+            // Create orderId with valid expiry timestamp in the last 8 bytes
+            uint64 expiry = uint64(block.timestamp + Const.MAX_ORDER_EXPIRY_DURATION); // Max allowed duration
+            bytes32 prefix = keccak256(abi.encodePacked("stress_order", i));
+            bytes32 orderId = bytes32(
+                (uint256(prefix) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF0000000000000000) | uint256(expiry)
+            );
 
             // Alternate operations
             if (i % 10 == 0) {
@@ -398,5 +424,11 @@ contract SapienRewardsScenariosTest is Test {
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, hash);
         return abi.encodePacked(r, s, v);
+    }
+
+    function _createOrderIdWithExpiry(string memory identifier) internal view returns (bytes32) {
+        uint64 expiry = uint64(block.timestamp + Const.MAX_ORDER_EXPIRY_DURATION); // Max allowed duration
+        bytes24 randomPart = bytes24(keccak256(abi.encodePacked(identifier, expiry)));
+        return bytes32(abi.encodePacked(randomPart, expiry));
     }
 }

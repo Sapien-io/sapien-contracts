@@ -398,7 +398,14 @@ contract SapienRewardsEndToEndTest is Test {
 
     function _generateOrderId(string memory identifier) internal returns (bytes32) {
         orderCounter++;
-        return keccak256(abi.encodePacked(identifier, orderCounter, block.timestamp));
+        // Create orderId with valid expiry timestamp in the last 8 bytes
+        uint64 expiry = uint64(block.timestamp + Const.MAX_ORDER_EXPIRY_DURATION); // Max allowed duration
+        bytes32 prefix = keccak256(abi.encodePacked(identifier, orderCounter));
+
+        // Replace last 8 bytes with the expiry timestamp
+        return bytes32(
+            (uint256(prefix) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF0000000000000000) | uint256(expiry)
+        );
     }
 
     function _createSignature(address user, uint256 amount, bytes32 orderId, uint256 privateKey)

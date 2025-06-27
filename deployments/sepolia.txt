@@ -6,7 +6,7 @@ SapienVault         0xBCC5e0913B3df10b08C88dea87F396Dc95cAd385
 SapienQA            0x575C1F6FBa0cA77AbAd28d8ca8b6f93727b36bbF
 Timelock            0x2a5F9e1Be3A78C73EA1aB256D3Eb0C5A475742cC
 
-June 26th 
+June 26th - New Implementations
 
 commit              2570ec340f8c97c7afec7b91ae97f35805131f4c
 SapienQA            0x8453dc1d8604440d233f9a98628152E3EffBc4DE

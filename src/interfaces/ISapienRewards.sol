@@ -35,6 +35,9 @@ interface ISapienRewards {
     error UnauthorizedSigner(address signer);
     error RewardExceedsMaxAmount(uint256 rewardAmount, uint256 maxAmount);
     error InvalidOrderId(bytes32 orderId);
+    error OrderExpired(bytes32 orderId, uint256 orderTimestamp);
+    error ExpiryTooSoon(bytes32 orderId, uint256 orderTimestamp);
+    error ExpiryTooFar(bytes32 orderId, uint256 orderTimestamp);
 
     // -------------------------------------------------------------
     //  Functions
