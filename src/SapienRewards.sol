@@ -333,6 +333,22 @@ contract SapienRewards is
     {
         if (rewardAmount == 0) revert InvalidAmount();
         if (orderId == bytes32(0)) revert InvalidOrderId(orderId);
+
+        // Extract and validate expiry
+        // orderId is a 256 bit value, we need to extract the last 64 bits which is the expiry timestamp
+        uint64 orderTimestamp = uint64(uint256(orderId));
+
+        // Expiry checks - check expiry first
+        if (block.timestamp >= orderTimestamp) {
+            revert OrderExpired(orderId, orderTimestamp);
+        }
+        if (orderTimestamp < block.timestamp + Const.MIN_ORDER_EXPIRY_DURATION) {
+            revert ExpiryTooSoon(orderId, orderTimestamp);
+        }
+        if (orderTimestamp > block.timestamp + Const.MAX_ORDER_EXPIRY_DURATION) {
+            revert ExpiryTooFar(orderId, orderTimestamp);
+        }
+
         if (rewardAmount > availableRewards) revert InsufficientAvailableRewards();
         if (redeemedOrders[userWallet][orderId]) revert OrderAlreadyUsed();
         if (hasRole(Const.REWARD_MANAGER_ROLE, userWallet)) revert RewardsManagerCannotClaim();

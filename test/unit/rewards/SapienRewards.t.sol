@@ -33,8 +33,9 @@ contract SapienRewardsTest is Test {
     // Test constants
     uint256 public constant INITIAL_REWARD_BALANCE = 1000000 * 10 ** 18; // 1M tokens
     uint256 public constant REWARD_AMOUNT = 1000 * 10 ** 18; // 1K tokens
-    bytes32 public constant ORDER_ID = keccak256("order_1");
-    bytes32 public constant ORDER_ID_2 = keccak256("order_2");
+
+    bytes32 public ORDER_ID;
+    bytes32 public ORDER_ID_2;
 
     // Events for testing
     event RewardClaimed(address indexed user, uint256 amount, bytes32 indexed orderId);
@@ -69,6 +70,18 @@ contract SapienRewardsTest is Test {
         // Approve contract to spend tokens from reward safe
         vm.prank(rewardAdmin);
         rewardToken.approve(address(sapienRewards), INITIAL_REWARD_BALANCE);
+
+        ORDER_ID = createOrderIdWithExpiry("order_id_string", uint64(block.timestamp + 2 * 60)); // 2 minutes
+        ORDER_ID_2 = createOrderIdWithExpiry("order_id_string", uint64(block.timestamp + 3 * 60)); // 3 minutes
+    }
+
+    function createOrderIdWithExpiry(string memory identifier, uint64 expiryTimestamp)
+        internal
+        pure
+        returns (bytes32)
+    {
+        bytes24 randomPart = bytes24(keccak256(abi.encodePacked(identifier, expiryTimestamp)));
+        return bytes32(abi.encodePacked(randomPart, expiryTimestamp));
     }
 
     // ============================================
@@ -696,12 +709,16 @@ contract SapienRewardsTest is Test {
     // Fuzz Tests
     // ============================================
 
-    function test_Rewards_FuzzClaimReward(uint256 amount, bytes32 orderId) public {
+    function test_Rewards_FuzzClaimReward(uint256 amount, uint64 expiryOffset) public {
         vm.assume(amount > 0 && amount <= Const.MAX_REWARD_AMOUNT && amount <= INITIAL_REWARD_BALANCE);
-        vm.assume(orderId != bytes32(0));
+        vm.assume(expiryOffset >= Const.MIN_ORDER_EXPIRY_DURATION && expiryOffset <= Const.MAX_ORDER_EXPIRY_DURATION);
 
         vm.prank(rewardAdmin);
         sapienRewards.depositRewards(amount);
+
+        // Create a valid orderId with proper expiry timestamp
+        uint64 validExpiry = uint64(block.timestamp + expiryOffset);
+        bytes32 orderId = createOrderIdWithExpiry("order_id_string", validExpiry);
 
         bytes memory signature = _createSignature(user1, amount, orderId);
 
@@ -726,6 +743,209 @@ contract SapienRewardsTest is Test {
         sapienRewards.withdrawRewards(withdrawAmount);
 
         assertEq(sapienRewards.getAvailableRewards(), depositAmount - withdrawAmount);
+    }
+
+    // ============================================
+    // Expiry Edge Case Tests
+    // ============================================
+
+    function test_Rewards_OrderExpiryTooSoon() public {
+        vm.prank(rewardAdmin);
+        sapienRewards.depositRewards(REWARD_AMOUNT);
+
+        // Create an order that expires too soon (less than MIN_ORDER_EXPIRY_DURATION)
+        uint64 tooSoonExpiry = uint64(block.timestamp + Const.MIN_ORDER_EXPIRY_DURATION - 1);
+        bytes32 tooSoonOrderId = createOrderIdWithExpiry("order_id_string", tooSoonExpiry);
+
+        vm.expectRevert(abi.encodeWithSelector(ISapienRewards.ExpiryTooSoon.selector, tooSoonOrderId, tooSoonExpiry));
+        sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, tooSoonOrderId);
+    }
+
+    function test_Rewards_OrderExpiryTooFar() public {
+        vm.prank(rewardAdmin);
+        sapienRewards.depositRewards(REWARD_AMOUNT);
+
+        // Create an order that expires too far in the future (more than MAX_ORDER_EXPIRY_DURATION)
+        uint64 tooFarExpiry = uint64(block.timestamp + Const.MAX_ORDER_EXPIRY_DURATION + 1);
+        bytes32 tooFarOrderId = createOrderIdWithExpiry("order_id_string", tooFarExpiry);
+
+        vm.expectRevert(abi.encodeWithSelector(ISapienRewards.ExpiryTooFar.selector, tooFarOrderId, tooFarExpiry));
+        sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, tooFarOrderId);
+    }
+
+    function test_Rewards_OrderExpired() public {
+        vm.prank(rewardAdmin);
+        sapienRewards.depositRewards(REWARD_AMOUNT);
+
+        // Create an order that has already expired but is after the "too soon" threshold
+        // This needs to be expired but not caught by the "too soon" check
+        uint64 expiredTimestamp = uint64(block.timestamp + Const.MIN_ORDER_EXPIRY_DURATION);
+        bytes32 expiredOrderId = createOrderIdWithExpiry("order_id_string", expiredTimestamp);
+
+        // Advance time past the expiry
+        vm.warp(expiredTimestamp + 1);
+
+        vm.expectRevert(abi.encodeWithSelector(ISapienRewards.OrderExpired.selector, expiredOrderId, expiredTimestamp));
+        sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, expiredOrderId);
+    }
+
+    function test_Rewards_OrderExpiryAtMinBoundary() public {
+        vm.prank(rewardAdmin);
+        sapienRewards.depositRewards(REWARD_AMOUNT);
+
+        // Create an order at exactly the minimum expiry duration
+        uint64 minValidExpiry = uint64(block.timestamp + Const.MIN_ORDER_EXPIRY_DURATION);
+        bytes32 minValidOrderId = createOrderIdWithExpiry("order_id_string", minValidExpiry);
+
+        // Should not revert
+        bytes32 hash = sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, minValidOrderId);
+        assertNotEq(hash, bytes32(0));
+    }
+
+    function test_Rewards_OrderExpiryAtMaxBoundary() public {
+        vm.prank(rewardAdmin);
+        sapienRewards.depositRewards(REWARD_AMOUNT);
+
+        // Create an order at exactly the maximum expiry duration
+        uint64 maxValidExpiry = uint64(block.timestamp + Const.MAX_ORDER_EXPIRY_DURATION);
+        bytes32 maxValidOrderId = createOrderIdWithExpiry("order_id_string", maxValidExpiry);
+
+        // Should not revert
+        bytes32 hash = sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, maxValidOrderId);
+        assertNotEq(hash, bytes32(0));
+    }
+
+    function test_Rewards_OrderExpiryExactlyAtCurrentTime() public {
+        vm.prank(rewardAdmin);
+        sapienRewards.depositRewards(REWARD_AMOUNT);
+
+        // Create an order that expires exactly at current block timestamp
+        uint64 currentTimestamp = uint64(block.timestamp);
+        bytes32 currentTimeOrderId = createOrderIdWithExpiry("order_id_string", currentTimestamp);
+
+        // Since the expiry is at current time, it's expired
+        // The "expired" check happens first now, so expect that error
+        vm.expectRevert(
+            abi.encodeWithSelector(ISapienRewards.OrderExpired.selector, currentTimeOrderId, currentTimestamp)
+        );
+        sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, currentTimeOrderId);
+    }
+
+    function test_Rewards_ClaimRewardFailsWithExpiredOrder() public {
+        vm.prank(rewardAdmin);
+        sapienRewards.depositRewards(REWARD_AMOUNT);
+
+        // Create an order that will expire
+        uint64 expiredTimestamp = uint64(block.timestamp + Const.MIN_ORDER_EXPIRY_DURATION);
+        bytes32 expiredOrderId = createOrderIdWithExpiry("order_id_string", expiredTimestamp);
+
+        // Advance time past the expiry
+        vm.warp(expiredTimestamp + 1);
+
+        // Creating signature should fail because validation fails
+        vm.expectRevert(abi.encodeWithSelector(ISapienRewards.OrderExpired.selector, expiredOrderId, expiredTimestamp));
+        sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, expiredOrderId);
+    }
+
+    function test_Rewards_ClaimRewardSucceedsWithValidExpiry() public {
+        vm.prank(rewardAdmin);
+        sapienRewards.depositRewards(REWARD_AMOUNT);
+
+        // Create a valid order (2 minutes from now)
+        uint64 validExpiry = uint64(block.timestamp + 2 * 60);
+        bytes32 validOrderId = createOrderIdWithExpiry("order_id_string", validExpiry);
+
+        bytes memory signature = _createSignature(user1, REWARD_AMOUNT, validOrderId);
+
+        vm.prank(user1);
+        bool success = sapienRewards.claimReward(REWARD_AMOUNT, validOrderId, signature);
+
+        assertTrue(success);
+        assertEq(rewardToken.balanceOf(user1), REWARD_AMOUNT);
+    }
+
+    function test_Rewards_TimeProgressionCausesExpiry() public {
+        vm.prank(rewardAdmin);
+        sapienRewards.depositRewards(REWARD_AMOUNT);
+
+        // Create an order that expires in 2 minutes
+        uint64 futureExpiry = uint64(block.timestamp + 2 * 60);
+        bytes32 futureOrderId = createOrderIdWithExpiry("order_id_string", futureExpiry);
+
+        // Should work initially
+        bytes32 hash = sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, futureOrderId);
+        assertNotEq(hash, bytes32(0));
+
+        // Advance time past expiry
+        vm.warp(futureExpiry + 1);
+
+        // Should now fail
+        vm.expectRevert(abi.encodeWithSelector(ISapienRewards.OrderExpired.selector, futureOrderId, futureExpiry));
+        sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, futureOrderId);
+    }
+
+    function test_Rewards_ExpiryValidationWorksWithZeroOrderId() public {
+        vm.prank(rewardAdmin);
+        sapienRewards.depositRewards(REWARD_AMOUNT);
+
+        // Zero orderId should fail before expiry validation
+        vm.expectRevert(abi.encodeWithSelector(ISapienRewards.InvalidOrderId.selector, bytes32(0)));
+        sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, bytes32(0));
+    }
+
+    function test_Rewards_ExpiryValidationWithMaxUint64() public {
+        vm.prank(rewardAdmin);
+        sapienRewards.depositRewards(REWARD_AMOUNT);
+
+        // Create an order with max uint64 timestamp (far future)
+        uint64 maxTimestamp = type(uint64).max;
+        bytes32 maxOrderId = createOrderIdWithExpiry("order_id_string", maxTimestamp);
+
+        // Should fail as too far in future
+        vm.expectRevert(abi.encodeWithSelector(ISapienRewards.ExpiryTooFar.selector, maxOrderId, maxTimestamp));
+        sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, maxOrderId);
+    }
+
+    function test_Rewards_ExpiryValidationWithMinUint64() public {
+        vm.prank(rewardAdmin);
+        sapienRewards.depositRewards(REWARD_AMOUNT);
+
+        // Create an order with timestamp 0 (definitely expired)
+        uint64 minTimestamp = 0;
+        bytes32 minOrderId = createOrderIdWithExpiry("order_id_string", minTimestamp);
+
+        // Should fail as expired (this check happens first now)
+        vm.expectRevert(abi.encodeWithSelector(ISapienRewards.OrderExpired.selector, minOrderId, minTimestamp));
+        sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, minOrderId);
+    }
+
+    function test_Rewards_FuzzExpiryValidation(uint64 expiryTimestamp) public {
+        vm.prank(rewardAdmin);
+        sapienRewards.depositRewards(REWARD_AMOUNT);
+
+        bytes32 orderId = createOrderIdWithExpiry("order_id_string", expiryTimestamp);
+
+        if (expiryTimestamp < block.timestamp) {
+            // Should fail as expired (this check happens first)
+            vm.expectRevert(abi.encodeWithSelector(ISapienRewards.OrderExpired.selector, orderId, expiryTimestamp));
+            sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, orderId);
+        } else if (expiryTimestamp == block.timestamp) {
+            // Should fail as expired (exactly at current time)
+            vm.expectRevert(abi.encodeWithSelector(ISapienRewards.OrderExpired.selector, orderId, expiryTimestamp));
+            sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, orderId);
+        } else if (expiryTimestamp < block.timestamp + Const.MIN_ORDER_EXPIRY_DURATION) {
+            // Should fail as too soon
+            vm.expectRevert(abi.encodeWithSelector(ISapienRewards.ExpiryTooSoon.selector, orderId, expiryTimestamp));
+            sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, orderId);
+        } else if (expiryTimestamp > block.timestamp + Const.MAX_ORDER_EXPIRY_DURATION) {
+            // Should fail as too far
+            vm.expectRevert(abi.encodeWithSelector(ISapienRewards.ExpiryTooFar.selector, orderId, expiryTimestamp));
+            sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, orderId);
+        } else {
+            // Should succeed (valid range)
+            bytes32 hash = sapienRewards.validateAndGetHashToSign(user1, REWARD_AMOUNT, orderId);
+            assertNotEq(hash, bytes32(0));
+        }
     }
 
     // ============================================

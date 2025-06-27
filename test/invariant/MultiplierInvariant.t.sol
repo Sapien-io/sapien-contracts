@@ -241,7 +241,7 @@ contract MultiplierInvariantTest is Test {
         assert(extremeMult == Const.MAX_MULTIPLIER);
     }
 
-    function test_SetupWrapper() public {
+    function test_SetupWrapper() public view {
         
         // Test that multiplier works correctly
         uint256 mult = sapienVault.calculateMultiplier(1000 * Const.TOKEN_DECIMALS, Const.LOCKUP_90_DAYS);
