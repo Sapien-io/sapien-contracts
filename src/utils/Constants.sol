@@ -68,8 +68,8 @@ library Constants {
     uint256 internal constant LOCKUP_180_DAYS = 180 days;
     uint256 internal constant LOCKUP_365_DAYS = 365 days;
 
-    uint256 internal constant MIN_ORDER_EXPIRY_DURATION = 1 minutes;
-    uint256 internal constant MAX_ORDER_EXPIRY_DURATION = 5 minutes;
+    uint256 internal constant MIN_ORDER_EXPIRY_DURATION = 60 seconds;
+    uint256 internal constant MAX_ORDER_EXPIRY_DURATION = 301 seconds;
 
     // -------------------------------------------------------------
     // Basis Points and Precision
