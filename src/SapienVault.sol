@@ -620,11 +620,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             revert StakeStillLocked();
         }
 
-        // MUTUAL EXCLUSION: Prevent initiating normal unstake if early unstake is active
-        if (userStake.earlyUnstakeCooldownStart != 0) {
-            revert EarlyUnstakeCooldownAlreadyActive();
-        }
-
         uint256 cooldownAmount = userStake.cooldownAmount;
 
         if (amount > userStake.amount - cooldownAmount) {

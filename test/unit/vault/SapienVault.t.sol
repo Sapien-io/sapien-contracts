@@ -1124,9 +1124,9 @@ contract SapienVaultBasicTest is Test {
         // This tests the logic: "Set cooldown start time only if not already in cooldown"
     }
 
-    function test_Vault_RevertInitiateUnstake_EarlyUnstakeCooldownAlreadyActive() public {
-        // Test mutual exclusion: cannot initiate normal unstake while early unstake cooldown is active
-        // This covers the mutual exclusion logic added to prevent conflicting cooldown states
+    function test_Vault_InitiateUnstake_AllowedWithActiveEarlyUnstakeCooldown_Original() public {
+        // Test that normal unstake is allowed even when early unstake cooldown is active
+        // This allows users to manage different portions of their stake via different methods
 
         uint256 stakeAmount = MINIMUM_STAKE * 4; // Use larger amount to ensure we have flexibility
         sapienToken.mint(user1, stakeAmount);
@@ -1148,7 +1148,7 @@ contract SapienVaultBasicTest is Test {
         // Move forward past the lock period BUT NOT past the early unstake cooldown
         // This puts us in a state where:
         // 1. The stake is unlocked (can normally do regular unstaking)
-        // 2. Early unstake cooldown is still active (preventing regular unstaking)
+        // 2. Early unstake cooldown is still active (but should not prevent regular unstaking)
         vm.warp(block.timestamp + LOCK_30_DAYS + 1);
 
         // Confirm stake is unlocked but early unstake cooldown is still active
@@ -1162,15 +1162,26 @@ contract SapienVaultBasicTest is Test {
         );
         assertGt(userStake.earlyUnstakeCooldownStart, 0, "Early unstake cooldown start should be set");
 
-        // Try to initiate normal unstake - should revert due to active early unstake cooldown
+        // Normal unstake should be allowed despite active early unstake cooldown
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSignature("EarlyUnstakeCooldownAlreadyActive()"));
         sapienVault.initiateUnstake(MINIMUM_STAKE);
 
-        // Additional verification: try with different amount
+        // Verify both cooldowns can be active simultaneously
+        uint256 totalInCooldown = sapienVault.getTotalInCooldown(user1);
+        assertEq(totalInCooldown, MINIMUM_STAKE, "Normal cooldown should be set");
+        assertEq(
+            sapienVault.getEarlyUnstakeCooldownAmount(user1),
+            earlyUnstakeAmount,
+            "Early unstake cooldown should remain active"
+        );
+
+        // Additional verification: should work with different amount too
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSignature("EarlyUnstakeCooldownAlreadyActive()"));
-        sapienVault.initiateUnstake(MINIMUM_STAKE * 2);
+        sapienVault.initiateUnstake(MINIMUM_STAKE);
+
+        // Total normal cooldown should now be 2 * MINIMUM_STAKE
+        uint256 totalInCooldown2 = sapienVault.getTotalInCooldown(user1);
+        assertEq(totalInCooldown2, MINIMUM_STAKE * 2, "Normal cooldown should accumulate");
     }
 
     function test_Vault_RevertInitiateEarlyUnstake_CannotIncreaseStakeInCooldown_DefensiveProgramming() public {
