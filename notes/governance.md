@@ -18,14 +18,17 @@ This document provides an overview of the governance structure, role assignments
 
 | **Multisig**          | **Type**        | **Threshold**    | **Primary Responsibilities**                |
 |-----------------------|-----------------|------------------|---------------------------------------------|
-| Foundation Safe #1    | Safe Multisig   | 3 of 5           | Core foundation treasury & protocol admin   |
-| Foundation Safe #2    | Safe Multisig   | 2 of 3           | Satellite foundation operations             |
-| Foundation Safe #3    | Safe Multisig   | 2 of 3           | Satellite foundation operations             |
+| Foundation One        | Safe Multisig   | 3 of 5           | Core foundation treasury & protocol admin   |
+| Foundation Two        | Safe Multisig   | 2 of 3           | Satellite foundation operations             |
+| Foundation Three      | Safe Multisig   | 2 of 3           | Satellite foundation operations             |
 | Corp Treasury         | Safe Multisig   | 4 of 7           | Investor allocations & team compensation    |
 | Blended MS            | Safe Multisig   | 3 of 3           | 2 Foundation + 1 Corp signer                |
 | Security Council      | Safe Multisig   | 2 of 5           | Corp Engineering Team                       |
 
----
+| **Multisig            | address                                                                         |
+|-----------------------|---------------------------------------------------------------------------------|
+| Foundation One        |[0x0e8b34E70AA583D937e5bF407738f2C8fF4D371C](https://app.safe.global/home?safe=base:0x0e8b34E70AA583D937e5bF407738f2C8fF4D371C) |
+| 
 
 ## Smart Contract Roles
 
@@ -56,17 +59,17 @@ This document provides an overview of the governance structure, role assignments
 
 | **Actor**             | **Contract**    | **Role(s)**                  | **Control Assingment**              |
 |-----------------------|-----------------|------------------------------|-------------------------------------|
-| Default Admin         | All             | `DEFAULT_ADMIN_ROLE`         | Foundation Safe #1                  |
-| Pauser                | All             | `PAUSER_ROLE`                | Security Council                    |
-| Rewards Admin         | SapienRewards   | `REWARD_ADMIN_ROLE`          | Corp Treasury                       |
+| Default Admin         | All             | `DEFAULT_ADMIN_ROLE`         | Blended MS                          |
+| Pauser                | All             | `PAUSER_ROLE`                | Security MS                         |
+| Rewards Admin         | SapienRewards   | `REWARD_ADMIN_ROLE`          | Corp MS                             |
 | Rewards Manager       | SapienRewards   | `REWARD_MANAGER_ROLE`        | Rewards Manager Key                 |
 | QA Manager            | SapienQA        | `QA_MANAGER_ROLE`            | QA Manager Key                      |
-| QA Signer             | SapienQA        | `QA_SIGNER_ROLE`             | Security Council                    |
+| QA Signer             | SapienQA        | `QA_SIGNER_ROLE`             | Security MS                         |
 | Sapien QA             | SapienVault     | `SAPIEN_QA_ROLE`             | SapienQA Contract                   |
-| Timelock Admin        | Timelock        | `TIMELOCK_ADMIN`             | Foundation Safe #1                  |
-| Timelock Proposer     | Timelock        | `TIMELOCK_PROPOSER`          | Security Council                    |
-| Timelock Executor     | Timelock        | `TIMELOCK_EXECUTOR`          | Corp Treasury                       |
-| Timelock Cancellor    | Timelock        | `TIMELOCK_CANCELLOR`         | Security Council                    |
+| Timelock Admin        | Timelock        | `TIMELOCK_ADMIN`             | Blended MS                          |
+| Timelock Proposer     | Timelock        | `TIMELOCK_PROPOSER`          | Security MS                         |
+| Timelock Executor     | Timelock        | `TIMELOCK_EXECUTOR`          | Corp MS                             |
+| Timelock Cancellor    | Timelock        | `TIMELOCK_CANCELLOR`         | Security MS                         |
 
 ---
 
@@ -74,12 +77,12 @@ This document provides an overview of the governance structure, role assignments
 
 | **Category**          | **Allocation %** | **Controlled By**          | **Vesting/Notes**                    |
 |-----------------------|------------------|----------------------------|--------------------------------------|
-| Foundation Treasury   | 13%              | Foundation #1              | Strategic reserves                   |
-| Airdrops              | 13%              | Corp Treasury              | Community distribution               |
-| Trainer Compensation  | 15%              | Corp Treasury              | AI trainer rewards                   |
-| Liquidity Incentives  | 12% (5% + 7%)    | Corp Treasury              | CEXs, Market Makers, DEX/AMM         |
-| Investors             | 30.45%           | Foundation #1              | Subject to vesting schedules         |
-| Team & Advisors       | 16.55%           | Foundation #1              | Subject to vesting schedules         |
+| Foundation Treasury   | 13%              | Foundation One             | Strategic reserves                   |
+| Airdrops              | 13%              | Corp MS                    | Community distribution               |
+| Trainer Compensation  | 15%              | Corp MS                    | AI trainer rewards                   |
+| Liquidity Incentives  | 12% (5% + 7%)    | Corp MS                    | CEXs, Market Makers, DEX/AMM         |
+| Investors             | 30.45%           | Corp MS                    | Subject to vesting schedules         |
+| Team & Advisors       | 16.55%           | Corp MS                    | Subject to vesting schedules         |
 
 
 ---
@@ -90,12 +93,12 @@ This document provides an overview of the governance structure, role assignments
 ### MAINNET multisigs (Base - Chain ID: 8453)
 | **Contract**          | **Address**                                                                          |
 |-----------------------|--------------------------------------------------------------------------------------|
-| Foundation Safe #1    | `TBD`                                                                                |
-| Foundation Safe #2    | `TBD`                                                                                |
-| Foundation Safe #3    | `TBD`                                                                                |
-| Corp Treasury         | `TBD`                                                                                |
-| Blended MS            | `TBD`                                                                                |
-| Security Council      | `TBD`                                                                                |
+| Foundation One        | [`0x0e8b34E70AA583D937e5bF407738f2C8fF4D371C`](https://app.safe.global/home?safe=base:0x0e8b34E70AA583D937e5bF407738f2C8fF4D371C)|
+| Foundation Two        | [`0x5DF0dcEdBE2E2Ae8604425b1913D02E98fC72660`](https://app.safe.global/home?safe=base:0x5DF0dcEdBE2E2Ae8604425b1913D02E98fC72660)|
+| Foundation Three      | [`0xFd7B595f8DC6ED766C619437b1C48A6Ece29b156`](https://app.safe.global/home?safe=base:0xFd7B595f8DC6ED766C619437b1C48A6Ece29b156)|
+| Corp Treasury         | [`0x454149F78630A82fDcf5559384042A3BBD358FB2`](https://app.safe.global/home?safe=base:0x454149F78630A82fDcf5559384042A3BBD358FB2)|
+| Blended MS            | [`0xE60E46b8674018fd2Bb2924451dEB2F9e34fD1AC`](https://app.safe.global/home?safe=base:0xE60E46b8674018fd2Bb2924451dEB2F9e34fD1AC)|
+| Security Council      | [`0x18D33278be0870A4907922dE65D6FbE27928580a`](https://app.safe.global/home?safe=base:0x18D33278be0870A4907922dE65D6FbE27928580a)|
 
 ### MAINNET protocol (Base - Chain ID: 8453)
 | **Contract**          | **Address**                                                                          |
@@ -110,7 +113,7 @@ This document provides an overview of the governance structure, role assignments
 ### TESTNET multisigs (Base Sepolia - Chain ID: 84532)
 | **Contract**          | **Address**                                                                          |
 |-----------------------|--------------------------------------------------------------------------------------|
-| Core Team Admin       | [`0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC`](https://sepolia.basescan.org/address/0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC)     |
+| Dev Team              | [`0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC`](https://sepolia.basescan.org/address/0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC)     |
 
 
 ### TESTNET protocol (Base Sepolia - Chain ID: 84532)
