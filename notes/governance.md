@@ -16,7 +16,7 @@ This document provides an overview of the governance structure, role assignments
 
 ## Multisig Architecture
 
-| **Multisig**            | **Type**        | **Threshold**    | **Primary Responsibilities**              |
+| **Multisig**          | **Type**        | **Threshold**    | **Primary Responsibilities**                |
 |-----------------------|-----------------|------------------|---------------------------------------------|
 | Foundation Safe #1    | Safe Multisig   | 3 of 5           | Core foundation treasury & protocol admin   |
 | Foundation Safe #2    | Safe Multisig   | 2 of 3           | Satellite foundation operations             |
@@ -59,8 +59,8 @@ This document provides an overview of the governance structure, role assignments
 | Default Admin         | All             | `DEFAULT_ADMIN_ROLE`         | Foundation Safe #1                  |
 | Pauser                | All             | `PAUSER_ROLE`                | Security Council                    |
 | Rewards Admin         | SapienRewards   | `REWARD_ADMIN_ROLE`          | Corp Treasury                       |
-| Rewards Manager       | SapienRewards   | `REWARD_MANAGER_ROLE`        | AWS KMS EOA Wallet                  |
-| QA Manager            | SapienQA        | `QA_MANAGER_ROLE`            | AWS KMS EOA Wallet                  |
+| Rewards Manager       | SapienRewards   | `REWARD_MANAGER_ROLE`        | Rewards Manager Key                 |
+| QA Manager            | SapienQA        | `QA_MANAGER_ROLE`            | QA Manager Key                      |
 | QA Signer             | SapienQA        | `QA_SIGNER_ROLE`             | Security Council                    |
 | Sapien QA             | SapienVault     | `SAPIEN_QA_ROLE`             | SapienQA Contract                   |
 | Timelock Admin        | Timelock        | `TIMELOCK_ADMIN`             | Foundation Safe #1                  |
@@ -74,12 +74,12 @@ This document provides an overview of the governance structure, role assignments
 
 | **Category**          | **Allocation %** | **Controlled By**          | **Vesting/Notes**                    |
 |-----------------------|------------------|----------------------------|--------------------------------------|
-| Foundation Treasury   | 13%              | Foundation Safe #1         | Strategic reserves                   |
-| Airdrops              | 13%              | Foundation Safe #1         | Community distribution               |
-| Trainer Compensation  | 15%              | Foundation Safe #1         | AI trainer rewards                   |
-| Liquidity Incentives  | 12% (5% + 7%)    | Foundation Safe #1         | CEXs, Market Makers, DEX/AMM         |
-| Investors             | 30.45%           | Corp Treasury              | Subject to vesting schedules         |
-| Team & Advisors       | 16.55%           | Corp Treasury              | Subject to vesting schedules         |
+| Foundation Treasury   | 13%              | Foundation #1              | Strategic reserves                   |
+| Airdrops              | 13%              | Corp Treasury              | Community distribution               |
+| Trainer Compensation  | 15%              | Corp Treasury              | AI trainer rewards                   |
+| Liquidity Incentives  | 12% (5% + 7%)    | Corp Treasury              | CEXs, Market Makers, DEX/AMM         |
+| Investors             | 30.45%           | Foundation #1              | Subject to vesting schedules         |
+| Team & Advisors       | 16.55%           | Foundation #1              | Subject to vesting schedules         |
 
 
 ---
@@ -158,9 +158,10 @@ This document provides an overview of the governance structure, role assignments
 
 - **Governance Forum**: TBD
 - **Documentation**: https://docs.sapien.io
+- **Contracts Repo**: https://github.com/sapien-io/sapien-contracts
 - **Contracts Audit**: TBD
 - **Bug Bounty**: TBD
 
 ---
 
-*Last Updated: June 28 2025*
+*Last Updated: July 1 2025*
