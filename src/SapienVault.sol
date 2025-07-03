@@ -249,6 +249,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * - effectiveMultiplier: Current multiplier applied to this user's stake for rewards
      * - effectiveLockUpPeriod: Lockup period for the user's position
      * - timeUntilUnlock: Seconds remaining until the stake becomes unlocked (0 if already unlocked)
+     * - timeUntilEarlyUnstake: Seconds remaining until early unstake is ready (0 if not in cooldown)
+     * - earlyUnstakeCooldownAmount: Amount requested for early unstake (slot 5)
      *
      * STAKING STATES:
      * 1. LOCKED: Tokens in lockup period (cannot initiate unstaking)
@@ -279,6 +281,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             summary.effectiveMultiplier = userStake.effectiveMultiplier;
             summary.effectiveLockUpPeriod = userStake.effectiveLockUpPeriod;
             summary.timeUntilUnlock = getTimeUntilUnlock(user);
+            summary.timeUntilEarlyUnstake = getTimeUntilEarlyUnstake(user);
+            summary.earlyUnstakeCooldownAmount = getEarlyUnstakeCooldownAmount(user);
         } else {
             summary.userTotalStaked = 0;
             summary.totalUnlocked = 0;
@@ -484,11 +488,24 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             && block.timestamp >= userStake.earlyUnstakeCooldownStart + Const.COOLDOWN_PERIOD;
     }
 
-    // -------------------------------------------------------------
-    //  Stake Management
-    // -------------------------------------------------------------
+    /**
+     * @notice Get the time remaining until early unstake is ready
+     * @param user The address of the user to query
+     * @return timeUntilEarlyUnstake time remaining until early unstake is ready (seconds)
+     */
+    function getTimeUntilEarlyUnstake(address user) public view returns (uint256 timeUntilEarlyUnstake) {
+        UserStake memory userStake = userStakes[user];
+        if (userStake.earlyUnstakeCooldownStart == 0) return 0;
+        return userStake.earlyUnstakeCooldownStart + Const.COOLDOWN_PERIOD - block.timestamp;
+    }
 
     /**
+     * @notice Get the amount requested for early unstake
+     * // -------------------------------------------------------------
+     * //  Stake Management
+     * // -------------------------------------------------------------
+     *
+     * /**
      * @notice Stake a specified `amount` of tokens for a given `lockUpPeriod`.
      * @param amount The amount of tokens to stake.
      * @param lockUpPeriod The lock-up duration in seconds (30/90/180/365 days).

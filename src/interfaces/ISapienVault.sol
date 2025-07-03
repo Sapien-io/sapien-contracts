@@ -132,12 +132,14 @@ interface ISapienVault {
     function getTotalInCooldown(address user) external view returns (uint256);
     function getUserMultiplier(address user) external view returns (uint256);
     function getEarlyUnstakeCooldownAmount(address user) external view returns (uint256);
-    function isEarlyUnstakeReady(address user) external view returns (bool);
+    function getTimeUntilEarlyUnstake(address user) external view returns (uint256);
 
     function getUserStake(address user) external view returns (UserStake memory);
     function getUserStakingSummary(address user) external view returns (UserStakingSummary memory summary);
     function getTimeUntilUnlock(address user) external view returns (uint256);
     function getUserLockupPeriod(address user) external view returns (uint256);
+
+    function isEarlyUnstakeReady(address user) external view returns (bool);
     function hasActiveStake(address user) external view returns (bool);
     function calculateMultiplier(uint256 amount, uint256 effectiveLockup) external view returns (uint256);
 
