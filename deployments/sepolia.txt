@@ -6,6 +6,14 @@ SapienVault         0xBCC5e0913B3df10b08C88dea87F396Dc95cAd385
 SapienQA            0x575C1F6FBa0cA77AbAd28d8ca8b6f93727b36bbF
 Timelock            0x2a5F9e1Be3A78C73EA1aB256D3Eb0C5A475742cC
 
+SapienToken          0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6
+
+July 3rd - New Implementations
+
+Rewards:            0x1a3db7e6a193942f689a5889550c2166596cb76f
+Vault:              0x2EDE639b1e5853A7701440c842EE5d872c7b8907
+QA:                 0x4a91d362c7d21f7683e10913ddb225e959d32003
+
 June 26th - New Implementations
 
 commit              2570ec340f8c97c7afec7b91ae97f35805131f4c

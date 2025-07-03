@@ -32,6 +32,8 @@ interface ISapienVault {
         uint256 effectiveMultiplier; // Current multiplier for rewards (basis points)
         uint256 effectiveLockUpPeriod; // Lockup period (seconds)
         uint256 timeUntilUnlock; // Time remaining until unlock (seconds, 0 if unlocked)
+        uint256 timeUntilEarlyUnstake; // Time remaining until early unstake (seconds, 0 if not in cooldown)
+        uint256 earlyUnstakeCooldownAmount; // Amount requested for early unstake (slot 5)
     }
 
     // -------------------------------------------------------------
@@ -137,6 +139,7 @@ interface ISapienVault {
     function getTimeUntilUnlock(address user) external view returns (uint256);
     function getUserLockupPeriod(address user) external view returns (uint256);
     function hasActiveStake(address user) external view returns (bool);
+    function calculateMultiplier(uint256 amount, uint256 effectiveLockup) external view returns (uint256);
 
     // -------------------------------------------------------------
     // QA Functions

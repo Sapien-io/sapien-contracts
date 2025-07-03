@@ -30,6 +30,12 @@ The TimelockController provides a secure governance mechanism with time delays f
 - Can change the minimum delay
 - Usually held by the timelock itself
 
+## Using scripts/Upgrader.s.sol
+
+See the Upgrade scripts for more info.
+
+`forge script script/Upgrader.s.sol --sig "generateUpgradePayload(uint8,address)" 1 0x1a3db7e6a193942f689a5889550c2166596cb76f --rpc-url $RPC_URL`
+
 ## Step-by-Step Process
 
 ### Phase 1: Scheduling an Operation
