@@ -496,16 +496,18 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     function getTimeUntilEarlyUnstake(address user) public view returns (uint256 timeUntilEarlyUnstake) {
         UserStake memory userStake = userStakes[user];
         if (userStake.earlyUnstakeCooldownStart == 0) return 0;
-        return userStake.earlyUnstakeCooldownStart + Const.COOLDOWN_PERIOD - block.timestamp;
+        uint256 cooldownEndTime = userStake.earlyUnstakeCooldownStart + Const.COOLDOWN_PERIOD;
+        return block.timestamp >= cooldownEndTime ? 0 : cooldownEndTime - block.timestamp;
     }
 
+
+    // -------------------------------------------------------------
+    //  Stake Management
+    // -------------------------------------------------------------
+    
     /**
-     * @notice Get the amount requested for early unstake
-     * // -------------------------------------------------------------
-     * //  Stake Management
-     * // -------------------------------------------------------------
-     *
-     * /**
+     * @notice Get the amount requested for unstake.
+     * @dev This can only be called if the users does not have an active stake.
      * @notice Stake a specified `amount` of tokens for a given `lockUpPeriod`.
      * @param amount The amount of tokens to stake.
      * @param lockUpPeriod The lock-up duration in seconds (30/90/180/365 days).

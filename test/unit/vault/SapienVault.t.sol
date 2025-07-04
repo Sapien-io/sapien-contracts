@@ -32,7 +32,7 @@ contract SapienVaultBasicTest is Test {
     address public user3 = makeAddr("user3");
 
     uint256 public constant MINIMUM_STAKE = 1e18; // 1 SAPIEN
-    uint256 public constant COOLDOWN_PERIOD = 2 days;
+    uint256 public constant COOLDOWN_PERIOD = Const.COOLDOWN_PERIOD;
     uint256 public constant EARLY_WITHDRAWAL_PENALTY = 2000; // 20% in basis points
     uint256 public constant MINIMUM_LOCKUP_INCREASE = 7 days;
 
@@ -3899,7 +3899,7 @@ contract SapienVaultBasicTest is Test {
         );
 
         // 6. Test partially through cooldown
-        uint256 elapsedTime = 1 days; // 1 day out of 2 day cooldown
+        uint256 elapsedTime = Const.COOLDOWN_PERIOD / 2; // 1 day out of 2 day cooldown
         vm.warp(initiationTime + elapsedTime);
         timeUntilEarlyUnstake = sapienVault.getTimeUntilEarlyUnstake(user1);
         assertEq(timeUntilEarlyUnstake, COOLDOWN_PERIOD - elapsedTime, "Should return remaining cooldown time");
