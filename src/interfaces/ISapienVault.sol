@@ -114,6 +114,7 @@ interface ISapienVault {
     function stake(uint256 amount, uint256 lockUpPeriod) external;
     function increaseAmount(uint256 additionalAmount) external;
     function increaseLockup(uint256 additionalLockup) external;
+    function increaseStake(uint256 additionalAmount, uint256 additionalLockup) external;
     function initiateUnstake(uint256 amount) external;
     function unstake(uint256 amount) external;
     function initiateEarlyUnstake(uint256 amount) external;

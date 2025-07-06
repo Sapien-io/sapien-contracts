@@ -500,11 +500,10 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         return block.timestamp >= cooldownEndTime ? 0 : cooldownEndTime - block.timestamp;
     }
 
-
     // -------------------------------------------------------------
     //  Stake Management
     // -------------------------------------------------------------
-    
+
     /**
      * @notice Get the amount requested for unstake.
      * @dev This can only be called if the users does not have an active stake.
@@ -620,6 +619,17 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         userStake.lastUpdateTime = block.timestamp.toUint64();
 
         emit LockupIncreased(msg.sender, additionalLockup, newEffectiveLockup, userStake.effectiveMultiplier);
+    }
+
+    /**
+     * @notice Increases both the staked amount and lockup period in a single transaction.
+     * @param additionalAmount The additional amount to stake.
+     * @param additionalLockup The additional lockup time in seconds.
+     * @dev This function simply calls increaseAmount and increaseLockup in sequence for better UX.
+     */
+    function increaseStake(uint256 additionalAmount, uint256 additionalLockup) external {
+        increaseAmount(additionalAmount);
+        increaseLockup(additionalLockup);
     }
 
     /**
