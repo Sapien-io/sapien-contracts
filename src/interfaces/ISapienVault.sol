@@ -24,15 +24,12 @@ interface ISapienVault {
         uint256 userTotalStaked; // Total amount staked by the user
         uint256 effectiveMultiplier; // Current multiplier for rewards (basis points)
         uint256 effectiveLockUpPeriod; // Lockup period (seconds)
-        
         uint256 totalLocked; // Amount still in lockup period
         uint256 totalUnlocked; // Amount available for unstaking initiation
         uint256 timeUntilUnlock; // Time remaining until unlock (seconds, 0 if unlocked)
         uint256 totalReadyForUnstake; // Amount ready for immediate withdrawal
-        
         uint256 timeUntilUnstake; // Time remaining until cooldown unstake (seconds, 0 if not in cooldown)
         uint256 totalInCooldown; // Amount currently in unstaking cooldown
-
         uint256 timeUntilEarlyUnstake; // Time remaining until early unstake (seconds, 0 if not in cooldown)
         uint256 totalInEarlyCooldown; // Amount requested for early unstake (slot 5)
     }

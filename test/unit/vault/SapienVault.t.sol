@@ -4045,9 +4045,7 @@ contract SapienVaultBasicTest is Test {
         vm.stopPrank();
 
         // 3. Test with stake but no unstake cooldown - should return 0
-        assertEq(
-            sapienVault.getTimeUntilUnstake(user1), 0, "Should return 0 when no unstake cooldown is active"
-        );
+        assertEq(sapienVault.getTimeUntilUnstake(user1), 0, "Should return 0 when no unstake cooldown is active");
 
         // 4. Fast forward past lockup period to unlock stake
         vm.warp(block.timestamp + LOCK_30_DAYS + 1);
@@ -4064,9 +4062,7 @@ contract SapienVaultBasicTest is Test {
 
         // 6. Test immediately after initiation - should return full cooldown period
         uint256 timeUntilUnstake = sapienVault.getTimeUntilUnstake(user1);
-        assertEq(
-            timeUntilUnstake, COOLDOWN_PERIOD, "Should return full cooldown period immediately after initiation"
-        );
+        assertEq(timeUntilUnstake, COOLDOWN_PERIOD, "Should return full cooldown period immediately after initiation");
 
         // 7. Test partially through cooldown
         uint256 elapsedTime = Const.COOLDOWN_PERIOD / 2; // 1 day out of 2 day cooldown
@@ -4088,9 +4084,7 @@ contract SapienVaultBasicTest is Test {
         vm.warp(initiationTime + COOLDOWN_PERIOD / 2); // Go back to middle of cooldown
         timeUntilUnstake = sapienVault.getTimeUntilUnstake(user1);
         summary = sapienVault.getUserStakingSummary(user1);
-        assertEq(
-            timeUntilUnstake, summary.timeUntilUnstake, "Should be consistent with getUserStakingSummary"
-        );
+        assertEq(timeUntilUnstake, summary.timeUntilUnstake, "Should be consistent with getUserStakingSummary");
 
         // 11. Test that getTotalReadyForUnstake is consistent
         vm.warp(initiationTime + COOLDOWN_PERIOD + 1); // After cooldown
@@ -4119,11 +4113,11 @@ contract SapienVaultBasicTest is Test {
         // Available balance is remainingAmount - remainingAmount (already in cooldown) = 0
         // So we need to complete the first unstake before initiating another
         vm.warp(secondInitiationTime + COOLDOWN_PERIOD + 1); // Complete second cooldown
-        
+
         // Complete the second unstake to free up balance for a third test
         vm.prank(user1);
         sapienVault.unstake(remainingAmount);
-        
+
         // Verify all stake is now withdrawn
         assertEq(sapienVault.getTotalStaked(user1), 0, "All stake should be withdrawn");
         assertEq(sapienVault.getTimeUntilUnstake(user1), 0, "Should return 0 after all stake withdrawn");
@@ -4153,7 +4147,9 @@ contract SapienVaultBasicTest is Test {
         sapienVault.initiateUnstake(stakeAmount);
 
         // Test at exact initiation moment
-        assertEq(sapienVault.getTimeUntilUnstake(user2), COOLDOWN_PERIOD, "Should be exact cooldown period at initiation");
+        assertEq(
+            sapienVault.getTimeUntilUnstake(user2), COOLDOWN_PERIOD, "Should be exact cooldown period at initiation"
+        );
 
         // Test 1 second before completion
         vm.warp(exactInitiationTime + COOLDOWN_PERIOD - 1);
@@ -4191,7 +4187,7 @@ contract SapienVaultBasicTest is Test {
     function _testPhase1_NoStake() internal view {
         // Phase 1: No stake - all values should be zero
         ISapienVault.UserStakingSummary memory summary = sapienVault.getUserStakingSummary(user1);
-        
+
         assertEq(summary.userTotalStaked, 0, "P1: userTotalStaked should be 0");
         assertEq(summary.effectiveMultiplier, 0, "P1: effectiveMultiplier should be 0");
         assertEq(summary.effectiveLockUpPeriod, 0, "P1: effectiveLockUpPeriod should be 0");
@@ -4208,17 +4204,23 @@ contract SapienVaultBasicTest is Test {
     function _testPhase2_InitialStake() internal {
         // Phase 2: Initial stake (locked)
         testStakeTime = block.timestamp;
-        
+
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), testStakeAmount);
         sapienVault.stake(testStakeAmount, testLockupPeriod);
         vm.stopPrank();
 
         ISapienVault.UserStakingSummary memory summary = sapienVault.getUserStakingSummary(user1);
-        
+
         assertEq(summary.userTotalStaked, testStakeAmount, "P2: userTotalStaked should match stake amount");
-        assertEq(summary.effectiveMultiplier, sapienVault.calculateMultiplier(testStakeAmount, testLockupPeriod), "P2: effectiveMultiplier should match calculated value");
-        assertEq(summary.effectiveLockUpPeriod, testLockupPeriod, "P2: effectiveLockUpPeriod should match lockup period");
+        assertEq(
+            summary.effectiveMultiplier,
+            sapienVault.calculateMultiplier(testStakeAmount, testLockupPeriod),
+            "P2: effectiveMultiplier should match calculated value"
+        );
+        assertEq(
+            summary.effectiveLockUpPeriod, testLockupPeriod, "P2: effectiveLockUpPeriod should match lockup period"
+        );
         assertEq(summary.totalLocked, testStakeAmount, "P2: totalLocked should equal full stake amount");
         assertEq(summary.totalUnlocked, 0, "P2: totalUnlocked should be 0 (still locked)");
         assertEq(summary.timeUntilUnlock, testLockupPeriod, "P2: timeUntilUnlock should equal lockup period");
@@ -4239,7 +4241,7 @@ contract SapienVaultBasicTest is Test {
         sapienVault.initiateEarlyUnstake(earlyAmount);
 
         ISapienVault.UserStakingSummary memory summary = sapienVault.getUserStakingSummary(user1);
-        
+
         assertEq(summary.userTotalStaked, testStakeAmount, "P3: userTotalStaked should remain unchanged");
         assertEq(summary.totalLocked, testStakeAmount, "P3: totalLocked should still equal full stake");
         assertEq(summary.totalUnlocked, 0, "P3: totalUnlocked should still be 0");
@@ -4253,9 +4255,13 @@ contract SapienVaultBasicTest is Test {
 
         testRemainingStake = testStakeAmount - earlyAmount;
         summary = sapienVault.getUserStakingSummary(user1);
-        
+
         assertEq(summary.userTotalStaked, testRemainingStake, "P4: userTotalStaked should be reduced by early unstake");
-        assertEq(summary.effectiveMultiplier, sapienVault.calculateMultiplier(testRemainingStake, testLockupPeriod), "P4: effectiveMultiplier should be recalculated");
+        assertEq(
+            summary.effectiveMultiplier,
+            sapienVault.calculateMultiplier(testRemainingStake, testLockupPeriod),
+            "P4: effectiveMultiplier should be recalculated"
+        );
         assertEq(summary.totalLocked, testRemainingStake, "P4: totalLocked should equal remaining stake");
         assertEq(summary.totalUnlocked, 0, "P4: totalUnlocked should still be 0 (still locked)");
         assertEq(summary.timeUntilEarlyUnstake, 0, "P4: timeUntilEarlyUnstake should be 0 (completed)");
@@ -4267,7 +4273,7 @@ contract SapienVaultBasicTest is Test {
         vm.warp(testStakeTime + testLockupPeriod + 1);
 
         ISapienVault.UserStakingSummary memory summary = sapienVault.getUserStakingSummary(user1);
-        
+
         assertEq(summary.userTotalStaked, testRemainingStake, "P5: userTotalStaked should remain the same");
         assertEq(summary.totalLocked, 0, "P5: totalLocked should be 0 (unlocked)");
         assertEq(summary.totalUnlocked, testRemainingStake, "P5: totalUnlocked should equal remaining stake");
@@ -4279,17 +4285,21 @@ contract SapienVaultBasicTest is Test {
         sapienVault.initiateUnstake(unstakeAmount);
 
         summary = sapienVault.getUserStakingSummary(user1);
-        
+
         assertEq(summary.userTotalStaked, testRemainingStake, "P6: userTotalStaked should remain unchanged");
         assertEq(summary.totalLocked, 0, "P6: totalLocked should be 0");
-        assertEq(summary.totalUnlocked, testRemainingStake - unstakeAmount, "P6: totalUnlocked should be reduced by cooldown amount");
+        assertEq(
+            summary.totalUnlocked,
+            testRemainingStake - unstakeAmount,
+            "P6: totalUnlocked should be reduced by cooldown amount"
+        );
         assertEq(summary.totalReadyForUnstake, 0, "P6: totalReadyForUnstake should be 0 (cooldown not done)");
         assertEq(summary.timeUntilUnstake, COOLDOWN_PERIOD, "P6: timeUntilUnstake should show full cooldown");
         assertEq(summary.totalInCooldown, unstakeAmount, "P6: totalInCooldown should match unstake amount");
 
         // Phase 7: Cooldown completed and unstake
         vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
-        
+
         summary = sapienVault.getUserStakingSummary(user1);
         assertEq(summary.totalReadyForUnstake, unstakeAmount, "P7: totalReadyForUnstake should match unstake amount");
         assertEq(summary.timeUntilUnstake, 0, "P7: timeUntilUnstake should be 0 (cooldown complete)");
@@ -4299,7 +4309,7 @@ contract SapienVaultBasicTest is Test {
 
         summary = sapienVault.getUserStakingSummary(user1);
         uint256 finalAmount = testRemainingStake - unstakeAmount;
-        
+
         assertEq(summary.userTotalStaked, finalAmount, "P7: userTotalStaked should be reduced by unstake");
         assertEq(summary.totalUnlocked, finalAmount, "P7: totalUnlocked should equal final stake");
         assertEq(summary.totalReadyForUnstake, 0, "P7: totalReadyForUnstake should be 0 (completed)");
@@ -4309,142 +4319,186 @@ contract SapienVaultBasicTest is Test {
     function _testFinalVerification() internal view {
         // Cross-check all summary fields with individual getters
         ISapienVault.UserStakingSummary memory summary = sapienVault.getUserStakingSummary(user1);
-        
+
         assertEq(summary.userTotalStaked, sapienVault.getTotalStaked(user1), "Total staked should match getter");
         assertEq(summary.totalUnlocked, sapienVault.getTotalUnlocked(user1), "Total unlocked should match getter");
         assertEq(summary.totalLocked, sapienVault.getTotalLocked(user1), "Total locked should match getter");
-        assertEq(summary.totalInCooldown, sapienVault.getTotalInCooldown(user1), "Total in cooldown should match getter");
-        assertEq(summary.totalReadyForUnstake, sapienVault.getTotalReadyForUnstake(user1), "Ready for unstake should match getter");
+        assertEq(
+            summary.totalInCooldown, sapienVault.getTotalInCooldown(user1), "Total in cooldown should match getter"
+        );
+        assertEq(
+            summary.totalReadyForUnstake,
+            sapienVault.getTotalReadyForUnstake(user1),
+            "Ready for unstake should match getter"
+        );
         assertEq(summary.effectiveMultiplier, sapienVault.getUserMultiplier(user1), "Multiplier should match getter");
-        assertEq(summary.effectiveLockUpPeriod, sapienVault.getUserLockupPeriod(user1), "Lockup period should match getter");
-        assertEq(summary.timeUntilUnlock, sapienVault.getTimeUntilUnlock(user1), "Time until unlock should match getter");
-        assertEq(summary.timeUntilUnstake, sapienVault.getTimeUntilUnstake(user1), "Time until unstake should match getter");
-        assertEq(summary.timeUntilEarlyUnstake, sapienVault.getTimeUntilEarlyUnstake(user1), "Time until early unstake should match getter");
-        assertEq(summary.totalInEarlyCooldown, sapienVault.getEarlyUnstakeCooldownAmount(user1), "Early cooldown amount should match getter");
+        assertEq(
+            summary.effectiveLockUpPeriod, sapienVault.getUserLockupPeriod(user1), "Lockup period should match getter"
+        );
+        assertEq(
+            summary.timeUntilUnlock, sapienVault.getTimeUntilUnlock(user1), "Time until unlock should match getter"
+        );
+        assertEq(
+            summary.timeUntilUnstake, sapienVault.getTimeUntilUnstake(user1), "Time until unstake should match getter"
+        );
+        assertEq(
+            summary.timeUntilEarlyUnstake,
+            sapienVault.getTimeUntilEarlyUnstake(user1),
+            "Time until early unstake should match getter"
+        );
+        assertEq(
+            summary.totalInEarlyCooldown,
+            sapienVault.getEarlyUnstakeCooldownAmount(user1),
+            "Early cooldown amount should match getter"
+        );
     }
 
     function test_Vault_EarlyUnstake_ForceCompleteUnstaking_BelowMinimum() public {
         // Test the edge case where early unstaking would leave below minimum stake,
         // so the system forces complete unstaking instead
-        
+
         // Setup: Stake slightly more than minimum to create the edge case scenario
         // MINIMUM_STAKE_AMOUNT in contract is 1e18 (1 token)
         uint256 stakeAmount = 2e18; // 2 tokens
         uint256 partialUnstakeAmount = 1.5e18; // Try to unstake 1.5 tokens, leaving 0.5 (below 1 token minimum)
-        
+
         sapienToken.mint(user1, stakeAmount);
-        
+
         // Stake the amount
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), stakeAmount);
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
         vm.stopPrank();
-        
+
         // Verify initial state
         assertEq(sapienVault.getTotalStaked(user1), stakeAmount, "Initial stake should be correct");
-        
+
         // Initiate early unstake for the partial amount that would leave below minimum
         vm.prank(user1);
         sapienVault.initiateEarlyUnstake(partialUnstakeAmount);
-        
+
         // Complete cooldown period
         vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
-        
+
         // Calculate expected penalty for FULL amount (2 tokens, not 1.5) because system forces complete unstaking
         uint256 expectedPenalty = (stakeAmount * EARLY_WITHDRAWAL_PENALTY) / 10000;
         uint256 expectedPayout = stakeAmount - expectedPenalty;
-        
+
         uint256 userBalanceBefore = sapienToken.balanceOf(user1);
         uint256 treasuryBalanceBefore = sapienToken.balanceOf(treasury);
-        
+
         // Execute early unstake with the partial amount - should force complete unstaking
         vm.prank(user1);
         vm.expectEmit(true, false, false, true);
         emit ISapienVault.EarlyUnstake(user1, expectedPayout, expectedPenalty);
         sapienVault.earlyUnstake(partialUnstakeAmount);
-        
+
         // Verify that FULL amount was unstaked (not just the requested partial amount)
-        assertEq(sapienToken.balanceOf(user1), userBalanceBefore + expectedPayout, "User should receive payout for full amount");
-        assertEq(sapienToken.balanceOf(treasury), treasuryBalanceBefore + expectedPenalty, "Treasury should receive penalty for full amount");
-        
+        assertEq(
+            sapienToken.balanceOf(user1),
+            userBalanceBefore + expectedPayout,
+            "User should receive payout for full amount"
+        );
+        assertEq(
+            sapienToken.balanceOf(treasury),
+            treasuryBalanceBefore + expectedPenalty,
+            "Treasury should receive penalty for full amount"
+        );
+
         // Verify stake is completely cleared
         assertEq(sapienVault.getTotalStaked(user1), 0, "Stake should be completely cleared");
         assertFalse(sapienVault.hasActiveStake(user1), "User should have no active stake");
-        
+
         // Verify all cooldown and early unstake state is cleared
         ISapienVault.UserStakingSummary memory summary = sapienVault.getUserStakingSummary(user1);
         assertEq(summary.userTotalStaked, 0, "Summary: total staked should be 0");
         assertEq(summary.totalInEarlyCooldown, 0, "Summary: early cooldown should be cleared");
         assertEq(summary.timeUntilEarlyUnstake, 0, "Summary: time until early unstake should be 0");
-        
+
         // Verify user can stake again (full reset)
         uint256 newStakeAmount = 1e18; // 1 token (minimum stake)
         sapienToken.mint(user1, newStakeAmount);
-        
+
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), newStakeAmount);
         sapienVault.stake(newStakeAmount, LOCK_30_DAYS); // Should work fine
         vm.stopPrank();
-        
-        assertEq(sapienVault.getTotalStaked(user1), newStakeAmount, "Should be able to stake again after forced complete unstake");
+
+        assertEq(
+            sapienVault.getTotalStaked(user1),
+            newStakeAmount,
+            "Should be able to stake again after forced complete unstake"
+        );
     }
 
     function test_Vault_Unstake_PartialFromCooldown() public {
         // Test the case where user unstakes only part of their cooldown amount
         // This should cover line 803: userStake.cooldownAmount -= amount.toUint128();
-        
+
         uint256 stakeAmount = 100e18; // 100 tokens
         uint256 initiateUnstakeAmount = 60e18; // Put 60 tokens in cooldown
         uint256 partialUnstakeAmount = 30e18; // Unstake only 30 of the 60 in cooldown
-        
+
         sapienToken.mint(user1, stakeAmount);
-        
+
         // Stake the amount
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), stakeAmount);
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
         vm.stopPrank();
-        
+
         // Wait for lockup period to expire
         vm.warp(block.timestamp + LOCK_30_DAYS + 1);
-        
+
         // Initiate unstake for 60 tokens
         vm.prank(user1);
         sapienVault.initiateUnstake(initiateUnstakeAmount);
-        
+
         // Verify cooldown state
         assertEq(sapienVault.getTotalInCooldown(user1), initiateUnstakeAmount, "Should have 60 tokens in cooldown");
-        
+
         // Complete cooldown period
         vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
-        
+
         uint256 userBalanceBefore = sapienToken.balanceOf(user1);
-        
+
         // Execute partial unstake (30 out of 60 tokens in cooldown)
         vm.prank(user1);
         vm.expectEmit(true, false, false, true);
         emit ISapienVault.Unstaked(user1, partialUnstakeAmount);
         sapienVault.unstake(partialUnstakeAmount);
-        
+
         // Verify user received the partial amount
-        assertEq(sapienToken.balanceOf(user1), userBalanceBefore + partialUnstakeAmount, "User should receive the partial amount");
-        
+        assertEq(
+            sapienToken.balanceOf(user1),
+            userBalanceBefore + partialUnstakeAmount,
+            "User should receive the partial amount"
+        );
+
         // Verify remaining cooldown amount (should be 30 tokens still in cooldown)
         uint256 expectedRemainingCooldown = initiateUnstakeAmount - partialUnstakeAmount; // 60 - 30 = 30
-        assertEq(sapienVault.getTotalInCooldown(user1), expectedRemainingCooldown, "Should have 30 tokens remaining in cooldown");
-        
+        assertEq(
+            sapienVault.getTotalInCooldown(user1),
+            expectedRemainingCooldown,
+            "Should have 30 tokens remaining in cooldown"
+        );
+
         // Verify total staked amount (should be 70 tokens: 100 - 30 executed unstake)
         uint256 expectedRemainingStaked = stakeAmount - partialUnstakeAmount; // 100 - 30 = 70
         assertEq(sapienVault.getTotalStaked(user1), expectedRemainingStaked, "Should have 70 tokens still staked");
-        
+
         // Verify user can unstake the remaining cooldown amount
         vm.prank(user1);
         sapienVault.unstake(expectedRemainingCooldown);
-        
+
         // Verify final state
         assertEq(sapienVault.getTotalInCooldown(user1), 0, "All cooldown should be cleared");
-        assertEq(sapienToken.balanceOf(user1), userBalanceBefore + initiateUnstakeAmount, "User should have received all 60 tokens");
-        
+        assertEq(
+            sapienToken.balanceOf(user1),
+            userBalanceBefore + initiateUnstakeAmount,
+            "User should have received all 60 tokens"
+        );
+
         // Verify final staked amount (should be 40 tokens: 100 - 60 total unstaked)
         uint256 finalExpectedStaked = stakeAmount - initiateUnstakeAmount; // 100 - 60 = 40
         assertEq(sapienVault.getTotalStaked(user1), finalExpectedStaked, "Should have 40 tokens remaining staked");

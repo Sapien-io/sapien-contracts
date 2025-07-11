@@ -33,8 +33,8 @@ contract BatchRewardsTest is Test {
     address public user = vm.addr(USER_PK);
 
     // Test parameters
-    uint256 constant INITIAL_BALANCE = 1_000_000 * 10**18;
-    uint256 constant REWARD_AMOUNT = 100 * 10**18;
+    uint256 constant INITIAL_BALANCE = 1_000_000 * 10 ** 18;
+    uint256 constant REWARD_AMOUNT = 100 * 10 ** 18;
     uint256 constant MAX_REWARD = Const.MAX_REWARD_AMOUNT;
 
     function setUp() public {
@@ -47,12 +47,7 @@ contract BatchRewardsTest is Test {
         // Deploy SapienRewards implementation for SPN
         SapienRewards sapienRewardsImpl = new SapienRewards();
         bytes memory spnInitData = abi.encodeWithSelector(
-            SapienRewards.initialize.selector,
-            admin,
-            rewardAdmin,
-            rewardManager,
-            pauser,
-            address(sapienToken)
+            SapienRewards.initialize.selector, admin, rewardAdmin, rewardManager, pauser, address(sapienToken)
         );
         ERC1967Proxy sapienRewardsProxy = new ERC1967Proxy(address(sapienRewardsImpl), spnInitData);
         sapienRewards = SapienRewards(address(sapienRewardsProxy));
@@ -60,21 +55,13 @@ contract BatchRewardsTest is Test {
         // Deploy SapienRewards implementation for USDC
         SapienRewards usdcRewardsImpl = new SapienRewards();
         bytes memory usdcInitData = abi.encodeWithSelector(
-            SapienRewards.initialize.selector,
-            admin,
-            rewardAdmin,
-            rewardManager,
-            pauser,
-            address(usdcToken)
+            SapienRewards.initialize.selector, admin, rewardAdmin, rewardManager, pauser, address(usdcToken)
         );
         ERC1967Proxy usdcRewardsProxy = new ERC1967Proxy(address(usdcRewardsImpl), usdcInitData);
         usdcRewards = SapienRewards(address(usdcRewardsProxy));
 
         // Deploy BatchRewards
-        batchRewards = new BatchRewards(
-            ISapienRewards(address(sapienRewards)), 
-            ISapienRewards(address(usdcRewards))
-        );
+        batchRewards = new BatchRewards(ISapienRewards(address(sapienRewards)), ISapienRewards(address(usdcRewards)));
 
         // Grant BATCH_CLAIMER_ROLE to BatchRewards contract
         sapienRewards.grantRole(Const.BATCH_CLAIMER_ROLE, address(batchRewards));
@@ -82,7 +69,7 @@ contract BatchRewardsTest is Test {
 
         // Mint and deposit rewards
         sapienToken.mint(rewardAdmin, INITIAL_BALANCE);
-        usdcToken.mint(rewardAdmin, INITIAL_BALANCE / 10**12); // Adjust for 6 decimals
+        usdcToken.mint(rewardAdmin, INITIAL_BALANCE / 10 ** 12); // Adjust for 6 decimals
 
         vm.stopPrank();
         vm.startPrank(rewardAdmin);
@@ -90,8 +77,8 @@ contract BatchRewardsTest is Test {
         sapienToken.approve(address(sapienRewards), INITIAL_BALANCE);
         sapienRewards.depositRewards(INITIAL_BALANCE);
 
-        usdcToken.approve(address(usdcRewards), INITIAL_BALANCE / 10**12);
-        usdcRewards.depositRewards(INITIAL_BALANCE / 10**12);
+        usdcToken.approve(address(usdcRewards), INITIAL_BALANCE / 10 ** 12);
+        usdcRewards.depositRewards(INITIAL_BALANCE / 10 ** 12);
 
         vm.stopPrank();
     }
@@ -102,7 +89,13 @@ contract BatchRewardsTest is Test {
     }
 
     // Helper function to generate EIP-712 signature
-    function signRewardClaim(uint256 signerPk, address userWallet, uint256 rewardAmount, bytes32 orderId, SapienRewards rewardsContract) internal view returns (bytes memory) {
+    function signRewardClaim(
+        uint256 signerPk,
+        address userWallet,
+        uint256 rewardAmount,
+        bytes32 orderId,
+        SapienRewards rewardsContract
+    ) internal view returns (bytes memory) {
         bytes32 hash = rewardsContract.validateAndGetHashToSign(userWallet, rewardAmount, orderId);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, hash);
         return abi.encodePacked(r, s, v);
@@ -119,10 +112,12 @@ contract BatchRewardsTest is Test {
     function test_BatchClaimRewards_Success() public {
         // Generate signatures for the actual user (BatchRewards will call claimRewardFor)
         bytes32 sapienOrderId = generateOrderId(block.timestamp + 200);
-        bytes memory sapienSignature = signRewardClaim(REWARD_MANAGER_PK, user, REWARD_AMOUNT, sapienOrderId, sapienRewards);
+        bytes memory sapienSignature =
+            signRewardClaim(REWARD_MANAGER_PK, user, REWARD_AMOUNT, sapienOrderId, sapienRewards);
 
         bytes32 usdcOrderId = generateOrderId(block.timestamp + 200);
-        bytes memory usdcSignature = signRewardClaim(REWARD_MANAGER_PK, user, REWARD_AMOUNT / 10**12, usdcOrderId, usdcRewards);
+        bytes memory usdcSignature =
+            signRewardClaim(REWARD_MANAGER_PK, user, REWARD_AMOUNT / 10 ** 12, usdcOrderId, usdcRewards);
 
         // Record balances before
         uint256 userSpnBefore = sapienToken.balanceOf(user);
@@ -131,17 +126,12 @@ contract BatchRewardsTest is Test {
         // Perform batch claim
         vm.prank(user);
         batchRewards.batchClaimRewards(
-            REWARD_AMOUNT,
-            sapienOrderId,
-            sapienSignature,
-            REWARD_AMOUNT / 10**12,
-            usdcOrderId,
-            usdcSignature
+            REWARD_AMOUNT, sapienOrderId, sapienSignature, REWARD_AMOUNT / 10 ** 12, usdcOrderId, usdcSignature
         );
 
         // Check balances after
         assertEq(sapienToken.balanceOf(user), userSpnBefore + REWARD_AMOUNT);
-        assertEq(usdcToken.balanceOf(user), userUsdcBefore + REWARD_AMOUNT / 10**12);
+        assertEq(usdcToken.balanceOf(user), userUsdcBefore + REWARD_AMOUNT / 10 ** 12);
 
         // Check orders marked as redeemed (for the actual user)
         assertTrue(sapienRewards.getOrderRedeemedStatus(user, sapienOrderId));
@@ -151,18 +141,12 @@ contract BatchRewardsTest is Test {
     function test_BatchClaimRewards_Fail_InvalidSignature() public {
         // Generate invalid signature (wrong amount)
         bytes32 orderId = generateOrderId(block.timestamp + 200);
-        bytes memory invalidSignature = signRewardClaim(REWARD_MANAGER_PK, user, REWARD_AMOUNT + 1, orderId, sapienRewards);
+        bytes memory invalidSignature =
+            signRewardClaim(REWARD_MANAGER_PK, user, REWARD_AMOUNT + 1, orderId, sapienRewards);
 
         vm.expectRevert(); // Expect revert from invalid signature
         vm.prank(user);
-        batchRewards.batchClaimRewards(
-            REWARD_AMOUNT,
-            orderId,
-            invalidSignature,
-            0,
-            bytes32(0),
-            ""
-        );
+        batchRewards.batchClaimRewards(REWARD_AMOUNT, orderId, invalidSignature, 0, bytes32(0), "");
     }
 
     function test_BatchClaimRewards_Fail_UsedOrder() public {
@@ -171,50 +155,29 @@ contract BatchRewardsTest is Test {
 
         // First claim - use BatchRewards to claim first
         vm.prank(user);
-        batchRewards.batchClaimRewards(
-            REWARD_AMOUNT,
-            orderId,
-            signature,
-            0,
-            bytes32(0),
-            ""
-        );
+        batchRewards.batchClaimRewards(REWARD_AMOUNT, orderId, signature, 0, bytes32(0), "");
 
         // Attempt batch with used order
         vm.expectRevert(); // OrderAlreadyUsed
         vm.prank(user);
-        batchRewards.batchClaimRewards(
-            REWARD_AMOUNT,
-            orderId,
-            signature,
-            0,
-            bytes32(0),
-            ""
-        );
+        batchRewards.batchClaimRewards(REWARD_AMOUNT, orderId, signature, 0, bytes32(0), "");
     }
 
     function test_BatchClaimRewards_Fail_InsufficientRewards() public {
         uint256 claimAmount = REWARD_AMOUNT; // 100 tokens - well within limits
-        
+
         // Generate signatures while full balance is available
         bytes32 orderId = generateOrderId(block.timestamp + 200);
         bytes memory signature = signRewardClaim(REWARD_MANAGER_PK, user, claimAmount, orderId, sapienRewards);
-        
+
         // Admin withdraws most of the rewards, leaving insufficient for the claim
         vm.prank(rewardAdmin);
-        sapienRewards.withdrawRewards(INITIAL_BALANCE - 50 * 10**18); // Leave only 50 tokens
-        
+        sapienRewards.withdrawRewards(INITIAL_BALANCE - 50 * 10 ** 18); // Leave only 50 tokens
+
         // Now attempt to claim 100 tokens - should fail with InsufficientAvailableRewards
         vm.expectRevert(); // InsufficientAvailableRewards
         vm.prank(user);
-        batchRewards.batchClaimRewards(
-            claimAmount,
-            orderId,
-            signature,
-            0,
-            generateOrderId(block.timestamp + 200),
-            ""
-        );
+        batchRewards.batchClaimRewards(claimAmount, orderId, signature, 0, generateOrderId(block.timestamp + 200), "");
     }
 
     function test_BatchClaimRewards_ZeroAmounts() public {
@@ -225,15 +188,8 @@ contract BatchRewardsTest is Test {
 
         // This should succeed as our contract skips zero amount claims
         vm.prank(user);
-        batchRewards.batchClaimRewards(
-            0,
-            orderId1,
-            "",
-            0,
-            orderId2,
-            ""
-        );
-        
+        batchRewards.batchClaimRewards(0, orderId1, "", 0, orderId2, "");
+
         // No tokens should be transferred
         assertEq(sapienToken.balanceOf(user), 0);
         assertEq(usdcToken.balanceOf(user), 0);
@@ -254,14 +210,7 @@ contract BatchRewardsTest is Test {
         bytes32 usdcOrderId = generateOrderId(block.timestamp + 200);
         bytes memory usdcSignature = signRewardClaim(REWARD_MANAGER_PK, user, 1, usdcOrderId, usdcRewards);
         vm.prank(user);
-        batchRewards.batchClaimRewards(
-            MAX_REWARD,
-            orderId,
-            signature,
-            1,
-            usdcOrderId,
-            usdcSignature
-        );
+        batchRewards.batchClaimRewards(MAX_REWARD, orderId, signature, 1, usdcOrderId, usdcSignature);
 
         assertEq(sapienToken.balanceOf(user), MAX_REWARD);
         assertEq(usdcToken.balanceOf(user), 1);
@@ -271,10 +220,10 @@ contract BatchRewardsTest is Test {
         // Use a proper timestamp that's expired but not zero
         uint256 expiredTimestamp = block.timestamp + 100; // Valid timestamp
         bytes32 expiredOrderId = generateOrderId(expiredTimestamp);
-        
+
         // Generate signature first
         bytes memory signature = signRewardClaim(REWARD_MANAGER_PK, user, REWARD_AMOUNT, expiredOrderId, sapienRewards);
-        
+
         // Then move time forward to make it expired
         vm.warp(expiredTimestamp + 1);
 
@@ -308,7 +257,8 @@ contract BatchRewardsTest is Test {
     function test_BatchClaimRewards_OnlySapien() public {
         // Test claiming only Sapien rewards (USDC amount = 0)
         bytes32 sapienOrderId = generateOrderId(block.timestamp + 200);
-        bytes memory sapienSignature = signRewardClaim(REWARD_MANAGER_PK, user, REWARD_AMOUNT, sapienOrderId, sapienRewards);
+        bytes memory sapienSignature =
+            signRewardClaim(REWARD_MANAGER_PK, user, REWARD_AMOUNT, sapienOrderId, sapienRewards);
 
         uint256 userSpnBefore = sapienToken.balanceOf(user);
         uint256 userUsdcBefore = usdcToken.balanceOf(user);
@@ -326,7 +276,7 @@ contract BatchRewardsTest is Test {
         // Only Sapien balance should increase
         assertEq(sapienToken.balanceOf(user), userSpnBefore + REWARD_AMOUNT);
         assertEq(usdcToken.balanceOf(user), userUsdcBefore); // USDC unchanged
-        
+
         // Only Sapien order should be marked as redeemed
         assertTrue(sapienRewards.getOrderRedeemedStatus(user, sapienOrderId));
     }
@@ -334,7 +284,8 @@ contract BatchRewardsTest is Test {
     function test_BatchClaimRewards_OnlyUsdc() public {
         // Test claiming only USDC rewards (Sapien amount = 0)
         bytes32 usdcOrderId = generateOrderId(block.timestamp + 200);
-        bytes memory usdcSignature = signRewardClaim(REWARD_MANAGER_PK, user, REWARD_AMOUNT / 10**12, usdcOrderId, usdcRewards);
+        bytes memory usdcSignature =
+            signRewardClaim(REWARD_MANAGER_PK, user, REWARD_AMOUNT / 10 ** 12, usdcOrderId, usdcRewards);
 
         uint256 userSpnBefore = sapienToken.balanceOf(user);
         uint256 userUsdcBefore = usdcToken.balanceOf(user);
@@ -344,18 +295,18 @@ contract BatchRewardsTest is Test {
             0, // Zero Sapien amount
             bytes32(0), // Empty order ID for Sapien
             "", // Empty signature for Sapien
-            REWARD_AMOUNT / 10**12,
+            REWARD_AMOUNT / 10 ** 12,
             usdcOrderId,
             usdcSignature
         );
 
         // Only USDC balance should increase
         assertEq(sapienToken.balanceOf(user), userSpnBefore); // Sapien unchanged
-        assertEq(usdcToken.balanceOf(user), userUsdcBefore + REWARD_AMOUNT / 10**12);
-        
+        assertEq(usdcToken.balanceOf(user), userUsdcBefore + REWARD_AMOUNT / 10 ** 12);
+
         // Only USDC order should be marked as redeemed
         assertTrue(usdcRewards.getOrderRedeemedStatus(user, usdcOrderId));
     }
 
     // Add more tests as needed for comprehensive coverage
-} 
+}

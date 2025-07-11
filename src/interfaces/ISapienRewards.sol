@@ -58,7 +58,7 @@ interface ISapienRewards {
     function unpause() external;
     function setRewardToken(address _rewardToken) external;
     function rewardToken() external view returns (IERC20);
-    
+
     function depositRewards(uint256 amount) external;
     function withdrawRewards(uint256 amount) external;
     function reconcileBalance() external;

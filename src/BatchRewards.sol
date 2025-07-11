@@ -5,7 +5,6 @@ import {ISapienRewards} from "src/interfaces/ISapienRewards.sol";
 import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 
 contract BatchRewards is ReentrancyGuard {
-
     error ZeroAddress();
 
     ISapienRewards public immutable sapienRewards;
