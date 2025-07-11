@@ -1433,7 +1433,7 @@ contract SapienVaultBasicTest is Test {
         // Also test that the original AmountExceedsAvailableBalance still works
         // by trying to initiate another early unstake for more than available
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSignature("EarlyUnstakeCooldownAlreadyActive()"));
+        vm.expectRevert(abi.encodeWithSignature("EarlyUnstakeCooldownActive()"));
         sapienVault.initiateEarlyUnstake(stakeAmount);
     }
 
@@ -1452,15 +1452,18 @@ contract SapienVaultBasicTest is Test {
         vm.expectRevert(abi.encodeWithSignature("MinimumUnstakeAmountRequired()"));
         sapienVault.initiateEarlyUnstake(belowMinimumAmount);
 
-        // Now test with valid initiation but invalid early unstake amount
+        // Now test with valid initiation
         sapienVault.initiateEarlyUnstake(Const.MINIMUM_UNSTAKE_AMOUNT);
 
         // Fast forward past cooldown
         vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
 
-        // This should still revert as earlyUnstake also checks minimum amount
-        vm.expectRevert(abi.encodeWithSignature("MinimumUnstakeAmountRequired()"));
+        // Early unstake allows partial amounts - even below minimum
+        // The minimum check is only in initiateEarlyUnstake to prevent dust attacks
         sapienVault.earlyUnstake(belowMinimumAmount);
+
+        // Verify partial early unstake worked
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), Const.MINIMUM_UNSTAKE_AMOUNT - belowMinimumAmount);
         vm.stopPrank();
     }
 
@@ -3439,21 +3442,24 @@ contract SapienVaultBasicTest is Test {
         vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
 
         // Perform first partial early unstake
+        // Fast forward past cooldown
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+
         vm.prank(user1);
         sapienVault.earlyUnstake(firstUnstake);
 
-        // Verify remaining early unstake amount
+        // Verify remaining early unstake amount after partial unstake
         assertEq(
             sapienVault.getEarlyUnstakeCooldownAmount(user1),
             requestedEarlyUnstake - firstUnstake,
             "Remaining early unstake amount should be tracked"
         );
 
-        // Perform second partial early unstake
+        // Perform second partial early unstake (no need to initiate again)
         vm.prank(user1);
         sapienVault.earlyUnstake(secondUnstake);
 
-        // Verify remaining early unstake amount
+        // Verify remaining early unstake amount after second partial unstake
         assertEq(
             sapienVault.getEarlyUnstakeCooldownAmount(user1),
             requestedEarlyUnstake - firstUnstake - secondUnstake,
@@ -3491,7 +3497,7 @@ contract SapienVaultBasicTest is Test {
 
         // Try to initiate another early unstake - should fail
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSignature("EarlyUnstakeCooldownAlreadyActive()"));
+        vm.expectRevert(abi.encodeWithSignature("EarlyUnstakeCooldownActive()"));
         sapienVault.initiateEarlyUnstake(MINIMUM_STAKE);
 
         // Fast forward and complete the early unstake
@@ -4021,5 +4027,72 @@ contract SapienVaultBasicTest is Test {
         // Should return 0 after complete withdrawal
         assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user2), 0, "Should be 0 after complete withdrawal");
         assertFalse(sapienVault.hasActiveStake(user2), "User should have no active stake");
+    }
+
+    function test_Vault_EarlyUnstakeMultiplierReset() public {
+        uint256 initialStakeAmount = 2500e18;
+        uint256 earlyUnstakeAmount = 1500e18;
+        uint256 expectedRemainingStake = 1000e18;
+        uint256 lockupPeriod = LOCK_365_DAYS;
+        uint256 additionalAmount = 500e18;
+
+        _stakeForUser(user1, initialStakeAmount, lockupPeriod);
+        uint256 initialMultiplier = sapienVault.getUserStakingSummary(user1).effectiveMultiplier;
+
+        _initiateAndExecuteEarlyUnstake(user1, earlyUnstakeAmount);
+        _verifyEarlyUnstakeResults(user1, expectedRemainingStake, lockupPeriod, initialMultiplier);
+
+        _increaseStake(user1, additionalAmount);
+        _verifyStakeIncrease(user1, expectedRemainingStake, additionalAmount);
+    }
+
+    function _stakeForUser(address user, uint256 amount, uint256 lockup) internal {
+        sapienToken.mint(user, amount);
+        vm.startPrank(user);
+        sapienToken.approve(address(sapienVault), amount);
+        sapienVault.stake(amount, lockup);
+        vm.stopPrank();
+    }
+
+    function _initiateAndExecuteEarlyUnstake(address user, uint256 amount) internal {
+        vm.prank(user);
+        sapienVault.initiateEarlyUnstake(amount);
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user), amount);
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        vm.prank(user);
+        sapienVault.earlyUnstake(amount);
+    }
+
+    function _verifyEarlyUnstakeResults(
+        address user,
+        uint256 expectedRemainingStake,
+        uint256 lockupPeriod,
+        uint256 initialMultiplier
+    ) internal view {
+        ISapienVault.UserStakingSummary memory finalStake = sapienVault.getUserStakingSummary(user);
+        uint256 finalMultiplier = finalStake.effectiveMultiplier;
+        assertEq(finalStake.userTotalStaked, expectedRemainingStake);
+        assertEq(finalStake.effectiveLockUpPeriod, lockupPeriod);
+        uint256 expectedFinalMultiplier = sapienVault.calculateMultiplier(expectedRemainingStake, lockupPeriod);
+        assertEq(finalMultiplier, expectedFinalMultiplier);
+        assertLt(finalMultiplier, initialMultiplier);
+    }
+
+    function _increaseStake(address user, uint256 amount) internal {
+        sapienToken.mint(user, amount);
+        vm.startPrank(user);
+        sapienToken.approve(address(sapienVault), amount);
+        sapienVault.increaseAmount(amount);
+        vm.stopPrank();
+    }
+
+    function _verifyStakeIncrease(address user, uint256 expectedRemainingStake, uint256 additionalAmount)
+        internal
+        view
+    {
+        ISapienVault.UserStakingSummary memory increasedStake = sapienVault.getUserStakingSummary(user);
+        uint256 expectedTotalAfterIncrease = expectedRemainingStake + additionalAmount;
+        assertEq(increasedStake.userTotalStaked, expectedTotalAfterIncrease);
+        // Optionally, check multiplier increased
     }
 }

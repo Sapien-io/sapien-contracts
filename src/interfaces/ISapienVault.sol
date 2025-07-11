@@ -58,7 +58,8 @@ interface ISapienVault {
     event QACooldownAdjusted(address indexed user, uint256 adjustedAmount);
     event QAUserStakeReset(address indexed user);
     event MaximumStakeAmountUpdated(uint256 oldMaximumStakeAmount, uint256 newMaximumStakeAmount);
-
+    event UserStakeUpdated(address indexed user, UserStake userStake);
+    event UserStakeReset(address indexed user, UserStake userStake);
     // -------------------------------------------------------------
     // Errors
     // -------------------------------------------------------------
@@ -79,6 +80,8 @@ interface ISapienVault {
     error NotReadyForUnstake();
     error AmountExceedsCooldownAmount();
     error LockPeriodCompleted();
+    error RemainingStakeBelowMinimum();
+    error EarlyUnstakeCooldownActive();
 
     // QA specific errors
 
@@ -86,7 +89,6 @@ interface ISapienVault {
     error EarlyUnstakeCooldownRequired();
 
     error AmountExceedsEarlyUnstakeRequest();
-    error EarlyUnstakeCooldownAlreadyActive();
 
     // -------------------------------------------------------------
     // Initialization Functions

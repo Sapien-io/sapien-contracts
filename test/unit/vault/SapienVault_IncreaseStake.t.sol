@@ -70,7 +70,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test basic increaseStake functionality with valid inputs
      * @dev Verifies that increaseStake properly calls both increaseAmount and increaseLockup
      */
-    function test_IncreaseStake_BasicFunctionality() public {
+    function test_Vault_IncreaseStake_BasicFunctionality() public {
         uint256 initialAmount = MINIMUM_STAKE;
         uint256 additionalAmount = MINIMUM_STAKE * 2;
         uint256 additionalLockup = LOCK_90_DAYS;
@@ -107,7 +107,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test increaseStake with maximum values
      * @dev Verifies behavior at the upper limits of the system
      */
-    function test_IncreaseStake_MaximumValues() public {
+    function test_Vault_IncreaseStake_MaximumValues() public {
         uint256 initialAmount = MINIMUM_STAKE;
         uint256 maxAdditionalAmount = sapienVault.maximumStakeAmount() - initialAmount;
         uint256 maxAdditionalLockup = LOCK_365_DAYS;
@@ -135,7 +135,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test increaseStake with minimum valid values
      * @dev Verifies behavior at the lower limits of the system
      */
-    function test_IncreaseStake_MinimumValues() public {
+    function test_Vault_IncreaseStake_MinimumValues() public {
         uint256 initialAmount = MINIMUM_STAKE;
         uint256 minAdditionalAmount = MINIMUM_STAKE / 100; // Small but valid amount
         uint256 minAdditionalLockup = LOCK_90_DAYS; // Use a clearly valid lockup period
@@ -173,7 +173,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test increaseStake on expired/unlocked stake
      * @dev Verifies behavior when the original stake has expired
      */
-    function test_IncreaseStake_ExpiredStake() public {
+    function test_Vault_IncreaseStake_ExpiredStake() public {
         uint256 initialAmount = MINIMUM_STAKE;
         uint256 additionalAmount = MINIMUM_STAKE * 2;
         uint256 additionalLockup = LOCK_180_DAYS;
@@ -212,7 +212,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test increaseStake with partial time elapsed
      * @dev Verifies lockup calculation when original stake is partially through its period
      */
-    function test_IncreaseStake_PartialTimeElapsed() public {
+    function test_Vault_IncreaseStake_PartialTimeElapsed() public {
         uint256 initialAmount = MINIMUM_STAKE;
         uint256 additionalAmount = MINIMUM_STAKE;
         uint256 additionalLockup = LOCK_90_DAYS;
@@ -254,7 +254,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test increaseStake with lockup period capping
      * @dev Verifies that lockup periods are properly capped at maximum
      */
-    function test_IncreaseStake_LockupCapping() public {
+    function test_Vault_IncreaseStake_LockupCapping() public {
         uint256 initialAmount = MINIMUM_STAKE;
         uint256 additionalAmount = MINIMUM_STAKE;
         uint256 excessiveLockup = LOCK_365_DAYS * 2; // More than maximum
@@ -285,7 +285,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test increaseStake reverts when user has no existing stake
      * @dev Should revert with NoStakeFound error from increaseAmount
      */
-    function test_IncreaseStake_RevertNoExistingStake() public {
+    function test_Vault_IncreaseStake_RevertNoExistingStake() public {
         uint256 additionalAmount = MINIMUM_STAKE;
         uint256 additionalLockup = LOCK_90_DAYS;
 
@@ -302,7 +302,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test increaseStake reverts with zero additional amount
      * @dev Should revert with InvalidAmount error from increaseAmount
      */
-    function test_IncreaseStake_RevertZeroAmount() public {
+    function test_Vault_IncreaseStake_RevertZeroAmount() public {
         uint256 initialAmount = MINIMUM_STAKE;
         uint256 additionalLockup = LOCK_90_DAYS;
 
@@ -323,7 +323,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test increaseStake reverts with insufficient lockup increase
      * @dev Should revert with MinimumLockupIncreaseRequired error from increaseLockup
      */
-    function test_IncreaseStake_RevertInsufficientLockupIncrease() public {
+    function test_Vault_IncreaseStake_RevertInsufficientLockupIncrease() public {
         uint256 initialAmount = MINIMUM_STAKE;
         uint256 additionalAmount = MINIMUM_STAKE;
         uint256 insufficientLockup = MINIMUM_LOCKUP_INCREASE - 1;
@@ -346,7 +346,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test increaseStake reverts when stake is in cooldown
      * @dev Should revert with CannotIncreaseStakeInCooldown error
      */
-    function test_IncreaseStake_RevertDuringCooldown() public {
+    function test_Vault_IncreaseStake_RevertDuringCooldown() public {
         uint256 initialAmount = MINIMUM_STAKE * 2;
         uint256 additionalAmount = MINIMUM_STAKE;
         uint256 additionalLockup = LOCK_90_DAYS;
@@ -376,7 +376,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test increaseStake reverts when stake is in early unstake cooldown
      * @dev Should revert with CannotIncreaseStakeInCooldown error
      */
-    function test_IncreaseStake_RevertDuringEarlyUnstakeCooldown() public {
+    function test_Vault_IncreaseStake_RevertDuringEarlyUnstakeCooldown() public {
         uint256 initialAmount = MINIMUM_STAKE * 2;
         uint256 additionalAmount = MINIMUM_STAKE;
         uint256 additionalLockup = LOCK_90_DAYS;
@@ -403,7 +403,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test increaseStake reverts with excessive stake amount
      * @dev Should revert with StakeAmountTooLarge error from increaseAmount
      */
-    function test_IncreaseStake_RevertExcessiveAmount() public {
+    function test_Vault_IncreaseStake_RevertExcessiveAmount() public {
         uint256 initialAmount = MINIMUM_STAKE;
         uint256 excessiveAmount = sapienVault.maximumStakeAmount() + 1;
         uint256 additionalLockup = LOCK_90_DAYS;
@@ -426,7 +426,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test increaseStake reverts with insufficient token balance
      * @dev Should revert with ERC20 transfer error
      */
-    function test_IncreaseStake_RevertInsufficientBalance() public {
+    function test_Vault_IncreaseStake_RevertInsufficientBalance() public {
         uint256 initialAmount = MINIMUM_STAKE;
         uint256 additionalLockup = LOCK_90_DAYS;
 
@@ -455,7 +455,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test increaseStake reverts with insufficient allowance
      * @dev Should revert with ERC20 allowance error
      */
-    function test_IncreaseStake_RevertInsufficientAllowance() public {
+    function test_Vault_IncreaseStake_RevertInsufficientAllowance() public {
         uint256 initialAmount = MINIMUM_STAKE;
         uint256 additionalAmount = MINIMUM_STAKE;
         uint256 additionalLockup = LOCK_90_DAYS;
@@ -482,7 +482,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test that increaseStake produces same result as calling functions separately
      * @dev Verifies that increaseStake is equivalent to increaseAmount + increaseLockup
      */
-    function test_IncreaseStake_EquivalentToSeparateCalls() public {
+    function test_Vault_IncreaseStake_EquivalentToSeparateCalls() public {
         uint256 initialAmount = MINIMUM_STAKE;
         uint256 additionalAmount = MINIMUM_STAKE * 2;
         uint256 additionalLockup = LOCK_90_DAYS;
@@ -530,7 +530,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test increaseStake maintains proper multiplier calculations
      * @dev Verifies that multipliers are correctly updated after combined operation
      */
-    function test_IncreaseStake_MultiplierConsistency() public {
+    function test_Vault_IncreaseStake_MultiplierConsistency() public {
         uint256 initialAmount = MINIMUM_STAKE;
         uint256 additionalAmount = MINIMUM_STAKE;
         uint256 additionalLockup = LOCK_180_DAYS;
@@ -567,7 +567,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test increaseStake with multiple sequential calls
      * @dev Verifies that multiple increaseStake calls work correctly
      */
-    function test_IncreaseStake_MultipleSequentialCalls() public {
+    function test_Vault_IncreaseStake_MultipleSequentialCalls() public {
         uint256 initialAmount = MINIMUM_STAKE;
 
         // Create initial stake
@@ -603,7 +603,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test increaseStake integration with other vault functions
      * @dev Verifies that increaseStake works correctly with unstaking flows
      */
-    function test_IncreaseStake_IntegrationWithUnstaking() public {
+    function test_Vault_IncreaseStake_IntegrationWithUnstaking() public {
         uint256 initialAmount = MINIMUM_STAKE;
         uint256 additionalAmount = MINIMUM_STAKE;
         uint256 additionalLockup = LOCK_90_DAYS;
@@ -647,7 +647,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test increaseStake with contract paused
      * @dev Verifies that increaseStake respects pause state through underlying functions
      */
-    function test_IncreaseStake_RespectsPauseState() public {
+    function test_Vault_IncreaseStake_RespectsPauseState() public {
         uint256 initialAmount = MINIMUM_STAKE;
         uint256 additionalAmount = MINIMUM_STAKE;
         uint256 additionalLockup = LOCK_90_DAYS;
@@ -691,7 +691,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      * @notice Test gas usage of increaseStake vs separate calls
      * @dev Compares gas consumption between increaseStake and separate function calls
      */
-    function test_IncreaseStake_GasComparison() public {
+    function test_Vault_IncreaseStake_GasComparison() public {
         uint256 initialAmount = MINIMUM_STAKE;
         uint256 additionalAmount = MINIMUM_STAKE * 2;
         uint256 additionalLockup = LOCK_90_DAYS;
