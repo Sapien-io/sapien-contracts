@@ -18,22 +18,23 @@ interface ISapienVault {
         uint64 earlyUnstakeCooldownStart; // 8 bytes - When early unstake cooldown was initiated (slot 4)
         uint32 effectiveMultiplier; // 4 bytes - Calculated multiplier (slot 4)
         uint128 earlyUnstakeCooldownAmount; // 16 bytes - Amount requested for early unstake (slot 5)
-            // Note: hasStake field removed - stake existence determined by amount > 0
-            // This eliminates storage corruption and reduces gas costs
-            // Total: 5 storage slots
     }
 
     struct UserStakingSummary {
         uint256 userTotalStaked; // Total amount staked by the user
-        uint256 totalUnlocked; // Amount available for unstaking initiation
-        uint256 totalLocked; // Amount still in lockup period
-        uint256 totalInCooldown; // Amount currently in unstaking cooldown
-        uint256 totalReadyForUnstake; // Amount ready for immediate withdrawal
         uint256 effectiveMultiplier; // Current multiplier for rewards (basis points)
         uint256 effectiveLockUpPeriod; // Lockup period (seconds)
+        
+        uint256 totalLocked; // Amount still in lockup period
+        uint256 totalUnlocked; // Amount available for unstaking initiation
         uint256 timeUntilUnlock; // Time remaining until unlock (seconds, 0 if unlocked)
+        uint256 totalReadyForUnstake; // Amount ready for immediate withdrawal
+        
+        uint256 timeUntilUnstake; // Time remaining until cooldown unstake (seconds, 0 if not in cooldown)
+        uint256 totalInCooldown; // Amount currently in unstaking cooldown
+
         uint256 timeUntilEarlyUnstake; // Time remaining until early unstake (seconds, 0 if not in cooldown)
-        uint256 earlyUnstakeCooldownAmount; // Amount requested for early unstake (slot 5)
+        uint256 totalInEarlyCooldown; // Amount requested for early unstake (slot 5)
     }
 
     // -------------------------------------------------------------
@@ -136,6 +137,7 @@ interface ISapienVault {
     function getUserMultiplier(address user) external view returns (uint256);
     function getEarlyUnstakeCooldownAmount(address user) external view returns (uint256);
     function getTimeUntilEarlyUnstake(address user) external view returns (uint256);
+    function getTimeUntilUnstake(address user) external view returns (uint256);
 
     function getUserStake(address user) external view returns (UserStake memory);
     function getUserStakingSummary(address user) external view returns (UserStakingSummary memory summary);

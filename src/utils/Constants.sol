@@ -47,6 +47,9 @@ library Constants {
     /// @notice Role for managing quality assurance decisions
     bytes32 internal constant SAPIEN_QA_ROLE = keccak256("SAPIEN_QA_ROLE");
 
+    /// @notice Role for batch claiming rewards on behalf of users
+    bytes32 internal constant BATCH_CLAIMER_ROLE = keccak256("BATCH_CLAIMER_ROLE");
+
     // -------------------------------------------------------------
     // EIP-712 Constants
     // -------------------------------------------------------------

@@ -282,7 +282,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             summary.effectiveLockUpPeriod = userStake.effectiveLockUpPeriod;
             summary.timeUntilUnlock = getTimeUntilUnlock(user);
             summary.timeUntilEarlyUnstake = getTimeUntilEarlyUnstake(user);
-            summary.earlyUnstakeCooldownAmount = getEarlyUnstakeCooldownAmount(user);
+            summary.totalInEarlyCooldown = getEarlyUnstakeCooldownAmount(user);
+            summary.timeUntilUnstake = getTimeUntilUnstake(user);
         } else {
             summary.userTotalStaked = 0;
             summary.totalUnlocked = 0;
@@ -509,6 +510,18 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         return block.timestamp >= cooldownEndTime ? 0 : cooldownEndTime - block.timestamp;
     }
 
+    /**
+     * @notice Get the time remaining until unstake is ready
+     * @param user The address of the user to query
+     * @return timeUntilUnstake Time remaining until unstake is ready (in seconds)
+     */
+    function getTimeUntilUnstake(address user) public view returns (uint256 timeUntilUnstake) {
+        UserStake memory userStake = userStakes[user];
+        if (userStake.cooldownStart == 0) return 0;
+        uint256 cooldownEndTime = userStake.cooldownStart + Const.COOLDOWN_PERIOD;
+        return block.timestamp >= cooldownEndTime ? 0 : cooldownEndTime - block.timestamp;
+    }
+
     // -------------------------------------------------------------
     //  Stake Management
     // -------------------------------------------------------------
@@ -639,12 +652,6 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         _validateUnstakeInputs(amount, userStake);
 
         uint256 newUserStakeAmount = userStake.amount - amount;
-
-        if (newUserStakeAmount > 0 && newUserStakeAmount < Const.MINIMUM_STAKE_AMOUNT) {
-            // Force complete unstaking
-            amount = userStake.amount;
-            newUserStakeAmount = 0;
-        }
 
         userStake.amount = newUserStakeAmount.toUint128();
         totalStaked -= amount;

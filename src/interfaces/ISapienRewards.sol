@@ -2,6 +2,7 @@
 pragma solidity 0.8.30;
 
 import {ECDSA} from "src/utils/Common.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title ISapienRewards
@@ -56,13 +57,18 @@ interface ISapienRewards {
     function pause() external;
     function unpause() external;
     function setRewardToken(address _rewardToken) external;
-
+    function rewardToken() external view returns (IERC20);
+    
     function depositRewards(uint256 amount) external;
     function withdrawRewards(uint256 amount) external;
     function reconcileBalance() external;
     function recoverUnaccountedTokens(uint256 amount) external;
 
     function claimReward(uint256 rewardAmount, bytes32 orderId, bytes memory signature)
+        external
+        returns (bool success);
+
+    function claimRewardFor(address user, uint256 rewardAmount, bytes32 orderId, bytes memory signature)
         external
         returns (bool success);
 
