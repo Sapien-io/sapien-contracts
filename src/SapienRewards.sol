@@ -177,6 +177,14 @@ contract SapienRewards is
     }
 
     /**
+     * @notice Returns the batch claimer role identifier
+     * @return bytes32 The keccak256 hash of "BATCH_CLAIMER_ROLE"
+     */
+    function BATCH_CLAIMER_ROLE() external pure returns (bytes32) {
+        return Const.BATCH_CLAIMER_ROLE;
+    }
+
+    /**
      * @notice Sets the reward token for the contract.
      * @param newRewardToken The address of the reward token.
      */
@@ -282,6 +290,33 @@ contract SapienRewards is
         rewardToken.safeTransfer(msg.sender, rewardAmount);
 
         emit RewardClaimed(msg.sender, rewardAmount, orderId);
+        return true;
+    }
+
+    /**
+     * @notice Claims a reward on behalf of a user using a valid signature from the authorized signer.
+     * @dev Only callable by addresses with BATCH_CLAIMER_ROLE. Uses EIP-712 for message signing.
+     * @param user The address of the user for whom the reward is being claimed.
+     * @param rewardAmount The amount of reward tokens to claim.
+     * @param orderId The unique identifier of the order.
+     * @param signature The EIP-712 signature from the authorized signer.
+     * @return success True if the reward transfer is successful.
+     */
+    function claimRewardFor(address user, uint256 rewardAmount, bytes32 orderId, bytes memory signature)
+        external
+        nonReentrant
+        whenNotPaused
+        onlyRole(Const.BATCH_CLAIMER_ROLE)
+        returns (bool success)
+    {
+        _verifyOrder(user, rewardAmount, orderId, signature);
+
+        _markOrderAsRedeemed(user, orderId);
+
+        availableRewards -= rewardAmount;
+        rewardToken.safeTransfer(user, rewardAmount);
+
+        emit RewardClaimed(user, rewardAmount, orderId);
         return true;
     }
 

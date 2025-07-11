@@ -125,6 +125,100 @@ contract Upgrader is Script {
     }
 
     /**
+     * @notice Generate cancel payload for a timelock operation
+     * @param operationId The operation ID to cancel
+     */
+    function generateCancelPayload(bytes32 operationId) external view {
+        DeployedContracts memory contracts = Contracts.get();
+
+        console.log("=== CANCEL OPERATION PAYLOAD ===");
+        console.log("Chain ID:", block.chainid);
+        console.log("Timelock Address:", contracts.timelock);
+        console.log("Operation ID:");
+        console.logBytes32(operationId);
+        console.log("");
+
+        // Check if timelock contract exists
+        uint256 codeSize;
+        address timelockAddr = contracts.timelock;
+        assembly {
+            codeSize := extcodesize(timelockAddr)
+        }
+
+        if (codeSize == 0) {
+            console.log("=== ERROR: TIMELOCK CONTRACT NOT DEPLOYED ===");
+            console.log("The timelock contract at address", contracts.timelock, "does not exist or is not deployed.");
+            console.log("Please ensure the timelock is deployed before trying to cancel operations.");
+            return;
+        }
+
+        TimelockController tc = TimelockController(payable(contracts.timelock));
+
+        // Try to check operation status with error handling
+        bool isPending;
+        bool isReady;
+        bool isDone;
+        uint256 timestamp;
+
+        try tc.isOperationPending(operationId) returns (bool pending) {
+            isPending = pending;
+        } catch {
+            console.log("=== ERROR: CANNOT ACCESS TIMELOCK CONTRACT ===");
+            console.log("The timelock contract exists but cannot be accessed.");
+            console.log("This could be due to:");
+            console.log("- Contract not properly initialized");
+            console.log("- Wrong contract address");
+            console.log("- Network connectivity issues");
+            return;
+        }
+
+        try tc.isOperationReady(operationId) returns (bool ready) {
+            isReady = ready;
+        } catch {
+            isReady = false;
+        }
+
+        try tc.isOperationDone(operationId) returns (bool done) {
+            isDone = done;
+        } catch {
+            isDone = false;
+        }
+
+        try tc.getTimestamp(operationId) returns (uint256 ts) {
+            timestamp = ts;
+        } catch {
+            timestamp = 0;
+        }
+
+        // Check if operation exists and is pending
+        if (!isPending) {
+            console.log("=== CANCEL OPERATION ERROR ===");
+            console.log("Operation is not pending or doesn't exist");
+            console.log("Operation ID:");
+            console.logBytes32(operationId);
+            console.log("Is Pending:", isPending);
+            console.log("Is Ready:", isReady);
+            console.log("Is Done:", isDone);
+            if (timestamp > 0) {
+                console.log("Timestamp:", timestamp);
+                console.log("Current Time:", block.timestamp);
+            }
+            return;
+        }
+
+        // Create cancel calldata
+        bytes memory cancelData = abi.encodeWithSelector(TimelockController.cancel.selector, operationId);
+
+        console.log("=== CANCEL TRANSACTION ===");
+        console.log("To:", contracts.timelock);
+        console.log("Value: 0");
+        console.log("Data:");
+        console.logBytes(cancelData);
+        console.log("");
+        console.log("Note: Only proposers can cancel operations");
+    }
+
+    /**
      * @notice Main run function with examples
      */
     function run() external pure {
@@ -148,5 +242,8 @@ contract Upgrader is Script {
         console.log("");
         console.log("4. Check operation status:");
         console.log("forge script script/Upgrader.s.sol --sig 'checkOperationStatus(bytes32)' <OPERATION_ID>");
+        console.log("");
+        console.log("5. Generate cancel payload:");
+        console.log("forge script script/Upgrader.s.sol --sig 'generateCancelPayload(bytes32)' <OPERATION_ID>");
     }
 }

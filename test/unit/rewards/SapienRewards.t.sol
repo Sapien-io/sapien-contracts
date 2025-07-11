@@ -973,9 +973,121 @@ contract SapienRewardsTest is Test {
         rewardToken.approve(address(sapienRewards), amount);
     }
 
+    // ============================================
+    // ClaimRewardFor Tests
+    // ============================================
+
+    function test_Rewards_ClaimRewardFor_Success() public {
+        vm.prank(rewardAdmin);
+        sapienRewards.depositRewards(REWARD_AMOUNT);
+
+        // Create a batch claimer
+        address batchClaimer = makeAddr("batchClaimer");
+        vm.prank(admin);
+        sapienRewards.grantRole(Const.BATCH_CLAIMER_ROLE, batchClaimer);
+
+        bytes memory signature = _createSignature(user1, REWARD_AMOUNT, ORDER_ID);
+
+        uint256 userBalanceBefore = rewardToken.balanceOf(user1);
+
+        // Batch claimer calls claimRewardFor on behalf of user1
+        vm.prank(batchClaimer);
+        bool success = sapienRewards.claimRewardFor(user1, REWARD_AMOUNT, ORDER_ID, signature);
+
+        assertTrue(success);
+        assertEq(rewardToken.balanceOf(user1), userBalanceBefore + REWARD_AMOUNT);
+        assertTrue(sapienRewards.getOrderRedeemedStatus(user1, ORDER_ID));
+    }
+
+    function test_Rewards_ClaimRewardFor_AccessControl() public {
+        vm.prank(rewardAdmin);
+        sapienRewards.depositRewards(REWARD_AMOUNT);
+
+        bytes memory signature = _createSignature(user1, REWARD_AMOUNT, ORDER_ID_2);
+
+        // Non-batch claimer cannot call claimRewardFor
+        vm.prank(unauthorizedUser);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)")),
+                unauthorizedUser,
+                Const.BATCH_CLAIMER_ROLE
+            )
+        );
+        sapienRewards.claimRewardFor(user1, REWARD_AMOUNT, ORDER_ID_2, signature);
+    }
+
+    function test_Rewards_ClaimRewardFor_InvalidSignature() public {
+        vm.prank(rewardAdmin);
+        sapienRewards.depositRewards(REWARD_AMOUNT * 10); // Ensure enough balance
+
+        // Create a batch claimer
+        address batchClaimer = makeAddr("batchClaimer");
+        vm.prank(admin);
+        sapienRewards.grantRole(Const.BATCH_CLAIMER_ROLE, batchClaimer);
+
+        // Create unique order ID for this test
+        bytes32 uniqueOrderId = createOrderIdWithExpiry("unique_order_1", uint64(block.timestamp + 2 * 60));
+        // Create signature for wrong amount (but within available balance)
+        bytes memory invalidSignature = _createSignature(user1, REWARD_AMOUNT * 2, uniqueOrderId);
+
+        // Attempt to claim with different amount than signed for
+        vm.prank(batchClaimer);
+        vm.expectRevert();
+        sapienRewards.claimRewardFor(user1, REWARD_AMOUNT, uniqueOrderId, invalidSignature);
+    }
+
+    function test_Rewards_ClaimRewardFor_WhenPaused() public {
+        vm.prank(rewardAdmin);
+        sapienRewards.depositRewards(REWARD_AMOUNT);
+
+        // Create a batch claimer
+        address batchClaimer = makeAddr("batchClaimer");
+        vm.prank(admin);
+        sapienRewards.grantRole(Const.BATCH_CLAIMER_ROLE, batchClaimer);
+
+        // Create unique order ID for this test
+        bytes32 uniqueOrderId = createOrderIdWithExpiry("unique_order_2", uint64(block.timestamp + 2 * 60));
+        bytes memory signature = _createSignature(user1, REWARD_AMOUNT, uniqueOrderId);
+
+        // Pause the contract
+        vm.prank(pauseManager);
+        sapienRewards.pause();
+
+        // Should revert when paused
+        vm.prank(batchClaimer);
+        vm.expectRevert();
+        sapienRewards.claimRewardFor(user1, REWARD_AMOUNT, uniqueOrderId, signature);
+    }
+
+    function test_Rewards_ClaimRewardFor_DoubleSpend() public {
+        vm.prank(rewardAdmin);
+        sapienRewards.depositRewards(REWARD_AMOUNT * 2);
+
+        // Create a batch claimer
+        address batchClaimer = makeAddr("batchClaimer");
+        vm.prank(admin);
+        sapienRewards.grantRole(Const.BATCH_CLAIMER_ROLE, batchClaimer);
+
+        // Create unique order ID for this test
+        bytes32 uniqueOrderId = createOrderIdWithExpiry("unique_order_3", uint64(block.timestamp + 2 * 60));
+        bytes memory signature = _createSignature(user1, REWARD_AMOUNT, uniqueOrderId);
+
+        // First claim succeeds
+        vm.prank(batchClaimer);
+        bool success = sapienRewards.claimRewardFor(user1, REWARD_AMOUNT, uniqueOrderId, signature);
+        assertTrue(success);
+
+        // Second claim with same order should fail
+        vm.prank(batchClaimer);
+        vm.expectRevert(abi.encodeWithSelector(ISapienRewards.OrderAlreadyUsed.selector));
+        sapienRewards.claimRewardFor(user1, REWARD_AMOUNT, uniqueOrderId, signature);
+    }
+
     function test_Rewards_Roles() public view {
         assertEq(sapienRewards.PAUSER_ROLE(), keccak256("PAUSER_ROLE"));
         assertEq(sapienRewards.REWARD_ADMIN_ROLE(), keccak256("REWARD_ADMIN_ROLE"));
         assertEq(sapienRewards.REWARD_MANAGER_ROLE(), keccak256("REWARD_MANAGER_ROLE"));
+        assertEq(sapienRewards.BATCH_CLAIMER_ROLE(), keccak256("BATCH_CLAIMER_ROLE"));
     }
 }

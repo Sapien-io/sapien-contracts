@@ -249,6 +249,8 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * - effectiveMultiplier: Current multiplier applied to this user's stake for rewards
      * - effectiveLockUpPeriod: Lockup period for the user's position
      * - timeUntilUnlock: Seconds remaining until the stake becomes unlocked (0 if already unlocked)
+     * - timeUntilEarlyUnstake: Seconds remaining until early unstake is ready (0 if not in cooldown)
+     * - earlyUnstakeCooldownAmount: Amount requested for early unstake (slot 5)
      *
      * STAKING STATES:
      * 1. LOCKED: Tokens in lockup period (cannot initiate unstaking)
@@ -279,6 +281,9 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             summary.effectiveMultiplier = userStake.effectiveMultiplier;
             summary.effectiveLockUpPeriod = userStake.effectiveLockUpPeriod;
             summary.timeUntilUnlock = getTimeUntilUnlock(user);
+            summary.timeUntilEarlyUnstake = getTimeUntilEarlyUnstake(user);
+            summary.totalInEarlyCooldown = getEarlyUnstakeCooldownAmount(user);
+            summary.timeUntilUnstake = getTimeUntilUnstake(user);
         } else {
             summary.userTotalStaked = 0;
             summary.totalUnlocked = 0;
@@ -387,7 +392,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @return totalUnlocked The amount of unlocked tokens available for unstaking
      */
     function getTotalUnlocked(address user) public view returns (uint256 totalUnlocked) {
-        UserStake memory userStake = userStakes[user];
+        UserStake storage userStake = userStakes[user];
         if (!_isUnlocked(userStake)) return 0;
 
         // Ensure we never return negative values due to inconsistency
@@ -403,7 +408,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @return totalLocked amount of tokens still locked
      */
     function getTotalLocked(address user) public view returns (uint256 totalLocked) {
-        UserStake memory userStake = userStakes[user];
+        UserStake storage userStake = userStakes[user];
         if (_isUnlocked(userStake) || userStake.cooldownAmount > 0) return 0;
         return userStake.amount;
     }
@@ -415,7 +420,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @return totalReadyForUnstake amount of tokens ready for unstaking
      */
     function getTotalReadyForUnstake(address user) public view returns (uint256 totalReadyForUnstake) {
-        UserStake memory userStake = userStakes[user];
+        UserStake storage userStake = userStakes[user];
         if (!_isReadyForUnstake(userStake)) return 0;
         return userStake.cooldownAmount;
     }
@@ -484,29 +489,57 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             && block.timestamp >= userStake.earlyUnstakeCooldownStart + Const.COOLDOWN_PERIOD;
     }
 
+    /**
+     * @notice Validates if a lockup period is valid
+     * @param lockUpPeriod The lockup period to validate
+     * @return bool True if the lockup period is valid
+     */
+    function isValidLockUpPeriod(uint256 lockUpPeriod) public pure returns (bool) {
+        return lockUpPeriod >= Const.MINIMUM_LOCKUP_INCREASE && lockUpPeriod <= Const.LOCKUP_365_DAYS;
+    }
+
+    /**
+     * @notice Get the time remaining until early unstake is ready
+     * @param user The address of the user to query
+     * @return timeUntilEarlyUnstake time remaining until early unstake is ready (seconds)
+     */
+    function getTimeUntilEarlyUnstake(address user) public view returns (uint256 timeUntilEarlyUnstake) {
+        UserStake memory userStake = userStakes[user];
+        if (userStake.earlyUnstakeCooldownStart == 0) return 0;
+        uint256 cooldownEndTime = userStake.earlyUnstakeCooldownStart + Const.COOLDOWN_PERIOD;
+        return block.timestamp >= cooldownEndTime ? 0 : cooldownEndTime - block.timestamp;
+    }
+
+    /**
+     * @notice Get the time remaining until unstake is ready
+     * @param user The address of the user to query
+     * @return timeUntilUnstake Time remaining until unstake is ready (in seconds)
+     */
+    function getTimeUntilUnstake(address user) public view returns (uint256 timeUntilUnstake) {
+        UserStake memory userStake = userStakes[user];
+        if (userStake.cooldownStart == 0) return 0;
+        uint256 cooldownEndTime = userStake.cooldownStart + Const.COOLDOWN_PERIOD;
+        return block.timestamp >= cooldownEndTime ? 0 : cooldownEndTime - block.timestamp;
+    }
+
     // -------------------------------------------------------------
     //  Stake Management
     // -------------------------------------------------------------
 
     /**
+     * @notice Get the amount requested for unstake.
+     * @dev This can only be called if the users does not have an active stake.
      * @notice Stake a specified `amount` of tokens for a given `lockUpPeriod`.
      * @param amount The amount of tokens to stake.
      * @param lockUpPeriod The lock-up duration in seconds (30/90/180/365 days).
      */
     function stake(uint256 amount, uint256 lockUpPeriod) public whenNotPaused nonReentrant {
-        // Validate inputs and user state
-        _validateStakeInputs(amount, lockUpPeriod);
-
         UserStake storage userStake = userStakes[msg.sender];
 
-        // Pre-validate state changes before token transfer
-        _preValidateStakeOperation(userStake);
+        _validateStakeInputs(amount, lockUpPeriod, userStake);
 
-        // Transfer tokens only after all validations pass
         sapienToken.safeTransferFrom(msg.sender, address(this), amount);
 
-        // Execute staking logic - only first-time stakes allowed
-        // Existing stakers must use increaseAmount() or increaseLockup()
         _processFirstTimeStake(userStake, amount, lockUpPeriod);
 
         totalStaked += amount;
@@ -518,24 +551,14 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param additionalAmount The additional amount to stake.
      */
     function increaseAmount(uint256 additionalAmount) public whenNotPaused nonReentrant {
-        // Validate inputs
-        _validateIncreaseAmount(additionalAmount);
-
         UserStake storage userStake = userStakes[msg.sender];
 
-        if (userStake.amount == 0) {
-            revert NoStakeFound();
-        }
-
-        if (userStake.cooldownStart != 0 || userStake.earlyUnstakeCooldownStart != 0) {
-            revert CannotIncreaseStakeInCooldown();
-        }
+        _validateIncreaseAmount(additionalAmount, userStake);
 
         // Use standardized expired stake handling
         uint256 newWeightedStartTime =
             _calculateStandardizedWeightedStartTime(userStake, additionalAmount, userStake.amount + additionalAmount);
 
-        // Transfer tokens only after validation passes
         sapienToken.safeTransferFrom(msg.sender, address(this), additionalAmount);
 
         uint256 newTotalAmount = userStake.amount + additionalAmount;
@@ -559,39 +582,26 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      */
     function increaseLockup(uint256 additionalLockup) public whenNotPaused nonReentrant {
         UserStake storage userStake = userStakes[msg.sender];
-        if (userStake.amount == 0) {
-            revert NoStakeFound();
-        }
 
-        if (additionalLockup < Const.MINIMUM_LOCKUP_INCREASE) {
-            revert MinimumLockupIncreaseRequired();
-        }
-
-        if (userStake.cooldownStart != 0 || userStake.earlyUnstakeCooldownStart != 0) {
-            revert CannotIncreaseStakeInCooldown();
-        }
+        _validateIncreaseLockup(additionalLockup, userStake);
 
         // Handle expired vs active stakes
         uint256 newEffectiveLockup;
 
         if (_isUnlocked(userStake)) {
-            // Expired stake: reset to new lockup period
             newEffectiveLockup = additionalLockup;
             userStake.weightedStartTime = block.timestamp.toUint64();
         } else {
-            // Calculate remaining lockup time for active stakes
+            // combine the remaining lockup time with the additional lockup
             uint256 timeElapsed = block.timestamp - userStake.weightedStartTime;
             uint256 remainingLockup =
                 userStake.effectiveLockUpPeriod > timeElapsed ? userStake.effectiveLockUpPeriod - timeElapsed : 0;
 
-            // New effective lockup is remaining time plus additional lockup
             newEffectiveLockup = remainingLockup + additionalLockup;
-
-            // Reset the weighted start time to now since we're extending lockup
+            // Note: Extending lockup resets the timer - the new lockup period starts from now
             userStake.weightedStartTime = block.timestamp.toUint64();
         }
 
-        // Cap at maximum lockup period
         if (newEffectiveLockup > Const.LOCKUP_365_DAYS) {
             newEffectiveLockup = Const.LOCKUP_365_DAYS;
         }
@@ -604,36 +614,31 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     }
 
     /**
+     * @notice Increases both the staked amount and lockup period in a single transaction.
+     * @param additionalAmount The additional amount to stake.
+     * @param additionalLockup The additional lockup time in seconds.
+     * @dev This function simply calls increaseAmount and increaseLockup in sequence for better UX.
+     */
+    function increaseStake(uint256 additionalAmount, uint256 additionalLockup) external {
+        increaseAmount(additionalAmount);
+        increaseLockup(additionalLockup);
+    }
+
+    /**
      * @notice Initiates the cooldown for unstaking.
      * @param amount The amount intended for unstaking.
      */
     function initiateUnstake(uint256 amount) public whenNotPaused nonReentrant {
-        if (amount == 0) revert InvalidAmount();
-
         UserStake storage userStake = userStakes[msg.sender];
 
-        if (userStake.amount == 0) {
-            revert NoStakeFound();
-        }
-
-        if (!_isUnlocked(userStake)) {
-            revert StakeStillLocked();
-        }
+        _validateInitiateUnstakeInputs(amount, userStake);
 
         uint256 cooldownAmount = userStake.cooldownAmount;
-
-        if (amount > userStake.amount - cooldownAmount) {
-            revert AmountExceedsAvailableBalance();
-        }
-
-        // SECURITY FIX: Always update cooldown start time when adding new amounts to cooldown
-        // This prevents users from bypassing cooldown by using old cooldown timestamps
-        // The cooldown period must be enforced for ALL tokens being added to cooldown
-        userStake.cooldownStart = block.timestamp.toUint64();
-
         uint256 newCooldownAmount = cooldownAmount + amount;
 
+        userStake.cooldownStart = block.timestamp.toUint64();
         userStake.cooldownAmount = newCooldownAmount.toUint128();
+
         emit UnstakingInitiated(msg.sender, block.timestamp.toUint64(), newCooldownAmount);
     }
 
@@ -642,35 +647,16 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param amount The amount to unstake.
      */
     function unstake(uint256 amount) external whenNotPaused nonReentrant {
-        if (amount == 0) revert InvalidAmount();
-
         UserStake storage userStake = userStakes[msg.sender];
 
-        if (userStake.amount == 0) {
-            revert NoStakeFound();
-        }
+        _validateUnstakeInputs(amount, userStake);
 
-        if (!_isReadyForUnstake(userStake)) {
-            revert NotReadyForUnstake();
-        }
+        uint256 newUserStakeAmount = userStake.amount - amount;
 
-        if (amount > userStake.cooldownAmount) {
-            revert AmountExceedsCooldownAmount();
-        }
-
-        userStake.amount -= amount.toUint128();
-        userStake.cooldownAmount -= amount.toUint128();
+        userStake.amount = newUserStakeAmount.toUint128();
         totalStaked -= amount;
 
-        // Clear cooldown if no more amount in cooldown
-        if (userStake.cooldownAmount == 0) {
-            userStake.cooldownStart = 0;
-        }
-
-        // Complete state reset if stake is fully withdrawn
-        if (userStake.amount == 0) {
-            _resetUserStake(userStake);
-        }
+        _updateUserStakeAfterUnstake(userStake, amount, newUserStakeAmount);
 
         sapienToken.safeTransfer(msg.sender, amount);
         emit Unstaked(msg.sender, amount);
@@ -683,32 +669,9 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      *      This prevents users from avoiding QA penalties by immediately unstaking.
      */
     function initiateEarlyUnstake(uint256 amount) external whenNotPaused nonReentrant {
-        if (amount == 0) revert InvalidAmount();
-
-        // Prevent precision loss in penalty calculations
-        if (amount < Const.MINIMUM_UNSTAKE_AMOUNT) {
-            revert MinimumUnstakeAmountRequired();
-        }
-
         UserStake storage userStake = userStakes[msg.sender];
 
-        if (userStake.amount == 0) {
-            revert NoStakeFound();
-        }
-
-        if (amount > userStake.amount - userStake.cooldownAmount) {
-            revert AmountExceedsAvailableBalance();
-        }
-
-        // Add check to ensure early unstake initiation is only possible during lock period
-        if (_isUnlocked(userStake)) {
-            revert LockPeriodCompleted();
-        }
-
-        // Prevent multiple early unstake requests
-        if (userStake.earlyUnstakeCooldownStart != 0) {
-            revert EarlyUnstakeCooldownAlreadyActive();
-        }
+        _validateInitiateEarlyUnstakeInputs(amount, userStake);
 
         // Set early unstake cooldown start time AND amount
         userStake.earlyUnstakeCooldownStart = block.timestamp.toUint64();
@@ -723,118 +686,137 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @dev Now requires a cooldown period to prevent QA penalty avoidance.
      */
     function earlyUnstake(uint256 amount) external whenNotPaused nonReentrant {
-        if (amount == 0) revert InvalidAmount();
-
-        // Prevent precision loss in penalty calculations
-        if (amount < Const.MINIMUM_UNSTAKE_AMOUNT) {
-            revert MinimumUnstakeAmountRequired();
-        }
-
         UserStake storage userStake = userStakes[msg.sender];
 
-        if (userStake.amount == 0) {
-            revert NoStakeFound();
-        }
+        _validateEarlyUnstakeInputs(amount, userStake);
 
-        // Add check to ensure instant unstake is only possible during lock period
-        if (_isUnlocked(userStake)) {
-            revert LockPeriodCompleted();
-        }
+        uint256 newUserStakeAmount = userStake.amount - amount;
 
-        // SECURITY FIX: Enforce cooldown period for early unstake to prevent QA penalty avoidance
-        if (userStake.earlyUnstakeCooldownStart == 0) {
-            revert EarlyUnstakeCooldownRequired();
-        }
-
-        if (block.timestamp < userStake.earlyUnstakeCooldownStart + Const.COOLDOWN_PERIOD) {
-            revert EarlyUnstakeCooldownRequired();
-        }
-
-        // Check that amount doesn't exceed what was requested during initiation
-        if (amount > userStake.earlyUnstakeCooldownAmount) {
-            revert AmountExceedsEarlyUnstakeRequest();
+        if (newUserStakeAmount > 0 && newUserStakeAmount < Const.MINIMUM_STAKE_AMOUNT) {
+            // Force complete unstaking
+            amount = userStake.amount;
+            newUserStakeAmount = 0;
         }
 
         uint256 penalty = (amount * Const.EARLY_WITHDRAWAL_PENALTY) / Const.BASIS_POINTS;
-
         uint256 payout = amount - penalty;
 
-        userStake.amount -= amount.toUint128();
         totalStaked -= amount;
 
-        // Update early unstake cooldown amount
-        userStake.earlyUnstakeCooldownAmount -= amount.toUint128();
-
-        // Reset early unstake cooldown if fully processed
-        if (userStake.earlyUnstakeCooldownAmount == 0) {
-            userStake.earlyUnstakeCooldownStart = 0;
-        }
-
-        // Complete state reset if stake is fully withdrawn
-        if (userStake.amount == 0) {
-            _resetUserStake(userStake);
-        }
+        _updateUserStakeAfterUnstake(userStake, amount, newUserStakeAmount);
 
         sapienToken.safeTransfer(msg.sender, payout);
-
         sapienToken.safeTransfer(treasury, penalty);
 
         emit EarlyUnstake(msg.sender, payout, penalty);
     }
 
-    /**
-     * @notice Validates stake inputs and basic constraints
-     * @param amount The amount to stake
-     * @param lockUpPeriod The lockup period
-     */
-    function _validateStakeInputs(uint256 amount, uint256 lockUpPeriod) private view {
-        if (amount < Const.MINIMUM_STAKE_AMOUNT) {
-            revert MinimumStakeAmountRequired();
-        }
+    function _validateInitiateUnstakeInputs(uint256 amount, UserStake storage userStake) private view {
+        if (amount == 0) revert InvalidAmount();
+        if (userStake.amount == 0) revert NoStakeFound();
+        if (!_isUnlocked(userStake)) revert StakeStillLocked();
+        if (amount > userStake.amount - userStake.cooldownAmount) revert AmountExceedsAvailableBalance();
+    }
 
-        if (amount > maximumStakeAmount) {
-            revert StakeAmountTooLarge();
-        }
+    function _validateStakeInputs(uint256 amount, uint256 lockUpPeriod, UserStake memory userStake) private view {
+        if (amount < Const.MINIMUM_STAKE_AMOUNT) revert MinimumStakeAmountRequired();
+        if (userStake.amount > 0) revert ExistingStakeFound();
+        if (amount > maximumStakeAmount) revert StakeAmountTooLarge();
+        if (!isValidLockUpPeriod(lockUpPeriod)) revert InvalidLockupPeriod();
+    }
 
-        if (!isValidLockUpPeriod(lockUpPeriod)) {
-            revert InvalidLockupPeriod();
+    function _validateUnstakeInputs(uint256 amount, UserStake storage userStake) private view {
+        if (amount == 0) revert InvalidAmount();
+        if (userStake.amount == 0) revert NoStakeFound();
+        if (!_isReadyForUnstake(userStake)) revert NotReadyForUnstake();
+        if (amount > userStake.cooldownAmount) revert AmountExceedsCooldownAmount();
+    }
+
+    function _validateInitiateEarlyUnstakeInputs(uint256 amount, UserStake storage userStake) private view {
+        if (amount == 0) revert InvalidAmount();
+        if (amount < Const.MINIMUM_UNSTAKE_AMOUNT) revert MinimumUnstakeAmountRequired();
+        if (userStake.amount == 0) revert NoStakeFound();
+        if (amount > userStake.amount - userStake.cooldownAmount) revert AmountExceedsAvailableBalance();
+        if (_isUnlocked(userStake)) revert LockPeriodCompleted();
+        if (userStake.earlyUnstakeCooldownStart != 0) revert EarlyUnstakeCooldownActive();
+    }
+
+    function _validateEarlyUnstakeInputs(uint256 amount, UserStake storage userStake) private view {
+        if (userStake.amount == 0) revert NoStakeFound();
+        if (_isUnlocked(userStake)) revert LockPeriodCompleted();
+        if (userStake.earlyUnstakeCooldownStart == 0) revert EarlyUnstakeCooldownRequired();
+        if (amount > userStake.earlyUnstakeCooldownAmount) revert AmountExceedsEarlyUnstakeRequest();
+
+        if (block.timestamp < userStake.earlyUnstakeCooldownStart + Const.COOLDOWN_PERIOD) {
+            revert EarlyUnstakeCooldownRequired();
         }
     }
 
-    /**
-     * @notice Pre-validates state operations before token transfer
-     * @param userStake The user's stake data
-     */
-    function _preValidateStakeOperation(UserStake storage userStake) private view {
-        // CRITICAL: Users with existing stakes must use increaseAmount() or increaseLockup()
-        // This prevents asymmetric behavior between staking paths
-        if (userStake.amount > 0) {
-            revert ExistingStakeFound();
+    function _validateIncreaseLockup(uint256 additionalLockup, UserStake storage userStake) private view {
+        if (userStake.amount == 0) revert NoStakeFound();
+        if (additionalLockup < Const.MINIMUM_LOCKUP_INCREASE) revert MinimumLockupIncreaseRequired();
+
+        if (userStake.cooldownStart != 0 || userStake.earlyUnstakeCooldownStart != 0) {
+            revert CannotIncreaseStakeInCooldown();
         }
     }
 
-    /**
-     * @notice Processes first-time stake for a user
-     * @param userStake The user's stake storage reference
-     * @param amount The amount to stake
-     * @param lockUpPeriod The lockup period
-     */
+    function _validateIncreaseAmount(uint256 additionalAmount, UserStake storage userStake) private view {
+        if (additionalAmount == 0) revert InvalidAmount();
+        if (additionalAmount > maximumStakeAmount) revert StakeAmountTooLarge();
+        if (userStake.amount == 0) revert NoStakeFound();
+
+        if (userStake.cooldownStart != 0 || userStake.earlyUnstakeCooldownStart != 0) {
+            revert CannotIncreaseStakeInCooldown();
+        }
+    }
+
+    function _updateUserStakeAfterUnstake(UserStake storage userStake, uint256 amount, uint256 newUserStakeAmount)
+        private
+    {
+        if (newUserStakeAmount == 0) {
+            _resetUserStake(userStake);
+            return;
+        }
+
+        userStake.amount = newUserStakeAmount.toUint128();
+        userStake.lastUpdateTime = block.timestamp.toUint64();
+        userStake.effectiveMultiplier =
+            calculateMultiplier(newUserStakeAmount, userStake.effectiveLockUpPeriod).toUint32();
+
+        // handle early unstake cooldown
+        if (userStake.earlyUnstakeCooldownAmount > 0) {
+            if (amount >= userStake.earlyUnstakeCooldownAmount) {
+                userStake.earlyUnstakeCooldownAmount = 0;
+                userStake.earlyUnstakeCooldownStart = 0;
+            } else {
+                userStake.earlyUnstakeCooldownAmount -= amount.toUint128();
+            }
+        }
+
+        // Handle normal cooldown
+        if (userStake.cooldownAmount > 0) {
+            if (amount >= userStake.cooldownAmount) {
+                userStake.cooldownAmount = 0;
+                userStake.cooldownStart = 0;
+            } else {
+                userStake.cooldownAmount -= amount.toUint128();
+            }
+        }
+
+        emit UserStakeUpdated(msg.sender, userStake);
+    }
+
     function _processFirstTimeStake(UserStake storage userStake, uint256 amount, uint256 lockUpPeriod) private {
         userStake.amount = amount.toUint128();
         userStake.weightedStartTime = block.timestamp.toUint64();
         userStake.effectiveLockUpPeriod = lockUpPeriod.toUint64();
         userStake.effectiveMultiplier = calculateMultiplier(amount, lockUpPeriod).toUint32();
         userStake.lastUpdateTime = block.timestamp.toUint64();
+
+        emit UserStakeUpdated(msg.sender, userStake);
     }
 
-    /**
-     * @notice Calculates weighted start time with precision handling and dust attack protection
-     * @param currentStartTime Current weighted start time
-     * @param currentAmount Current stake amount
-     * @param newAmount Additional amount being added
-     * @param totalAmount Total amount after addition
-     * @return newWeightedStartTime The calculated weighted start time
-     */
     function _calculateWeightedStartTime(
         uint256 currentStartTime,
         uint256 currentAmount,
@@ -863,43 +845,15 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
     // Helper Functions
     // -------------------------------------------------------------
 
-    function _isUnlocked(UserStake memory userStake) private view returns (bool) {
+    function _isUnlocked(UserStake storage userStake) private view returns (bool) {
         return userStake.amount > 0 && block.timestamp >= userStake.weightedStartTime + userStake.effectiveLockUpPeriod;
     }
 
-    function _isReadyForUnstake(UserStake memory userStake) private view returns (bool) {
+    function _isReadyForUnstake(UserStake storage userStake) private view returns (bool) {
         return userStake.amount > 0 && userStake.cooldownStart > 0
             && block.timestamp >= userStake.cooldownStart + Const.COOLDOWN_PERIOD && userStake.cooldownAmount > 0;
     }
 
-    /**
-     * @notice Validates if a lockup period is valid
-     * @param lockUpPeriod The lockup period to validate
-     * @return bool True if the lockup period is valid
-     */
-    function isValidLockUpPeriod(uint256 lockUpPeriod) public pure returns (bool) {
-        return lockUpPeriod >= Const.LOCKUP_30_DAYS && lockUpPeriod <= Const.LOCKUP_365_DAYS;
-    }
-
-    /**
-     * @notice Validates amount for increase operations
-     * @param additionalAmount The amount to validate
-     */
-    function _validateIncreaseAmount(uint256 additionalAmount) private view {
-        if (additionalAmount == 0) {
-            revert InvalidAmount();
-        }
-
-        // Prevent potential DOS attacks with extremely large stakes
-        if (additionalAmount > maximumStakeAmount) {
-            revert StakeAmountTooLarge();
-        }
-    }
-
-    /**
-     * @notice Resets user stake to zero state
-     * @param userStake The user stake to reset
-     */
     function _resetUserStake(UserStake storage userStake) private {
         delete userStake.amount;
         delete userStake.cooldownAmount;
@@ -910,21 +864,10 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         delete userStake.cooldownStart;
         delete userStake.earlyUnstakeCooldownStart;
         delete userStake.earlyUnstakeCooldownAmount;
+
+        emit UserStakeReset(msg.sender, userStake);
     }
 
-    // -------------------------------------------------------------
-    // Standardized Expired Stake Helper Functions
-    // -------------------------------------------------------------
-
-    /**
-     * @notice Calculates weighted start time for stake operations, handling expired stakes consistently
-     * @param userStake The user stake storage reference
-     * @param newAmount Additional amount being added (0 for lockup increases)
-     * @param totalAmount Total amount after operation
-     * @return newWeightedStartTime The calculated or reset weighted start time
-     * @dev This function standardizes how weighted start time is calculated across all operations,
-     *      ensuring expired stakes are handled consistently
-     */
     function _calculateStandardizedWeightedStartTime(
         UserStake storage userStake,
         uint256 newAmount,

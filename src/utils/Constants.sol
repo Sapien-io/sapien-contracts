@@ -47,6 +47,9 @@ library Constants {
     /// @notice Role for managing quality assurance decisions
     bytes32 internal constant SAPIEN_QA_ROLE = keccak256("SAPIEN_QA_ROLE");
 
+    /// @notice Role for batch claiming rewards on behalf of users
+    bytes32 internal constant BATCH_CLAIMER_ROLE = keccak256("BATCH_CLAIMER_ROLE");
+
     // -------------------------------------------------------------
     // EIP-712 Constants
     // -------------------------------------------------------------
@@ -96,7 +99,7 @@ library Constants {
     /// @notice Minimum stake amount (1 token)
     uint256 internal constant MINIMUM_STAKE_AMOUNT = 1 * TOKEN_DECIMALS;
 
-    /// @notice Maximum stake amount (10,000 tokens)
+    /// @notice Maximum stake amount (2,500 tokens)
     uint256 public constant MAXIMUM_STAKE_AMOUNT = 2500 * TOKEN_DECIMALS;
 
     /// @notice Minimum unstake amount to prevent precision loss in penalty calculations
