@@ -30,11 +30,31 @@ The TimelockController provides a secure governance mechanism with time delays f
 - Can change the minimum delay
 - Usually held by the timelock itself
 
+## Deploy new Implementation Contract
+
+The first step is to deploy a new implementation of the contract you want to upgrade:
+
+Setup the path variables:
+```
+export RPC_URL=
+export CONTRACT=SapienVault | SapienRewards | SapienQA
+export ETHERSCAN_API_KEY=Etherscan api key (basescan.org)
+export ACCOUNT=The wallet address in cast for deployments
+
+The run:
+
+make deploy-contract
+```
+
 ## Using scripts/Upgrader.s.sol
 
 See the Upgrade scripts for more info.
 
-`forge script script/Upgrader.s.sol --sig "generateUpgradePayload(uint8,address)" 1 0x1a3db7e6a193942f689a5889550c2166596cb76f --rpc-url $RPC_URL`
+0 = Vault
+1 = Rewards
+2 = QA
+
+`forge script script/Upgrader.s.sol --sig "generateUpgradePayload(uint8,address)" 1 0xNEW_IMPLEMENTATION_ADDRESS --rpc-url $RPC_URL`
 
 ## Step-by-Step Process
 

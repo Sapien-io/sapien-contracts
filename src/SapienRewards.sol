@@ -148,6 +148,14 @@ contract SapienRewards is
         _;
     }
 
+    /// @dev Batch Claimer Access modifier
+    modifier onlyBatchClaimer() {
+        if (!hasRole(Const.BATCH_CLAIMER_ROLE, msg.sender)) {
+            revert AccessControlUnauthorizedAccount(msg.sender, Const.BATCH_CLAIMER_ROLE);
+        }
+        _;
+    }
+
     // -------------------------------------------------------------
     // Role-Based Functions
     // -------------------------------------------------------------
@@ -306,7 +314,7 @@ contract SapienRewards is
         external
         nonReentrant
         whenNotPaused
-        onlyRole(Const.BATCH_CLAIMER_ROLE)
+        onlyBatchClaimer
         returns (bool success)
     {
         _verifyOrder(user, rewardAmount, orderId, signature);
