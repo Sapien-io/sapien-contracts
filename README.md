@@ -29,6 +29,7 @@ Comprehensive technical specifications for each smart contract:
 - **[SAPIEN Whitepaper](notes/whitepaper.md)** - Complete tokenomics and protocol design specification
 - **[Multiplier Paper](notes/multiplier.pdf)** - Paper on the multiplier math
 - **[Rewards Signatures](notes/rewards-signature-system.md)** - Rewards signature docs
+- **[Batch Rewards](notes/BatchRewards.md)** -  Batches rewards for USDC and SAPIEN
 ---
 
 ## Comprehensive Testing Framework

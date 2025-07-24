@@ -574,6 +574,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         totalStaked += additionalAmount;
 
         emit AmountIncreased(msg.sender, additionalAmount, newTotalAmount, userStake.effectiveMultiplier);
+        emit UserStakeUpdated(msg.sender, userStake);
     }
 
     /**
@@ -611,6 +612,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         userStake.lastUpdateTime = block.timestamp.toUint64();
 
         emit LockupIncreased(msg.sender, additionalLockup, newEffectiveLockup, userStake.effectiveMultiplier);
+        emit UserStakeUpdated(msg.sender, userStake);
     }
 
     /**
