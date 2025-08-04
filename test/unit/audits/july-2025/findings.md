@@ -2,11 +2,11 @@
 
 ## High Risk Issues
 
-- [x] **Finding #1**: Maximum Stake Cap Bypass via increaseAmount May Let Users Exceed Protocol Limits
+- [y] **Finding #1**: Maximum Stake Cap Bypass via increaseAmount May Let Users Exceed Protocol Limits
 
-`commit 9b1892822481160d12e23bc7d5dd48f0fa967439`
+`commit 9aa946b37ff47e6f1db1b168ff2475b157cbe535`
 
-- [x] **Finding #2**: Users' tokens that have passed the cooldownTime can be penalized unfairly via processQAPenalty()
+- [n] **Finding #2**: Users' tokens that have passed the cooldownTime can be penalized unfairly via processQAPenalty()
 
 We are not going to implement this fix because it allows a user to withdraw collateral and bypass quality assurance procedures. If a user has a stake collateral amount that is not subject to quality assurance, the user may be eligible to access tasks or provide contributions that do not pass quality standards and immediately remove their stake collateral. This would negate quality assurance guarantees.
 

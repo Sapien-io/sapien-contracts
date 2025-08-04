@@ -197,7 +197,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param newMaximumStakeAmount The new maximum stake amount.
      */
     function setMaximumStakeAmount(uint256 newMaximumStakeAmount) external onlyAdmin {
-        if (newMaximumStakeAmount == 0) {
+        if (newMaximumStakeAmount == 0 || newMaximumStakeAmount < Const.MINIMUM_STAKE_AMOUNT) {
             revert InvalidAmount();
         }
 
