@@ -943,28 +943,9 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         view
         returns (uint256)
     {
+        // Only use amount as the maximum penalty, since cooldownAmount is already counted within amount
         uint256 totalAvailable = userStake.amount;
-
-        // Protect completed cooldown tokens from penalties
-        uint256 protectedAmount = 0;
-
-        // Check if normal cooldown has completed - protect those tokens
-        if (userStake.cooldownStart > 0 && block.timestamp >= userStake.cooldownStart + Const.COOLDOWN_PERIOD) {
-            protectedAmount += userStake.cooldownAmount;
-        }
-
-        // Check if early unstake cooldown has completed - protect those tokens
-        if (
-            userStake.earlyUnstakeCooldownStart > 0
-                && block.timestamp >= userStake.earlyUnstakeCooldownStart + Const.COOLDOWN_PERIOD
-        ) {
-            protectedAmount += userStake.earlyUnstakeCooldownAmount;
-        }
-
-        // Reduce available amount by protected tokens
-        uint256 penalizableAmount = totalAvailable > protectedAmount ? totalAvailable - protectedAmount : 0;
-
-        return requestedPenalty > penalizableAmount ? penalizableAmount : requestedPenalty;
+        return requestedPenalty > totalAvailable ? totalAvailable : requestedPenalty;
     }
 
     /**
