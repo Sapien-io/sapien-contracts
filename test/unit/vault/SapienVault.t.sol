@@ -1671,7 +1671,7 @@ contract SapienVaultBasicTest is Test {
         uint256 maxStake = 2_500 * 1e18;
         uint256 initialStake = 1_500 * 1e18; // Start with 1500 tokens
         uint256 additionalStake = 1_000 * 1e18; // Add 1000 tokens (total = 2500, at max limit)
-        
+
         sapienToken.mint(user1, maxStake);
 
         // Start with a large initial stake
@@ -4531,20 +4531,20 @@ contract SapienVaultBasicTest is Test {
         // Setup: Users stake tokens equal to contract balance (no surplus)
         uint256 stakeAmount = 1000e18;
         sapienToken.mint(user1, stakeAmount);
-        
+
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), stakeAmount);
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
         vm.stopPrank();
-        
+
         // Verify setup: contract balance equals totalStaked (zero surplus)
         assertEq(sapienToken.balanceOf(address(sapienVault)), stakeAmount);
         assertEq(sapienVault.totalStaked(), stakeAmount);
-        
+
         // Pause contract for emergency operation
         vm.prank(pauser);
         sapienVault.pause();
-        
+
         // Try to withdraw any amount of SAPIEN tokens (should fail - no surplus)
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSignature("InsufficientSurplusForEmergencyWithdraw(uint256,uint256)", 0, 1));
@@ -4556,31 +4556,31 @@ contract SapienVaultBasicTest is Test {
         uint256 stakeAmount = 1000e18;
         uint256 surplusAmount = 500e18;
         sapienToken.mint(user1, stakeAmount);
-        
+
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), stakeAmount);
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
         vm.stopPrank();
-        
+
         // Add surplus tokens to contract
         sapienToken.mint(address(sapienVault), surplusAmount);
-        
+
         // Verify setup: contract has surplus
         assertEq(sapienToken.balanceOf(address(sapienVault)), stakeAmount + surplusAmount);
         assertEq(sapienVault.totalStaked(), stakeAmount);
-        
+
         // Pause contract
         vm.prank(pauser);
         sapienVault.pause();
-        
+
         // Withdraw exact surplus amount (should succeed)
         uint256 treasuryBalanceBefore = sapienToken.balanceOf(treasury);
-        
+
         vm.prank(admin);
         vm.expectEmit(true, true, true, false);
         emit ISapienVault.EmergencyWithdraw(address(sapienToken), treasury, surplusAmount);
         sapienVault.emergencyWithdraw(address(sapienToken), treasury, surplusAmount);
-        
+
         // Verify withdrawal succeeded
         assertEq(sapienToken.balanceOf(treasury), treasuryBalanceBefore + surplusAmount);
         assertEq(sapienToken.balanceOf(address(sapienVault)), stakeAmount); // Only user stakes remain
@@ -4591,27 +4591,27 @@ contract SapienVaultBasicTest is Test {
         uint256 stakeAmount = 1000e18;
         uint256 surplusAmount = 500e18;
         uint256 withdrawAmount = 300e18; // Less than surplus
-        
+
         sapienToken.mint(user1, stakeAmount);
-        
+
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), stakeAmount);
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
         vm.stopPrank();
-        
+
         // Add surplus tokens
         sapienToken.mint(address(sapienVault), surplusAmount);
-        
+
         // Pause contract
         vm.prank(pauser);
         sapienVault.pause();
-        
+
         // Withdraw partial surplus (should succeed)
         uint256 treasuryBalanceBefore = sapienToken.balanceOf(treasury);
-        
+
         vm.prank(admin);
         sapienVault.emergencyWithdraw(address(sapienToken), treasury, withdrawAmount);
-        
+
         // Verify withdrawal succeeded
         assertEq(sapienToken.balanceOf(treasury), treasuryBalanceBefore + withdrawAmount);
         assertEq(sapienToken.balanceOf(address(sapienVault)), stakeAmount + surplusAmount - withdrawAmount);
@@ -4622,24 +4622,28 @@ contract SapienVaultBasicTest is Test {
         uint256 stakeAmount = 1000e18;
         uint256 surplusAmount = 500e18;
         uint256 withdrawAmount = 600e18; // More than surplus
-        
+
         sapienToken.mint(user1, stakeAmount);
-        
+
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), stakeAmount);
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
         vm.stopPrank();
-        
+
         // Add surplus tokens
         sapienToken.mint(address(sapienVault), surplusAmount);
-        
+
         // Pause contract
         vm.prank(pauser);
         sapienVault.pause();
-        
+
         // Try to withdraw more than surplus (should fail)
         vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSignature("InsufficientSurplusForEmergencyWithdraw(uint256,uint256)", surplusAmount, withdrawAmount));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "InsufficientSurplusForEmergencyWithdraw(uint256,uint256)", surplusAmount, withdrawAmount
+            )
+        );
         sapienVault.emergencyWithdraw(address(sapienToken), treasury, withdrawAmount);
     }
 
@@ -4647,23 +4651,23 @@ contract SapienVaultBasicTest is Test {
         // Edge case: Contract balance less than totalStaked (theoretical scenario)
         uint256 stakeAmount = 1000e18;
         sapienToken.mint(user1, stakeAmount);
-        
+
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), stakeAmount);
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
         vm.stopPrank();
-        
+
         // Artificially reduce contract balance (simulate external drain)
         vm.prank(address(sapienVault));
         sapienToken.transfer(treasury, 200e18);
-        
+
         // Verify problematic state: contract balance < totalStaked
         assertLt(sapienToken.balanceOf(address(sapienVault)), sapienVault.totalStaked());
-        
+
         // Pause contract
         vm.prank(pauser);
         sapienVault.pause();
-        
+
         // Try to withdraw any SAPIEN tokens (should fail - zero surplus when balance < stakes)
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSignature("InsufficientSurplusForEmergencyWithdraw(uint256,uint256)", 0, 1));
@@ -4674,35 +4678,35 @@ contract SapienVaultBasicTest is Test {
         // Setup: Deploy a different ERC20 token
         MockERC20 otherToken = new MockERC20("Other", "OTHER", 18);
         uint256 otherTokenAmount = 1000e18;
-        
+
         // Setup user stakes (shouldn't affect other token withdrawals)
         uint256 stakeAmount = 500e18;
         sapienToken.mint(user1, stakeAmount);
-        
+
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), stakeAmount);
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
         vm.stopPrank();
-        
+
         // Send other tokens to vault (accidental deposit scenario)
         otherToken.mint(address(sapienVault), otherTokenAmount);
-        
+
         // Pause contract
         vm.prank(pauser);
         sapienVault.pause();
-        
+
         // Emergency withdraw other tokens (should work without surplus restrictions)
         uint256 treasuryBalanceBefore = otherToken.balanceOf(treasury);
-        
+
         vm.prank(admin);
         vm.expectEmit(true, true, true, false);
         emit ISapienVault.EmergencyWithdraw(address(otherToken), treasury, otherTokenAmount);
         sapienVault.emergencyWithdraw(address(otherToken), treasury, otherTokenAmount);
-        
+
         // Verify withdrawal succeeded
         assertEq(otherToken.balanceOf(treasury), treasuryBalanceBefore + otherTokenAmount);
         assertEq(otherToken.balanceOf(address(sapienVault)), 0);
-        
+
         // Verify SAPIEN stakes unaffected
         assertEq(sapienVault.totalStaked(), stakeAmount);
         assertEq(sapienToken.balanceOf(address(sapienVault)), stakeAmount);
@@ -4712,38 +4716,40 @@ contract SapienVaultBasicTest is Test {
         // Setup: Test multiple withdrawals reducing surplus over time
         uint256 stakeAmount = 1000e18;
         uint256 surplusAmount = 600e18;
-        
+
         sapienToken.mint(user1, stakeAmount);
-        
+
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), stakeAmount);
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
         vm.stopPrank();
-        
+
         // Add surplus tokens
         sapienToken.mint(address(sapienVault), surplusAmount);
-        
+
         // Pause contract
         vm.prank(pauser);
         sapienVault.pause();
-        
+
         // First withdrawal: 200 tokens (should succeed)
         vm.prank(admin);
         sapienVault.emergencyWithdraw(address(sapienToken), treasury, 200e18);
-        
+
         // Second withdrawal: 300 tokens (should succeed)
         vm.prank(admin);
         sapienVault.emergencyWithdraw(address(sapienToken), treasury, 300e18);
-        
+
         // Third withdrawal: 200 tokens (should fail - only 100 surplus left)
         vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSignature("InsufficientSurplusForEmergencyWithdraw(uint256,uint256)", 100e18, 200e18));
+        vm.expectRevert(
+            abi.encodeWithSignature("InsufficientSurplusForEmergencyWithdraw(uint256,uint256)", 100e18, 200e18)
+        );
         sapienVault.emergencyWithdraw(address(sapienToken), treasury, 200e18);
-        
+
         // Final withdrawal: remaining 100 tokens (should succeed)
         vm.prank(admin);
         sapienVault.emergencyWithdraw(address(sapienToken), treasury, 100e18);
-        
+
         // Verify final state: only user stakes remain
         assertEq(sapienToken.balanceOf(address(sapienVault)), stakeAmount);
     }
@@ -4752,22 +4758,22 @@ contract SapienVaultBasicTest is Test {
         // Test edge case: withdraw zero amount
         uint256 stakeAmount = 1000e18;
         sapienToken.mint(user1, stakeAmount);
-        
+
         vm.startPrank(user1);
         sapienToken.approve(address(sapienVault), stakeAmount);
         sapienVault.stake(stakeAmount, LOCK_30_DAYS);
         vm.stopPrank();
-        
+
         // Pause contract
         vm.prank(pauser);
         sapienVault.pause();
-        
+
         // Withdraw zero SAPIEN tokens (should succeed - not exceeding surplus)
         vm.prank(admin);
         vm.expectEmit(true, true, true, false);
         emit ISapienVault.EmergencyWithdraw(address(sapienToken), treasury, 0);
         sapienVault.emergencyWithdraw(address(sapienToken), treasury, 0);
-    }    
+    }
 
     function _stakeForUser(address user, uint256 amount, uint256 lockup) internal {
         sapienToken.mint(user, amount);

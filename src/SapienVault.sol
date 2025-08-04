@@ -217,10 +217,10 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         if (to == address(0)) revert ZeroAddress();
 
         if (token == address(sapienToken)) {
-                uint256 contractBalance = sapienToken.balanceOf(address(this));
-                uint256 userStakeTotal = totalStaked;
-                uint256 surplus = contractBalance > userStakeTotal ? contractBalance - userStakeTotal : 0;
-            
+            uint256 contractBalance = sapienToken.balanceOf(address(this));
+            uint256 userStakeTotal = totalStaked;
+            uint256 surplus = contractBalance > userStakeTotal ? contractBalance - userStakeTotal : 0;
+
             if (amount > surplus) {
                 revert InsufficientSurplusForEmergencyWithdraw(surplus, amount);
             }

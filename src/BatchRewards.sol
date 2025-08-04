@@ -44,7 +44,7 @@ contract BatchRewards is ReentrancyGuard {
         if (PausableUpgradeable(address(usdcRewards)).paused()) {
             revert RewardsContractPaused(address(usdcRewards));
         }
-        
+
         // Claim rewards - tokens go directly to msg.sender
         if (sapienRewardAmount > 0) {
             sapienRewards.claimRewardFor(msg.sender, sapienRewardAmount, sapienOrderId, sapienSignature);
