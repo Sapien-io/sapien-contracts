@@ -43,20 +43,20 @@ The cooldown refresh approach is superior because it:
 
 `commit dc31e62adfc2f668cc74afff5aaaaa182ec0f445`
 
-- [ ] **Finding #7**: Lack of Pause Control in batchClaimRewards May Lead to Inconsistent Claim Behavior During Emergencies
-- [ ] **Finding #8**: Missing zero address in claimRewardFor function of SapienRewards contract
+- [y] **Finding #7**: Lack of Pause Control in batchClaimRewards May Lead to Inconsistent Claim Behavior During Emergencies
+
+`commit 92461853eb5886c2ea56106d1c6f95a1f2bb7f43`
+
+- [n] **Finding #8**: Missing zero address in claimRewardFor function of SapienRewards contract
+
+Will not implement a check for this.
 
 ## Informational Issues
 
-- [ ] **Finding #9**: Centralization could lead to bricking the contracts entirely
+- [n] **Finding #9**: Centralization could lead to bricking the contracts entirely
 
----
+Contract upradeability is a design choice.
 
-**Progress Summary:**
-- High Risk: 2/2 resolved
-- Medium Risk: 0/2 resolved
-- Low Risk: 0/4 resolved
-- Informational: 0/1 resolved
-- **Total: 2/9 resolved**
+
 
 
