@@ -765,12 +765,14 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
     function _validateIncreaseAmount(uint256 additionalAmount, UserStake storage userStake) private view {
         if (additionalAmount == 0) revert InvalidAmount();
-        if (additionalAmount > maximumStakeAmount) revert StakeAmountTooLarge();
         if (userStake.amount == 0) revert NoStakeFound();
 
         if (userStake.cooldownStart != 0 || userStake.earlyUnstakeCooldownStart != 0) {
             revert CannotIncreaseStakeInCooldown();
         }
+
+        if (additionalAmount > maximumStakeAmount) revert StakeAmountTooLarge();
+        if (userStake.amount + additionalAmount > maximumStakeAmount) revert StakeAmountTooLarge();
     }
 
     function _updateUserStakeAfterUnstake(UserStake storage userStake, uint256 amount, uint256 newUserStakeAmount)
@@ -931,9 +933,28 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         view
         returns (uint256)
     {
-        // Only use amount as the maximum penalty, since cooldownAmount is already counted within amount
         uint256 totalAvailable = userStake.amount;
-        return requestedPenalty > totalAvailable ? totalAvailable : requestedPenalty;
+
+        // Protect completed cooldown tokens from penalties
+        uint256 protectedAmount = 0;
+
+        // Check if normal cooldown has completed - protect those tokens
+        if (userStake.cooldownStart > 0 && block.timestamp >= userStake.cooldownStart + Const.COOLDOWN_PERIOD) {
+            protectedAmount += userStake.cooldownAmount;
+        }
+
+        // Check if early unstake cooldown has completed - protect those tokens
+        if (
+            userStake.earlyUnstakeCooldownStart > 0
+                && block.timestamp >= userStake.earlyUnstakeCooldownStart + Const.COOLDOWN_PERIOD
+        ) {
+            protectedAmount += userStake.earlyUnstakeCooldownAmount;
+        }
+
+        // Reduce available amount by protected tokens
+        uint256 penalizableAmount = totalAvailable > protectedAmount ? totalAvailable - protectedAmount : 0;
+
+        return requestedPenalty > penalizableAmount ? penalizableAmount : requestedPenalty;
     }
 
     /**

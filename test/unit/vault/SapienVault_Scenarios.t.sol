@@ -348,15 +348,15 @@ contract SapienVaultScenariosTest is Test {
         assertGt(eveAfterIncrease.effectiveMultiplier, initialMultiplier, "Multiplier should increase");
         assertEq(eveAfterIncrease.effectiveLockUpPeriod, 335 days, "Lockup period should be 335 days");
 
-        // Eve adds more tokens to her extended stake
+        // Eve adds more tokens to her extended stake (keeping within 2500 limit)
         vm.startPrank(eve);
-        sapienToken.approve(address(sapienVault), MINIMUM_STAKE * 5);
-        sapienVault.increaseAmount(MINIMUM_STAKE * 5);
+        sapienToken.approve(address(sapienVault), MINIMUM_STAKE * 2); // 500 tokens (total = 2000 + 500 = 2500)
+        sapienVault.increaseAmount(MINIMUM_STAKE * 2);
         vm.stopPrank();
 
-        // Multiplier should stay the same since both 10K and 15K are in the highest tier (10K+)
+        // Verify final state within limits
         ISapienVault.UserStakingSummary memory eveFinal = sapienVault.getUserStakingSummary(eve);
-        assertEq(eveFinal.userTotalStaked, MINIMUM_STAKE * 13, "Total should include extra amount"); // 8 + 5 = 13
+        assertEq(eveFinal.userTotalStaked, MINIMUM_STAKE * 10, "Total should include extra amount"); // 8 + 2 = 10 (2500 tokens)
     }
 
     // =============================================================================

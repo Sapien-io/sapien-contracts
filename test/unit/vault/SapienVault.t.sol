@@ -1665,29 +1665,30 @@ contract SapienVaultBasicTest is Test {
     }
 
     function test_Vault_WeightedCalculationOverflow_NewTotalAmount() public {
-        // Test line 660: StakeAmountTooLarge when newTotalAmount > uint128.max
-        // This is practically impossible to test due to the 10M token limit,
-        // but we can test the boundary condition conceptually
+        // Test weighted calculation with large amounts that stay within the maximum stake limit
+        // This test verifies the weighted calculation logic works correctly with larger amounts
 
         uint256 maxStake = 2_500 * 1e18;
-        sapienToken.mint(user1, maxStake * 2);
+        uint256 initialStake = 1_500 * 1e18; // Start with 1500 tokens
+        uint256 additionalStake = 1_000 * 1e18; // Add 1000 tokens (total = 2500, at max limit)
+        
+        sapienToken.mint(user1, maxStake);
 
-        // Start with maximum allowed stake
+        // Start with a large initial stake
         vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), maxStake);
-        sapienVault.stake(maxStake, LOCK_30_DAYS);
+        sapienToken.approve(address(sapienVault), initialStake);
+        sapienVault.stake(initialStake, LOCK_30_DAYS);
 
-        // Try to add another maximum stake - this would exceed practical limits
-        // but is still less than uint128.max
-        sapienToken.approve(address(sapienVault), maxStake);
-        // This should succeed because even 18k tokens < uint128.max
-        sapienVault.increaseAmount(maxStake);
+        // Add more to reach the maximum allowed stake
+        sapienToken.approve(address(sapienVault), additionalStake);
+        sapienVault.increaseAmount(additionalStake);
         vm.stopPrank();
 
-        // Verify the large stake was created successfully
-        assertEq(sapienVault.getTotalStaked(user1), maxStake * 2);
+        // Verify the large stake was created successfully at the maximum limit
+        assertEq(sapienVault.getTotalStaked(user1), maxStake);
 
         // The uint128 overflow protection exists for extreme theoretical cases
+        // This test ensures the weighted calculation works properly with large amounts within limits
     }
 
     function test_Vault_DustAttackPrevention() public {
@@ -1789,22 +1790,23 @@ contract SapienVaultBasicTest is Test {
         // Test lines 667 and 674: Weighted calculation overflow protection
         // These are practically impossible to trigger but exist for extreme edge cases
 
-        uint256 moderateStake = 1_500 * 1e18;
-        sapienToken.mint(user1, moderateStake * 2);
+        uint256 initialStake = 1_200 * 1e18;
+        uint256 additionalStake = 1_300 * 1e18; // Total = 2500 (at max limit)
+        sapienToken.mint(user1, initialStake + additionalStake);
 
         // Create initial stake at a reasonable timestamp
         vm.warp(1000);
         vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), moderateStake);
-        sapienVault.stake(moderateStake, LOCK_30_DAYS);
+        sapienToken.approve(address(sapienVault), initialStake);
+        sapienVault.stake(initialStake, LOCK_30_DAYS);
 
         // Add to the stake - this triggers weighted calculation validation
-        sapienToken.approve(address(sapienVault), moderateStake);
-        sapienVault.increaseAmount(moderateStake);
+        sapienToken.approve(address(sapienVault), additionalStake);
+        sapienVault.increaseAmount(additionalStake);
         vm.stopPrank();
 
         // Verify the operation succeeded (no overflow occurred)
-        assertEq(sapienVault.getTotalStaked(user1), moderateStake * 2);
+        assertEq(sapienVault.getTotalStaked(user1), initialStake + additionalStake);
 
         // The overflow protection in lines 667 and 674 exists for extreme scenarios
         // where timestamp * amount or lockup * amount might overflow uint256
