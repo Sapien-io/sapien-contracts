@@ -197,7 +197,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param newMaximumStakeAmount The new maximum stake amount.
      */
     function setMaximumStakeAmount(uint256 newMaximumStakeAmount) external onlyAdmin {
-        if (newMaximumStakeAmount == 0 || newMaximumStakeAmount < Const.MINIMUM_STAKE_AMOUNT) {
+        if (newMaximumStakeAmount < Const.MINIMUM_STAKE_AMOUNT) {
             revert InvalidAmount();
         }
 
@@ -215,6 +215,16 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      */
     function emergencyWithdraw(address token, address to, uint256 amount) external onlyAdmin whenPaused nonReentrant {
         if (to == address(0)) revert ZeroAddress();
+
+        if (token == address(sapienToken)) {
+                uint256 contractBalance = sapienToken.balanceOf(address(this));
+                uint256 userStakeTotal = totalStaked;
+                uint256 surplus = contractBalance > userStakeTotal ? contractBalance - userStakeTotal : 0;
+            
+            if (amount > surplus) {
+                revert InsufficientSurplusForEmergencyWithdraw(surplus, amount);
+            }
+        }
 
         if (token == address(0)) {
             // Withdraw ETH

@@ -80,7 +80,10 @@ interface ISapienVault {
     error LockPeriodCompleted();
     error RemainingStakeBelowMinimum();
     error EarlyUnstakeCooldownActive();
-
+    error StakeInCooldown();
+    error InvalidRecipient();
+    error InsufficientSurplusForEmergencyWithdraw(uint256 surplus, uint256 amount);
+    
     // QA specific errors
 
     error InsufficientStakeForPenalty();
