@@ -4824,4 +4824,262 @@ contract SapienVaultBasicTest is Test {
         assertEq(increasedStake.userTotalStaked, expectedTotalAfterIncrease);
         // Optionally, check multiplier increased
     }
+
+    // =============================================================================
+    // EFFECTIVE STAKE AMOUNT TESTS
+    // =============================================================================
+
+    function test_Vault_GetEffectiveStakeAmount_NoStake() public {
+        // Test for user with no stake
+        assertEq(sapienVault.getEffectiveStakeAmount(user1), 0, "User with no stake should have 0 effective stake");
+
+        // Test with zero address
+        assertEq(sapienVault.getEffectiveStakeAmount(address(0)), 0, "Zero address should return 0");
+
+        // Test with non-existent user
+        address nonExistentUser = makeAddr("nonExistent");
+        assertEq(sapienVault.getEffectiveStakeAmount(nonExistentUser), 0, "Non-existent user should return 0");
+    }
+
+    function test_Vault_GetEffectiveStakeAmount_BasicStake() public {
+        // Create a basic stake with no cooldowns
+        uint256 stakeAmount = MINIMUM_STAKE * 5; // 5000 tokens
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Effective stake should equal total stake when no cooldowns are active
+        assertEq(sapienVault.getEffectiveStakeAmount(user1), stakeAmount, "Effective stake should equal total stake");
+
+        // Verify using getUserStake
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        uint256 expectedEffective = userStake.amount - userStake.cooldownAmount - userStake.earlyUnstakeCooldownAmount;
+        assertEq(sapienVault.getEffectiveStakeAmount(user1), expectedEffective, "Should match manual calculation");
+    }
+
+    function test_Vault_GetEffectiveStakeAmount_WithCooldown() public {
+        // Create stake
+        uint256 stakeAmount = MINIMUM_STAKE * 6; // 6000 tokens
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Wait until lock period expires to allow normal unstaking
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        // Initiate normal unstake (creates cooldown)
+        uint256 unstakeAmount = MINIMUM_STAKE * 2; // 2000 tokens
+        vm.prank(user1);
+        sapienVault.initiateUnstake(unstakeAmount);
+
+        // Effective stake should be reduced by cooldown amount
+        uint256 expectedEffective = stakeAmount - unstakeAmount;
+        assertEq(
+            sapienVault.getEffectiveStakeAmount(user1),
+            expectedEffective,
+            "Effective stake should exclude cooldown amount"
+        );
+
+        // Verify the cooldown is properly tracked
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        assertEq(userStake.cooldownAmount, unstakeAmount, "Cooldown amount should be tracked");
+        assertEq(userStake.earlyUnstakeCooldownAmount, 0, "No early unstake cooldown");
+
+        uint256 manualCalculation = userStake.amount - userStake.cooldownAmount - userStake.earlyUnstakeCooldownAmount;
+        assertEq(sapienVault.getEffectiveStakeAmount(user1), manualCalculation, "Should match manual calculation");
+    }
+
+    function test_Vault_GetEffectiveStakeAmount_WithEarlyUnstakeCooldown() public {
+        // Create stake (lock period not expired yet)
+        uint256 stakeAmount = MINIMUM_STAKE * 4; // 4000 tokens
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        vm.stopPrank();
+
+        // Initiate early unstake while still in lock period
+        uint256 earlyUnstakeAmount = MINIMUM_STAKE * 2; // 2000 tokens
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(earlyUnstakeAmount);
+
+        // Effective stake should be reduced by early unstake cooldown amount
+        uint256 expectedEffective = stakeAmount - earlyUnstakeAmount;
+        assertEq(
+            sapienVault.getEffectiveStakeAmount(user1),
+            expectedEffective,
+            "Effective stake should exclude early unstake cooldown"
+        );
+
+        // Verify the early unstake cooldown is properly tracked
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        assertEq(
+            userStake.earlyUnstakeCooldownAmount, earlyUnstakeAmount, "Early unstake cooldown amount should be tracked"
+        );
+        assertEq(userStake.cooldownAmount, 0, "No normal cooldown");
+
+        uint256 manualCalculation = userStake.amount - userStake.cooldownAmount - userStake.earlyUnstakeCooldownAmount;
+        assertEq(sapienVault.getEffectiveStakeAmount(user1), manualCalculation, "Should match manual calculation");
+    }
+
+    function test_Vault_GetEffectiveStakeAmount_WithBothCooldowns() public {
+        // Create stake
+        uint256 stakeAmount = MINIMUM_STAKE * 8; // 8000 tokens
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        vm.stopPrank();
+
+        // First, initiate early unstake while in lock period
+        uint256 earlyUnstakeAmount = MINIMUM_STAKE * 2; // 2000 tokens
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(earlyUnstakeAmount);
+
+        // Wait until lock period expires
+        vm.warp(block.timestamp + LOCK_90_DAYS + 1);
+
+        // Then initiate normal unstake
+        uint256 normalUnstakeAmount = MINIMUM_STAKE * 2; // 2000 tokens
+        vm.prank(user1);
+        sapienVault.initiateUnstake(normalUnstakeAmount);
+
+        // Effective stake should exclude both cooldown amounts
+        uint256 expectedEffective = stakeAmount - earlyUnstakeAmount - normalUnstakeAmount;
+        assertEq(
+            sapienVault.getEffectiveStakeAmount(user1),
+            expectedEffective,
+            "Effective stake should exclude both cooldown amounts"
+        );
+
+        // Verify both cooldowns are tracked
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        assertEq(userStake.earlyUnstakeCooldownAmount, earlyUnstakeAmount, "Early unstake cooldown should be tracked");
+        assertEq(userStake.cooldownAmount, normalUnstakeAmount, "Normal cooldown should be tracked");
+
+        uint256 manualCalculation = userStake.amount - userStake.cooldownAmount - userStake.earlyUnstakeCooldownAmount;
+        assertEq(sapienVault.getEffectiveStakeAmount(user1), manualCalculation, "Should match manual calculation");
+    }
+
+    function test_Vault_GetEffectiveStakeAmount_AfterCooldownCompletion() public {
+        // Create stake
+        uint256 stakeAmount = MINIMUM_STAKE * 5; // 5000 tokens
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Wait until lock period expires
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        // Initiate normal unstake
+        uint256 unstakeAmount = MINIMUM_STAKE * 2; // 2000 tokens
+        vm.prank(user1);
+        sapienVault.initiateUnstake(unstakeAmount);
+
+        // Effective stake should be reduced
+        uint256 expectedEffectiveDuringCooldown = stakeAmount - unstakeAmount;
+        assertEq(
+            sapienVault.getEffectiveStakeAmount(user1),
+            expectedEffectiveDuringCooldown,
+            "Effective stake reduced during cooldown"
+        );
+
+        // Complete the cooldown and unstake
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        vm.prank(user1);
+        sapienVault.unstake(unstakeAmount);
+
+        // Effective stake should now equal remaining stake
+        uint256 expectedFinalStake = stakeAmount - unstakeAmount;
+        assertEq(
+            sapienVault.getEffectiveStakeAmount(user1),
+            expectedFinalStake,
+            "Effective stake should equal remaining stake after unstake"
+        );
+
+        // Verify cooldown is cleared
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        assertEq(userStake.cooldownAmount, 0, "Cooldown should be cleared");
+        assertEq(userStake.amount, expectedFinalStake, "Amount should be reduced");
+    }
+
+    function test_Vault_GetEffectiveStakeAmount_AfterEarlyUnstakeCompletion() public {
+        // Create stake
+        uint256 stakeAmount = MINIMUM_STAKE * 4; // 4000 tokens
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        vm.stopPrank();
+
+        // Initiate early unstake
+        uint256 earlyUnstakeAmount = MINIMUM_STAKE * 2; // 2000 tokens
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(earlyUnstakeAmount);
+
+        // Effective stake should be reduced
+        uint256 expectedEffectiveDuringCooldown = stakeAmount - earlyUnstakeAmount;
+        assertEq(
+            sapienVault.getEffectiveStakeAmount(user1),
+            expectedEffectiveDuringCooldown,
+            "Effective stake reduced during early unstake cooldown"
+        );
+
+        // Complete the early unstake cooldown
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        vm.prank(user1);
+        sapienVault.earlyUnstake(earlyUnstakeAmount);
+
+        // Calculate expected remaining stake after early unstake
+        uint256 expectedFinalStake = stakeAmount - earlyUnstakeAmount;
+
+        assertEq(
+            sapienVault.getEffectiveStakeAmount(user1),
+            expectedFinalStake,
+            "Effective stake should equal remaining stake after early unstake"
+        );
+
+        // Verify early unstake cooldown is cleared
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        assertEq(userStake.earlyUnstakeCooldownAmount, 0, "Early unstake cooldown should be cleared");
+        assertEq(userStake.amount, expectedFinalStake, "Amount should be reduced");
+    }
+
+    function test_Vault_GetEffectiveStakeAmount_EdgeCase_ZeroEffectiveStake() public {
+        // Create stake
+        uint256 stakeAmount = MINIMUM_STAKE * 2; // 2000 tokens
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Wait until lock period expires
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        // Initiate unstake for full amount
+        vm.prank(user1);
+        sapienVault.initiateUnstake(stakeAmount);
+
+        // Effective stake should be 0 when all stake is in cooldown
+        assertEq(
+            sapienVault.getEffectiveStakeAmount(user1), 0, "Effective stake should be 0 when all stake is in cooldown"
+        );
+
+        // Verify calculation
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        assertEq(userStake.amount, stakeAmount, "Total amount should remain");
+        assertEq(userStake.cooldownAmount, stakeAmount, "All amount should be in cooldown");
+        assertEq(userStake.earlyUnstakeCooldownAmount, 0, "No early unstake cooldown");
+
+        uint256 manualCalculation = userStake.amount - userStake.cooldownAmount - userStake.earlyUnstakeCooldownAmount;
+        assertEq(sapienVault.getEffectiveStakeAmount(user1), manualCalculation, "Should match manual calculation");
+        assertEq(manualCalculation, 0, "Manual calculation should also be 0");
+    }
 }

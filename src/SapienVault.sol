@@ -532,6 +532,17 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         return block.timestamp >= cooldownEndTime ? 0 : cooldownEndTime - block.timestamp;
     }
 
+    /**
+     * @notice Returns the user's effective stake amount (excluding cooldown and early unstake amounts).
+     * @dev Effective stake is calculated as total staked amount minus cooldown and early unstake cooldown amounts.
+     * @param user The address of the user to query.
+     * @return effectiveStakeAmount The effective stake amount available for rewards and voting.
+     */
+    function getEffectiveStakeAmount(address user) public view returns (uint256 effectiveStakeAmount) {
+        UserStake memory userStake = userStakes[user];
+        effectiveStakeAmount = userStake.amount - userStake.cooldownAmount - userStake.earlyUnstakeCooldownAmount;
+    }
+
     // -------------------------------------------------------------
     //  Stake Management
     // -------------------------------------------------------------
