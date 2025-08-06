@@ -143,6 +143,7 @@ interface ISapienVault {
     function getUserStakingSummary(address user) external view returns (UserStakingSummary memory summary);
     function getTimeUntilUnlock(address user) external view returns (uint256);
     function getUserLockupPeriod(address user) external view returns (uint256);
+    function getEffectiveStakeAmount(address user) external view returns (uint256);
 
     function isEarlyUnstakeReady(address user) external view returns (bool);
     function hasActiveStake(address user) external view returns (bool);
