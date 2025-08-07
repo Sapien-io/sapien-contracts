@@ -256,6 +256,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * - totalLocked: Tokens still in their lockup period that cannot be unstaked yet
      * - totalInCooldown: Tokens queued for unstaking but still in cooldown period
      * - totalReadyForUnstake: Tokens that completed cooldown and can be withdrawn immediately
+     * - effectiveStakeAmount: Effective stake amount (excluding cooldown and early unstake cooldown amounts)
      * - effectiveMultiplier: Current multiplier applied to this user's stake for rewards
      * - effectiveLockUpPeriod: Lockup period for the user's position
      * - timeUntilUnlock: Seconds remaining until the stake becomes unlocked (0 if already unlocked)
@@ -288,6 +289,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             summary.totalLocked = getTotalLocked(user);
             summary.totalInCooldown = getTotalInCooldown(user);
             summary.totalReadyForUnstake = getTotalReadyForUnstake(user);
+            summary.effectiveStakeAmount = getEffectiveStakeAmount(user);
             summary.effectiveMultiplier = userStake.effectiveMultiplier;
             summary.effectiveLockUpPeriod = userStake.effectiveLockUpPeriod;
             summary.timeUntilUnlock = getTimeUntilUnlock(user);

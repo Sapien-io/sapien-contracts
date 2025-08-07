@@ -22,6 +22,7 @@ interface ISapienVault {
 
     struct UserStakingSummary {
         uint256 userTotalStaked; // Total amount staked by the user
+        uint256 effectiveStakeAmount; // Effective stake amount (excluding cooldown and early unstake cooldown amounts)
         uint256 effectiveMultiplier; // Current multiplier for rewards (basis points)
         uint256 effectiveLockUpPeriod; // Lockup period (seconds)
         uint256 totalLocked; // Amount still in lockup period
