@@ -8,7 +8,7 @@ import {ISapienRewards} from "src/interfaces/ISapienRewards.sol";
 import {Actors, AllActors} from "script/Actors.sol";
 import {Contracts, DeployedContracts} from "script/Contracts.sol";
 
-contract DeployRewards is Script {
+contract DeploySapienRewards is Script {
     function run() external {
         // Get all actors from the deployed configuration
         AllActors memory actors = Actors.getAllActors();
