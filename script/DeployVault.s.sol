@@ -6,13 +6,14 @@ import {TransparentUpgradeableProxy as TUP} from "src/utils/Common.sol";
 import {SapienVault} from "src/SapienVault.sol";
 import {SapienToken} from "src/SapienToken.sol";
 import {ISapienVault} from "src/interfaces/ISapienVault.sol";
-import {Actors, AllActors} from "script/Actors.sol";
+import {Actors, AllActors, CoreActors} from "script/Actors.sol";
 import {Contracts, DeployedContracts} from "script/Contracts.sol";
 
 contract DeployVault is Script {
     function run() external {
         // Get necessary addresses
         AllActors memory actors = Actors.getAllActors();
+        CoreActors memory coreActors = Actors.getActors();
         DeployedContracts memory contracts = Contracts.get();
 
         vm.startBroadcast();
@@ -24,9 +25,9 @@ contract DeployVault is Script {
         bytes memory initData = abi.encodeWithSelector(
             ISapienVault.initialize.selector,
             contracts.sapienToken, // token
-            actors.securityCouncil, //admin
+            coreActors.sapienLabs, //admin
             actors.pauser, //pauser
-            actors.foundationSafe1, // treasury
+            coreActors.sapienLabs, // treasury
             contracts.sapienQA // SapienQA contract
         );
 
@@ -53,8 +54,8 @@ contract DeployVault is Script {
         console.log("Timelock:", contracts.timelock);
         console.log("SapienToken:", contracts.sapienToken);
         console.log("SapienQA:", contracts.sapienQA);
-        console.log("Admin:", actors.securityCouncil);
-        console.log("Treasury:", actors.foundationSafe1);
+        console.log("Admin:", coreActors.sapienLabs);
+        console.log("Treasury:", coreActors.sapienLabs);
         console.log("SapienVault implementation deployed at:", address(vaultImpl));
         console.log("Vault proxy deployed at:", address(vaultProxy));
 

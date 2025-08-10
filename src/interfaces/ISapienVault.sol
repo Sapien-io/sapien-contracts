@@ -22,6 +22,7 @@ interface ISapienVault {
 
     struct UserStakingSummary {
         uint256 userTotalStaked; // Total amount staked by the user
+        uint256 effectiveStakeAmount; // Effective stake amount (excluding cooldown and early unstake cooldown amounts)
         uint256 effectiveMultiplier; // Current multiplier for rewards (basis points)
         uint256 effectiveLockUpPeriod; // Lockup period (seconds)
         uint256 totalLocked; // Amount still in lockup period
@@ -80,6 +81,9 @@ interface ISapienVault {
     error LockPeriodCompleted();
     error RemainingStakeBelowMinimum();
     error EarlyUnstakeCooldownActive();
+    error StakeInCooldown();
+    error InvalidRecipient();
+    error InsufficientSurplusForEmergencyWithdraw(uint256 surplus, uint256 amount);
 
     // QA specific errors
 
@@ -140,6 +144,7 @@ interface ISapienVault {
     function getUserStakingSummary(address user) external view returns (UserStakingSummary memory summary);
     function getTimeUntilUnlock(address user) external view returns (uint256);
     function getUserLockupPeriod(address user) external view returns (uint256);
+    function getEffectiveStakeAmount(address user) external view returns (uint256);
 
     function isEarlyUnstakeReady(address user) external view returns (bool);
     function hasActiveStake(address user) external view returns (bool);

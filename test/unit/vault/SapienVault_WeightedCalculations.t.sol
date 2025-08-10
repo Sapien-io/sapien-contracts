@@ -182,7 +182,7 @@ contract SapienVaultWeightedCalculationsTest is Test {
     function test_Vault_Precision_RoundingUp() public {
         // Test case: ensure proper rounding when remainder > 50%
         uint256 stake1 = MINIMUM_STAKE;
-        uint256 stake2 = MINIMUM_STAKE * 2;
+        uint256 stake2 = 1_400 * 1e18; // Reduced to keep total under 2500 limit (1000 + 1400 = 2400)
 
         // Create scenario where rounding should occur
         vm.warp(100);

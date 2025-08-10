@@ -63,10 +63,10 @@ deploy-tenderly    :; forge script script/$(CONTRACT).s.sol:$(CONTRACT) \
 # ACCOUNT - The deployer account address
 # BASE_SEPOLIA_RPC_URL - RPC URL for Base Sepolia network
 # ETHERSCAN_API_KEY - API key for contract verification
-deploy-sepolia    :; forge script script/$(CONTRACT).s.sol:$(CONTRACT) \
+deploy-script    :; forge script script/$(CONTRACT).s.sol:$(CONTRACT) \
                     --slow \
                     --account $(ACCOUNT) \
-                    --rpc-url  $(BASE_SEPOLIA_RPC_URL) \
+                    --rpc-url  $(RPC_URL) \
                     --etherscan-api-key $(ETHERSCAN_API_KEY) \
                     --broadcast \
                     --verify
@@ -78,3 +78,48 @@ deploy-contract   :; forge create \
                     --broadcast \
                     --verify \
                     src/$(CONTRACT).sol:$(CONTRACT)
+
+# Note: Required environment variables for multisig transaction data:
+# TARGET_ADDRESS - Address to grant/revoke the role to/from
+# Optional variables:
+# CONTRACT_ADDRESS - Address of the rewards contract (defaults to Sapien rewards)
+# ROLE_ACTION - "grant" or "revoke" (default: "grant")
+# USDC_REWARDS_ADDRESS - Address of USDC rewards contract
+generate-role-tx  :; forge script script/UpdateRole.s.sol:UpdateRole \
+                    --sig "run()" \
+                    --rpc-url $(RPC_URL)
+
+# Generate transaction data for batch role updates
+generate-batch-tx :; forge script script/UpdateRole.s.sol:UpdateRole \
+                    --sig "generateBatchRoleUpdate()" \
+                    --rpc-url $(RPC_URL)
+
+# Generate transaction data for role checking (read-only)
+generate-check-tx :; forge script script/UpdateRole.s.sol:UpdateRole \
+                    --sig "generateRoleCheckData()" \
+                    --rpc-url $(RPC_URL)
+
+# Show common scenarios and usage examples
+role-scenarios    :; forge script script/UpdateRole.s.sol:UpdateRole \
+                    --sig "generateCommonScenarios()" \
+                    --rpc-url $(RPC_URL)
+
+# Note: Required environment variables for BatchRewards deployment:
+# Optional variables:
+# SAPIEN_REWARDS_ADDRESS - Override default Sapien rewards contract address
+# USDC_REWARDS_ADDRESS - Override default USDC rewards contract address (auto-detected for Base Sepolia)
+deploy-batch-rewards :; forge script script/DeployBatchRewards.s.sol:DeployBatchRewards \
+                    --account $(ACCOUNT) \
+                    --rpc-url $(RPC_URL) \
+                    --broadcast \
+                    --verify
+
+# Verify rewards contracts before deployment
+verify-rewards-contracts :; forge script script/DeployBatchRewards.s.sol:DeployBatchRewards \
+                    --sig "verifyRewardsContracts()" \
+                    --rpc-url $(RPC_URL)
+
+# Generate role update transactions for BatchRewards (requires BATCH_REWARDS_ADDRESS)
+generate-batch-role-updates :; forge script script/DeployBatchRewards.s.sol:DeployBatchRewards \
+                    --sig "generateRoleUpdates()" \
+                    --rpc-url $(RPC_URL)

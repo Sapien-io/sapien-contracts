@@ -3,9 +3,11 @@ pragma solidity 0.8.30;
 
 import {ISapienRewards} from "src/interfaces/ISapienRewards.sol";
 import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 
 contract BatchRewards is ReentrancyGuard {
     error ZeroAddress();
+    error RewardsContractPaused(address contractAddress);
 
     ISapienRewards public immutable sapienRewards;
     ISapienRewards public immutable usdcRewards;
@@ -35,6 +37,14 @@ contract BatchRewards is ReentrancyGuard {
         bytes32 usdcOrderId,
         bytes memory usdcSignature
     ) public nonReentrant {
+        // Check that both rewards contracts are not paused
+        if (PausableUpgradeable(address(sapienRewards)).paused()) {
+            revert RewardsContractPaused(address(sapienRewards));
+        }
+        if (PausableUpgradeable(address(usdcRewards)).paused()) {
+            revert RewardsContractPaused(address(usdcRewards));
+        }
+
         // Claim rewards - tokens go directly to msg.sender
         if (sapienRewardAmount > 0) {
             sapienRewards.claimRewardFor(msg.sender, sapienRewardAmount, sapienOrderId, sapienSignature);

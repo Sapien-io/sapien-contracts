@@ -197,7 +197,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * @param newMaximumStakeAmount The new maximum stake amount.
      */
     function setMaximumStakeAmount(uint256 newMaximumStakeAmount) external onlyAdmin {
-        if (newMaximumStakeAmount == 0) {
+        if (newMaximumStakeAmount < Const.MINIMUM_STAKE_AMOUNT) {
             revert InvalidAmount();
         }
 
@@ -215,6 +215,16 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      */
     function emergencyWithdraw(address token, address to, uint256 amount) external onlyAdmin whenPaused nonReentrant {
         if (to == address(0)) revert ZeroAddress();
+
+        if (token == address(sapienToken)) {
+            uint256 contractBalance = sapienToken.balanceOf(address(this));
+            uint256 userStakeTotal = totalStaked;
+            uint256 surplus = contractBalance > userStakeTotal ? contractBalance - userStakeTotal : 0;
+
+            if (amount > surplus) {
+                revert InsufficientSurplusForEmergencyWithdraw(surplus, amount);
+            }
+        }
 
         if (token == address(0)) {
             // Withdraw ETH
@@ -246,6 +256,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
      * - totalLocked: Tokens still in their lockup period that cannot be unstaked yet
      * - totalInCooldown: Tokens queued for unstaking but still in cooldown period
      * - totalReadyForUnstake: Tokens that completed cooldown and can be withdrawn immediately
+     * - effectiveStakeAmount: Effective stake amount (excluding cooldown and early unstake cooldown amounts)
      * - effectiveMultiplier: Current multiplier applied to this user's stake for rewards
      * - effectiveLockUpPeriod: Lockup period for the user's position
      * - timeUntilUnlock: Seconds remaining until the stake becomes unlocked (0 if already unlocked)
@@ -278,6 +289,7 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
             summary.totalLocked = getTotalLocked(user);
             summary.totalInCooldown = getTotalInCooldown(user);
             summary.totalReadyForUnstake = getTotalReadyForUnstake(user);
+            summary.effectiveStakeAmount = getEffectiveStakeAmount(user);
             summary.effectiveMultiplier = userStake.effectiveMultiplier;
             summary.effectiveLockUpPeriod = userStake.effectiveLockUpPeriod;
             summary.timeUntilUnlock = getTimeUntilUnlock(user);
@@ -520,6 +532,17 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         if (userStake.cooldownStart == 0) return 0;
         uint256 cooldownEndTime = userStake.cooldownStart + Const.COOLDOWN_PERIOD;
         return block.timestamp >= cooldownEndTime ? 0 : cooldownEndTime - block.timestamp;
+    }
+
+    /**
+     * @notice Returns the user's effective stake amount (excluding cooldown and early unstake amounts).
+     * @dev Effective stake is calculated as total staked amount minus cooldown and early unstake cooldown amounts.
+     * @param user The address of the user to query.
+     * @return effectiveStakeAmount The effective stake amount available for rewards and voting.
+     */
+    function getEffectiveStakeAmount(address user) public view returns (uint256 effectiveStakeAmount) {
+        UserStake memory userStake = userStakes[user];
+        effectiveStakeAmount = userStake.amount - userStake.cooldownAmount - userStake.earlyUnstakeCooldownAmount;
     }
 
     // -------------------------------------------------------------
@@ -765,12 +788,14 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
 
     function _validateIncreaseAmount(uint256 additionalAmount, UserStake storage userStake) private view {
         if (additionalAmount == 0) revert InvalidAmount();
-        if (additionalAmount > maximumStakeAmount) revert StakeAmountTooLarge();
         if (userStake.amount == 0) revert NoStakeFound();
 
         if (userStake.cooldownStart != 0 || userStake.earlyUnstakeCooldownStart != 0) {
             revert CannotIncreaseStakeInCooldown();
         }
+
+        if (additionalAmount > maximumStakeAmount) revert StakeAmountTooLarge();
+        if (userStake.amount + additionalAmount > maximumStakeAmount) revert StakeAmountTooLarge();
     }
 
     function _updateUserStakeAfterUnstake(UserStake storage userStake, uint256 amount, uint256 newUserStakeAmount)

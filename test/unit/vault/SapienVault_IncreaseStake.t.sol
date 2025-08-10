@@ -72,7 +72,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      */
     function test_Vault_IncreaseStake_BasicFunctionality() public {
         uint256 initialAmount = MINIMUM_STAKE;
-        uint256 additionalAmount = MINIMUM_STAKE * 2;
+        uint256 additionalAmount = 1_500 * 1e18; // Reduced to keep total under 2500 limit
         uint256 additionalLockup = LOCK_90_DAYS;
 
         // Create initial stake
@@ -175,7 +175,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      */
     function test_Vault_IncreaseStake_ExpiredStake() public {
         uint256 initialAmount = MINIMUM_STAKE;
-        uint256 additionalAmount = MINIMUM_STAKE * 2;
+        uint256 additionalAmount = 1_500 * 1e18; // Reduced to keep total under 2500 limit
         uint256 additionalLockup = LOCK_180_DAYS;
 
         // Create initial stake with short lockup
@@ -484,7 +484,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      */
     function test_Vault_IncreaseStake_EquivalentToSeparateCalls() public {
         uint256 initialAmount = MINIMUM_STAKE;
-        uint256 additionalAmount = MINIMUM_STAKE * 2;
+        uint256 additionalAmount = 1_500 * 1e18; // Reduced to keep total under 2500 limit
         uint256 additionalLockup = LOCK_90_DAYS;
 
         // Setup two identical initial stakes
@@ -576,22 +576,22 @@ contract SapienVaultIncreaseStakeTest is Test {
         sapienVault.stake(initialAmount, LOCK_30_DAYS);
         vm.stopPrank();
 
-        // First increase
+        // First increase (700 tokens)
         vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), MINIMUM_STAKE);
-        sapienVault.increaseStake(MINIMUM_STAKE, LOCK_30_DAYS);
+        sapienToken.approve(address(sapienVault), 700 * 1e18);
+        sapienVault.increaseStake(700 * 1e18, LOCK_30_DAYS);
         vm.stopPrank();
 
-        // Second increase
+        // Second increase (800 tokens - total will be 2500)
         vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), MINIMUM_STAKE);
-        sapienVault.increaseStake(MINIMUM_STAKE, LOCK_30_DAYS);
+        sapienToken.approve(address(sapienVault), 800 * 1e18);
+        sapienVault.increaseStake(800 * 1e18, LOCK_30_DAYS);
         vm.stopPrank();
 
         // Verify final state
         ISapienVault.UserStakingSummary memory finalStake = sapienVault.getUserStakingSummary(user1);
 
-        assertEq(finalStake.userTotalStaked, initialAmount * 3, "Should have accumulated all increases");
+        assertEq(finalStake.userTotalStaked, 2_500 * 1e18, "Should have accumulated all increases (2500 total)");
         assertGt(finalStake.effectiveLockUpPeriod, LOCK_30_DAYS, "Lockup should have been extended multiple times");
     }
 
@@ -693,7 +693,7 @@ contract SapienVaultIncreaseStakeTest is Test {
      */
     function test_Vault_IncreaseStake_GasComparison() public {
         uint256 initialAmount = MINIMUM_STAKE;
-        uint256 additionalAmount = MINIMUM_STAKE * 2;
+        uint256 additionalAmount = 1_500 * 1e18; // Reduced to keep total under 2500 limit
         uint256 additionalLockup = LOCK_90_DAYS;
 
         // Setup two identical stakes

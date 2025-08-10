@@ -1120,8 +1120,8 @@ contract SapienVaultBasicTest is Test {
         uint256 totalInCooldown2 = sapienVault.getTotalInCooldown(user1);
         assertEq(totalInCooldown2, firstUnstake + secondUnstake);
 
-        // The cooldownStart should remain the same (set only on first call)
-        // This tests the logic: "Set cooldown start time only if not already in cooldown"
+        // The cooldownStart should be updated on each call (SAP-1 security fix)
+        // This tests the logic: "Always reset cooldown timer to prevent bypass attacks"
     }
 
     function test_Vault_InitiateUnstake_AllowedWithActiveEarlyUnstakeCooldown_Original() public {
@@ -1665,29 +1665,30 @@ contract SapienVaultBasicTest is Test {
     }
 
     function test_Vault_WeightedCalculationOverflow_NewTotalAmount() public {
-        // Test line 660: StakeAmountTooLarge when newTotalAmount > uint128.max
-        // This is practically impossible to test due to the 10M token limit,
-        // but we can test the boundary condition conceptually
+        // Test weighted calculation with large amounts that stay within the maximum stake limit
+        // This test verifies the weighted calculation logic works correctly with larger amounts
 
         uint256 maxStake = 2_500 * 1e18;
-        sapienToken.mint(user1, maxStake * 2);
+        uint256 initialStake = 1_500 * 1e18; // Start with 1500 tokens
+        uint256 additionalStake = 1_000 * 1e18; // Add 1000 tokens (total = 2500, at max limit)
 
-        // Start with maximum allowed stake
+        sapienToken.mint(user1, maxStake);
+
+        // Start with a large initial stake
         vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), maxStake);
-        sapienVault.stake(maxStake, LOCK_30_DAYS);
+        sapienToken.approve(address(sapienVault), initialStake);
+        sapienVault.stake(initialStake, LOCK_30_DAYS);
 
-        // Try to add another maximum stake - this would exceed practical limits
-        // but is still less than uint128.max
-        sapienToken.approve(address(sapienVault), maxStake);
-        // This should succeed because even 18k tokens < uint128.max
-        sapienVault.increaseAmount(maxStake);
+        // Add more to reach the maximum allowed stake
+        sapienToken.approve(address(sapienVault), additionalStake);
+        sapienVault.increaseAmount(additionalStake);
         vm.stopPrank();
 
-        // Verify the large stake was created successfully
-        assertEq(sapienVault.getTotalStaked(user1), maxStake * 2);
+        // Verify the large stake was created successfully at the maximum limit
+        assertEq(sapienVault.getTotalStaked(user1), maxStake);
 
         // The uint128 overflow protection exists for extreme theoretical cases
+        // This test ensures the weighted calculation works properly with large amounts within limits
     }
 
     function test_Vault_DustAttackPrevention() public {
@@ -1789,22 +1790,23 @@ contract SapienVaultBasicTest is Test {
         // Test lines 667 and 674: Weighted calculation overflow protection
         // These are practically impossible to trigger but exist for extreme edge cases
 
-        uint256 moderateStake = 1_500 * 1e18;
-        sapienToken.mint(user1, moderateStake * 2);
+        uint256 initialStake = 1_200 * 1e18;
+        uint256 additionalStake = 1_300 * 1e18; // Total = 2500 (at max limit)
+        sapienToken.mint(user1, initialStake + additionalStake);
 
         // Create initial stake at a reasonable timestamp
         vm.warp(1000);
         vm.startPrank(user1);
-        sapienToken.approve(address(sapienVault), moderateStake);
-        sapienVault.stake(moderateStake, LOCK_30_DAYS);
+        sapienToken.approve(address(sapienVault), initialStake);
+        sapienVault.stake(initialStake, LOCK_30_DAYS);
 
         // Add to the stake - this triggers weighted calculation validation
-        sapienToken.approve(address(sapienVault), moderateStake);
-        sapienVault.increaseAmount(moderateStake);
+        sapienToken.approve(address(sapienVault), additionalStake);
+        sapienVault.increaseAmount(additionalStake);
         vm.stopPrank();
 
         // Verify the operation succeeded (no overflow occurred)
-        assertEq(sapienVault.getTotalStaked(user1), moderateStake * 2);
+        assertEq(sapienVault.getTotalStaked(user1), initialStake + additionalStake);
 
         // The overflow protection in lines 667 and 674 exists for extreme scenarios
         // where timestamp * amount or lockup * amount might overflow uint256
@@ -4521,6 +4523,258 @@ contract SapienVaultBasicTest is Test {
         _verifyStakeIncrease(user1, expectedRemainingStake, additionalAmount);
     }
 
+    // =============================================================================
+    // EMERGENCY WITHDRAW SURPLUS PROTECTION TESTS
+    // =============================================================================
+
+    function test_Vault_EmergencyWithdraw_SurplusProtection_NoSurplus() public {
+        // Setup: Users stake tokens equal to contract balance (no surplus)
+        uint256 stakeAmount = 1000e18;
+        sapienToken.mint(user1, stakeAmount);
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Verify setup: contract balance equals totalStaked (zero surplus)
+        assertEq(sapienToken.balanceOf(address(sapienVault)), stakeAmount);
+        assertEq(sapienVault.totalStaked(), stakeAmount);
+
+        // Pause contract for emergency operation
+        vm.prank(pauser);
+        sapienVault.pause();
+
+        // Try to withdraw any amount of SAPIEN tokens (should fail - no surplus)
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSignature("InsufficientSurplusForEmergencyWithdraw(uint256,uint256)", 0, 1));
+        sapienVault.emergencyWithdraw(address(sapienToken), treasury, 1);
+    }
+
+    function test_Vault_EmergencyWithdraw_SurplusProtection_ExactSurplus() public {
+        // Setup: Create surplus by minting extra tokens to contract
+        uint256 stakeAmount = 1000e18;
+        uint256 surplusAmount = 500e18;
+        sapienToken.mint(user1, stakeAmount);
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Add surplus tokens to contract
+        sapienToken.mint(address(sapienVault), surplusAmount);
+
+        // Verify setup: contract has surplus
+        assertEq(sapienToken.balanceOf(address(sapienVault)), stakeAmount + surplusAmount);
+        assertEq(sapienVault.totalStaked(), stakeAmount);
+
+        // Pause contract
+        vm.prank(pauser);
+        sapienVault.pause();
+
+        // Withdraw exact surplus amount (should succeed)
+        uint256 treasuryBalanceBefore = sapienToken.balanceOf(treasury);
+
+        vm.prank(admin);
+        vm.expectEmit(true, true, true, false);
+        emit ISapienVault.EmergencyWithdraw(address(sapienToken), treasury, surplusAmount);
+        sapienVault.emergencyWithdraw(address(sapienToken), treasury, surplusAmount);
+
+        // Verify withdrawal succeeded
+        assertEq(sapienToken.balanceOf(treasury), treasuryBalanceBefore + surplusAmount);
+        assertEq(sapienToken.balanceOf(address(sapienVault)), stakeAmount); // Only user stakes remain
+    }
+
+    function test_Vault_EmergencyWithdraw_SurplusProtection_PartialSurplus() public {
+        // Setup: Create surplus and withdraw less than available
+        uint256 stakeAmount = 1000e18;
+        uint256 surplusAmount = 500e18;
+        uint256 withdrawAmount = 300e18; // Less than surplus
+
+        sapienToken.mint(user1, stakeAmount);
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Add surplus tokens
+        sapienToken.mint(address(sapienVault), surplusAmount);
+
+        // Pause contract
+        vm.prank(pauser);
+        sapienVault.pause();
+
+        // Withdraw partial surplus (should succeed)
+        uint256 treasuryBalanceBefore = sapienToken.balanceOf(treasury);
+
+        vm.prank(admin);
+        sapienVault.emergencyWithdraw(address(sapienToken), treasury, withdrawAmount);
+
+        // Verify withdrawal succeeded
+        assertEq(sapienToken.balanceOf(treasury), treasuryBalanceBefore + withdrawAmount);
+        assertEq(sapienToken.balanceOf(address(sapienVault)), stakeAmount + surplusAmount - withdrawAmount);
+    }
+
+    function test_Vault_EmergencyWithdraw_SurplusProtection_ExceedsSurplus() public {
+        // Setup: Try to withdraw more than available surplus
+        uint256 stakeAmount = 1000e18;
+        uint256 surplusAmount = 500e18;
+        uint256 withdrawAmount = 600e18; // More than surplus
+
+        sapienToken.mint(user1, stakeAmount);
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Add surplus tokens
+        sapienToken.mint(address(sapienVault), surplusAmount);
+
+        // Pause contract
+        vm.prank(pauser);
+        sapienVault.pause();
+
+        // Try to withdraw more than surplus (should fail)
+        vm.prank(admin);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "InsufficientSurplusForEmergencyWithdraw(uint256,uint256)", surplusAmount, withdrawAmount
+            )
+        );
+        sapienVault.emergencyWithdraw(address(sapienToken), treasury, withdrawAmount);
+    }
+
+    function test_Vault_EmergencyWithdraw_SurplusProtection_InsufficientContractBalance() public {
+        // Edge case: Contract balance less than totalStaked (theoretical scenario)
+        uint256 stakeAmount = 1000e18;
+        sapienToken.mint(user1, stakeAmount);
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Artificially reduce contract balance (simulate external drain)
+        vm.prank(address(sapienVault));
+        sapienToken.transfer(treasury, 200e18);
+
+        // Verify problematic state: contract balance < totalStaked
+        assertLt(sapienToken.balanceOf(address(sapienVault)), sapienVault.totalStaked());
+
+        // Pause contract
+        vm.prank(pauser);
+        sapienVault.pause();
+
+        // Try to withdraw any SAPIEN tokens (should fail - zero surplus when balance < stakes)
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSignature("InsufficientSurplusForEmergencyWithdraw(uint256,uint256)", 0, 1));
+        sapienVault.emergencyWithdraw(address(sapienToken), treasury, 1);
+    }
+
+    function test_Vault_EmergencyWithdraw_NonSapienToken_NoRestrictions() public {
+        // Setup: Deploy a different ERC20 token
+        MockERC20 otherToken = new MockERC20("Other", "OTHER", 18);
+        uint256 otherTokenAmount = 1000e18;
+
+        // Setup user stakes (shouldn't affect other token withdrawals)
+        uint256 stakeAmount = 500e18;
+        sapienToken.mint(user1, stakeAmount);
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Send other tokens to vault (accidental deposit scenario)
+        otherToken.mint(address(sapienVault), otherTokenAmount);
+
+        // Pause contract
+        vm.prank(pauser);
+        sapienVault.pause();
+
+        // Emergency withdraw other tokens (should work without surplus restrictions)
+        uint256 treasuryBalanceBefore = otherToken.balanceOf(treasury);
+
+        vm.prank(admin);
+        vm.expectEmit(true, true, true, false);
+        emit ISapienVault.EmergencyWithdraw(address(otherToken), treasury, otherTokenAmount);
+        sapienVault.emergencyWithdraw(address(otherToken), treasury, otherTokenAmount);
+
+        // Verify withdrawal succeeded
+        assertEq(otherToken.balanceOf(treasury), treasuryBalanceBefore + otherTokenAmount);
+        assertEq(otherToken.balanceOf(address(sapienVault)), 0);
+
+        // Verify SAPIEN stakes unaffected
+        assertEq(sapienVault.totalStaked(), stakeAmount);
+        assertEq(sapienToken.balanceOf(address(sapienVault)), stakeAmount);
+    }
+
+    function test_Vault_EmergencyWithdraw_MultipleSurplusWithdrawals() public {
+        // Setup: Test multiple withdrawals reducing surplus over time
+        uint256 stakeAmount = 1000e18;
+        uint256 surplusAmount = 600e18;
+
+        sapienToken.mint(user1, stakeAmount);
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Add surplus tokens
+        sapienToken.mint(address(sapienVault), surplusAmount);
+
+        // Pause contract
+        vm.prank(pauser);
+        sapienVault.pause();
+
+        // First withdrawal: 200 tokens (should succeed)
+        vm.prank(admin);
+        sapienVault.emergencyWithdraw(address(sapienToken), treasury, 200e18);
+
+        // Second withdrawal: 300 tokens (should succeed)
+        vm.prank(admin);
+        sapienVault.emergencyWithdraw(address(sapienToken), treasury, 300e18);
+
+        // Third withdrawal: 200 tokens (should fail - only 100 surplus left)
+        vm.prank(admin);
+        vm.expectRevert(
+            abi.encodeWithSignature("InsufficientSurplusForEmergencyWithdraw(uint256,uint256)", 100e18, 200e18)
+        );
+        sapienVault.emergencyWithdraw(address(sapienToken), treasury, 200e18);
+
+        // Final withdrawal: remaining 100 tokens (should succeed)
+        vm.prank(admin);
+        sapienVault.emergencyWithdraw(address(sapienToken), treasury, 100e18);
+
+        // Verify final state: only user stakes remain
+        assertEq(sapienToken.balanceOf(address(sapienVault)), stakeAmount);
+    }
+
+    function test_Vault_EmergencyWithdraw_ZeroAmount() public {
+        // Test edge case: withdraw zero amount
+        uint256 stakeAmount = 1000e18;
+        sapienToken.mint(user1, stakeAmount);
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Pause contract
+        vm.prank(pauser);
+        sapienVault.pause();
+
+        // Withdraw zero SAPIEN tokens (should succeed - not exceeding surplus)
+        vm.prank(admin);
+        vm.expectEmit(true, true, true, false);
+        emit ISapienVault.EmergencyWithdraw(address(sapienToken), treasury, 0);
+        sapienVault.emergencyWithdraw(address(sapienToken), treasury, 0);
+    }
+
     function _stakeForUser(address user, uint256 amount, uint256 lockup) internal {
         sapienToken.mint(user, amount);
         vm.startPrank(user);
@@ -4569,5 +4823,263 @@ contract SapienVaultBasicTest is Test {
         uint256 expectedTotalAfterIncrease = expectedRemainingStake + additionalAmount;
         assertEq(increasedStake.userTotalStaked, expectedTotalAfterIncrease);
         // Optionally, check multiplier increased
+    }
+
+    // =============================================================================
+    // EFFECTIVE STAKE AMOUNT TESTS
+    // =============================================================================
+
+    function test_Vault_GetEffectiveStakeAmount_NoStake() public {
+        // Test for user with no stake
+        assertEq(sapienVault.getEffectiveStakeAmount(user1), 0, "User with no stake should have 0 effective stake");
+
+        // Test with zero address
+        assertEq(sapienVault.getEffectiveStakeAmount(address(0)), 0, "Zero address should return 0");
+
+        // Test with non-existent user
+        address nonExistentUser = makeAddr("nonExistent");
+        assertEq(sapienVault.getEffectiveStakeAmount(nonExistentUser), 0, "Non-existent user should return 0");
+    }
+
+    function test_Vault_GetEffectiveStakeAmount_BasicStake() public {
+        // Create a basic stake with no cooldowns
+        uint256 stakeAmount = MINIMUM_STAKE * 5; // 5000 tokens
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Effective stake should equal total stake when no cooldowns are active
+        assertEq(sapienVault.getEffectiveStakeAmount(user1), stakeAmount, "Effective stake should equal total stake");
+
+        // Verify using getUserStake
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        uint256 expectedEffective = userStake.amount - userStake.cooldownAmount - userStake.earlyUnstakeCooldownAmount;
+        assertEq(sapienVault.getEffectiveStakeAmount(user1), expectedEffective, "Should match manual calculation");
+    }
+
+    function test_Vault_GetEffectiveStakeAmount_WithCooldown() public {
+        // Create stake
+        uint256 stakeAmount = MINIMUM_STAKE * 6; // 6000 tokens
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Wait until lock period expires to allow normal unstaking
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        // Initiate normal unstake (creates cooldown)
+        uint256 unstakeAmount = MINIMUM_STAKE * 2; // 2000 tokens
+        vm.prank(user1);
+        sapienVault.initiateUnstake(unstakeAmount);
+
+        // Effective stake should be reduced by cooldown amount
+        uint256 expectedEffective = stakeAmount - unstakeAmount;
+        assertEq(
+            sapienVault.getEffectiveStakeAmount(user1),
+            expectedEffective,
+            "Effective stake should exclude cooldown amount"
+        );
+
+        // Verify the cooldown is properly tracked
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        assertEq(userStake.cooldownAmount, unstakeAmount, "Cooldown amount should be tracked");
+        assertEq(userStake.earlyUnstakeCooldownAmount, 0, "No early unstake cooldown");
+
+        uint256 manualCalculation = userStake.amount - userStake.cooldownAmount - userStake.earlyUnstakeCooldownAmount;
+        assertEq(sapienVault.getEffectiveStakeAmount(user1), manualCalculation, "Should match manual calculation");
+    }
+
+    function test_Vault_GetEffectiveStakeAmount_WithEarlyUnstakeCooldown() public {
+        // Create stake (lock period not expired yet)
+        uint256 stakeAmount = MINIMUM_STAKE * 4; // 4000 tokens
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        vm.stopPrank();
+
+        // Initiate early unstake while still in lock period
+        uint256 earlyUnstakeAmount = MINIMUM_STAKE * 2; // 2000 tokens
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(earlyUnstakeAmount);
+
+        // Effective stake should be reduced by early unstake cooldown amount
+        uint256 expectedEffective = stakeAmount - earlyUnstakeAmount;
+        assertEq(
+            sapienVault.getEffectiveStakeAmount(user1),
+            expectedEffective,
+            "Effective stake should exclude early unstake cooldown"
+        );
+
+        // Verify the early unstake cooldown is properly tracked
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        assertEq(
+            userStake.earlyUnstakeCooldownAmount, earlyUnstakeAmount, "Early unstake cooldown amount should be tracked"
+        );
+        assertEq(userStake.cooldownAmount, 0, "No normal cooldown");
+
+        uint256 manualCalculation = userStake.amount - userStake.cooldownAmount - userStake.earlyUnstakeCooldownAmount;
+        assertEq(sapienVault.getEffectiveStakeAmount(user1), manualCalculation, "Should match manual calculation");
+    }
+
+    function test_Vault_GetEffectiveStakeAmount_WithBothCooldowns() public {
+        // Create stake
+        uint256 stakeAmount = MINIMUM_STAKE * 8; // 8000 tokens
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        vm.stopPrank();
+
+        // First, initiate early unstake while in lock period
+        uint256 earlyUnstakeAmount = MINIMUM_STAKE * 2; // 2000 tokens
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(earlyUnstakeAmount);
+
+        // Wait until lock period expires
+        vm.warp(block.timestamp + LOCK_90_DAYS + 1);
+
+        // Then initiate normal unstake
+        uint256 normalUnstakeAmount = MINIMUM_STAKE * 2; // 2000 tokens
+        vm.prank(user1);
+        sapienVault.initiateUnstake(normalUnstakeAmount);
+
+        // Effective stake should exclude both cooldown amounts
+        uint256 expectedEffective = stakeAmount - earlyUnstakeAmount - normalUnstakeAmount;
+        assertEq(
+            sapienVault.getEffectiveStakeAmount(user1),
+            expectedEffective,
+            "Effective stake should exclude both cooldown amounts"
+        );
+
+        // Verify both cooldowns are tracked
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        assertEq(userStake.earlyUnstakeCooldownAmount, earlyUnstakeAmount, "Early unstake cooldown should be tracked");
+        assertEq(userStake.cooldownAmount, normalUnstakeAmount, "Normal cooldown should be tracked");
+
+        uint256 manualCalculation = userStake.amount - userStake.cooldownAmount - userStake.earlyUnstakeCooldownAmount;
+        assertEq(sapienVault.getEffectiveStakeAmount(user1), manualCalculation, "Should match manual calculation");
+    }
+
+    function test_Vault_GetEffectiveStakeAmount_AfterCooldownCompletion() public {
+        // Create stake
+        uint256 stakeAmount = MINIMUM_STAKE * 5; // 5000 tokens
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Wait until lock period expires
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        // Initiate normal unstake
+        uint256 unstakeAmount = MINIMUM_STAKE * 2; // 2000 tokens
+        vm.prank(user1);
+        sapienVault.initiateUnstake(unstakeAmount);
+
+        // Effective stake should be reduced
+        uint256 expectedEffectiveDuringCooldown = stakeAmount - unstakeAmount;
+        assertEq(
+            sapienVault.getEffectiveStakeAmount(user1),
+            expectedEffectiveDuringCooldown,
+            "Effective stake reduced during cooldown"
+        );
+
+        // Complete the cooldown and unstake
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        vm.prank(user1);
+        sapienVault.unstake(unstakeAmount);
+
+        // Effective stake should now equal remaining stake
+        uint256 expectedFinalStake = stakeAmount - unstakeAmount;
+        assertEq(
+            sapienVault.getEffectiveStakeAmount(user1),
+            expectedFinalStake,
+            "Effective stake should equal remaining stake after unstake"
+        );
+
+        // Verify cooldown is cleared
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        assertEq(userStake.cooldownAmount, 0, "Cooldown should be cleared");
+        assertEq(userStake.amount, expectedFinalStake, "Amount should be reduced");
+    }
+
+    function test_Vault_GetEffectiveStakeAmount_AfterEarlyUnstakeCompletion() public {
+        // Create stake
+        uint256 stakeAmount = MINIMUM_STAKE * 4; // 4000 tokens
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_90_DAYS);
+        vm.stopPrank();
+
+        // Initiate early unstake
+        uint256 earlyUnstakeAmount = MINIMUM_STAKE * 2; // 2000 tokens
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(earlyUnstakeAmount);
+
+        // Effective stake should be reduced
+        uint256 expectedEffectiveDuringCooldown = stakeAmount - earlyUnstakeAmount;
+        assertEq(
+            sapienVault.getEffectiveStakeAmount(user1),
+            expectedEffectiveDuringCooldown,
+            "Effective stake reduced during early unstake cooldown"
+        );
+
+        // Complete the early unstake cooldown
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        vm.prank(user1);
+        sapienVault.earlyUnstake(earlyUnstakeAmount);
+
+        // Calculate expected remaining stake after early unstake
+        uint256 expectedFinalStake = stakeAmount - earlyUnstakeAmount;
+
+        assertEq(
+            sapienVault.getEffectiveStakeAmount(user1),
+            expectedFinalStake,
+            "Effective stake should equal remaining stake after early unstake"
+        );
+
+        // Verify early unstake cooldown is cleared
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        assertEq(userStake.earlyUnstakeCooldownAmount, 0, "Early unstake cooldown should be cleared");
+        assertEq(userStake.amount, expectedFinalStake, "Amount should be reduced");
+    }
+
+    function test_Vault_GetEffectiveStakeAmount_EdgeCase_ZeroEffectiveStake() public {
+        // Create stake
+        uint256 stakeAmount = MINIMUM_STAKE * 2; // 2000 tokens
+
+        vm.startPrank(user1);
+        sapienToken.approve(address(sapienVault), stakeAmount);
+        sapienVault.stake(stakeAmount, LOCK_30_DAYS);
+        vm.stopPrank();
+
+        // Wait until lock period expires
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+
+        // Initiate unstake for full amount
+        vm.prank(user1);
+        sapienVault.initiateUnstake(stakeAmount);
+
+        // Effective stake should be 0 when all stake is in cooldown
+        assertEq(
+            sapienVault.getEffectiveStakeAmount(user1), 0, "Effective stake should be 0 when all stake is in cooldown"
+        );
+
+        // Verify calculation
+        ISapienVault.UserStake memory userStake = sapienVault.getUserStake(user1);
+        assertEq(userStake.amount, stakeAmount, "Total amount should remain");
+        assertEq(userStake.cooldownAmount, stakeAmount, "All amount should be in cooldown");
+        assertEq(userStake.earlyUnstakeCooldownAmount, 0, "No early unstake cooldown");
+
+        uint256 manualCalculation = userStake.amount - userStake.cooldownAmount - userStake.earlyUnstakeCooldownAmount;
+        assertEq(sapienVault.getEffectiveStakeAmount(user1), manualCalculation, "Should match manual calculation");
+        assertEq(manualCalculation, 0, "Manual calculation should also be 0");
     }
 }

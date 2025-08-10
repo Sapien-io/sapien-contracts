@@ -37,8 +37,8 @@ contract SapienVaultEndToEndTest is Test {
     // Test parameters aligned with contract constants
     uint256 public constant INITIAL_BALANCE = 10_000_000 * 10 ** 18; // 10M tokens per user
     uint256 public constant MINIMUM_STAKE = 1000 * 10 ** 18; // 1K tokens
-    uint256 public constant LARGE_STAKE = 2_250 * 10 ** 18; // 2.25K tokens (within 2.5k limit)
-    uint256 public constant MEDIUM_STAKE = 1_750 * 10 ** 18; // 1.75K tokens (within 2.5k limit)
+    uint256 public constant LARGE_STAKE = 1_500 * 10 ** 18; // 1.5K tokens (allows room for additional stakes)
+    uint256 public constant MEDIUM_STAKE = 1_200 * 10 ** 18; // 1.2K tokens (allows room for additional stakes)
     uint256 public constant SMALL_STAKE = 1_000 * 10 ** 18; // 1K tokens
     uint256 public constant COOLDOWN_PERIOD = 2 days;
     uint256 public constant EARLY_WITHDRAWAL_PENALTY = 2000; // 20% in basis points
@@ -736,10 +736,10 @@ contract SapienVaultEndToEndTest is Test {
         vm.prank(builder);
         sapienVault.increaseLockup(60 days);
 
-        // Week 3: Add more stake (keeping within limits)
+        // Week 3: Add more stake (keeping within limits - 500 tokens to reach 2500 total)
         vm.warp(block.timestamp + 7 days);
         vm.prank(builder);
-        sapienVault.increaseAmount(MINIMUM_STAKE);
+        sapienVault.increaseAmount(500 * 1e18);
 
         // Week 4: Final extension
         vm.warp(block.timestamp + 7 days);
@@ -752,7 +752,7 @@ contract SapienVaultEndToEndTest is Test {
         uint256 effectiveMultiplier = builderStake.effectiveMultiplier;
         uint256 lockup = builderStake.effectiveLockUpPeriod;
 
-        assertEq(totalStaked, MINIMUM_STAKE * 3); // 1 + 1 + 1 = 3x minimum
+        assertEq(totalStaked, 2_500 * 1e18); // 1000 + 1000 + 500 = 2500 tokens (at max limit)
         assertTrue(lockup > LOCK_30_DAYS); // Should be longer than original 30 days
         assertTrue(effectiveMultiplier > 0);
 
@@ -855,7 +855,7 @@ contract SapienVaultEndToEndTest is Test {
         console.log("Liquidity obtained:", liquidityNeeded / 10 ** 18, "SAPIEN");
         console.log("Remaining stake:", remainingStake / 10 ** 18, "SAPIEN");
 
-        // Test full cycle completion
-        assertTrue(remainingStake > 2000 ether, "Manager should have substantial remaining stake");
+        // Test full cycle completion (adjusted for new lower amounts)
+        assertTrue(remainingStake > 1000 ether, "Manager should have substantial remaining stake");
     }
 }
