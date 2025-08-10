@@ -10,6 +10,11 @@ struct DeployedContracts {
     address usdcRewards;
     address sapienQA;
     address timelock;
+    address batchRewards;
+    address sapienVaultProxyAdmin;
+    address sapienRewardsProxyAdmin;
+    address usdcRewardsProxyAdmin;
+    address sapienQaProxyAdmin;
 }
 
 // These are the proxies
@@ -21,6 +26,11 @@ library LocalContracts {
     address public constant USDC_REWARDS = 0x0000000000000000000000000000000000000000;
     address public constant SAPIEN_QA = 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0;
     address public constant TIMELOCK = 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512;
+    address public constant BATCH_REWARDS = 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC;
+    address public constant USDC_REWARDS_PROXY_ADMIN = 0x0000000000000000000000000000000000000000;
+    address public constant SAPIEN_VAULT_PROXY_ADMIN = 0x0000000000000000000000000000000000000000;
+    address public constant SAPIEN_REWARDS_PROXY_ADMIN = 0x0000000000000000000000000000000000000000;
+    address public constant SAPIEN_QA_PROXY_ADMIN = 0x0000000000000000000000000000000000000000;
 }
 
 library TenderlyContracts {
@@ -31,6 +41,11 @@ library TenderlyContracts {
     address public constant USDC_REWARDS = 0x0000000000000000000000000000000000000000;
     address public constant SAPIEN_QA = 0x5ed9315ab0274B0C546b71ed5a7ABE9982FF1E8D;
     address public constant TIMELOCK = 0xAABc9b2DF2Ed11A3f94b011315Beba0ea7fB7D09;
+    address public constant BATCH_REWARDS = 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC;
+    address public constant USDC_REWARDS_PROXY_ADMIN = 0x0000000000000000000000000000000000000000;
+    address public constant SAPIEN_VAULT_PROXY_ADMIN = 0x0000000000000000000000000000000000000000;
+    address public constant SAPIEN_REWARDS_PROXY_ADMIN = 0x0000000000000000000000000000000000000000;
+    address public constant SAPIEN_QA_PROXY_ADMIN = 0x0000000000000000000000000000000000000000;
 }
 
 library SepoliaContracts {
@@ -41,6 +56,11 @@ library SepoliaContracts {
     address public constant USDC_REWARDS = 0x798Fc8E87AfD496b8a16b436120cc6A456d3AC48;
     address public constant SAPIEN_QA = 0x575C1F6FBa0cA77AbAd28d8ca8b6f93727b36bbF;
     address public constant TIMELOCK = 0x2a5F9e1Be3A78C73EA1aB256D3Eb0C5A475742cC;
+    address public constant BATCH_REWARDS = 0xae064cF985da8Cd842753D65B307E27A3853838e;
+    address public constant SAPIEN_VAULT_PROXY_ADMIN = 0xa36323825c62AC6CFF43f346fE722692647B2D41;
+    address public constant SAPIEN_REWARDS_PROXY_ADMIN = 0xb2c78dDa5A17210F5d07Bc7BdDbe94a11C5b2dca;
+    address public constant USDC_REWARDS_PROXY_ADMIN = 0x5779A31ac0988Df319A7BC1EEdc51b2bb7D504eB;
+    address public constant SAPIEN_QA_PROXY_ADMIN = 0xa4188b8d12fb96df519bCdA88a6502Ab8aEd4261;
 }
 
 library MainnetContracts {
@@ -51,6 +71,11 @@ library MainnetContracts {
     address public constant USDC_REWARDS = 0x0000000000000000000000000000000000000000;
     address public constant SAPIEN_QA = 0x0000000000000000000000000000000000000000;
     address public constant TIMELOCK = 0x0000000000000000000000000000000000000000;
+    address public constant BATCH_REWARDS = 0x0000000000000000000000000000000000000000;
+    address public constant USDC_REWARDS_PROXY_ADMIN = 0x0000000000000000000000000000000000000000;
+    address public constant SAPIEN_VAULT_PROXY_ADMIN = 0x0000000000000000000000000000000000000000;
+    address public constant SAPIEN_REWARDS_PROXY_ADMIN = 0x0000000000000000000000000000000000000000;
+    address public constant SAPIEN_QA_PROXY_ADMIN = 0x0000000000000000000000000000000000000000;
 }
 
 library Contracts {
@@ -67,7 +92,12 @@ library Contracts {
                 sapienRewards: LocalContracts.SAPIEN_REWARDS,
                 usdcRewards: LocalContracts.USDC_REWARDS,
                 sapienQA: LocalContracts.SAPIEN_QA,
-                timelock: LocalContracts.TIMELOCK
+                timelock: LocalContracts.TIMELOCK,
+                batchRewards: LocalContracts.BATCH_REWARDS,
+                sapienVaultProxyAdmin: LocalContracts.SAPIEN_VAULT_PROXY_ADMIN,
+                sapienRewardsProxyAdmin: LocalContracts.SAPIEN_REWARDS_PROXY_ADMIN,
+                usdcRewardsProxyAdmin: LocalContracts.USDC_REWARDS_PROXY_ADMIN,
+                sapienQaProxyAdmin: LocalContracts.SAPIEN_QA_PROXY_ADMIN
             });
         } else if (block.chainid == 84532) {
             return DeployedContracts({
@@ -77,7 +107,12 @@ library Contracts {
                 sapienRewards: SepoliaContracts.SAPIEN_REWARDS,
                 usdcRewards: SepoliaContracts.USDC_REWARDS,
                 sapienQA: SepoliaContracts.SAPIEN_QA,
-                timelock: SepoliaContracts.TIMELOCK
+                timelock: SepoliaContracts.TIMELOCK,
+                batchRewards: SepoliaContracts.BATCH_REWARDS,
+                sapienVaultProxyAdmin: SepoliaContracts.SAPIEN_VAULT_PROXY_ADMIN,
+                sapienRewardsProxyAdmin: SepoliaContracts.SAPIEN_REWARDS_PROXY_ADMIN,
+                usdcRewardsProxyAdmin: SepoliaContracts.USDC_REWARDS_PROXY_ADMIN,
+                sapienQaProxyAdmin: SepoliaContracts.SAPIEN_QA_PROXY_ADMIN
             });
         } else if (block.chainid == 8453420) {
             return DeployedContracts({
@@ -87,7 +122,12 @@ library Contracts {
                 sapienRewards: TenderlyContracts.SAPIEN_REWARDS,
                 usdcRewards: TenderlyContracts.USDC_REWARDS,
                 sapienQA: TenderlyContracts.SAPIEN_QA,
-                timelock: TenderlyContracts.TIMELOCK
+                timelock: TenderlyContracts.TIMELOCK,
+                batchRewards: TenderlyContracts.BATCH_REWARDS,
+                sapienVaultProxyAdmin: TenderlyContracts.SAPIEN_VAULT_PROXY_ADMIN,
+                sapienRewardsProxyAdmin: TenderlyContracts.SAPIEN_REWARDS_PROXY_ADMIN,
+                usdcRewardsProxyAdmin: TenderlyContracts.USDC_REWARDS_PROXY_ADMIN,
+                sapienQaProxyAdmin: TenderlyContracts.SAPIEN_QA_PROXY_ADMIN
             });
         } else if (block.chainid == 8453) {
             return DeployedContracts({
@@ -97,7 +137,12 @@ library Contracts {
                 sapienRewards: MainnetContracts.SAPIEN_REWARDS,
                 usdcRewards: MainnetContracts.USDC_REWARDS,
                 sapienQA: MainnetContracts.SAPIEN_QA,
-                timelock: MainnetContracts.TIMELOCK
+                timelock: MainnetContracts.TIMELOCK,
+                batchRewards: MainnetContracts.BATCH_REWARDS,
+                sapienVaultProxyAdmin: MainnetContracts.SAPIEN_VAULT_PROXY_ADMIN,
+                sapienRewardsProxyAdmin: MainnetContracts.SAPIEN_REWARDS_PROXY_ADMIN,
+                usdcRewardsProxyAdmin: MainnetContracts.USDC_REWARDS_PROXY_ADMIN,
+                sapienQaProxyAdmin: MainnetContracts.SAPIEN_QA_PROXY_ADMIN
             });
         }
         revert("Unsupported chain");
@@ -126,7 +171,12 @@ library Contracts {
                 sapienRewards: LocalContracts.SAPIEN_REWARDS,
                 usdcRewards: LocalContracts.USDC_REWARDS,
                 sapienQA: LocalContracts.SAPIEN_QA,
-                timelock: LocalContracts.TIMELOCK
+                timelock: LocalContracts.TIMELOCK,
+                batchRewards: LocalContracts.BATCH_REWARDS,
+                sapienVaultProxyAdmin: LocalContracts.SAPIEN_VAULT_PROXY_ADMIN,
+                sapienRewardsProxyAdmin: LocalContracts.SAPIEN_REWARDS_PROXY_ADMIN,
+                usdcRewardsProxyAdmin: LocalContracts.USDC_REWARDS_PROXY_ADMIN,
+                sapienQaProxyAdmin: LocalContracts.SAPIEN_QA_PROXY_ADMIN
             });
         } else if (chainId == 84532) {
             return DeployedContracts({
@@ -136,7 +186,12 @@ library Contracts {
                 sapienRewards: SepoliaContracts.SAPIEN_REWARDS,
                 usdcRewards: SepoliaContracts.USDC_REWARDS,
                 sapienQA: SepoliaContracts.SAPIEN_QA,
-                timelock: SepoliaContracts.TIMELOCK
+                timelock: SepoliaContracts.TIMELOCK,
+                batchRewards: SepoliaContracts.BATCH_REWARDS,
+                sapienVaultProxyAdmin: SepoliaContracts.SAPIEN_VAULT_PROXY_ADMIN,
+                sapienRewardsProxyAdmin: SepoliaContracts.SAPIEN_REWARDS_PROXY_ADMIN,
+                usdcRewardsProxyAdmin: SepoliaContracts.USDC_REWARDS_PROXY_ADMIN,
+                sapienQaProxyAdmin: SepoliaContracts.SAPIEN_QA_PROXY_ADMIN
             });
         } else if (chainId == 8453420) {
             return DeployedContracts({
@@ -146,7 +201,12 @@ library Contracts {
                 sapienRewards: TenderlyContracts.SAPIEN_REWARDS,
                 usdcRewards: TenderlyContracts.USDC_REWARDS,
                 sapienQA: TenderlyContracts.SAPIEN_QA,
-                timelock: TenderlyContracts.TIMELOCK
+                timelock: TenderlyContracts.TIMELOCK,
+                batchRewards: TenderlyContracts.BATCH_REWARDS,
+                sapienVaultProxyAdmin: TenderlyContracts.SAPIEN_VAULT_PROXY_ADMIN,
+                sapienRewardsProxyAdmin: TenderlyContracts.SAPIEN_REWARDS_PROXY_ADMIN,
+                usdcRewardsProxyAdmin: TenderlyContracts.USDC_REWARDS_PROXY_ADMIN,
+                sapienQaProxyAdmin: TenderlyContracts.SAPIEN_QA_PROXY_ADMIN
             });
         } else if (chainId == 8453) {
             return DeployedContracts({
@@ -156,7 +216,12 @@ library Contracts {
                 sapienRewards: MainnetContracts.SAPIEN_REWARDS,
                 usdcRewards: MainnetContracts.USDC_REWARDS,
                 sapienQA: MainnetContracts.SAPIEN_QA,
-                timelock: MainnetContracts.TIMELOCK
+                timelock: MainnetContracts.TIMELOCK,
+                batchRewards: MainnetContracts.BATCH_REWARDS,
+                sapienVaultProxyAdmin: MainnetContracts.SAPIEN_VAULT_PROXY_ADMIN,
+                sapienRewardsProxyAdmin: MainnetContracts.SAPIEN_REWARDS_PROXY_ADMIN,
+                usdcRewardsProxyAdmin: MainnetContracts.USDC_REWARDS_PROXY_ADMIN,
+                sapienQaProxyAdmin: MainnetContracts.SAPIEN_QA_PROXY_ADMIN
             });
         }
         revert("Unsupported chain");
@@ -169,6 +234,8 @@ library Contracts {
      */
     function areAllContractsDeployed(DeployedContracts memory contracts) internal pure returns (bool) {
         return contracts.sapienToken != address(0) && contracts.sapienVault != address(0)
-            && contracts.sapienRewards != address(0) && contracts.sapienQA != address(0) && contracts.timelock != address(0);
+            && contracts.sapienRewards != address(0) && contracts.sapienQA != address(0) && contracts.timelock != address(0)
+            && contracts.sapienVaultProxyAdmin != address(0) && contracts.sapienRewardsProxyAdmin != address(0)
+            && contracts.sapienQaProxyAdmin != address(0) && contracts.batchRewards != address(0);
     }
 }
