@@ -8,12 +8,13 @@ import {Actors, CoreActors} from "script/Actors.sol";
 contract DeployToken is Script {
     function run() external {
         // Get foundation safe address for token ownership
-        CoreActors memory actors = Actors.getActors();
+        CoreActors memory coreActors = Actors.getActors();
 
         vm.startBroadcast();
 
-        SapienToken token = new SapienToken(actors.foundationSafe1);
+        SapienToken token = new SapienToken(coreActors.sapienLabs);
         console.log("SapienToken deployed at:", address(token));
+        console.log("Supply sent to:", coreActors.sapienLabs);
 
         vm.stopBroadcast();
     }

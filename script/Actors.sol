@@ -6,16 +6,11 @@ struct CoreActors {
     address foundationSafe1;
     address foundationSafe2;
     address securityCouncil;
-    address rewardsAdmin;
-    address rewardsManager;
     address blended;
     address sapienLabs;
 }
 
 struct AllActors {
-    address foundationSafe1;
-    address foundationSafe2;
-    address securityCouncil;
     address rewardsAdmin;
     address rewardsManager;
     address qaManager;
@@ -26,8 +21,6 @@ struct AllActors {
     address timelockCanceller;
     address timelockAdmin;
     address deployer;
-    address blended;
-    address sapienLabs;
 }
 
 library LocalActors {
@@ -115,8 +108,6 @@ library Actors {
                 foundationSafe1: LocalActors.FOUNDATION_SAFE_1,
                 foundationSafe2: LocalActors.FOUNDATION_SAFE_2,
                 securityCouncil: LocalActors.SECURITY_COUNCIL_SAFE,
-                rewardsAdmin: LocalActors.REWARDS_ADMIN,
-                rewardsManager: LocalActors.REWARDS_MANAGER,
                 blended: LocalActors.BLENDED,
                 sapienLabs: LocalActors.SAPIEN_LABS
             });
@@ -126,8 +117,6 @@ library Actors {
                 foundationSafe1: SepoliaActors.FOUNDATION_SAFE_1,
                 foundationSafe2: SepoliaActors.FOUNDATION_SAFE_2,
                 securityCouncil: SepoliaActors.SECURITY_COUNCIL_SAFE,
-                rewardsAdmin: SepoliaActors.REWARDS_ADMIN,
-                rewardsManager: SepoliaActors.REWARDS_MANAGER,
                 blended: SepoliaActors.BLENDED,
                 sapienLabs: SepoliaActors.SAPIEN_LABS
             });
@@ -137,8 +126,6 @@ library Actors {
                 foundationSafe1: TenderlyActors.FOUNDATION_SAFE_1,
                 foundationSafe2: TenderlyActors.FOUNDATION_SAFE_2,
                 securityCouncil: TenderlyActors.SECURITY_COUNCIL_SAFE,
-                rewardsAdmin: TenderlyActors.REWARDS_ADMIN,
-                rewardsManager: TenderlyActors.REWARDS_MANAGER,
                 blended: TenderlyActors.BLENDED,
                 sapienLabs: TenderlyActors.SAPIEN_LABS
             });
@@ -148,8 +135,6 @@ library Actors {
                 foundationSafe1: MainnetActors.FOUNDATION_SAFE_1,
                 foundationSafe2: MainnetActors.FOUNDATION_SAFE_2,
                 securityCouncil: MainnetActors.SECURITY_COUNCIL_SAFE,
-                rewardsAdmin: MainnetActors.REWARDS_ADMIN,
-                rewardsManager: MainnetActors.REWARDS_MANAGER,
                 blended: MainnetActors.BLENDED,
                 sapienLabs: MainnetActors.SAPIEN_LABS
             });
@@ -164,9 +149,6 @@ library Actors {
     function getAllActors() internal view returns (AllActors memory) {
         if (block.chainid == 31337) {
             return AllActors({
-                foundationSafe1: LocalActors.FOUNDATION_SAFE_1,
-                foundationSafe2: LocalActors.FOUNDATION_SAFE_2,
-                securityCouncil: LocalActors.SECURITY_COUNCIL_SAFE,
                 rewardsAdmin: LocalActors.REWARDS_ADMIN,
                 rewardsManager: LocalActors.REWARDS_MANAGER,
                 qaManager: LocalActors.QA_MANAGER,
@@ -176,15 +158,10 @@ library Actors {
                 timelockExecutor: LocalActors.TIMELOCK_EXECUTOR,
                 timelockCanceller: LocalActors.TIMELOCK_CANCELLER,
                 timelockAdmin: LocalActors.TIMELOCK_ADMIN,
-                deployer: LocalActors.DEPLOYER,
-                blended: LocalActors.BLENDED,
-                sapienLabs: LocalActors.SAPIEN_LABS
+                deployer: LocalActors.DEPLOYER
             });
         } else if (block.chainid == 84532) {
             return AllActors({
-                foundationSafe1: SepoliaActors.FOUNDATION_SAFE_1,
-                foundationSafe2: SepoliaActors.FOUNDATION_SAFE_2,
-                securityCouncil: SepoliaActors.SECURITY_COUNCIL_SAFE,
                 rewardsAdmin: SepoliaActors.REWARDS_ADMIN,
                 rewardsManager: SepoliaActors.REWARDS_MANAGER,
                 qaManager: SepoliaActors.QA_MANAGER,
@@ -194,15 +171,10 @@ library Actors {
                 timelockExecutor: SepoliaActors.TIMELOCK_EXECUTOR,
                 timelockCanceller: SepoliaActors.TIMELOCK_CANCELLER,
                 timelockAdmin: SepoliaActors.TIMELOCK_ADMIN,
-                deployer: SepoliaActors.DEPLOYER,
-                blended: SepoliaActors.BLENDED,
-                sapienLabs: SepoliaActors.SAPIEN_LABS
+                deployer: SepoliaActors.DEPLOYER
             });
         } else if (block.chainid == 8453420) {
             return AllActors({
-                foundationSafe1: TenderlyActors.FOUNDATION_SAFE_1,
-                foundationSafe2: TenderlyActors.FOUNDATION_SAFE_2,
-                securityCouncil: TenderlyActors.SECURITY_COUNCIL_SAFE,
                 rewardsAdmin: TenderlyActors.REWARDS_ADMIN,
                 rewardsManager: TenderlyActors.REWARDS_MANAGER,
                 qaManager: TenderlyActors.QA_MANAGER,
@@ -212,15 +184,10 @@ library Actors {
                 timelockExecutor: TenderlyActors.TIMELOCK_EXECUTOR,
                 timelockCanceller: TenderlyActors.TIMELOCK_CANCELLER,
                 timelockAdmin: TenderlyActors.TIMELOCK_ADMIN,
-                deployer: TenderlyActors.DEPLOYER,
-                blended: TenderlyActors.BLENDED,
-                sapienLabs: TenderlyActors.SAPIEN_LABS
+                deployer: TenderlyActors.DEPLOYER
             });
         } else if (block.chainid == 8453) {
             return AllActors({
-                foundationSafe1: MainnetActors.FOUNDATION_SAFE_1,
-                foundationSafe2: MainnetActors.FOUNDATION_SAFE_2,
-                securityCouncil: MainnetActors.SECURITY_COUNCIL_SAFE,
                 rewardsAdmin: MainnetActors.REWARDS_ADMIN,
                 rewardsManager: MainnetActors.REWARDS_MANAGER,
                 qaManager: MainnetActors.QA_MANAGER,
@@ -230,9 +197,7 @@ library Actors {
                 timelockExecutor: MainnetActors.TIMELOCK_EXECUTOR,
                 timelockCanceller: MainnetActors.TIMELOCK_CANCELLER,
                 timelockAdmin: MainnetActors.TIMELOCK_ADMIN,
-                deployer: MainnetActors.DEPLOYER,
-                blended: MainnetActors.BLENDED,
-                sapienLabs: MainnetActors.SAPIEN_LABS
+                deployer: MainnetActors.DEPLOYER
             });
         }
         revert("Unsupported chain");
@@ -255,9 +220,6 @@ library Actors {
     function getActorsForChain(uint256 chainId) internal pure returns (AllActors memory) {
         if (chainId == 31337) {
             return AllActors({
-                foundationSafe1: LocalActors.FOUNDATION_SAFE_1,
-                foundationSafe2: LocalActors.FOUNDATION_SAFE_2,
-                securityCouncil: LocalActors.SECURITY_COUNCIL_SAFE,
                 rewardsAdmin: LocalActors.REWARDS_ADMIN,
                 rewardsManager: LocalActors.REWARDS_MANAGER,
                 qaManager: LocalActors.QA_MANAGER,
@@ -267,15 +229,10 @@ library Actors {
                 timelockExecutor: LocalActors.TIMELOCK_EXECUTOR,
                 timelockCanceller: LocalActors.TIMELOCK_CANCELLER,
                 timelockAdmin: LocalActors.TIMELOCK_ADMIN,
-                deployer: LocalActors.DEPLOYER,
-                blended: LocalActors.BLENDED,
-                sapienLabs: LocalActors.SAPIEN_LABS
+                deployer: LocalActors.DEPLOYER
             });
         } else if (chainId == 84532) {
             return AllActors({
-                foundationSafe1: SepoliaActors.FOUNDATION_SAFE_1,
-                foundationSafe2: SepoliaActors.FOUNDATION_SAFE_2,
-                securityCouncil: SepoliaActors.SECURITY_COUNCIL_SAFE,
                 rewardsAdmin: SepoliaActors.REWARDS_ADMIN,
                 rewardsManager: SepoliaActors.REWARDS_MANAGER,
                 qaManager: SepoliaActors.QA_MANAGER,
@@ -285,15 +242,10 @@ library Actors {
                 timelockExecutor: SepoliaActors.TIMELOCK_EXECUTOR,
                 timelockCanceller: SepoliaActors.TIMELOCK_CANCELLER,
                 timelockAdmin: SepoliaActors.TIMELOCK_ADMIN,
-                deployer: SepoliaActors.DEPLOYER,
-                blended: SepoliaActors.BLENDED,
-                sapienLabs: SepoliaActors.SAPIEN_LABS
+                deployer: SepoliaActors.DEPLOYER
             });
         } else if (chainId == 8453420) {
             return AllActors({
-                foundationSafe1: TenderlyActors.FOUNDATION_SAFE_1,
-                foundationSafe2: TenderlyActors.FOUNDATION_SAFE_2,
-                securityCouncil: TenderlyActors.SECURITY_COUNCIL_SAFE,
                 rewardsAdmin: TenderlyActors.REWARDS_ADMIN,
                 rewardsManager: TenderlyActors.REWARDS_MANAGER,
                 qaManager: TenderlyActors.QA_MANAGER,
@@ -303,15 +255,10 @@ library Actors {
                 timelockExecutor: TenderlyActors.TIMELOCK_EXECUTOR,
                 timelockCanceller: TenderlyActors.TIMELOCK_CANCELLER,
                 timelockAdmin: TenderlyActors.TIMELOCK_ADMIN,
-                deployer: TenderlyActors.DEPLOYER,
-                blended: TenderlyActors.BLENDED,
-                sapienLabs: TenderlyActors.SAPIEN_LABS
+                deployer: TenderlyActors.DEPLOYER
             });
         } else if (chainId == 8453) {
             return AllActors({
-                foundationSafe1: MainnetActors.FOUNDATION_SAFE_1,
-                foundationSafe2: MainnetActors.FOUNDATION_SAFE_2,
-                securityCouncil: MainnetActors.SECURITY_COUNCIL_SAFE,
                 rewardsAdmin: MainnetActors.REWARDS_ADMIN,
                 rewardsManager: MainnetActors.REWARDS_MANAGER,
                 qaManager: MainnetActors.QA_MANAGER,
@@ -321,9 +268,7 @@ library Actors {
                 timelockExecutor: MainnetActors.TIMELOCK_EXECUTOR,
                 timelockCanceller: MainnetActors.TIMELOCK_CANCELLER,
                 timelockAdmin: MainnetActors.TIMELOCK_ADMIN,
-                deployer: MainnetActors.DEPLOYER,
-                blended: MainnetActors.BLENDED,
-                sapienLabs: MainnetActors.SAPIEN_LABS
+                deployer: MainnetActors.DEPLOYER
             });
         }
         revert("Unsupported chain");

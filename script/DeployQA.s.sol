@@ -3,7 +3,7 @@ pragma solidity 0.8.30;
 
 import {Script, console} from "lib/forge-std/src/Script.sol";
 import {SapienQA} from "src/SapienQA.sol";
-import {Actors, AllActors} from "script/Actors.sol";
+import {Actors, AllActors, CoreActors} from "script/Actors.sol";
 import {Contracts, DeployedContracts} from "script/Contracts.sol";
 import {TransparentUpgradeableProxy as TUP} from "src/utils/Common.sol";
 
@@ -11,6 +11,7 @@ contract DeployQA is Script {
     function run() external {
         // Get necessary actors from the deployed configuration
         AllActors memory actors = Actors.getAllActors();
+        CoreActors memory coreActors = Actors.getActors();
         DeployedContracts memory contracts = Contracts.get();
 
         vm.startBroadcast();
@@ -24,11 +25,11 @@ contract DeployQA is Script {
         // Create initialization data
         bytes memory initData = abi.encodeWithSelector(
             SapienQA.initialize.selector,
-            actors.foundationSafe1, // treasury
+            coreActors.sapienLabs, // treasury
             address(1), // vaultContract (placeholder - update later)
             actors.qaManager, // qaManager
             actors.qaSigner, // qaSigner
-            actors.foundationSafe1 // admin
+            coreActors.sapienLabs // admin
         );
 
         // Deploy proxy
@@ -40,6 +41,8 @@ contract DeployQA is Script {
         console.log("QA Manager:", actors.qaManager);
         console.log("QA Signer:", actors.qaSigner);
         console.log("Vault Contract (placeholder):", address(1));
+        console.log("Admin:", coreActors.sapienLabs);
+        console.log("Treasury:", coreActors.sapienLabs);
         vm.stopBroadcast();
     }
 }

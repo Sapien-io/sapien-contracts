@@ -5,23 +5,17 @@ import {Script, console} from "lib/forge-std/src/Script.sol";
 import {TransparentUpgradeableProxy as TUP} from "src/utils/Common.sol";
 import {SapienRewards} from "src/SapienRewards.sol";
 import {ISapienRewards} from "src/interfaces/ISapienRewards.sol";
-import {Actors, AllActors} from "script/Actors.sol";
+import {Actors, AllActors, CoreActors} from "script/Actors.sol";
 import {Contracts, DeployedContracts} from "script/Contracts.sol";
 
 contract DeployUSDCRewards is Script {
     function run() external {
         // Get all actors from the deployed configuration
         AllActors memory actors = Actors.getAllActors();
+        CoreActors memory coreActors = Actors.getActors();
         DeployedContracts memory contracts = Contracts.get();
 
         vm.startBroadcast();
-
-        console.log("Timelock:", contracts.timelock);
-        console.log("USDC Token:", contracts.usdcToken);
-        console.log("RewardsAdmin:", actors.rewardsAdmin);
-        console.log("RewardsManager:", actors.rewardsManager);
-        console.log("Pauser:", actors.pauser);
-        console.log("SecurityCouncil (Admin Role):", actors.securityCouncil);
 
         // Deploy the implementation
         SapienRewards rewardsImpl = new SapienRewards();
@@ -29,7 +23,7 @@ contract DeployUSDCRewards is Script {
         // Prepare initialization data
         bytes memory initData = abi.encodeWithSelector(
             ISapienRewards.initialize.selector,
-            actors.securityCouncil, // default admin
+            coreActors.sapienLabs, // default admin
             actors.rewardsAdmin, // rewards admin
             actors.rewardsManager, // rewards manager
             actors.pauser, // pauser
@@ -41,8 +35,13 @@ contract DeployUSDCRewards is Script {
         // Deploy the proxy with initialization
         TUP rewardsProxy = new TUP(address(rewardsImpl), contracts.timelock, initData);
 
-        console.log("USDCRewards deployed at:", address(rewardsImpl));
-        console.log("Rewards proxy deployed at:", address(rewardsProxy));
+        console.log("USDC Rewards deployed at:", address(rewardsImpl));
+        console.log("USDC Rewards proxy at:", address(rewardsProxy));
+        console.log("Rewards Admin:", coreActors.sapienLabs);
+        console.log("Rewards Manager:", actors.rewardsManager);
+        console.log("Pauser:", actors.pauser);
+        console.log("Rewards Token (USDC):", contracts.usdcToken);
+        console.log("Timelock:", contracts.timelock);
 
         vm.stopBroadcast();
     }

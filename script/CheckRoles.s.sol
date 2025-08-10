@@ -10,7 +10,7 @@ import {BatchRewards} from "src/BatchRewards.sol";
 import {TimelockController} from "src/utils/Common.sol";
 import {ProxyAdmin} from "src/utils/Common.sol";
 
-import {Actors, AllActors} from "script/Actors.sol";
+import {Actors, AllActors, CoreActors} from "script/Actors.sol";
 import {Contracts, DeployedContracts} from "script/Contracts.sol";
 
 interface IAccessControlView {
@@ -51,6 +51,7 @@ contract CheckRoles is Script {
     function run() external {
         DeployedContracts memory contracts = Contracts.get();
         AllActors memory actors = Actors.getAllActors();
+        CoreActors memory coreActors = Actors.getActors();
 
         console.log("Chain ID:", block.chainid);
         console.log("SapienToken:", contracts.sapienToken);
@@ -123,7 +124,7 @@ contract CheckRoles is Script {
 
         // Addresses to sanity-check across roles
         address[12] memory addrs = [
-            actors.securityCouncil,
+            coreActors.securityCouncil,
             contracts.timelock,
             actors.pauser,
             actors.rewardsAdmin,
@@ -133,8 +134,8 @@ contract CheckRoles is Script {
             contracts.sapienQA,
             actors.deployer,
             contracts.batchRewards,
-            actors.blended,
-            actors.sapienLabs
+            coreActors.blended,
+            coreActors.sapienLabs
         ];
         string[12] memory names = [
             "securityCouncil",
@@ -183,6 +184,7 @@ contract CheckRoles is Script {
             _printRole("PAUSER_ROLE", address(usdcRewards), PAUSER_ROLE, addrs, names);
             _printRole("REWARD_ADMIN_ROLE", address(usdcRewards), REWARDS_ADMIN_ROLE, addrs, names);
             _printRole("REWARD_MANAGER_ROLE", address(usdcRewards), REWARDS_MANAGER_ROLE, addrs, names);
+            _printRole("BATCH_CLAIMER_ROLE", address(usdcRewards), BATCH_CLAIMER_ROLE, addrs, names);
         }
 
         // ProxyAdmin role checks

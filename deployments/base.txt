@@ -1,0 +1,65 @@
+
+
+========== August 10th ===============================================================
+
+SapienToken                                 0xA549F85804Ee1c69092846029112c5Eb2FE23623
+Timelock                                    0x20304CbD5D4674b430CdC360f9F7B19790D98257
+SapienQA                                    0x962F190C6DDf58547fe2Ac4696187694a715A2eA
+SapienVault                                 0x1F65D1d032E6D13695dA93264887f1A207023E5f
+SapienRewards                               0x2A7300A862D8Ff202459Bb4D3B3829E8c61887A9
+USDCRewards                                 0x2E49592955552F2FD4664C003d98d0b2f37C71d3
+
+========== Logs ======================================================================
+
+SapienToken
+
+  SapienToken deployed at:                  0xA549F85804Ee1c69092846029112c5Eb2FE23623
+  Supply sent to:                           0x454149F78630A82fDcf5559384042A3BBD358FB2
+
+TimelockController
+
+  Timelock deployed at:                     0x20304CbD5D4674b430CdC360f9F7B19790D98257
+  Proposer:                                 0x18D33278be0870A4907922dE65D6FbE27928580a
+  Executor:                                 0x454149F78630A82fDcf5559384042A3BBD358FB2
+  Admin:                                    0xE60E46b8674018fd2Bb2924451dEB2F9e34fD1AC
+
+SapienQA
+
+  SapienQA implementation deployed at:      0xd0A7208306265d1a56FD6D7DAf2958859097a8a6
+  Timelock:                                 0x20304CbD5D4674b430CdC360f9F7B19790D98257
+  SapienQA proxy deployed at:               0x962F190C6DDf58547fe2Ac4696187694a715A2eA
+  QA Manager:                               0x1dd0f5712ff9Bd7be4996e5FA6c55a45c5eF4425
+  QA Signer:                                0x84021735702863386646eBCEFa0925B92afD52e1
+  Vault Contract (placeholder):             0x0000000000000000000000000000000000000001
+  Admin:                                    0x454149F78630A82fDcf5559384042A3BBD358FB2
+  Treasury:                                 0x454149F78630A82fDcf5559384042A3BBD358FB2
+
+SapienVault
+
+  Timelock:                                 0x20304CbD5D4674b430CdC360f9F7B19790D98257
+  SapienToken:                              0xA549F85804Ee1c69092846029112c5Eb2FE23623
+  SapienQA:                                 0x962F190C6DDf58547fe2Ac4696187694a715A2eA
+  Admin:                                    0x454149F78630A82fDcf5559384042A3BBD358FB2
+  Treasury:                                 0x454149F78630A82fDcf5559384042A3BBD358FB2
+  SapienVault implementation:               0x638F1736AE98e9b85453700c56CA80Fa8a26b232
+  Vault proxy:                              0x1F65D1d032E6D13695dA93264887f1A207023E5f
+
+SapienRewards
+
+  SapienRewards Implementation: 0x6aFa2F620C6a97159EDD76DCe2c5bA2C478dd0A2
+  SapienRewards Proxy: 0x2A7300A862D8Ff202459Bb4D3B3829E8c61887A9
+  Rewards Admin: 0x454149F78630A82fDcf5559384042A3BBD358FB2
+  Rewards Manager: 0xdb46982dCd2290ec28a9eFd7f8bBD92E0014350B
+  Pauser: 0x18D33278be0870A4907922dE65D6FbE27928580a
+  Rewards Token (SAPIEN): 0xA549F85804Ee1c69092846029112c5Eb2FE23623
+  Timelock: 0x20304CbD5D4674b430CdC360f9F7B19790D98257
+
+  USDCRewards
+
+    USDC Rewards deployed at: 0x1CCF6Ccdb7F657482Cb76e7D0c65bc734A01c97a
+    USDC Rewards proxy at: 0x2E49592955552F2FD4664C003d98d0b2f37C71d3
+    Rewards Admin: 0x454149F78630A82fDcf5559384042A3BBD358FB2
+    Rewards Manager: 0xdb46982dCd2290ec28a9eFd7f8bBD92E0014350B
+    Pauser: 0x18D33278be0870A4907922dE65D6FbE27928580a
+    Rewards Token: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+    Timelock: 0x20304CbD5D4674b430CdC360f9F7B19790D98257
