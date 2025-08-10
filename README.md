@@ -17,6 +17,18 @@ The SAPIEN protocol bridges the gap between human wisdom and machine learning wh
 | **SapienQA** | Quality assurance enforcement | Automated validation, progressive penalty system, comprehensive audit trails |
 | **SapienRewards** | Task reward distribution | EIP-712 cryptographic signatures, duplicate protection |
 
+### Base Mainnet Deployment
+
+| Contract | Address | BaseScan |
+|----------|---------|----------|
+| **SapienToken** | `0xA549F85804Ee1c69092846029112c5Eb2FE23623` | [View on BaseScan](https://basescan.org/address/0xA549F85804Ee1c69092846029112c5Eb2FE23623) |
+| **TimelockController** | `0x20304CbD5D4674b430CdC360f9F7B19790D98257` | [View on BaseScan](https://basescan.org/address/0x20304CbD5D4674b430CdC360f9F7B19790D98257) |
+| **SapienQA** | `0x962F190C6DDf58547fe2Ac4696187694a715A2eA` | [View on BaseScan](https://basescan.org/address/0x962F190C6DDf58547fe2Ac4696187694a715A2eA) |
+| **SapienVault** | `0x1F65D1d032E6D13695dA93264887f1A207023E5f` | [View on BaseScan](https://basescan.org/address/0x1F65D1d032E6D13695dA93264887f1A207023E5f) |
+| **SapienRewards** | `0x2A7300A862D8Ff202459Bb4D3B3829E8c61887A9` | [View on BaseScan](https://basescan.org/address/0x2A7300A862D8Ff202459Bb4D3B3829E8c61887A9) |
+| **USDCRewards** | `0x2E49592955552F2FD4664C003d98d0b2f37C71d3` | [View on BaseScan](https://basescan.org/address/0x2E49592955552F2FD4664C003d98d0b2f37C71d3) |
+| **BatchRewards** | `0x7ea0cA7786CE837D3732B6496263C5983A80FF4B` | [View on BaseScan](https://basescan.org/address/0x7ea0cA7786CE837D3732B6496263C5983A80FF4B)
+
 ---
 
 ## Technical Documentation
