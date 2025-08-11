@@ -8,6 +8,7 @@ SapienQA                                    0x962F190C6DDf58547fe2Ac4696187694a7
 SapienVault                                 0x1F65D1d032E6D13695dA93264887f1A207023E5f
 SapienRewards                               0x2A7300A862D8Ff202459Bb4D3B3829E8c61887A9
 USDCRewards                                 0x2E49592955552F2FD4664C003d98d0b2f37C71d3
+BatchRewards                                0x7ea0cA7786CE837D3732B6496263C5983A80FF4B
 
 ========== Logs ======================================================================
 
