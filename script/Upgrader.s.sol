@@ -33,6 +33,9 @@ contract Upgrader is Script {
         } else if (contractType == 2) {
             proxy = contracts.sapienQA;
             contractName = "SapienQA";
+        } else if (contractType == 3) {
+            proxy = contracts.usdcRewards;
+            contractName = "USDCRewards";
         } else {
             revert("Invalid contract type");
         }
