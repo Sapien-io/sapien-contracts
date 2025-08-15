@@ -35,7 +35,7 @@ contract SapienTokenTest is Test {
 
     function test_Token_Constructor_Success() public view {
         // Check basic ERC20 properties
-        assertEq(token.name(), "Sapien Token");
+        assertEq(token.name(), "Sapien");
         assertEq(token.symbol(), "SAPIEN");
         assertEq(token.decimals(), 18);
         assertEq(token.totalSupply(), MAX_SUPPLY);

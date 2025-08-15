@@ -16,7 +16,7 @@ contract SapienToken is ISapienToken, ERC20Permit {
 
     /// @dev Constructor
     /// @param treasury The foundation treasury multisig
-    constructor(address treasury) ERC20("Sapien Token", "SAPIEN") ERC20Permit("Sapien Token") {
+    constructor(address treasury) ERC20("Sapien", "SAPIEN") ERC20Permit("Sapien") {
         if (treasury == address(0)) revert ZeroAddress();
 
         _mint(treasury, MAX_SUPPLY);
