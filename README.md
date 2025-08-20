@@ -44,39 +44,6 @@ Comprehensive technical specifications for each smart contract:
 - **[Batch Rewards](notes/BatchRewards.md)** -  Batches rewards for USDC and SAPIEN
 ---
 
-## Comprehensive Testing Framework
-
-The SAPIEN protocol implements an extensive smart contract testing framework with comprehensive end-to-end validation that covers complete user journeys and production scenarios.
-
-### End-to-End Test Coverage
-
-#### SapienQA Testing Suite (`SapienQA.t.sol`)
-**19 comprehensive test cases** covering the complete quality assurance workflow:
-
-- **Progressive Enforcement Testing**: Warning → Minor Penalty → Major Penalty progression
-- **Community Governance Validation**: Realistic QA enforcement scenario testing
-- **Cross-Contract Integration**: QA ↔ Vault ↔ Token interaction validation
-- **Security Protocol Verification**: EIP-712 signature validation, replay attack prevention
-- **Edge Case Coverage**: Insufficient stakes, vault pause states, error recovery procedures
-
-**Primary Integration Test**: `test_QA_EndToEndScenario`
-- Simulates complete user journey from initial staking to penalty enforcement
-- Validates 4 sequential QA decisions (2 warnings + 2 penalties)
-- Tests progressive enforcement with stake reduction (10,000 → 8,500 tokens)
-- Ensures complete audit trail integrity and data consistency
-
-#### SapienVault Testing Suite (`SapienVault_EndToEnd.t.sol`)
-**Multi-phase temporal testing** with 8 distinct user personas over 400+ day simulation periods
-
-#### SapienRewards Testing Suite (`SapienRewards_EndToEnd.t.sol`)
-**6 comprehensive test phases** covering the complete reward distribution system:
-
-- **Extended User Journey Simulation**: 365+ day simulation with realistic usage patterns
-- **Multi-User Coordination Testing**: 50+ concurrent users with distinct behavioral profiles
-- **Emergency Procedure Validation**: System pause protocols, recovery mechanisms, balance reconciliation
-- **Financial Accuracy Verification**: Precise balance tracking across 202+ reward orders
-- **High-Load Performance Testing**: Rapid-fire claim processing and system stress validation
-
 ### Development Infrastructure
 
 Built with **Foundry** for comprehensive smart contract development:
