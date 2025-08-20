@@ -25,9 +25,9 @@ contract DeployVault is Script {
         bytes memory initData = abi.encodeWithSelector(
             ISapienVault.initialize.selector,
             contracts.sapienToken, // token
-            coreActors.sapienLabs, //admin
+            coreActors.securityCouncil, //admin
             actors.pauser, //pauser
-            coreActors.sapienLabs, // treasury
+            coreActors.securityCouncil, // treasury
             contracts.sapienQA // SapienQA contract
         );
 

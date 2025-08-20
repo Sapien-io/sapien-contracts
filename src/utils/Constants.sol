@@ -123,7 +123,7 @@ library Constants {
     // -------------------------------------------------------------
 
     // Add this constant at the contract level
-    uint256 internal constant MAX_REWARD_AMOUNT = 10_000 * 10 ** 18;
+    uint256 internal constant MAX_REWARD_AMOUNT = 350_000 * 10 ** 18;
 
     // -------------------------------------------------------------
     // QA Constants
