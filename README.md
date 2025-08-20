@@ -21,13 +21,13 @@ The SAPIEN protocol bridges the gap between human wisdom and machine learning wh
 
 | Contract | Address | BaseScan |
 |----------|---------|----------|
-| **SapienToken** | `0xA549F85804Ee1c69092846029112c5Eb2FE23623` | [View on BaseScan](https://basescan.org/address/0xA549F85804Ee1c69092846029112c5Eb2FE23623) |
+| **SAPIEN** | `0xC729777d0470F30612B1564Fd96E8Dd26f5814E3` | [View on BaseScan](https://basescan.org/address/0xC729777d0470F30612B1564Fd96E8Dd26f5814E3) |
 | **TimelockController** | `0x20304CbD5D4674b430CdC360f9F7B19790D98257` | [View on BaseScan](https://basescan.org/address/0x20304CbD5D4674b430CdC360f9F7B19790D98257) |
 | **SapienQA** | `0x962F190C6DDf58547fe2Ac4696187694a715A2eA` | [View on BaseScan](https://basescan.org/address/0x962F190C6DDf58547fe2Ac4696187694a715A2eA) |
-| **SapienVault** | `0x1F65D1d032E6D13695dA93264887f1A207023E5f` | [View on BaseScan](https://basescan.org/address/0x1F65D1d032E6D13695dA93264887f1A207023E5f) |
-| **SapienRewards** | `0x2A7300A862D8Ff202459Bb4D3B3829E8c61887A9` | [View on BaseScan](https://basescan.org/address/0x2A7300A862D8Ff202459Bb4D3B3829E8c61887A9) |
-| **USDCRewards** | `0x2E49592955552F2FD4664C003d98d0b2f37C71d3` | [View on BaseScan](https://basescan.org/address/0x2E49592955552F2FD4664C003d98d0b2f37C71d3) |
-| **BatchRewards** | `0x7ea0cA7786CE837D3732B6496263C5983A80FF4B` | [View on BaseScan](https://basescan.org/address/0x7ea0cA7786CE837D3732B6496263C5983A80FF4B)
+| **SapienVault** | `0x74b21FAdf654543B142De0bDC7a6A4a0c631e397` | [View on BaseScan](https://basescan.org/address/0x74b21FAdf654543B142De0bDC7a6A4a0c631e397) |
+| **SapienRewards** | `0xB70C2BA5Aa45b052C2aC59D310bA8E93Ee65B3C9` | [View on BaseScan](https://basescan.org/address/0xB70C2BA5Aa45b052C2aC59D310bA8E93Ee65B3C9) |
+| **USDCRewards** | `0x9E866C93Fc53baA53B7D00927094de0C18320AA2` | [View on BaseScan](https://basescan.org/address/0x9E866C93Fc53baA53B7D00927094de0C18320AA2) |
+| **BatchRewards** | `0x6766D9285C8E6453De9eD17fec90618c0A1d02e2` | [View on BaseScan](https://basescan.org/address/0x6766D9285C8E6453De9eD17fec90618c0A1d02e2)
 
 ---
 

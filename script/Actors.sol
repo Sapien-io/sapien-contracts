@@ -85,7 +85,7 @@ library MainnetActors {
     address public constant SECURITY_COUNCIL_SAFE = 0x18D33278be0870A4907922dE65D6FbE27928580a;
     address public constant SAPIEN_LABS = 0x454149F78630A82fDcf5559384042A3BBD358FB2;
     address public constant REWARDS_ADMIN = MainnetActors.SAPIEN_LABS;
-    address public constant REWARDS_MANAGER = 0xdb46982dCd2290ec28a9eFd7f8bBD92E0014350B;
+    address public constant REWARDS_MANAGER = 0xc0B4A5b6557E32Cf1ae85A875E6f9CeD402688be;
     address public constant QA_MANAGER = 0x1dd0f5712ff9Bd7be4996e5FA6c55a45c5eF4425;
     address public constant QA_SIGNER = 0x84021735702863386646eBCEFa0925B92afD52e1;
     address public constant PAUSER = MainnetActors.SECURITY_COUNCIL_SAFE;

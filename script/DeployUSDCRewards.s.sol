@@ -23,7 +23,7 @@ contract DeployUSDCRewards is Script {
         // Prepare initialization data
         bytes memory initData = abi.encodeWithSelector(
             ISapienRewards.initialize.selector,
-            coreActors.sapienLabs, // default admin
+            coreActors.securityCouncil, // default admin
             actors.rewardsAdmin, // rewards admin
             actors.rewardsManager, // rewards manager
             actors.pauser, // pauser
