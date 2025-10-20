@@ -75,11 +75,7 @@ contract SapienRewardsTest is Test {
         ORDER_ID_2 = createOrderIdWithExpiry("order_id_string", uint64(block.timestamp + 3 * 60)); // 3 minutes
     }
 
-    function createOrderIdWithExpiry(string memory identifier, uint64 expiryTimestamp)
-        internal
-        pure
-        returns (bytes32)
-    {
+    function createOrderIdWithExpiry(string memory identifier, uint64 expiryTimestamp) internal pure returns (bytes32) {
         bytes24 randomPart = bytes24(keccak256(abi.encodePacked(identifier, expiryTimestamp)));
         return bytes32(abi.encodePacked(randomPart, expiryTimestamp));
     }

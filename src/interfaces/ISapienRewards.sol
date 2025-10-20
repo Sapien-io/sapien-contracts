@@ -64,9 +64,7 @@ interface ISapienRewards {
     function reconcileBalance() external;
     function recoverUnaccountedTokens(uint256 amount) external;
 
-    function claimReward(uint256 rewardAmount, bytes32 orderId, bytes memory signature)
-        external
-        returns (bool success);
+    function claimReward(uint256 rewardAmount, bytes32 orderId, bytes memory signature) external returns (bool success);
 
     function claimRewardFor(address user, uint256 rewardAmount, bytes32 orderId, bytes memory signature)
         external

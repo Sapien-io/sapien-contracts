@@ -2509,11 +2509,7 @@ contract SapienVaultBasicTest is Test {
     function test_Vault_MultiplierMatrix_KeyValues() public {
         // Test key combinations using current multiplier implementation
         uint256[5] memory amounts = [
-            uint256(1000 * 1e18),
-            uint256(2500 * 1e18),
-            uint256(1000 * 1e18),
-            uint256(1500 * 1e18),
-            uint256(2500 * 1e18)
+            uint256(1000 * 1e18), uint256(2500 * 1e18), uint256(1000 * 1e18), uint256(1500 * 1e18), uint256(2500 * 1e18)
         ];
         uint256[5] memory periods = [
             uint256(LOCK_30_DAYS),
