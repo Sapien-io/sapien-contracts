@@ -96,7 +96,6 @@ library MainnetActors {
     address public constant DEPLOYER = 0x644B290c29C02A011Ef69DDf01DeEF4eEc8047A3;
 }
 
-
 library Actors {
     /**
      * @notice Returns core actor addresses for the current chain
