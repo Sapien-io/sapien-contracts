@@ -96,8 +96,7 @@ interface ISapienVault {
     // Initialization Functions
     // -------------------------------------------------------------
 
-    function initialize(address token, address admin, address pauseManager, address treasury, address sapienQA)
-        external;
+    function initialize(address token, address admin, address pauseManager, address treasury, address sapienQA) external;
 
     function version() external view returns (string memory);
     // -------------------------------------------------------------

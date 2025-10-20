@@ -234,8 +234,9 @@ library Contracts {
      */
     function areAllContractsDeployed(DeployedContracts memory contracts) internal pure returns (bool) {
         return contracts.sapienToken != address(0) && contracts.sapienVault != address(0)
-            && contracts.sapienRewards != address(0) && contracts.sapienQA != address(0) && contracts.timelock != address(0)
-            && contracts.sapienVaultProxyAdmin != address(0) && contracts.sapienRewardsProxyAdmin != address(0)
-            && contracts.sapienQaProxyAdmin != address(0) && contracts.batchRewards != address(0);
+            && contracts.sapienRewards != address(0) && contracts.sapienQA != address(0)
+            && contracts.timelock != address(0) && contracts.sapienVaultProxyAdmin != address(0)
+            && contracts.sapienRewardsProxyAdmin != address(0) && contracts.sapienQaProxyAdmin != address(0)
+            && contracts.batchRewards != address(0);
     }
 }

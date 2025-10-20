@@ -131,15 +131,13 @@ contract JuneAudit_SAP_6_Test is Test {
         // Verify User1 stake details (scoped to avoid stack too deep)
         {
             (
-                uint256 amount,
-                , // cooldownAmount
+                uint256 amount,, // cooldownAmount
                 , // weightedStart (not used in this scope)
-                uint256 effectiveLockup,
-                , // cooldownStart
+                uint256 effectiveLockup,, // cooldownStart
                 , // lastUpdateTime
                 , // earlyUnstakeCooldownStart
                 , // effectiveMultiplier
-                    // earlyUnstakeCooldownAmount
+                // earlyUnstakeCooldownAmount
             ) = sapienVault.userStakes(user1);
 
             assertEq(amount, stakeAmount + additionalAmount, "User1 should have combined stake amount");
@@ -150,15 +148,13 @@ contract JuneAudit_SAP_6_Test is Test {
         uint256 user2WeightedStart;
         {
             (
-                uint256 amount,
-                , // cooldownAmount
+                uint256 amount,, // cooldownAmount
                 uint256 weightedStart,
-                uint256 effectiveLockup,
-                , // cooldownStart
+                uint256 effectiveLockup,, // cooldownStart
                 , // lastUpdateTime
                 , // earlyUnstakeCooldownStart
                 , // effectiveMultiplier
-                    // earlyUnstakeCooldownAmount
+                // earlyUnstakeCooldownAmount
             ) = sapienVault.userStakes(user2);
 
             user2WeightedStart = weightedStart;
@@ -169,15 +165,13 @@ contract JuneAudit_SAP_6_Test is Test {
         // Verify User3 stake details and compare weighted start times (scoped to avoid stack too deep)
         {
             (
-                uint256 amount,
-                , // cooldownAmount
+                uint256 amount,, // cooldownAmount
                 uint256 weightedStart,
-                uint256 effectiveLockup,
-                , // cooldownStart
+                uint256 effectiveLockup,, // cooldownStart
                 , // lastUpdateTime
                 , // earlyUnstakeCooldownStart
                 , // effectiveMultiplier
-                    // earlyUnstakeCooldownAmount
+                // earlyUnstakeCooldownAmount
             ) = sapienVault.userStakes(user3);
 
             assertEq(amount, stakeAmount, "User3 should have original stake amount");

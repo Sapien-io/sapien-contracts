@@ -9,10 +9,12 @@ import {SapienToken} from "src/SapienToken.sol";
 import {ISapienQA} from "src/interfaces/ISapienQA.sol";
 import {Constants} from "src/utils/Constants.sol";
 import {Actors} from "script/Actors.sol";
-import {ERC1967Proxy} from
-    "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {TransparentUpgradeableProxy} from
-    "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {
+    ERC1967Proxy
+} from "lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {
+    TransparentUpgradeableProxy
+} from "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 contract SapienQATest is Test {
     SapienQA public qaContract;
@@ -27,7 +29,8 @@ contract SapienQATest is Test {
     address public user2 = makeAddr("user2");
 
     // Use a private key that we can control for the qaManager
-    uint256 private constant QA_MANAGER_PRIVATE_KEY = 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef;
+    uint256 private constant QA_MANAGER_PRIVATE_KEY =
+        0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef;
     uint256 private constant QA_SIGNER_PRIVATE_KEY = 0x2234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef;
 
     // Sample decision for testing
@@ -499,8 +502,9 @@ contract SapienQATest is Test {
     function test_QA_InitializeValidation() public {
         // Test zero treasury address via proxy
         SapienQA qaImpl1 = new SapienQA();
-        bytes memory badInitData1 =
-            abi.encodeWithSelector(SapienQA.initialize.selector, address(0), address(vault), qaManager, qaSigner, admin);
+        bytes memory badInitData1 = abi.encodeWithSelector(
+            SapienQA.initialize.selector, address(0), address(vault), qaManager, qaSigner, admin
+        );
         vm.expectRevert(ISapienQA.ZeroAddress.selector);
         new TransparentUpgradeableProxy(address(qaImpl1), admin, badInitData1);
 
@@ -520,8 +524,9 @@ contract SapienQATest is Test {
 
         // Test zero qa signer address via proxy
         SapienQA qaImpl4 = new SapienQA();
-        bytes memory badInitData4 =
-            abi.encodeWithSelector(SapienQA.initialize.selector, treasury, address(vault), qaManager, address(0), admin);
+        bytes memory badInitData4 = abi.encodeWithSelector(
+            SapienQA.initialize.selector, treasury, address(vault), qaManager, address(0), admin
+        );
         vm.expectRevert(ISapienQA.ZeroAddress.selector);
         new TransparentUpgradeableProxy(address(qaImpl4), admin, badInitData4);
 
@@ -1409,7 +1414,15 @@ contract SapienQATest is Test {
 
 // Mock contract for testing string error scenarios
 contract MockVaultWithStringError {
-    function processQAPenalty(address, /*userAddress*/ uint256 /*penaltyAmount*/ ) external pure returns (uint256) {
+    function processQAPenalty(
+        address,
+        /*userAddress*/
+        uint256 /*penaltyAmount*/
+    )
+        external
+        pure
+        returns (uint256)
+    {
         revert("Mock vault string error");
     }
 }

@@ -4,8 +4,9 @@ pragma solidity 0.8.30;
 import {Test, console} from "forge-std/Test.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {TransparentUpgradeableProxy} from
-    "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {
+    TransparentUpgradeableProxy
+} from "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {SapienVault} from "src/SapienVault.sol";
 import {SapienQA} from "src/SapienQA.sol";

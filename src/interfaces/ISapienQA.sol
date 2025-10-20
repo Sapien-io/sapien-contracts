@@ -11,7 +11,6 @@ interface ISapienQA {
         MINOR_PENALTY, // Small penalty (1-5% of stake)
         MAJOR_PENALTY, // Medium penalty (5-15% of stake)
         SEVERE_PENALTY // Large penalty (15-25% of stake)
-
     }
 
     // -------------------------------------------------------------
