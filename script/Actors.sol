@@ -86,8 +86,8 @@ library MainnetActors {
     address public constant SAPIEN_LABS = 0x454149F78630A82fDcf5559384042A3BBD358FB2;
     address public constant REWARDS_ADMIN = MainnetActors.SAPIEN_LABS;
     address public constant REWARDS_MANAGER = 0xc0B4A5b6557E32Cf1ae85A875E6f9CeD402688be;
-    address public constant QA_MANAGER = 0x1dd0f5712ff9Bd7be4996e5FA6c55a45c5eF4425;
-    address public constant QA_SIGNER = 0x84021735702863386646eBCEFa0925B92afD52e1;
+    address public constant QA_MANAGER = 0xfcf72A032dc23e5DbF0F5FD2a2b7AdB58Ae4C32a;
+    address public constant QA_SIGNER = 0xC999d28D6eAA2A6e004254fa88C3556eF5bf0B06;
     address public constant PAUSER = MainnetActors.SECURITY_COUNCIL_SAFE;
     address public constant TIMELOCK_PROPOSER = MainnetActors.SECURITY_COUNCIL_SAFE;
     address public constant TIMELOCK_EXECUTOR = MainnetActors.SAPIEN_LABS;
@@ -95,6 +95,7 @@ library MainnetActors {
     address public constant TIMELOCK_ADMIN = MainnetActors.BLENDED;
     address public constant DEPLOYER = 0x644B290c29C02A011Ef69DDf01DeEF4eEc8047A3;
 }
+
 
 library Actors {
     /**

@@ -38,7 +38,7 @@ Comprehensive technical specifications for each smart contract:
 - **[SapienVault](notes/SapienVault.md)** - Staking mechanisms, lockup management, and vault operations
 - **[SapienQA](notes/SapienQA.md)** - Quality assurance system and penalty enforcement protocols  
 - **[SapienRewards](notes/SapienRewards.md)** - Off-chain signed reward claims and distribution mechanisms
-- **[SAPIEN Whitepaper](notes/whitepaper.md)** - Complete tokenomics and protocol design specification
+- **[SAPIEN Whitepaper](https://docs.sapien.io/sapien-litepaper/proof-of-quality)** - Complete tokenomics and protocol design specification
 - **[Multiplier Paper](notes/multiplier.pdf)** - Paper on the multiplier math
 - **[Rewards Signatures](notes/rewards-signature-system.md)** - Rewards signature docs
 - **[Batch Rewards](notes/BatchRewards.md)** -  Batches rewards for USDC and SAPIEN
