@@ -94,6 +94,6 @@ forge snapshot
 
 ## Audits - 2025
 
-[Quantstamp] (audits/Sapien - Quantstamp Audit Report June 2025.pdf)
-[Zokyo] (audits/Sapien - Zokyo Audit Report August 2025.pdf)
+[Quantstamp](audits/Sapien_Quantstamp_Audit_Report_June_2025.pdf)  
+[Zokyo](audits/Sapien_Zokyo_Audit_Report_August_2025.pdf)
 
