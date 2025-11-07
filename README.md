@@ -92,26 +92,8 @@ make show
 forge snapshot
 ```
 
-## Security Considerations
+## Audits - 2025
 
-- **EIP-712 Signature Verification**: All off-chain signed operations use cryptographic signature validation
-- **Reentrancy Protection**: Comprehensive reentrancy guards across all external contract interactions
-- **Access Control**: Role-based permissions with multi-signature requirements for critical operations
-- **Pause Mechanisms**: Emergency pause functionality for all user-facing operations
-- **Progressive Penalties**: Graduated penalty system to prevent abuse while maintaining user protection
+[Quantstamp] (audits/Sapien - Quantstamp Audit Report June 2025.pdf)
+[Zokyo] (audits/Sapien - Zokyo Audit Report August 2025.pdf)
 
-## Deployment Architecture
-
-The protocol utilizes OpenZeppelin's upgradeable proxy pattern for critical contracts:
-
-- **SapienVault**: Upgradeable proxy implementation
-- **SapienRewards**: Upgradeable proxy implementation  
-- **SapienQA**: Upgradeable proxy implementation
-- **SapienToken**: Standard ERC-20 implementation
-
-## Gas Optimization
-
-- **Library Usage**: Multiplier calculations implemented as library to reduce deployment costs
-- **Batch Operations**: Rewards and QA operations support batch processing
-- **Efficient Storage**: Optimized storage layouts and packing for reduced gas consumption
-- **Minimal External Calls**: Reduced cross-contract calls through careful architecture design
