@@ -2,7 +2,6 @@
 pragma solidity 0.8.30;
 
 /**
- * @file SapienVault.sol
  * @notice Sapien AI Staking Vault & Reputation System
  * @dev This contract implements a collateral staking mechanism that forms the backbone of the
  *      Sapien AI reputation system.
