@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sapien Validator Consensus - Explainer Animation</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="animation-container">
+        <!-- Title -->
+        <div class="title-bar" id="title">
+            <h1>Validator Consensus Flow</h1>
+            <p class="subtitle">Proof of Quality Protocol</p>
+        </div>
+
+        <!-- Phase Overlay -->
+        <div class="phase-overlay" id="phase-overlay">
+            <span id="phase-text"></span>
+        </div>
+
+        <!-- Swimlanes Container -->
+        <div class="swimlanes-wrapper">
+            <!-- Actor Headers -->
+            <div class="actor-headers">
+                <div class="actor-header" id="header-originator">
+                    <div class="actor-icon">🏢</div>
+                    <span>Originator</span>
+                </div>
+                <div class="actor-header" id="header-contributor">
+                    <div class="actor-icon">👤</div>
+                    <span>Contributor</span>
+                </div>
+                <div class="actor-header" id="header-validator1">
+                    <div class="actor-icon">✓</div>
+                    <span>Validator 1</span>
+                </div>
+                <div class="actor-header" id="header-validator2">
+                    <div class="actor-icon">✓</div>
+                    <span>Validator 2</span>
+                </div>
+                <div class="actor-header" id="header-validator3">
+                    <div class="actor-icon">✓</div>
+                    <span>Validator 3</span>
+                </div>
+                <div class="actor-header" id="header-core">
+                    <div class="actor-icon">⚙️</div>
+                    <span>SapienCore</span>
+                </div>
+                <div class="actor-header" id="header-oracle">
+                    <div class="actor-icon">🔮</div>
+                    <span>Oracle</span>
+                </div>
+                <div class="actor-header" id="header-consensus">
+                    <div class="actor-icon">⚖️</div>
+                    <span>Consensus</span>
+                </div>
+            </div>
+
+            <!-- Swimlane Columns -->
+            <div class="swimlanes">
+                <div class="swimlane" id="lane-originator">
+                    <div class="lane-line"></div>
+                    <div class="action-node" id="originator-create">Create Project</div>
+                </div>
+                <div class="swimlane" id="lane-contributor">
+                    <div class="lane-line"></div>
+                    <div class="action-node" id="contributor-claim">Claim Slot</div>
+                    <div class="action-node" id="contributor-submit">Submit Work</div>
+                    <div class="action-node reward" id="contributor-reward">Receive Reward</div>
+                </div>
+                <div class="swimlane" id="lane-validator1">
+                    <div class="lane-line"></div>
+                    <div class="action-node" id="v1-claim">Claim</div>
+                    <div class="action-node commit" id="v1-commit">
+                        <span class="hash">hash(???)</span>
+                    </div>
+                    <div class="action-node reveal" id="v1-reveal">
+                        <span class="score">85%</span>
+                    </div>
+                    <div class="action-node reward" id="v1-reward">+Reward</div>
+                </div>
+                <div class="swimlane" id="lane-validator2">
+                    <div class="lane-line"></div>
+                    <div class="action-node" id="v2-claim">Claim</div>
+                    <div class="action-node commit" id="v2-commit">
+                        <span class="hash">hash(???)</span>
+                    </div>
+                    <div class="action-node reveal" id="v2-reveal">
+                        <span class="score">80%</span>
+                    </div>
+                    <div class="action-node reward" id="v2-reward">+Reward</div>
+                </div>
+                <div class="swimlane" id="lane-validator3">
+                    <div class="lane-line"></div>
+                    <div class="action-node" id="v3-claim">Claim</div>
+                    <div class="action-node commit" id="v3-commit">
+                        <span class="hash">hash(???)</span>
+                    </div>
+                    <div class="action-node reveal outlier" id="v3-reveal">
+                        <span class="score">30%</span>
+                    </div>
+                    <div class="action-node slash" id="v3-slash">SLASHED</div>
+                </div>
+                <div class="swimlane" id="lane-core">
+                    <div class="lane-line"></div>
+                    <div class="action-node" id="core-register">Register Project</div>
+                    <div class="action-node" id="core-enqueue">Enqueue Validation</div>
+                    <div class="action-node" id="core-finalize">Finalize</div>
+                    <div class="action-node" id="core-distribute">Distribute</div>
+                </div>
+                <div class="swimlane" id="lane-oracle">
+                    <div class="lane-line"></div>
+                    <div class="action-node" id="oracle-queue">Add to Queue</div>
+                    <div class="action-node" id="oracle-collect">Collect Commits</div>
+                    <div class="action-node" id="oracle-reveals">Record Reveals</div>
+                    <div class="action-node" id="oracle-calc">Get Consensus</div>
+                </div>
+                <div class="swimlane" id="lane-consensus">
+                    <div class="lane-line"></div>
+                    <div class="action-node" id="consensus-weights">Calculate Weights</div>
+                    <div class="action-node" id="consensus-avg">Weighted Avg: 82%</div>
+                    <div class="action-node" id="consensus-outliers">Identify Outliers</div>
+                    <div class="action-node accepted" id="consensus-result">ACCEPTED</div>
+                </div>
+            </div>
+
+            <!-- SVG Layer for Arrows -->
+            <svg class="arrows-layer" id="arrows-layer">
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="var(--arrow-color)" />
+                    </marker>
+                    <marker id="arrowhead-highlight" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="var(--highlight-color)" />
+                    </marker>
+                </defs>
+                
+                <!-- Arrows will be dynamically positioned by JS -->
+                <path class="arrow" id="arrow-orig-core" d="" marker-end="url(#arrowhead)" />
+                <path class="arrow" id="arrow-contrib-core" d="" marker-end="url(#arrowhead)" />
+                <path class="arrow" id="arrow-core-oracle" d="" marker-end="url(#arrowhead)" />
+                <path class="arrow" id="arrow-v1-oracle" d="" marker-end="url(#arrowhead)" />
+                <path class="arrow" id="arrow-v2-oracle" d="" marker-end="url(#arrowhead)" />
+                <path class="arrow" id="arrow-v3-oracle" d="" marker-end="url(#arrowhead)" />
+                <path class="arrow" id="arrow-oracle-consensus" d="" marker-end="url(#arrowhead)" />
+                <path class="arrow" id="arrow-consensus-core" d="" marker-end="url(#arrowhead)" />
+            </svg>
+        </div>
+
+        <!-- Caption Box -->
+        <div class="caption-box" id="caption-box">
+            <p id="caption-text">Click play to start the animation</p>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <button id="play-btn" class="control-btn">▶ Play</button>
+            <button id="restart-btn" class="control-btn">↻ Restart</button>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GSAP Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="animation.js"></script>
+</body>
+</html>

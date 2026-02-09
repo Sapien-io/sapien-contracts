@@ -1,99 +1,115 @@
-# SAPIEN Protocol Smart Contracts
+# Sapien Proof-of-Quality (PoQ) Protocol
 
-**A decentralized data foundry powering the future of AI training through human expertise and tokenized incentives.**
+[![Protocol Version](https://img.shields.io/badge/version-v0.3-blue)](./docs/COMPLETE_DOCUMENTATION.md)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-The SAPIEN protocol bridges the gap between human wisdom and machine learning where experts are rewarded for high-quality AI training data contributions. Built on Base with the $SAPIEN ERC-20 token, the protocol has connected over **100,000 trainers** across **25+ countries** for AI data customers.
+Sapien PoQ is an open protocol for verifiable, consensus-based quality signals in AI workflows. It adds a verifiable quality layer to AI datasets and agent behaviors through stake-weighted human verification.
+
+## 🌟 Overview
+
+The Sapien PoQ protocol provides a "Quality Oracle" for AI systems. It allows human experts to verify AI-generated data or agent behaviors, producing a verifiable quality signal that can be consumed by on-chain and off-chain systems.
+
+### Key Value Propositions
+- **Verifiable Quality**: Cryptographic proof of human judgment for AI systems.
+- **Data Sovereignty**: Your data stays in your storage; only quality signals are on-chain.
+- **Incentive Alignment**: Stake-weighted rewards and penalties ensure honest participation.
+- **Composable**: Easily integrate with existing AI tools (CVAT, LangChain, etc.) via oracles.
 
 ---
 
-## System Architecture
+## 🏗️ Core Architecture
 
-### Core Smart Contracts
+The protocol is implemented as a suite of modular EVM smart contracts:
 
-| Contract | Purpose | Key Features |
-|----------|---------|--------------|
-| **SapienToken** | ERC-20 utility token | Standard token implementation |
-| **SapienVault** | Staking & lockup management | Progressive staking rewards, temporal lockup multipliers, emergency controls |
-| **SapienQA** | Quality assurance enforcement | Automated validation, progressive penalty system, comprehensive audit trails |
-| **SapienRewards** | Task reward distribution | EIP-712 cryptographic signatures, duplicate protection |
+- **[SapienCore.sol](./src/SapienCore.sol)**: The central coordinator managing project lifecycles, claims, and finalization.
+- **[ValidationOracle.sol](./src/ValidationOracle.sol)**: A stateless consensus engine handling validator commits, reveals, and task management.
+- **[SapienTrust.sol](./src/SapienTrust.sol)**: The reputation and identity layer tracking "Proof of Quality" (PoQ) scores.
+- **[SapienVault.sol](./src/SapienVault.sol)**: An ERC-4626 upgradeable staking contract for financial "skin in the game."
+- **[Rewards.sol](./src/Rewards.sol)**: Handles escrow, allocation, and distribution of reward tokens (e.g., USDC).
 
-### Base Mainnet Deployment
-
-| Contract | Address | BaseScan |
-|----------|---------|----------|
-| **SAPIEN** | `0xC729777d0470F30612B1564Fd96E8Dd26f5814E3` | [View on BaseScan](https://basescan.org/address/0xC729777d0470F30612B1564Fd96E8Dd26f5814E3) |
-| **USDC** | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | [View on BaseScan](https://basescan.org/address/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913) |
-| **TimelockController** | `0x20304CbD5D4674b430CdC360f9F7B19790D98257` | [View on BaseScan](https://basescan.org/address/0x20304CbD5D4674b430CdC360f9F7B19790D98257) |
-| **SapienQA** | `0x962F190C6DDf58547fe2Ac4696187694a715A2eA` | [View on BaseScan](https://basescan.org/address/0x962F190C6DDf58547fe2Ac4696187694a715A2eA) |
-| **SapienVault** | `0x74b21FAdf654543B142De0bDC7a6A4a0c631e397` | [View on BaseScan](https://basescan.org/address/0x74b21FAdf654543B142De0bDC7a6A4a0c631e397) |
-| **SapienRewards** | `0xB70C2BA5Aa45b052C2aC59D310bA8E93Ee65B3C9` | [View on BaseScan](https://basescan.org/address/0xB70C2BA5Aa45b052C2aC59D310bA8E93Ee65B3C9) |
-| **USDCRewards** | `0x9E866C93Fc53baA53B7D00927094de0C18320AA2` | [View on BaseScan](https://basescan.org/address/0x9E866C93Fc53baA53B7D00927094de0C18320AA2) |
-| **BatchRewards** | `0x6766D9285C8E6453De9eD17fec90618c0A1d02e2` | [View on BaseScan](https://basescan.org/address/0x6766D9285C8E6453De9eD17fec90618c0A1d02e2) |
-
-### Base Sepolia Deployment
-
-| Contract | Address | BaseScan |
-|----------|---------|----------|
-| **SAPIEN** | `0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6` | [View on BaseScan](https://sepolia.basescan.org/address/0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6) |
-| **USDC** | `0x4d4394119CF096FbdbbD3Efb00d204c891C6Cd05` | [View on BaseScan](https://sepolia.basescan.org/address/0x4d4394119CF096FbdbbD3Efb00d204c891C6Cd05) |
-| **TimelockController** | `0x2a5F9e1Be3A78C73EA1aB256D3Eb0C5A475742cC` | [View on BaseScan](https://sepolia.basescan.org/address/0x2a5F9e1Be3A78C73EA1aB256D3Eb0C5A475742cC) |
-| **SapienQA** | `0x575C1F6FBa0cA77AbAd28d8ca8b6f93727b36bbF` | [View on BaseScan](https://sepolia.basescan.org/address/0x575C1F6FBa0cA77AbAd28d8ca8b6f93727b36bbF) |
-| **SapienVault** | `0x3a92bF12A5ece7959C47D1aF32E10d71d868bF90` | [View on BaseScan](https://sepolia.basescan.org/address/0x3a92bF12A5ece7959C47D1aF32E10d71d868bF90) |
-| **SapienRewards** | `0xFF443d92F80A12Fb7343bb16d44df60204c6eB08` | [View on BaseScan](https://sepolia.basescan.org/address/0xFF443d92F80A12Fb7343bb16d44df60204c6eB08) |
-| **USDCRewards** | `0x798Fc8E87AfD496b8a16b436120cc6A456d3AC48` | [View on BaseScan](https://sepolia.basescan.org/address/0x798Fc8E87AfD496b8a16b436120cc6A456d3AC48) |
-| **BatchRewards** | `0xae064cF985da8Cd842753D65B307E27A3853838e` | [View on BaseScan](https://sepolia.basescan.org/address/0xae064cF985da8Cd842753D65B307E27A3853838e) |
 ---
 
-## Technical Documentation
+## 👥 Participant Roles
 
-Comprehensive technical specifications for each smart contract:
+1.  **Originators**: The "buyers" of quality who create projects, define criteria, and fund reward pools.
+2.  **Contributors**: The workers performing tasks (e.g., labeling images, generating responses).
+3.  **Validators**: Independent reviewers assessing contribution quality to reach consensus.
+4.  **Oracles (Adapters)**: Technical interfaces connecting external tools to the protocol.
 
-- **[SapienVault](notes/SapienVault.md)** - Staking mechanisms, lockup management, and vault operations
-- **[SapienQA](notes/SapienQA.md)** - Quality assurance system and penalty enforcement protocols  
-- **[SapienRewards](notes/SapienRewards.md)** - Off-chain signed reward claims and distribution mechanisms
-- **[SAPIEN Whitepaper](https://docs.sapien.io/sapien-litepaper/proof-of-quality)** - Complete tokenomics and protocol design specification
-- **[Multiplier Paper](notes/multiplier.pdf)** - Paper on the multiplier math
-- **[Rewards Signatures](notes/rewards-signature-system.md)** - Rewards signature docs
-- **[Batch Rewards](notes/BatchRewards.md)** -  Batches rewards for USDC and SAPIEN
 ---
 
-### Development Infrastructure
+## 🔄 Verification Lifecycle
 
-Built with **Foundry** for comprehensive smart contract development:
+1.  **Project Setup**: Originator creates and funds a project in `SapienCore`.
+2.  **Work Submission**: Contributors claim slots and submit work hashes.
+3.  **Validation**: Validators perform a two-step **Commit-Reveal** process in the `ValidationOracle`.
+4.  **Consensus Calculation**: Pluggable algorithms calculate weighted average scores and identify outliers.
+5.  **Finalization & Settlement**: `SapienCore` distributes rewards to contributors/validators and slashes outliers.
 
-```bash
-# Install dependencies
-forge install
+---
 
-# Build contracts
-forge build
+## ⚖️ Consensus Algorithms
 
-# Run comprehensive test suite
-forge test -v
+Sapien PoQ supports multiple pluggable consensus algorithms:
+- **Hybrid**: Considers both financial stake and reputation (PoQ score).
+- **Sqrt Stake**: Uses quadratic weighting to balance power and resist whale dominance.
+- **Capped Linear**: Traditional linear staking with a hard cap per validator.
+- **Linear**: Simple stake-weighted consensus.
 
-# Run specific end-to-end test scenarios
-forge test --match-test "test_QA_EndToEndScenario" -vv
-forge test --match-test "test_EndToEnd_CompleteStakingJourney" -v
-forge test --match-test "test_EndToEnd_CompleteUserJourney" -v
+---
 
-# Execute unit test suite
-make unit
+## 📂 Repository Structure
 
-# Run variable testing scenarios
-make invar
-
-# Generate code coverage reports
-make cover
-
-# Display coverage analysis
-make show
-
-# Generate gas consumption snapshots
-forge snapshot
+```text
+.
+├── src/                # Smart contract source code
+│   ├── consensus/      # Pluggable consensus algorithms
+│   ├── interface/      # Protocol interfaces
+│   └── libraries/      # Shared logic (e.g., ConsensusLib)
+├── docs/               # Detailed documentation and guides
+│   ├── architecture/   # System design and lifecycles
+│   ├── components/     # Component-specific details
+│   └── guides/         # User and developer guides
+├── test/               # Comprehensive test suite (Unit, Invariant, Fuzz)
+└── script/             # Deployment and management scripts
 ```
 
-## Audits - 2025
+---
 
-[Quantstamp](audits/Sapien_Quantstamp_Audit_Report_June_2025.pdf)  
-[Zokyo](audits/Sapien_Zokyo_Audit_Report_August_2025.pdf)
+## 🛠️ Development
 
+This project uses [Foundry](https://book.getfoundry.sh/) for development and testing.
+
+### Prerequisites
+- [Foundry](https://getfoundry.sh/)
+- Node.js (for optional frontend/tooling)
+
+### Build
+```bash
+forge build
+```
+
+### Test
+```bash
+forge test
+```
+
+### Deploy (Base Sepolia)
+```bash
+forge script script/DeploySapienCore.s.sol --rpc-url base-sepolia --broadcast --verify
+```
+
+---
+
+## 📚 Documentation
+
+For complete documentation, including detailed component breakdowns and user guides, please refer to:
+- [**Complete Documentation**](./docs/COMPLETE_DOCUMENTATION.md)
+- [**Architecture Overview**](./docs/architecture/overview.md)
+- [**Protocol Lifecycle**](./docs/architecture/lifecycle.md)
+
+---
+
+## 🌐 Connect
+- **Website**: [poq.sapien.io](https://poq.sapien.io)
+- **Twitter**: [@sapien](https://twitter.com/sapien)

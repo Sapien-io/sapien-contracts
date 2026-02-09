@@ -1,0 +1,451 @@
+/* ============================================
+   SAPIEN CONSENSUS ANIMATION - STYLES
+   ============================================ */
+
+:root {
+    /* Colors - Light Mode */
+    --bg-color: #f8fafc;
+    --text-color: #1e293b;
+    --text-muted: #64748b;
+    --border-color: #e2e8f0;
+    --lane-line-color: #cbd5e1;
+    
+    /* Actor Colors */
+    --originator-color: #8b5cf6;
+    --contributor-color: #3b82f6;
+    --validator-color: #10b981;
+    --core-color: #f59e0b;
+    --oracle-color: #6366f1;
+    --consensus-color: #ec4899;
+    
+    /* State Colors */
+    --highlight-color: #3b82f6;
+    --arrow-color: #94a3b8;
+    --commit-color: #f59e0b;
+    --reveal-color: #10b981;
+    --reward-color: #22c55e;
+    --slash-color: #ef4444;
+    --accepted-color: #22c55e;
+    --rejected-color: #ef4444;
+    
+    /* Spacing */
+    --container-padding: 24px;
+    --lane-width: 110px;
+    --lane-gap: 8px;
+}
+
+/* Dark Mode */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-color: #0f172a;
+        --text-color: #f1f5f9;
+        --text-muted: #94a3b8;
+        --border-color: #334155;
+        --lane-line-color: #475569;
+        --arrow-color: #64748b;
+    }
+}
+
+/* Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    background: var(--bg-color);
+    color: var(--text-color);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+/* ============================================
+   MAIN CONTAINER
+   ============================================ */
+
+.animation-container {
+    width: 100%;
+    max-width: 1100px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+
+/* ============================================
+   TITLE BAR
+   ============================================ */
+
+.title-bar {
+    text-align: center;
+    padding: 20px var(--container-padding);
+    border-bottom: 1px solid var(--border-color);
+    opacity: 0;
+}
+
+.title-bar h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.title-bar .subtitle {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+/* ============================================
+   PHASE OVERLAY
+   ============================================ */
+
+.phase-overlay {
+    position: absolute;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--highlight-color);
+    color: white;
+    padding: 8px 24px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.phase-overlay.project {
+    background: var(--originator-color);
+}
+
+.phase-overlay.contribution {
+    background: var(--contributor-color);
+}
+
+.phase-overlay.commit {
+    background: var(--commit-color);
+}
+
+.phase-overlay.reveal {
+    background: var(--reveal-color);
+}
+
+.phase-overlay.consensus {
+    background: var(--consensus-color);
+}
+
+.phase-overlay.outcome {
+    background: var(--accepted-color);
+}
+
+/* ============================================
+   SWIMLANES
+   ============================================ */
+
+.swimlanes-wrapper {
+    position: relative;
+    padding: var(--container-padding);
+    min-height: 500px;
+}
+
+.actor-headers {
+    display: flex;
+    gap: var(--lane-gap);
+    margin-bottom: 16px;
+}
+
+.actor-header {
+    width: var(--lane-width);
+    text-align: center;
+    opacity: 0;
+}
+
+.actor-icon {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto 8px;
+    background: var(--border-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+}
+
+#header-originator .actor-icon { background: var(--originator-color); }
+#header-contributor .actor-icon { background: var(--contributor-color); }
+#header-validator1 .actor-icon,
+#header-validator2 .actor-icon,
+#header-validator3 .actor-icon { background: var(--validator-color); }
+#header-core .actor-icon { background: var(--core-color); }
+#header-oracle .actor-icon { background: var(--oracle-color); }
+#header-consensus .actor-icon { background: var(--consensus-color); }
+
+.actor-header span {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.swimlanes {
+    display: flex;
+    gap: var(--lane-gap);
+    position: relative;
+}
+
+.swimlane {
+    width: var(--lane-width);
+    min-height: 380px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding-top: 8px;
+}
+
+.lane-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 2px;
+    background: var(--lane-line-color);
+    transform: translateX(-50%);
+    opacity: 0.5;
+}
+
+/* ============================================
+   ACTION NODES
+   ============================================ */
+
+.action-node {
+    position: relative;
+    background: white;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-align: center;
+    z-index: 10;
+    opacity: 0;
+    transform: scale(0.8);
+    min-width: 80px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+    .action-node {
+        background: #1e293b;
+    }
+}
+
+.action-node.commit {
+    border-color: var(--commit-color);
+    background: rgba(245, 158, 11, 0.1);
+}
+
+.action-node.reveal {
+    border-color: var(--reveal-color);
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.action-node.outlier {
+    border-color: var(--slash-color);
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.action-node.reward {
+    border-color: var(--reward-color);
+    background: rgba(34, 197, 94, 0.1);
+    color: var(--reward-color);
+}
+
+.action-node.slash {
+    border-color: var(--slash-color);
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--slash-color);
+    font-weight: 700;
+}
+
+.action-node.accepted {
+    border-color: var(--accepted-color);
+    background: rgba(34, 197, 94, 0.2);
+    color: var(--accepted-color);
+    font-weight: 700;
+}
+
+.action-node .hash {
+    font-family: 'Courier New', monospace;
+    font-size: 0.65rem;
+    color: var(--commit-color);
+}
+
+.action-node .score {
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+#v1-reveal .score { color: var(--reveal-color); }
+#v2-reveal .score { color: var(--reveal-color); }
+#v3-reveal .score { color: var(--slash-color); }
+
+/* ============================================
+   SVG ARROWS
+   ============================================ */
+
+.arrows-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 5;
+}
+
+.arrow {
+    fill: none;
+    stroke: var(--arrow-color);
+    stroke-width: 2;
+    opacity: 0;
+}
+
+.arrow.active {
+    stroke: var(--highlight-color);
+    stroke-width: 2.5;
+}
+
+/* ============================================
+   CAPTION BOX
+   ============================================ */
+
+.caption-box {
+    background: var(--border-color);
+    padding: 16px 24px;
+    text-align: center;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#caption-text {
+    font-size: 1rem;
+    line-height: 1.5;
+    max-width: 600px;
+}
+
+/* ============================================
+   CONTROLS
+   ============================================ */
+
+.controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-color);
+}
+
+.control-btn {
+    background: var(--highlight-color);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.control-btn:hover {
+    background: #2563eb;
+}
+
+.control-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.progress-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--border-color);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--highlight-color);
+    border-radius: 3px;
+    transition: width 0.1s linear;
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.action-node.highlight {
+    animation: pulse 0.5s ease-in-out;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
+.action-node.shake {
+    animation: shake 0.3s ease-in-out;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 1000px) {
+    :root {
+        --lane-width: 90px;
+        --lane-gap: 4px;
+    }
+    
+    .actor-header span {
+        font-size: 0.65rem;
+    }
+    
+    .action-node {
+        font-size: 0.65rem;
+        padding: 6px 8px;
+        min-width: 70px;
+    }
+}
+
+@media (max-width: 800px) {
+    .animation-container {
+        overflow-x: auto;
+    }
+    
+    .swimlanes-wrapper {
+        min-width: 900px;
+    }
+}

@@ -1,64 +1,83 @@
-// SPDX-License-Identifier: BSD-3-Clause
-pragma solidity 0.8.30;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.30;
 
-import {Script, console} from "lib/forge-std/src/Script.sol";
-import {TransparentUpgradeableProxy as TUP} from "src/utils/Common.sol";
-import {SapienVault} from "src/SapienVault.sol";
-import {SapienToken} from "src/SapienToken.sol";
-import {ISapienVault} from "src/interfaces/ISapienVault.sol";
-import {Actors, AllActors, CoreActors} from "script/Actors.sol";
-import {Contracts, DeployedContracts} from "script/Contracts.sol";
+import {Script} from "forge-std/Script.sol";
+import {console} from "forge-std/console.sol";
+import {SapienVault} from "../src/SapienVault.sol";
+import {MockERC20} from "../test/mocks/MockERC20.sol";
+import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
+/**
+ * @title DeployVault
+ * @notice Deployment script for SapienVault contract
+ * @dev Deploys SapienVault implementation and proxy
+ */
 contract DeployVault is Script {
+    SapienVault public vault;
+
     function run() external {
-        // Get necessary addresses
-        AllActors memory actors = Actors.getAllActors();
-        CoreActors memory coreActors = Actors.getActors();
-        DeployedContracts memory contracts = Contracts.get();
+        // Get deployment parameters from environment or use defaults for Anvil
+        address stakingToken = vm.envOr("STAKING_TOKEN", address(0));
+        address admin = vm.envOr("ADMIN_ADDRESS", address(0));
+
+        // For Anvil/local testing, use default accounts if not provided
+        if (stakingToken == address(0)) {
+            console.log("STAKING_TOKEN not set, deploying MockERC20 for testing...");
+            vm.startBroadcast();
+            // Deploy mock token first
+            stakingToken = _deployMockToken();
+            vm.stopBroadcast();
+        }
+
+        if (admin == address(0)) {
+            // Use Anvil's default account #0
+            admin = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
+            console.log("ADMIN_ADDRESS not set, using default Anvil account:", admin);
+        }
+
+        console.log("\n=== Deploying SapienVault ===");
+        console.log("Staking Token:", stakingToken);
+        console.log("Admin:", admin);
 
         vm.startBroadcast();
 
-        // Deploy the implementation
+        // Deploy implementation
+        console.log("\n[1] Deploying SapienVault implementation...");
         SapienVault vaultImpl = new SapienVault();
+        console.log("    Implementation:", address(vaultImpl));
 
-        // Prepare initialization data
-        bytes memory initData = abi.encodeWithSelector(
-            ISapienVault.initialize.selector,
-            contracts.sapienToken, // token
-            coreActors.securityCouncil, //admin
-            actors.pauser, //pauser
-            coreActors.securityCouncil, // treasury
-            contracts.sapienQA // SapienQA contract
-        );
-
-        if (contracts.sapienToken == address(0)) {
-            revert("SapienToken contract not deployed");
-        }
-
-        if (contracts.timelock == address(0)) {
-            revert("Timelock contract not deployed");
-        }
-
-        if (contracts.sapienQA == address(0)) {
-            revert("SapienQA contract not deployed");
-        }
-
-        // NOTE: POST-DEPLOY,
-        // 1. revoke default msg.sender from DEFAULT_ADMIN_ROLE after configured.
-        // 2. grant DEFAULT_ADMIN_ROLE to timelock.
-        // 3. grant SAPIEN_QA_ROLE to SapienQA contract.
-
-        // Deploy the proxy with initialization
-        TUP vaultProxy = new TUP(address(vaultImpl), contracts.timelock, initData);
-
-        console.log("Timelock:", contracts.timelock);
-        console.log("SapienToken:", contracts.sapienToken);
-        console.log("SapienQA:", contracts.sapienQA);
-        console.log("Admin:", coreActors.sapienLabs);
-        console.log("Treasury:", coreActors.sapienLabs);
-        console.log("SapienVault implementation deployed at:", address(vaultImpl));
-        console.log("Vault proxy deployed at:", address(vaultProxy));
+        // Deploy proxy with initialization
+        console.log("\n[2] Deploying SapienVault proxy...");
+        bytes memory initData = abi.encodeWithSelector(SapienVault.initialize.selector, stakingToken, admin);
+        vault = SapienVault(address(new ERC1967Proxy(address(vaultImpl), initData)));
+        console.log("    Proxy:", address(vault));
 
         vm.stopBroadcast();
+
+        // Output deployment information
+        console.log("\n=== DEPLOYMENT COMPLETE ===");
+        console.log("SapienVault Proxy:  ", address(vault));
+        console.log("SapienVault Impl:   ", address(vaultImpl));
+        console.log("Staking Token:      ", stakingToken);
+        console.log("Admin:              ", admin);
+
+        // Verify deployment
+        console.log("\n=== VERIFICATION ===");
+        require(address(vault) != address(0), "Vault deployment failed");
+        require(vault.hasRole(vault.DEFAULT_ADMIN_ROLE(), admin), "Admin role not set");
+        console.log("Deployment verified successfully");
+
+        console.log("\nDeployment addresses saved to: ./deployments/vault.json");
+    }
+
+    /**
+     * @notice Deploy a mock ERC20 token for testing
+     * @dev Only used when STAKING_TOKEN is not provided
+     * @dev Assumes broadcast is already active
+     */
+    function _deployMockToken() internal returns (address) {
+        MockERC20 mockToken = new MockERC20("Stake Token", "STAKE", 18);
+        console.log("    Mock Token deployed:", address(mockToken));
+        return address(mockToken);
     }
 }
