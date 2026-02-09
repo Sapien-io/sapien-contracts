@@ -92,14 +92,13 @@ Sapien utilizes pluggable consensus modules. The default and most robust algorit
 
 The weight $w_i$ of validator $v_i$ is calculated as:
 \begin{equation}
-    w_i = \min\left( \sqrt{S_{v_i}} \cdot \text{Rep}_{v_i}, \quad 0.30 \cdot \sum_{j=1}^k w_j \right)
+    w_i = \sqrt{S_{v_i}} \cdot \text{Rep}_{v_i}
 \end{equation}
 
 Where:
 \begin{itemize}
     \item $S_{v_i}$ is the staked amount. The square root function $\sqrt{S_{v_i}}$ introduces \textit{quadratic voting} properties, diminishing the marginal influence of additional capital.
     \item $\text{Rep}_{v_i}$ is the validator's PoQ reputation score.
-    \item The $30\%$ cap ensures no single entity can dictate the consensus outcome, requiring a minimum of 4 distinct entities for valid consensus.
 \end{itemize}
 
 Other available algorithms include \textit{SqrtStake} ($w_i = \sqrt{S_{v_i}}$) and \textit{CappedLinear} ($w_i = \min(S_{v_i}, \text{Cap})$).
@@ -134,7 +133,7 @@ Slashed funds are not burned but are effectively redistributed to the remaining 
 While standard quadratic voting is susceptible to Sybil attacks (splitting stake into many small accounts), Sapien mitigates this via the \texttt{SapienTrust} reputation system. High-weight influence requires not just capital, but a history of accurate validation. Building reputation is a time-bound process that cannot be instantly purchased, making Sybil attacks economically inefficient.
 
 \subsection{Whale Resistance}
-The sublinear $\sqrt{S}$ weighting curve ensures that influence does not scale linearly with capital. For example, to achieve $10\times$ the voting weight of a base validator, an attacker would need $100\times$ the capital. Combined with the hard $30\%$ cap per validator, the system ensures broad committee participation.
+The sublinear $\sqrt{S}$ weighting curve ensures that influence does not scale linearly with capital. For example, to achieve $10\times$ the voting weight of a base validator, an attacker would need $100\times$ the capital. This ensures broad committee participation.
 
 \subsection{Commit-Reveal Integrity}
 The two-phase commit-reveal mechanism is critical for preventing "lazy validation" or "herding," where validators wait for others to vote and simply copy the average to avoid slashing. By cryptographically binding the score to a hidden salt, the protocol ensures independent judgment. Validators who commit but fail to reveal are penalized by slashing their locked capacity, preventing griefing attacks on the protocol's liveness.
