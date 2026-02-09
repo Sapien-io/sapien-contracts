@@ -27,3 +27,11 @@ whitepaper.toc
 
 lcov.info
 venv
+
+paper.aux
+paper.toc
+paper.out
+paper.fdb_latexmk
+paper.fls
+paper.synctex.gz
+paper.log
