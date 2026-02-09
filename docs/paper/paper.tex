@@ -27,12 +27,12 @@ Sapien Protocol}
 \maketitle
 
 \begin{abstract}
-As Artificial Intelligence (AI) systems, particularly Large Language Models (LLMs), become increasingly ubiquitous, the integrity and quality of their training data and output validation become critical. Current methods for data labeling and reinforcement learning from human feedback (RLHF) rely heavily on centralized, opaque black-box services, lacking transparency and verifiable quality assurance. This paper presents Sapien, a decentralized "Proof-of-Quality" (PoQ) protocol implemented on the Ethereum Virtual Machine (EVM). Sapien introduces a mechanism for stake-weighted human verification of AI-generated content, utilizing a novel consensus engine that integrates financial staking with non-transferable reputation. We define the protocol's participant roles, formalize the commit-reveal consensus mechanism, and analyze the economic security properties of the system, including its resistance to Sybil attacks and stake centralization through quadratic weighting functions.
+As Artificial Intelligence (AI) systems, particularly Large Language Models (LLMs), become increasingly ubiquitous, the integrity and quality of their training data and output validation become critical. Current methods for data labeling and reinforcement learning from feedback (RLHF) rely heavily on centralized, opaque black-box services, lacking transparency and verifiable quality assurance. This paper presents Sapien, a decentralized "Proof-of-Quality" (PoQ) protocol implemented on the Ethereum Virtual Machine (EVM). Sapien introduces a mechanism for stake-weighted verification of AI-generated content, utilizing a novel consensus engine that integrates financial staking with non-transferable reputation. We define the protocol's participant roles, formalize the commit-reveal consensus mechanism, and analyze the economic security properties of the system, including its resistance to Sybil attacks and stake centralization through quadratic weighting functions.
 \end{abstract}
 
 \section{Introduction}
 
-The efficacy of modern AI models is fundamentally constrained by the quality of data used for training and fine-tuning. While model architectures have become increasingly standardized, the "data layer" remains fragmented and largely unverifiable. The current paradigm relies on centralized vendors for data annotation and Reinforcement Learning from Human Feedback (RLHF), creating a "trust me" environment where the provenance and quality of human labels are obfuscated.
+The efficacy of modern AI models is fundamentally constrained by the quality of data used for training and fine-tuning. While model architectures have become increasingly standardized, the "data layer" remains fragmented and largely unverifiable. The current paradigm relies on centralized vendors for data annotation and Reinforcement Learning from Human Feedback (RLHF), creating a "trust me" environment where the provenance and quality of data is obfuscated.
 
 This lack of transparency introduces significant risks:
 \begin{enumerate}
@@ -41,7 +41,7 @@ This lack of transparency introduces significant risks:
     \item \textbf{Misaligned Incentives:} Workers in low-wage jurisdictions maximize throughput rather than accuracy, leading to "lazy labeling."
 \end{enumerate}
 
-We propose Sapien, a decentralized protocol that acts as a "Quality Oracle" for AI systems. Sapien leverages blockchain technology to create an immutable audit trail of human judgment. By aligning economic incentives through a staking-slashing mechanism and utilizing a consensus algorithm derived from quadratic voting research, Sapien enables a trustless market for high-fidelity data validation.
+We propose Sapien, a decentralized protocol that acts as a "Quality Oracle" for AI systems. Sapien leverages blockchain technology to create an immutable audit trail of judgment. By aligning economic incentives through a staking-slashing mechanism and utilizing a consensus algorithm derived from quadratic voting research, Sapien enables a trustless market for high-fidelity data validation.
 
 \section{System Architecture}
 
