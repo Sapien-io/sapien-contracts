@@ -21,7 +21,7 @@ Sapien Proof-of-Quality (PoQ) Protocol is an open protocol for verifiable, conse
 | Role | Description |
 |------|-------------|
 | **Originator** | Creates projects, defines parameters, funds reward pools |
-| **Contributor** | Claims contribution slots, submits work (off-chain data, on-chain hash) |
+| **Contributor** | Claims contribution slots, submits work (offchain data, onchain hash) |
 | **Validator** | Stakes tokens, commits/reveals quality scores via commit-reveal scheme |
 | **Admin** | Configures protocol parameters, registers consensus algorithms |
 
@@ -104,7 +104,7 @@ SapienCore (central coordinator)
 Central coordinator merging project registry and contribution management. Handles:
 - Project creation (IPFS-linked, configurable parameters)
 - Contribution slot claiming with index management (stack-based re-queuing)
-- Contribution submission (off-chain data, on-chain submission hash)
+- Contribution submission (offchain data, onchain submission hash)
 - Contribution finalization (triggers reward distribution or refund)
 - Protocol and operator fee collection (basis points)
 - Reward redistribution from rejections to remaining pool
@@ -346,7 +346,7 @@ The repository includes extensive documentation in `docs/`:
 - Frontend application (`app/` directory)
 - Test contracts (`test/` directory)
 - Deployment scripts (`script/` directory)
-- Off-chain components (IPFS storage, indexers)
+- offchain components (IPFS storage, indexers)
 
 ---
 

@@ -1,10 +1,10 @@
 # Data Index Lifecycle (S3 Mapping)
 
-This document explains how the Sapien V2 protocol uses on-chain indices to manage off-chain data stored in S3 (e.g., `0.json`, `1.json`, `3.json`).
+This document explains how the Sapien V2 protocol uses onchain indices to manage offchain data stored in S3 (e.g., `0.json`, `1.json`, `3.json`).
 
 ## Overview
 
-The "Index" is the unique identifier that bridges the on-chain logic with off-chain storage. The contract does not know about S3 or JSON; it treats each index as a "logical unit of work" that requires one submission and multiple validations.
+The "Index" is the unique identifier that bridges the onchain logic with offchain storage. The contract does not know about S3 or JSON; it treats each index as a "logical unit of work" that requires one submission and multiple validations.
 
 ## Sequence Diagram
 
@@ -12,8 +12,8 @@ The "Index" is the unique identifier that bridges the on-chain logic with off-ch
 sequenceDiagram
     participant S3 as S3 Bucket (3.json)
     participant FE as Frontend
-    participant SC as SapienCore (on-chain)
-    participant VO as ValidationOracle (on-chain)
+    participant SC as SapienCore (onchain)
+    participant VO as ValidationOracle (onchain)
     participant V as Validator
 
     Note over FE, SC: 1. Contributor Reservation
@@ -113,4 +113,4 @@ The next contributor to call `claimToContribute` will receive `3` from the recyc
 | **ValidationOracle** | The "task" identifier in the FIFO queue. |
 | **Frontend** | The key used to construct the URL: `bucket.s3.com/${index}.json`. |
 
-**Key Takeaway:** The contracts manage the flow of "units of work" (indices). The association between an index and specific data (S3 files) is maintained by the frontend and off-chain infrastructure.
+**Key Takeaway:** The contracts manage the flow of "units of work" (indices). The association between an index and specific data (S3 files) is maintained by the frontend and offchain infrastructure.

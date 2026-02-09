@@ -40,7 +40,7 @@ Protocol security principles, slashing mechanisms, and auditability.
 ## 🎯 Key Value Propositions
 
 - **Verifiable Quality**: Cryptographic proof of human judgment for AI systems.
-- **Data Sovereignty**: Your data stays in your storage; only quality signals are on-chain.
+- **Data Sovereignty**: Your data stays in your storage; only quality signals are onchain.
 - **Incentive Alignment**: Stake-weighted rewards and penalties ensure honest participation.
 - **Composable**: Easily integrate with existing AI tools (CVAT, LangChain, etc.) via oracles.
 

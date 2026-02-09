@@ -44,7 +44,7 @@ Validators use a **two-phase commit-reveal scheme** to prevent gaming:
 - Validator claims a validation slot
 - Validator privately scores the contribution (0-100%)
 - Validator creates a **commit hash** = `hash(score + stake + secret)`
-- Validator submits the hash on-chain
+- Validator submits the hash onchain
 - This hides the actual score until everyone has committed
 
 #### Phase 2: Reveal

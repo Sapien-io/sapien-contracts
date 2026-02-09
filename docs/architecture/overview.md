@@ -1,6 +1,6 @@
 # System Architecture Overview
 
-Sapien PoQ is designed as a modular protocol that provides a "Quality Oracle" for AI systems. It allows human experts to verify AI-generated data or agent behaviors, producing a verifiable quality signal that can be consumed by on-chain and off-chain systems.
+Sapien PoQ is designed as a modular protocol that provides a "Quality Oracle" for AI systems. It allows human experts to verify AI-generated data or agent behaviors, producing a verifiable quality signal that can be consumed by onchain and offchain systems.
 
 ## 👥 Participant Roles
 
@@ -28,7 +28,7 @@ Oracles are the technical interface between the Sapien protocol and external too
 
 ## 🔄 Verification Lifecycle
 
-The PoQ process follows five distinct phases. For a detailed technical flow, see the [Protocol Lifecycle Diagram](./lifecycle.md). For information on how on-chain indices map to off-chain data (e.g., S3 buckets), see the [Data Index Lifecycle](./index-lifecycle.md).
+The PoQ process follows five distinct phases. For a detailed technical flow, see the [Protocol Lifecycle Diagram](./lifecycle.md). For information on how onchain indices map to offchain data (e.g., S3 buckets), see the [Data Index Lifecycle](./index-lifecycle.md).
 
 ### Phase 1: Project Setup
 The Originator creates a project in `SapienCore`, defining parameters like the required skill, minimum quality score, and reward distribution. They fund the project with reward tokens (e.g., USDC).

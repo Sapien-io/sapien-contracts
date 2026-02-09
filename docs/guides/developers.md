@@ -5,8 +5,8 @@ Developers can extend the Sapien PoQ ecosystem by building **Oracles (Adapters)*
 ## 🔗 Architecture of an Oracle
 
 An Oracle typically consists of two parts:
-1. **Off-chain Interface**: A bridge that monitors an external tool (e.g., CVAT for image labeling) and handles user authentication.
-2. **On-chain Adapter**: A set of scripts or a contract that calls the `SapienCore` or `ValidationOracle` functions on behalf of the users.
+1. **offchain Interface**: A bridge that monitors an external tool (e.g., CVAT for image labeling) and handles user authentication.
+2. **onchain Adapter**: A set of scripts or a contract that calls the `SapienCore` or `ValidationOracle` functions on behalf of the users.
 
 ## 🛠️ Integration Points
 
@@ -46,8 +46,8 @@ interface IConsensusAlgorithm {
 ## 📊 Consuming Quality Signals
 
 Applications can consume Sapien quality signals in several ways:
-- **On-chain**: Query the `SapienCore.contributions` mapping to see the `status` and `averageScore`.
-- **Off-chain**: Listen for `ContributionFinalized` events.
+- **onchain**: Query the `SapienCore.contributions` mapping to see the `status` and `averageScore`.
+- **offchain**: Listen for `ContributionFinalized` events.
 - **Attestations**: Read the attestations from the **Ethereum Attestation Service (EAS)** linked to each contribution.
 
 ## 🧪 Testing Your Integration

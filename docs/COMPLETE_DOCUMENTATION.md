@@ -36,7 +36,7 @@ Sapien PoQ is an open protocol for verifiable, consensus-based quality signals i
 ### Key Value Propositions
 
 - **Verifiable Quality**: Cryptographic proof of human judgment for AI systems.
-- **Data Sovereignty**: Your data stays in your storage; only quality signals are on-chain.
+- **Data Sovereignty**: Your data stays in your storage; only quality signals are onchain.
 - **Incentive Alignment**: Stake-weighted rewards and penalties ensure honest participation.
 - **Composable**: Easily integrate with existing AI tools (CVAT, LangChain, etc.) via oracles.
 
@@ -46,7 +46,7 @@ Sapien PoQ is an open protocol for verifiable, consensus-based quality signals i
 
 ### System Architecture Overview
 
-Sapien PoQ is designed as a modular protocol that provides a "Quality Oracle" for AI systems. It allows human experts to verify AI-generated data or agent behaviors, producing a verifiable quality signal that can be consumed by on-chain and off-chain systems.
+Sapien PoQ is designed as a modular protocol that provides a "Quality Oracle" for AI systems. It allows human experts to verify AI-generated data or agent behaviors, producing a verifiable quality signal that can be consumed by onchain and offchain systems.
 
 #### Participant Roles
 
@@ -694,8 +694,8 @@ Developers can extend the Sapien PoQ ecosystem by building **Oracles (Adapters)*
 #### Architecture of an Oracle
 
 An Oracle typically consists of two parts:
-1. **Off-chain Interface**: A bridge that monitors an external tool (e.g., CVAT for image labeling) and handles user authentication.
-2. **On-chain Adapter**: A set of scripts or a contract that calls the `SapienCore` or `ValidationOracle` functions on behalf of the users.
+1. **offchain Interface**: A bridge that monitors an external tool (e.g., CVAT for image labeling) and handles user authentication.
+2. **onchain Adapter**: A set of scripts or a contract that calls the `SapienCore` or `ValidationOracle` functions on behalf of the users.
 
 #### Integration Points
 
@@ -741,8 +741,8 @@ interface IConsensusAlgorithm {
 #### Consuming Quality Signals
 
 Applications can consume Sapien quality signals in several ways:
-- **On-chain**: Query the `SapienCore.contributions` mapping to see the `status` and `averageScore`.
-- **Off-chain**: Listen for `ContributionFinalized` events.
+- **onchain**: Query the `SapienCore.contributions` mapping to see the `status` and `averageScore`.
+- **offchain**: Listen for `ContributionFinalized` events.
 - **Attestations**: Read the attestations from the **Ethereum Attestation Service (EAS)** linked to each contribution.
 
 #### Testing Your Integration
@@ -797,7 +797,7 @@ Attacking the protocol with multiple small accounts is mitigated by:
 
 ### Auditability
 
-Every final quality signal produced by the protocol is recorded as an on-chain attestation. These attestations include:
+Every final quality signal produced by the protocol is recorded as an onchain attestation. These attestations include:
 - The consensus score.
 - The number of validators involved.
 - The algorithm used.
