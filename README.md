@@ -5,9 +5,11 @@
 
 Sapien PoQ is an open protocol for verifiable, consensus-based quality signals in AI workflows. It adds a verifiable quality layer to AI datasets and agent behaviors through stake-weighted human verification.
 
-## 🌟 Overview
+## Overview
 
 The Sapien PoQ protocol provides a "Quality Oracle" for AI systems. It allows human experts to verify AI-generated data or agent behaviors, producing a verifiable quality signal that can be consumed by on-chain and off-chain systems.
+
+[Yellowpaper](./docs/paper.pdf)
 
 ### Key Value Propositions
 - **Verifiable Quality**: Cryptographic proof of human judgment for AI systems.
@@ -17,7 +19,7 @@ The Sapien PoQ protocol provides a "Quality Oracle" for AI systems. It allows hu
 
 ---
 
-## 🏗️ Core Architecture
+## Core Architecture
 
 The protocol is implemented as a suite of modular EVM smart contracts:
 
@@ -29,7 +31,7 @@ The protocol is implemented as a suite of modular EVM smart contracts:
 
 ---
 
-## 👥 Participant Roles
+## Participant Roles
 
 1.  **Originators**: The "buyers" of quality who create projects, define criteria, and fund reward pools.
 2.  **Contributors**: The workers performing tasks (e.g., labeling images, generating responses).
@@ -38,7 +40,7 @@ The protocol is implemented as a suite of modular EVM smart contracts:
 
 ---
 
-## 🔄 Verification Lifecycle
+## Verification Lifecycle
 
 1.  **Project Setup**: Originator creates and funds a project in `SapienCore`.
 2.  **Work Submission**: Contributors claim slots and submit work hashes.
@@ -48,7 +50,7 @@ The protocol is implemented as a suite of modular EVM smart contracts:
 
 ---
 
-## ⚖️ Consensus Algorithms
+## Consensus Algorithms
 
 Sapien PoQ supports multiple pluggable consensus algorithms:
 - **Hybrid**: Considers both financial stake and reputation (PoQ score).
@@ -58,7 +60,7 @@ Sapien PoQ supports multiple pluggable consensus algorithms:
 
 ---
 
-## 📂 Repository Structure
+## Repository Structure
 
 ```text
 .
@@ -76,7 +78,7 @@ Sapien PoQ supports multiple pluggable consensus algorithms:
 
 ---
 
-## 🛠️ Development
+## Development
 
 This project uses [Foundry](https://book.getfoundry.sh/) for development and testing.
 
@@ -101,7 +103,7 @@ forge script script/DeploySapienCore.s.sol --rpc-url base-sepolia --broadcast --
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 For complete documentation, including detailed component breakdowns and user guides, please refer to:
 - [**Complete Documentation**](./docs/COMPLETE_DOCUMENTATION.md)
@@ -110,6 +112,6 @@ For complete documentation, including detailed component breakdowns and user gui
 
 ---
 
-## 🌐 Connect
+## Connect
 - **Website**: [poq.sapien.io](https://poq.sapien.io)
-- **Twitter**: [@sapien](https://twitter.com/sapien)
+- **X**: [@sapien](https://x.com/joinsapien)
