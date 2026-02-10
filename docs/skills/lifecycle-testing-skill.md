@@ -71,7 +71,7 @@ For every step in the lifecycle, tests must verify three components:
 
 -   **Functions**: `finalizeContribution`.
 -   **State Assertions**:
-    -   **Consensus**: Manually calculate weighted average vs on-chain result.
+    -   **Consensus**: Manually calculate weighted average vs onchain result.
     -   **Reputation**: Trust scores update up/down.
     -   **Rewards**: Balances transfer correctly.
     -   **Vault**: Honest stakes unlocked, outliers slashed.

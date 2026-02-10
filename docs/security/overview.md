@@ -35,7 +35,7 @@ Attacking the protocol with multiple small accounts is mitigated by:
 
 ## 🔍 Auditability
 
-Every final quality signal produced by the protocol is recorded as an on-chain attestation. These attestations include:
+Every final quality signal produced by the protocol is recorded as an onchain attestation. These attestations include:
 - The consensus score.
 - The number of validators involved.
 - The algorithm used.

@@ -3,17 +3,18 @@
 [![Protocol Version](https://img.shields.io/badge/version-v0.3-blue)](./docs/COMPLETE_DOCUMENTATION.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Sapien PoQ is an open protocol for verifiable, consensus-based quality signals in AI workflows. It adds a verifiable quality layer to AI datasets and agent behaviors through stake-weighted human verification.
+Sapien PoQ is an open protocol for verifiable, consensus-based quality signals in AI workflows. It adds a verifiable quality layer to AI datasets and agent behaviors through stake-weighted verification.
 
 ## Overview
 
-The Sapien PoQ protocol provides a "Quality Oracle" for AI systems. It allows human experts to verify AI-generated data or agent behaviors, producing a verifiable quality signal that can be consumed by onchain and offchain systems.
+The Sapien PoQ protocol provides a "Quality Oracle" for AI systems. It allows diverse participants to verify AI-generated data or agent behaviors, producing a verifiable quality signal that can be consumed by onchain and offchain systems.
+
 
 [Yellowpaper](./docs/paper/paper.pdf)
 
 ### Key Value Propositions
-- **Verifiable Quality**: Cryptographic proof of human judgment for AI systems.
-- **Data Sovereignty**: Your data stays in your storage; only quality signals are onchain.
+- **Verifiable Quality**: Cryptographic proof of judgment for AI systems.
+- **Data Sovereignty**: Your data stays in your storage; only quality signals are on-chain.
 - **Incentive Alignment**: Stake-weighted rewards and penalties ensure honest participation.
 - **Composable**: Easily integrate with existing AI tools (CVAT, LangChain, etc.) via oracles.
 

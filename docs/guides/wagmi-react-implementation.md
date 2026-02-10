@@ -1785,7 +1785,7 @@ function ContributorDashboard({ projectId }: { projectId: `0x${string}` }) {
 1. **Error Handling**: Always wrap contract calls in try-catch blocks and provide user-friendly error messages
 2. **Loading States**: Show loading indicators during pending transactions
 3. **Transaction Confirmation**: Wait for transaction receipts before updating UI state
-4. **Event Listening**: Use `useWatchContractEvent` to listen for on-chain events and update UI reactively
+4. **Event Listening**: Use `useWatchContractEvent` to listen for onchain events and update UI reactively
 5. **Gas Estimation**: Use `useEstimateGas` before submitting transactions to show gas costs
 6. **Token Approvals**: Always check and handle token approvals before calling functions that require them
 7. **Salt Storage**: Store commit salts securely (localStorage or encrypted storage) for reveal phase

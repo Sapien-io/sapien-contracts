@@ -27,12 +27,12 @@ Sapien Protocol}
 \maketitle
 
 \begin{abstract}
-As Artificial Intelligence (AI) systems, particularly Large Language Models (LLMs), become increasingly ubiquitous, the integrity and quality of their training data and output validation become critical. Current methods for data labeling and reinforcement learning from human feedback (RLHF) rely heavily on centralized, opaque black-box services, lacking transparency and verifiable quality assurance. This paper presents Sapien, a decentralized "Proof-of-Quality" (PoQ) protocol implemented on the Ethereum Virtual Machine (EVM). Sapien introduces a mechanism for stake-weighted human verification of AI-generated content, utilizing a novel consensus engine that integrates financial staking with non-transferable reputation. We define the protocol's participant roles, formalize the commit-reveal consensus mechanism, and analyze the economic security properties of the system, including its resistance to Sybil attacks and stake centralization through quadratic weighting functions.
+As Artificial Intelligence (AI) systems, particularly Large Language Models (LLMs), become increasingly ubiquitous, the integrity and quality of their training data and output validation become critical. Current methods for data labeling and reinforcement learning from feedback (RLHF) rely heavily on centralized, opaque black-box services, lacking transparency and verifiable quality assurance. This paper presents Sapien, a decentralized "Proof-of-Quality" (PoQ) protocol implemented on the Ethereum Virtual Machine (EVM). Sapien introduces a mechanism for stake-weighted verification of AI-generated content, utilizing a novel consensus engine that integrates financial staking with non-transferable reputation. We define the protocol's participant roles, formalize the commit-reveal consensus mechanism, and analyze the economic security properties of the system, including its resistance to Sybil attacks and stake centralization through quadratic weighting functions.
 \end{abstract}
 
 \section{Introduction}
 
-The efficacy of modern AI models is fundamentally constrained by the quality of data used for training and fine-tuning. While model architectures have become increasingly standardized, the "data layer" remains fragmented and largely unverifiable. The current paradigm relies on centralized vendors for data annotation and Reinforcement Learning from Human Feedback (RLHF), creating a "trust me" environment where the provenance and quality of human labels are obfuscated.
+The efficacy of modern AI models is fundamentally constrained by the quality of data used for training and fine-tuning. While model architectures have become increasingly standardized, the "data layer" remains fragmented and largely unverifiable. The current paradigm relies on centralized vendors for data annotation and Reinforcement Learning from Human Feedback (RLHF), creating a "trust me" environment where the provenance and quality of data is obfuscated.
 
 This lack of transparency introduces significant risks:
 \begin{enumerate}
@@ -41,7 +41,7 @@ This lack of transparency introduces significant risks:
     \item \textbf{Misaligned Incentives:} Workers in low-wage jurisdictions maximize throughput rather than accuracy, leading to "lazy labeling."
 \end{enumerate}
 
-We propose Sapien, a decentralized protocol that acts as a "Quality Oracle" for AI systems. Sapien leverages blockchain technology to create an immutable audit trail of human judgment. By aligning economic incentives through a staking-slashing mechanism and utilizing a consensus algorithm derived from quadratic voting research, Sapien enables a trustless market for high-fidelity data validation.
+We propose Sapien, a decentralized protocol that acts as a "Quality Oracle" for AI systems. Sapien leverages blockchain technology to create an immutable audit trail of judgment. By aligning economic incentives through a staking-slashing mechanism and utilizing a consensus algorithm derived from quadratic voting research, Sapien enables a trustless market for high-fidelity data validation.
 
 \section{System Architecture}
 
@@ -53,7 +53,7 @@ The Sapien protocol is architected as a modular suite of smart contracts in Soli
     \item \textbf{Originators:} Entities requiring verified data or agent supervision. They initialize projects, define quality criteria (Task Definition Specs), and fund reward pools.
     \item \textbf{Contributors:} Workers who perform the primary task (e.g., image annotation, prompt completion). They must stake tokens to claim work slots, providing "skin in the game."
     \item \textbf{Validators:} Independent reviewers who audit the work of Contributors. They reach consensus on quality scores.
-    \item \textbf{Oracles (Adapters):} Middleware that bridges off-chain data (e.g., images stored in IPFS, CVAT interfaces) with on-chain coordination.
+    \item \textbf{Oracles (Adapters):} Middleware that bridges offchain data (e.g., images stored in IPFS, CVAT interfaces) with onchain coordination.
 \end{itemize}
 
 \subsection{Core Components}
@@ -92,14 +92,13 @@ Sapien utilizes pluggable consensus modules. The default and most robust algorit
 
 The weight $w_i$ of validator $v_i$ is calculated as:
 \begin{equation}
-    w_i = \min\left( \sqrt{S_{v_i}} \cdot \text{Rep}_{v_i}, \quad 0.30 \cdot \sum_{j=1}^k w_j \right)
+    w_i = \sqrt{S_{v_i}} \cdot \text{Rep}_{v_i}
 \end{equation}
 
 Where:
 \begin{itemize}
     \item $S_{v_i}$ is the staked amount. The square root function $\sqrt{S_{v_i}}$ introduces \textit{quadratic voting} properties, diminishing the marginal influence of additional capital.
     \item $\text{Rep}_{v_i}$ is the validator's PoQ reputation score.
-    \item The $30\%$ cap ensures no single entity can dictate the consensus outcome, requiring a minimum of 4 distinct entities for valid consensus.
 \end{itemize}
 
 Other available algorithms include \textit{SqrtStake} ($w_i = \sqrt{S_{v_i}}$) and \textit{CappedLinear} ($w_i = \min(S_{v_i}, \text{Cap})$).
@@ -134,7 +133,7 @@ Slashed funds are not burned but are effectively redistributed to the remaining 
 While standard quadratic voting is susceptible to Sybil attacks (splitting stake into many small accounts), Sapien mitigates this via the \texttt{SapienTrust} reputation system. High-weight influence requires not just capital, but a history of accurate validation. Building reputation is a time-bound process that cannot be instantly purchased, making Sybil attacks economically inefficient.
 
 \subsection{Whale Resistance}
-The sublinear $\sqrt{S}$ weighting curve ensures that influence does not scale linearly with capital. For example, to achieve $10\times$ the voting weight of a base validator, an attacker would need $100\times$ the capital. Combined with the hard $30\%$ cap per validator, the system ensures broad committee participation.
+The sublinear $\sqrt{S}$ weighting curve ensures that influence does not scale linearly with capital. For example, to achieve $10\times$ the voting weight of a base validator, an attacker would need $100\times$ the capital. This ensures broad committee participation.
 
 \subsection{Commit-Reveal Integrity}
 The two-phase commit-reveal mechanism is critical for preventing "lazy validation" or "herding," where validators wait for others to vote and simply copy the average to avoid slashing. By cryptographically binding the score to a hidden salt, the protocol ensures independent judgment. Validators who commit but fail to reveal are penalized by slashing their locked capacity, preventing griefing attacks on the protocol's liveness.

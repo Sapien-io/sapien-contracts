@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.3.8)  9 FEB 2026 12:34
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.3.8)  9 FEB 2026 16:12
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -432,7 +432,7 @@ Overfull \hbox (0.6725pt too wide) in paragraph at lines 53--54
 
 
 [2{/usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc}]
-Overfull \hbox (27.93724pt too wide) in paragraph at lines 105--106
+Overfull \hbox (27.93724pt too wide) in paragraph at lines 104--105
 []\T1/cmr/m/n/10.95 Other avail-able al-go-rithms in-clude \T1/cmr/m/it/10.95 Sqrt-Stake \T1/cmr/m/n/10.95 ($\OML/cmm/m/it/10.95 w[] \OT1/cmr/m/n/10.95 = []$\T1/cmr/m/n/10.95 ) and \T1/cmr/m/it/10.95 Capped-Lin-ear \T1/cmr/m/n/10.95 ($\OML/cmm/m/it/10.95 w[] \OT1/cmr/m/n/10.95 = [](\OML/cmm/m/it/10.95 S[]; []\OT1/cmr/m/n/10.95 )$\T1/cmr/m/n/10.95 ). 
  []
 
@@ -455,9 +455,9 @@ Here is how much of TeX's memory you used:
  36263 multiletter control sequences out of 15000+600000
  575623 words of font info for 75 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,9n,79p,1069b,574s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 75i,9n,79p,1057b,574s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi6.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/cm-super/sfbx1000.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/cm-super/sfbx1095.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/cm-super/sfbx1200.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/cm-super/sfbx1440.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/cm-super/sfbx1728.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/cm-super/sfrm1000.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/cm-super/sfrm1095.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/cm-super/sfrm1200.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/cm-super/sfti1095.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/public/cm-super/sftt1095.pfb>
-Output written on paper.pdf (4 pages, 291764 bytes).
+Output written on paper.pdf (4 pages, 290362 bytes).
 PDF statistics:
  187 PDF objects out of 1000 (max. 8388607)
  144 compressed objects within 2 object streams
