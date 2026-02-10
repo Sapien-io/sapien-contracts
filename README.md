@@ -9,6 +9,7 @@ Sapien PoQ is an open protocol for verifiable, consensus-based quality signals i
 
 The Sapien PoQ protocol provides a "Quality Oracle" for AI systems. It allows diverse participants to verify AI-generated data or agent behaviors, producing a verifiable quality signal that can be consumed by onchain and offchain systems.
 
+
 [Yellowpaper](./docs/paper/paper.pdf)
 
 ### Key Value Propositions
