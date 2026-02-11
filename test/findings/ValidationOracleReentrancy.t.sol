@@ -192,7 +192,7 @@ contract ValidationOracleReentrancyTest is BaseTest {
     /**
      * @notice Test that setValidatorCapacity has nonReentrant modifier
      * @dev Verifies nonReentrant modifier is present (reentrancy protection verified by modifier existence)
-     * Note: Direct reentrancy testing is difficult because setValidatorCapacity requires hasValidRole check,
+     * Note: Direct reentrancy testing is difficult because setValidatorCapacity requires hasEnoughStake check,
      * which requires the caller to have stake. A wrapper contract would fail this check before reentrancy check.
      * The nonReentrant modifier provides protection against reentrancy attacks.
      */

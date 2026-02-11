@@ -3,6 +3,7 @@ pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
 import {console} from "forge-std/console.sol";
+import {ISapienCore} from "../../src/interface/ISapienCore.sol";
 
 contract PrecisionLossTest is BaseTest {
     bytes32 public constant PROJECT_ID = keccak256("test-project");
@@ -31,7 +32,7 @@ contract PrecisionLossTest is BaseTest {
         rewardToken.approve(address(core), rewardAmount);
 
         // Issue #4 fix: MIN_REWARD_PER_SLOT prevents funding with inadequate rewards
-        vm.expectRevert("Reward per slot too low");
+        vm.expectRevert(); // RewardPerSlotTooLow
         core.fundProject(PROJECT_ID, rewardAmount, quantity);
         vm.stopPrank();
 

@@ -1,6 +1,6 @@
 # Security Overview
 
-The Sapien PoQ protocol is built on the principle of **Economic Security**. We use a combination of financial incentives (staking), penalties (slashing), and cryptographic proofs (commit-reveal, attestations) to ensure the integrity of human-powered AI verification.
+The Sapien PoQ protocol is built on the principle of **Economic Security**. We use a combination of financial incentives (staking), penalties (slashing), and cryptographic proofs (commit-reveal, attestations) to ensure the integrity of AI verification, whether powered by humans or agents.
 
 ## 🛡️ Core Security Pillars
 
@@ -11,7 +11,7 @@ All active participants must lock SAPIEN tokens in the `SapienVault`. This creat
 Reputation is not just a badge; it is a functional component of the consensus engine. In algorithms like **Hybrid Consensus**, your historical accuracy (PoQ score) directly increases your voting power, while a history of outlier behavior reduces it.
 
 ### 3. Commit-Reveal
-The `ValidationOracle` enforces a commit-reveal process for all human judgments. This prevents:
+The `ValidationOracle` enforces a commit-reveal process for all judgments. This prevents:
 - **Herding**: Validators waiting to see others' scores before submitting their own.
 - **Copy-Pasting**: Lazy validators mirroring the work of others without actually reviewing the task.
 

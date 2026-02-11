@@ -1,0 +1,51 @@
+[
+  {
+    "id": "ECON-01",
+    "title": "Validator Reward Rounding to Zero",
+    "severity": "Medium",
+    "impact": "Validators may receive zero rewards for their work, especially in projects with many slots or when using low-decimal tokens (e.g., USDC), breaking the incentive loop.",
+    "description": "In `SapienCore._distributeValidatorRewards`, the reward calculation `(totalRewards * validatorBasisPoints * weight) / (10000 * totalQuantity * totalAccurateWeight)` can round to zero if the denominator is larger than the numerator. This is highly likely with `SqrtStakeConsensus` where weights are small, or in projects with large `totalQuantityAvailable` and tokens like USDC (6 decimals)."
+  },
+  {
+    "id": "ECON-02",
+    "title": "Liveness Griefing via Reveal Delay",
+    "severity": "Medium",
+    "impact": "Malicious validators can delay the finalization of any contribution by up to 3 days (the default reveal deadline), stalling contributor rewards and project progress.",
+    "description": "Consensus is only 'ready' in `ValidationOracle` when `minValidations` is met AND all pending commits have either revealed or expired. A validator can commit and then simply not reveal, forcing the protocol to wait for the full `revealDeadline` (default 3 days) before `getConsensus` returns a ready report."
+  },
+  {
+    "id": "ECON-03",
+    "title": "Validator Queue Monopoly by Whales",
+    "severity": "Medium",
+    "impact": "A single whale validator can claim all available validation slots for a project, preventing other validators from participating and potentially controlling the consensus outcome (subject to the 30% cap in some algorithms).",
+    "description": "While contributors are limited by `MAX_CLAIMS_PER_USER`, validators in `ValidationOracle` are only limited by their `capacity` (locked stake). A whale can set a very high capacity and call `claimToValidate` repeatedly to fill the `pendingQueue` for all project contributions."
+  },
+  {
+    "id": "ECON-04",
+    "title": "Reward Rate Manipulation (Sandwiching)",
+    "severity": "Medium",
+    "impact": "Users can manipulate the reward-per-slot by frontrunning or backrunning `finalizeContribution` with `fundProject` calls, potentially extracting more value or diluting others' rewards.",
+    "description": "The reward per contribution is calculated dynamically at the time of finalization using the current `totalRewardsAvailable` and `totalQuantityAvailable`. Since `fundProject` can increase these values at any time, the reward rate for a contribution submitted days ago can be changed right before it is finalized."
+  },
+  {
+    "id": "ECON-05",
+    "title": "Strategic Non-Reveal to Evade Slashing",
+    "severity": "Low",
+    "impact": "Validators may choose to withhold reveals if they observe that their committed score will be an outlier, opting for the non-reveal slash instead of the outlier slash if it is lower.",
+    "description": "Validators observe others' reveals before revealing their own. If the outlier slash (which can be up to 100% of stake) is higher than the non-reveal slash (100% of `committedStake`), they are incentivized to reveal. However, if they have external incentives or if the outlier detection is perceived as unfair, they can strategically withhold reveals to influence the `weightedAverage` or `stdDev`."
+  },
+  {
+    "id": "ECON-06",
+    "title": "Reputation Incentive Decoupling",
+    "severity": "Low",
+    "impact": "Validators have less incentive to maintain high reputation if the project uses `LinearStakeConsensus` or `SqrtStakeConsensus`, as their reputation score is ignored in weight calculations.",
+    "description": "The `LinearStakeConsensus` and `SqrtStakeConsensus` algorithms do not use the `reputation` field from `ValidationInput`. This decouples the protocol's primary quality incentive (reputation) from the economic weight in these algorithms, making them purely stake-based."
+  },
+  {
+    "id": "ECON-07",
+    "title": "Unreclaimable Reward Dust",
+    "severity": "Low",
+    "impact": "Small amounts of various reward tokens will accumulate and remain trapped in the `Rewards` contract due to integer division rounding down.",
+    "description": "Both contributor and validator reward distributions round down. The remaining 'dust' stays in `projectRewards` mapping in the `Rewards` contract. There is no mechanism for the project originator or protocol admin to reclaim this dust after a project is completed."
+  }
+]

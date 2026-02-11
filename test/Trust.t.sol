@@ -3,6 +3,7 @@ pragma solidity ^0.8.30;
 
 import {BaseTest} from "./BaseTest.t.sol";
 import {VALIDATOR_ROLE, UPDATER_ROLE} from "../src/interface/ISharedTypes.sol";
+import {ISapienTrust} from "../src/interface/ISapienTrust.sol";
 
 contract TrustTest is BaseTest {
     function testInitialReputation() public view {
@@ -54,12 +55,12 @@ contract TrustTest is BaseTest {
         vm.startPrank(admin);
         trust.setRoleMinStake(VALIDATOR_ROLE, 2000 ether);
 
-        // Validator1 only has 1000 ether
-        assertFalse(trust.hasValidRole(validator1, VALIDATOR_ROLE));
+        vm.expectRevert(abi.encodeWithSelector(ISapienTrust.InsufficientStake.selector, VALIDATOR_ROLE, 2000 ether, 1000 ether));
+        trust.hasEnoughStake(validator1, VALIDATOR_ROLE);
 
         // Stake more
         _setupUser(validator1, 1000 ether);
-        assertTrue(trust.hasValidRole(validator1, VALIDATOR_ROLE));
+        trust.hasEnoughStake(validator1, VALIDATOR_ROLE);
 
         vm.stopPrank();
     }
@@ -183,15 +184,15 @@ contract TrustTest is BaseTest {
         vm.stopPrank();
     }
 
-    function testHasValidRoleZeroStakeRequirements() public {
+    function testHasEnoughStakeZeroRequirements() public {
         vm.startPrank(admin);
         // Set both to zero
         trust.setMinStakeRequired(0);
         trust.setRoleMinStake(VALIDATOR_ROLE, 0);
 
-        // Should return true for any user
+        // Should not revert for any user
         address newUser = makeAddr("newUser");
-        assertTrue(trust.hasValidRole(newUser, VALIDATOR_ROLE));
+        trust.hasEnoughStake(newUser, VALIDATOR_ROLE);
         vm.stopPrank();
     }
 
@@ -267,11 +268,12 @@ contract TrustTest is BaseTest {
         trust.setRoleMinStake(VALIDATOR_ROLE, 2000 ether); // Higher than validator1's stake (1000 ether)
 
         // Should use role-specific stake (2000 ether)
-        assertFalse(trust.hasValidRole(validator1, VALIDATOR_ROLE)); // validator1 has 1000 ether, less than 2000
+        vm.expectRevert(abi.encodeWithSelector(ISapienTrust.InsufficientStake.selector, VALIDATOR_ROLE, 2000 ether, 1000 ether));
+        trust.hasEnoughStake(validator1, VALIDATOR_ROLE);
 
         // Set role stake to 0, should use global (100 ether)
         trust.setRoleMinStake(VALIDATOR_ROLE, 0);
-        assertTrue(trust.hasValidRole(validator1, VALIDATOR_ROLE)); // validator1 has 1000 ether, more than 100
+        trust.hasEnoughStake(validator1, VALIDATOR_ROLE);
         vm.stopPrank();
     }
 }

@@ -323,17 +323,16 @@ contract TangentReplicationTest is BaseTest {
         _reveal(projectId, 1, v1, 5000, "salt1");
         _reveal(projectId, 1, v2, 5000, "salt2");
 
-        // 3. Set reveal deadline to minimum allowed (1 hour, enforced by M-5 fix)
-        vm.startPrank(admin);
-        oracle.setRevealDeadline(1 hours);
-        vm.stopPrank();
+        // 3. Warp past the default reveal deadline (3 days) so v3's commit expires
+        // Note: Opus 4.6 M-2 fix means _isCommitExpired uses the per-commit snapshot,
+        // so we must warp past the snapshot deadline (3 days), not the current setting.
 
         // 4. Initially not ready because deadline hasn't passed
         ConsensusReport memory report = oracle.getConsensus(projectId, 0);
         assertFalse(report.isReady);
 
-        // 5. Warp past deadline
-        vm.warp(block.timestamp + 1 hours + 1);
+        // 5. Warp past the snapshot deadline (3 days)
+        vm.warp(block.timestamp + 3 days + 1);
 
         // 6. Now consensus should be ready because v3 is past deadline
         report = oracle.getConsensus(projectId, 0);

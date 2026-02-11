@@ -1,6 +1,6 @@
 # Guide for Contributors
 
-Contributors perform AI-related tasks and earn rewards based on the quality of their output as determined by human validator consensus.
+Contributors (human workers or AI agents) perform tasks and earn rewards based on the quality of their output as determined by consensus among the validator committee.
 
 ## 1. Get Started
 

@@ -1,0 +1,29 @@
+[
+  {
+    "id": "REG-01",
+    "file": "src/SapienCore.sol",
+    "type": "Storage Shift",
+    "severity": "Critical",
+    "description": "The 'userActiveClaimedQuantity' mapping was inserted into the storage layout before existing variables '_claimDeadlineDays', '_maxValidations', 'protocolFeeBasisPoints', 'treasury', and 'consensusThreshold'.",
+    "impact": "If SapienCore is an upgradeable contract already deployed, this change will cause storage collisions and corrupt existing configuration and state when upgraded. Specifically, the values of these variables will be read from the wrong storage slots.",
+    "recommendation": "Move 'userActiveClaimedQuantity' to the end of the state variables, just before the '__gap', and decrement '__gap' accordingly."
+  },
+  {
+    "id": "REG-02",
+    "file": "src/ValidationOracle.sol",
+    "type": "Storage Gap Inconsistency",
+    "severity": "Medium",
+    "description": "The storage gap '__gap' was increased from 25 to 37 without any corresponding removal of state variables.",
+    "impact": "This suggests a misunderstanding of how storage gaps work in upgradeable contracts. If the total reserved storage slots for the contract changes inconsistently across upgrades, it can lead to storage collisions with future variables or child contracts.",
+    "recommendation": "Verify the intended total storage slots (usually 50) and adjust the gap correctly based on the number of slots used by state variables."
+  },
+  {
+    "id": "REG-03",
+    "file": "src/SapienCore.sol",
+    "type": "Behavior Change",
+    "severity": "Low",
+    "description": "The anti-dilution check in 'fundProject' now uses 'rewardAmountAfterFee' (net) instead of 'rewardAmount' (gross).",
+    "impact": "This prevents 'effective' dilution that could happen when high protocol/operator fees reduce the actual rewards added to the pool. While this is a security fix, it strictly enforces that the added reward per slot must be >= current average, even after all fees.",
+    "recommendation": "Ensure project originators are aware that fees now count against the anti-dilution requirement."
+  }
+]

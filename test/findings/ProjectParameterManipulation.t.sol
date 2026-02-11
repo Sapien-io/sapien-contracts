@@ -47,7 +47,7 @@ contract ProjectParameterManipulationTest is BaseTest {
         _setupValidator(validator2, 100 ether);
         _setupValidator(validator3, 100 ether);
 
-        // Setup malicious originator with stake (required for hasValidRole check)
+        // Setup malicious originator with stake (required for hasEnoughStake check)
         _setupUser(maliciousOriginator, 100 ether);
 
         // Fund malicious originator with reward tokens

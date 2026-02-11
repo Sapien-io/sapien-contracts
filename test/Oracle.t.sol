@@ -571,6 +571,11 @@ contract OracleTest is BaseTest {
         vm.prank(admin);
         oracle.enqueueValidation(PROJECT_ID, 0, block.timestamp);
 
+        // Set project-specific deadline to 2 days BEFORE commit
+        // so the snapshot captures the 2-day deadline
+        vm.prank(originator);
+        oracle.setProjectRevealDeadline(PROJECT_ID, 2 days);
+
         vm.prank(validator1);
         uint256 claimId = oracle.claimToValidate(PROJECT_ID);
 
@@ -581,16 +586,12 @@ contract OracleTest is BaseTest {
         vm.prank(validator1);
         oracle.commitValidation(PROJECT_ID, claimId, 0, h);
 
-        // Set project-specific deadline to 2 days (shorter than default 3 days)
-        vm.prank(originator);
-        oracle.setProjectRevealDeadline(PROJECT_ID, 2 days);
-
-        // Try to cancel before project deadline
+        // Try to cancel before snapshot deadline (2 days)
         vm.warp(block.timestamp + 1 days);
-        vm.expectRevert(); // Still within project deadline
+        vm.expectRevert(); // Still within snapshot deadline
         oracle.cancelExpiredCommitment(PROJECT_ID, 0, validator1);
 
-        // After project deadline (2 days)
+        // After snapshot deadline (2 days)
         vm.warp(block.timestamp + 1 days + 1);
         uint256 balanceBefore = vault.getStake(validator1);
         oracle.cancelExpiredCommitment(PROJECT_ID, 0, validator1);

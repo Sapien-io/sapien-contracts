@@ -101,6 +101,12 @@ contract EndToEndTest is BaseTest {
         indices[1] = 1;
         core.batchFinalizeContributions(PROJECT_ID, indices);
 
+        // 4.5 Claim rewards after challenge period
+        uint256 challengePeriod = core.getProject(PROJECT_ID).config.challengePeriod;
+        vm.warp(block.timestamp + challengePeriod + 1);
+        core.claimContributionReward(PROJECT_ID, 0);
+        core.claimContributionReward(PROJECT_ID, 1);
+
         // 5. Assertions
         assertEq(uint256(core.getContribution(PROJECT_ID, 0).status), uint256(ContributionStatus.Rewarded));
         assertEq(uint256(core.getContribution(PROJECT_ID, 1).status), uint256(ContributionStatus.Rewarded));

@@ -1,0 +1,47 @@
+[
+  {
+    "id": "INT-01",
+    "file": "src/SapienCore.sol",
+    "type": "Oracle Trust Assumption",
+    "severity": "High",
+    "description": "SapienCore trusts 'ValidationOracle.getConsensus' unconditionally. If the oracle returns 'isReady: true', the core proceeds to distribute rewards or slash participants based on the returned average score.",
+    "impact": "A compromise of the oracle or a flaw in a specific consensus algorithm (e.g., whale manipulation in LinearStakeConsensus) directly leads to financial loss in the protocol.",
+    "recommendation": "Consider implementing a challenge period or a multi-oracle system for high-value projects."
+  },
+  {
+    "id": "INT-02",
+    "file": "src/ValidationOracle.sol",
+    "type": "Queue Pollution",
+    "severity": "Medium",
+    "description": "When a contribution is re-enqueued (e.g., after rejection), 'enqueueValidation' adds another 'max' number of slots to the 'pendingQueue'. However, old slots for the same 'contributionIndex' may still exist in the queue if they weren't claimed.",
+    "impact": "Validators may claim 'stale' slots from a previous submission, leading to confusion, wasted gas, and potential synchronization issues between the validator's view and the current project state.",
+    "recommendation": "Implement a 'submissionNonce' to ensure validators can only claim and commit to the most recent version of a contribution."
+  },
+  {
+    "id": "INT-03",
+    "file": "src/SapienVault.sol",
+    "type": "Inflation Attack Risk",
+    "severity": "Medium",
+    "description": "Although '_decimalsOffset' is set to 3, the vault does not mint 'dead' shares to address zero during initialization.",
+    "impact": "The first depositor can still be vulnerable to a donation-based inflation attack if they deposit a small amount of assets.",
+    "recommendation": "Mint a small amount of shares to a dead address (e.g., 1000 units) during initialization to anchor the share price."
+  },
+  {
+    "id": "INT-04",
+    "file": "src/SapienTrust.sol",
+    "type": "Missing Role Grant Logic",
+    "severity": "Medium",
+    "description": "SapienCore and ValidationOracle call 'updateReputation' on SapienTrust, which requires 'UPDATER_ROLE'. However, none of the contracts grant this role to each other during their respective 'initialize' functions.",
+    "impact": "The protocol will fail to function immediately after deployment unless an admin manually grants 'UPDATER_ROLE' to the Core and Oracle contracts. This is a common source of deployment failures.",
+    "recommendation": "Include a mechanism or documentation ensuring that 'UPDATER_ROLE' is granted to trusted protocol contracts during the deployment pipeline."
+  },
+  {
+    "id": "INT-05",
+    "file": "src/SapienCore.sol",
+    "type": "Anti-dilution Behavior Change",
+    "severity": "Low",
+    "description": "As noted in REG-03, 'fundProject' now uses net reward amounts (after protocol and operator fees) for anti-dilution checks.",
+    "impact": "Project originators may be surprised that they need to provide more tokens than before to satisfy the anti-dilution requirement, as fees no longer count towards the 'effective' reward per slot.",
+    "recommendation": "Clearly document this behavior in the frontend and developer documentation."
+  }
+]

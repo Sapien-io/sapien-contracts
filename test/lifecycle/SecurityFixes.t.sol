@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {console} from "forge-std/Test.sol";
 import {BaseTest} from "../BaseTest.t.sol";
 import {CONTRIBUTOR_ROLE, VALIDATOR_ROLE, ORIGINATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
+import {ISapienCore} from "../../src/interface/ISapienCore.sol";
 
 contract SecurityFixesTest is BaseTest {
     bytes32 public constant PROJECT_ID = keccak256("security-project");
@@ -40,7 +41,7 @@ contract SecurityFixesTest is BaseTest {
 
         // 3. Attempt Dilution: 1 token for 10 slots = 0.1 tokens/slot
         // Should revert because 0.1 < 100
-        vm.expectRevert("Cannot dilute reward rate");
+        vm.expectRevert(ISapienCore.RewardDilutionNotAllowed.selector);
         core.fundProject(PROJECT_ID, 1 ether, 10);
 
         // 4. Proper Funding: 1000 tokens for 10 slots = 100 tokens/slot
@@ -129,6 +130,6 @@ contract SecurityFixesTest is BaseTest {
         core.finalizeContribution(PROJECT_ID, 0);
 
         ContributionStatus status = core.getContribution(PROJECT_ID, 0).status;
-        assertEq(uint256(status), uint256(ContributionStatus.Rewarded), "Should be accepted (4500 >= 4000)");
+        assertEq(uint256(status), uint256(ContributionStatus.Validated), "Should be accepted (4500 >= 4000)");
     }
 }

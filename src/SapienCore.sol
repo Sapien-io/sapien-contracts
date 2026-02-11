@@ -19,6 +19,7 @@ import {
     ORIGINATOR_ROLE,
     CONTRIBUTOR_ROLE,
     VALIDATOR_ROLE,
+    UPDATER_ROLE,
     UNAUTHORIZED_MISSING_ORIGINATOR_ROLE,
     UNAUTHORIZED_MISSING_CONTRIBUTOR_ROLE,
     UNAUTHORIZED_NOT_PROJECT_ORIGINATOR,
@@ -42,10 +43,10 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
     // STATE VARIABLES
     // ============================================
 
-    ISapienVault internal vault;
-    IRewards internal rewards;
-    ISapienTrust internal trust;
-    IValidationOracle internal oracle;
+    ISapienVault internal _vault;
+    IRewards internal _rewards;
+    ISapienTrust internal _trust;
+    IValidationOracle internal _oracle;
 
     mapping(bytes32 => Project) internal projects;
     mapping(bytes32 => mapping(uint256 => Claim)) internal claims;
@@ -57,10 +58,6 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
     mapping(bytes32 => mapping(uint256 => uint256)) internal availableIndices;
     mapping(bytes32 => uint256) internal stackTop;
     mapping(bytes32 => mapping(uint256 => bool)) internal indexIsAvailable;
-
-    /// @notice Track active claimed slots per user per project (Issue #6 fix)
-    /// @dev projectId => user => activeClaimedQuantity
-    mapping(bytes32 => mapping(address => uint256)) internal userActiveClaimedQuantity;
 
     uint256 internal _claimDeadlineDays;
     uint256 internal _maxValidations;
@@ -94,10 +91,17 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
     /// @notice Minimum score required for a contribution to be accepted (default 5000)
     uint256 public consensusThreshold;
 
+    /// @notice Default challenge period for finalized contributions (default 1 day)
+    uint256 public challengePeriod;
+
+    /// @notice Track active claimed slots per user per project (Issue #6 fix)
+    /// @dev projectId => user => activeClaimedQuantity
+    mapping(bytes32 => mapping(address => uint256)) internal userActiveClaimedQuantity;
+
     // Storage gap for future upgrades
     // forge-lint: disable-next-line(mixed-case-variable)
     // __gap follows OpenZeppelin upgradeable contract pattern
-    uint256[33] private __gap;
+    uint256[30] private __gap;
 
     // ============================================
     // INITIALIZER
@@ -111,36 +115,37 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
     /**
      * @notice Initialize the SapienCore contract
      * @dev Sets up the protocol contracts and initializes access control
-     * @param _vault Address of the SapienVault contract
-     * @param _rewards Address of the Rewards contract
-     * @param _trust Address of the SapienTrust contract
-     * @param _oracle Address of the ValidationOracle contract
-     * @param _admin Address to grant DEFAULT_ADMIN_ROLE
+     * @param vaultAddr Address of the SapienVault contract
+     * @param rewardsAddr Address of the Rewards contract
+     * @param trustAddr Address of the SapienTrust contract
+     * @param oracleAddr Address of the ValidationOracle contract
+     * @param admin Address to grant DEFAULT_ADMIN_ROLE
      */
-    function initialize(address _vault, address _rewards, address _trust, address _oracle, address _admin)
+    function initialize(address vaultAddr, address rewardsAddr, address trustAddr, address oracleAddr, address admin)
         public
         initializer
     {
         if (
-            _vault == address(0) || _rewards == address(0) || _trust == address(0) || _oracle == address(0)
-                || _admin == address(0)
+            vaultAddr == address(0) || rewardsAddr == address(0) || trustAddr == address(0) || oracleAddr == address(0)
+                || admin == address(0)
         ) {
             revert InvalidAddress();
         }
 
         __AccessControl_init();
         __ReentrancyGuard_init();
-        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
 
-        vault = ISapienVault(_vault);
-        rewards = IRewards(_rewards);
-        trust = ISapienTrust(_trust);
-        oracle = IValidationOracle(_oracle);
+        _vault = ISapienVault(vaultAddr);
+        _rewards = IRewards(rewardsAddr);
+        _trust = ISapienTrust(trustAddr);
+        _oracle = IValidationOracle(oracleAddr);
 
         _claimDeadlineDays = 7;
         _maxValidations = 10;
         protocolFeeBasisPoints = 100; // Default 1%
         consensusThreshold = 5000; // Default 50%
+        challengePeriod = 1 days; // Default 1 day
     }
 
     // ============================================
@@ -162,7 +167,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
      * @param _max Maximum number of validations (max 100)
      */
     function setMaxValidations(uint256 _max) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_max > 100) revert("Max validations cannot exceed 100");
+        if (_max > 100) revert MaxValidationsExceeded(_max, 100);
         _maxValidations = _max;
         emit ISapienCore.MaxValidationsUpdated(_max);
     }
@@ -188,7 +193,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
      * @param _feeBasisPoints The fee in basis points (max 300 = 3%)
      */
     function setProtocolFeeBasisPoints(uint256 _feeBasisPoints) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_feeBasisPoints > MAX_PROTOCOL_FEE_BPS) revert("Protocol fee cannot exceed 3%");
+        if (_feeBasisPoints > MAX_PROTOCOL_FEE_BPS) revert ProtocolFeeTooHigh(_feeBasisPoints, MAX_PROTOCOL_FEE_BPS);
         protocolFeeBasisPoints = _feeBasisPoints;
         emit ProtocolFeeUpdated(_feeBasisPoints);
     }
@@ -208,11 +213,23 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
      * @param _threshold The minimum weighted average score to accept a contribution
      */
     function setConsensusThreshold(uint256 _threshold) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        // Issue #12 fix: Prevent threshold from being set too low
-        if (_threshold < MIN_CONSENSUS_THRESHOLD) revert("Threshold cannot be below minimum");
-        if (_threshold > 10000) revert("Threshold cannot exceed 10000");
+        if (_threshold < MIN_CONSENSUS_THRESHOLD) {
+            revert ConsensusThresholdOutOfRange(_threshold, MIN_CONSENSUS_THRESHOLD, 10000);
+        }
+        if (_threshold > 10000) {
+            revert ConsensusThresholdOutOfRange(_threshold, MIN_CONSENSUS_THRESHOLD, 10000);
+        }
         consensusThreshold = _threshold;
         emit ConsensusThresholdUpdated(_threshold);
+    }
+
+    /**
+     * @notice Set the default challenge period for finalized contributions
+     * @param _period The challenge period in seconds
+     */
+    function setChallengePeriod(uint256 _period) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        challengePeriod = _period;
+        emit ChallengePeriodUpdated(_period);
     }
 
     // ============================================
@@ -228,15 +245,15 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         uint256 minValidations,
         uint256 validatorRewardBasisPoints,
         string memory requiredSkill
-    ) public returns (bytes32) {
+    ) external returns (bytes32) {
         Project storage p = projects[projectId];
 
         if (p.originator != address(0)) {
             revert ProjectAlreadyExists(projectId);
         }
-        if (!trust.hasValidRole(msg.sender, ORIGINATOR_ROLE)) {
-            revert Unauthorized(UNAUTHORIZED_MISSING_ORIGINATOR_ROLE);
-        }
+        _trust.hasEnoughStake(msg.sender, ORIGINATOR_ROLE);
+        // Opus 4.6 L-3 fix: Prevent projects with zero-address reward token
+        if (rewardToken == address(0)) revert InvalidAddress();
         if (validatorRewardBasisPoints > 2500) revert InvalidValidatorRewards();
 
         // Verify that projectId matches keccak256(ipfsCid)
@@ -261,12 +278,13 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         }
         p.config.validatorRewardBasisPoints = validatorRewardBasisPoints == 0 ? 1000 : validatorRewardBasisPoints;
         p.config.requiredSkill = requiredSkill;
+        p.config.challengePeriod = challengePeriod;
 
         _registerProjectWithOracle(
             projectId, p.config.maxValidations, p.config.minValidations, requiredSkill, msg.sender
         );
 
-        trust.updateReputation(msg.sender, ORIGINATOR_ROLE, true, 0);
+        _trust.updateReputation(msg.sender, ORIGINATOR_ROLE, true, 0);
 
         emit ProjectCreated(
             p.projectId,
@@ -300,7 +318,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         string memory requiredSkill,
         address originator
     ) internal {
-        oracle.registerProject(projectId, maxValidations, minValidations, requiredSkill, originator);
+        _oracle.registerProject(projectId, maxValidations, minValidations, requiredSkill, originator);
     }
 
     function fundProject(bytes32 projectId, uint256 rewardAmount, uint256 quantity) external nonReentrant {
@@ -334,13 +352,6 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         // If adding quantity, must also add proportional rewards
         if (quantity > 0 && rewardAmount == 0) revert InvalidAmount();
 
-        // Anti-dilution check: Ensure new funding maintains or increases the reward rate
-        if (project.state.totalQuantityAvailable > 0 && quantity > 0) {
-            if (rewardAmount * project.state.totalQuantityAvailable < project.state.totalRewardsAvailable * quantity) {
-                revert("Cannot dilute reward rate");
-            }
-        }
-
         // Protocol Fee Logic - taken first from the original amount
         uint256 protocolFee = 0;
         uint256 amountAfterProtocolFee = rewardAmount;
@@ -368,6 +379,17 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
             emit OperatorFeePaid(projectId, operator, operatorFee);
         }
 
+        // Opus 4.6 L-2 fix: Anti-dilution check uses post-fee amount.
+        // Previously used gross rewardAmount, which allowed effective dilution after fees.
+        if (project.state.totalQuantityAvailable > 0 && quantity > 0) {
+            if (
+                rewardAmountAfterFee * project.state.totalQuantityAvailable
+                    < project.state.totalRewardsAvailable * quantity
+            ) {
+                revert RewardDilutionNotAllowed();
+            }
+        }
+
         // Issue #4 fix: Check minimum reward per slot to prevent precision loss
         if (quantity > 0) {
             uint256 newTotalRewards = project.state.totalRewardsAvailable + rewardAmountAfterFee;
@@ -376,7 +398,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
             uint256 contributorShare = newTotalRewards * (10000 - project.config.validatorRewardBasisPoints) / 10000;
             uint256 effectiveRewardPerSlot = contributorShare / newTotalQuantity;
             if (effectiveRewardPerSlot < MIN_REWARD_PER_SLOT) {
-                revert("Reward per slot too low");
+                revert RewardPerSlotTooLow(effectiveRewardPerSlot, MIN_REWARD_PER_SLOT);
             }
         }
 
@@ -387,9 +409,9 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         // Transfer remaining amount to rewards contract
         // Issue #11 fix: Check actual balance for fee-on-transfer token compatibility
         if (rewardAmountAfterFee > 0) {
-            uint256 balanceBefore = project.rewardToken.balanceOf(address(rewards));
-            project.rewardToken.safeTransferFrom(msg.sender, address(rewards), rewardAmountAfterFee);
-            uint256 balanceAfter = project.rewardToken.balanceOf(address(rewards));
+            uint256 balanceBefore = project.rewardToken.balanceOf(address(_rewards));
+            project.rewardToken.safeTransferFrom(msg.sender, address(_rewards), rewardAmountAfterFee);
+            uint256 balanceAfter = project.rewardToken.balanceOf(address(_rewards));
             uint256 actualReceived = balanceAfter - balanceBefore;
 
             // Update totalRewardsAvailable to reflect actual received amount (not requested)
@@ -398,7 +420,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
                 project.state.totalRewardsAvailable -= (rewardAmountAfterFee - actualReceived);
             }
 
-            rewards.allocateRewards(projectId, address(project.rewardToken), actualReceived);
+            _rewards.allocateRewards(projectId, address(project.rewardToken), actualReceived);
         }
 
         emit ProjectFunded(projectId, rewardAmount, quantity);
@@ -441,12 +463,12 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         // Issue #6 fix: Limit claims per user to prevent slot starvation
         uint256 userCurrentClaims = userActiveClaimedQuantity[projectId][msg.sender];
         if (userCurrentClaims + quantity > MAX_CLAIMS_PER_USER) {
-            revert("Exceeds max claims per user");
+            revert MaxClaimsPerUserExceeded(quantity, userCurrentClaims, MAX_CLAIMS_PER_USER);
         }
 
         // 2. Verify Stake
         if (project.config.minStakeToClaim > 0) {
-            uint256 stake = vault.getStake(msg.sender);
+            uint256 stake = _vault.getStake(msg.sender);
             if (stake < project.config.minStakeToClaim) {
                 revert InsufficientContributorStake(msg.sender, project.config.minStakeToClaim, stake);
             }
@@ -482,10 +504,10 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
      */
     function _verifyClaimEligibility(bytes32 projectId, uint256 quantity, Project storage project) internal view {
         if (project.originator == address(0)) revert ProjectDoesNotExist(projectId);
+        // Opus 4.6 L-3 fix: Prevent zero-quantity claims that create orphaned state
+        if (quantity == 0) revert InvalidAmount();
         if (msg.sender == project.originator) revert Unauthorized(UNAUTHORIZED_ORIGINATOR_CANNOT_CONTRIBUTE);
-        if (!trust.hasValidRole(msg.sender, CONTRIBUTOR_ROLE)) {
-            revert Unauthorized(UNAUTHORIZED_MISSING_CONTRIBUTOR_ROLE);
-        }
+        _trust.hasEnoughStake(msg.sender, CONTRIBUTOR_ROLE);
 
         uint256 available = project.state.totalQuantityAvailable
             - (project.state.submittedQuantity + project.state.activeClaimedQuantity);
@@ -538,13 +560,26 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
 
         claim.status = ClaimStatus.Expired;
 
+        // Opus 4.6 L-1 fix: Decrement userActiveClaimedQuantity for unsubmitted slots.
+        // Without this, the user's claim counter stays inflated after releaseExpiredClaim,
+        // soft-locking them from new claims until reclaimExpiredIndices is called per-index.
+        uint256 unsubmittedSlots = claim.quantity - claim.submittedCount;
+        if (unsubmittedSlots > 0) {
+            uint256 currentCount = userActiveClaimedQuantity[projectId][claim.contributor];
+            if (currentCount >= unsubmittedSlots) {
+                userActiveClaimedQuantity[projectId][claim.contributor] = currentCount - unsubmittedSlots;
+            } else {
+                userActiveClaimedQuantity[projectId][claim.contributor] = 0;
+            }
+        }
+
         uint256 slashedAmount = 0;
         if (project.config.minStakeToClaim > 0) {
-            uint256 locked = vault.getLockedStake(claim.contributor);
+            uint256 locked = _vault.getLockedStake(claim.contributor);
             slashedAmount = project.config.minStakeToClaim > locked ? locked : project.config.minStakeToClaim;
             if (slashedAmount > 0) {
                 _unlockStakeForClaimExpired(claim.contributor, slashedAmount);
-                vault.slash(claim.contributor, slashedAmount, projectId);
+                _vault.slash(claim.contributor, slashedAmount, projectId);
             }
         }
 
@@ -600,6 +635,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
             submittedAt: block.timestamp,
             totalValidations: 0,
             averageScore: 0,
+            challengeEndsAt: 0,
             status: ContributionStatus.Pending
         });
 
@@ -617,8 +653,8 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         }
 
         // Interactions (external calls) after state changes
-        oracle.setContributionContributor(projectId, contributionIndex, msg.sender);
-        oracle.enqueueValidation(projectId, contributionIndex, block.timestamp);
+        _oracle.setContributionContributor(projectId, contributionIndex, msg.sender);
+        _oracle.enqueueValidation(projectId, contributionIndex, block.timestamp);
 
         emit ContributionSubmitted(projectId, contributionIndex, msg.sender);
     }
@@ -662,10 +698,13 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
 
         ContributionStatus finalStatus;
         {
-            finalStatus = accepted ? ContributionStatus.Rewarded : ContributionStatus.Rejected;
+            finalStatus = accepted ? ContributionStatus.Validated : ContributionStatus.Rejected;
             contrib.status = finalStatus;
             contrib.averageScore = report.weightedAverage;
             contrib.totalValidations = report.validatorCount;
+            if (accepted) {
+                contrib.challengeEndsAt = block.timestamp + project.config.challengePeriod;
+            }
         }
 
         // Handle state changes for claim unlock (must access claim before deletion)
@@ -702,7 +741,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
 
         // Interactions (external calls) after all state changes
         // 3. Update Contributor Reputation & Rewards/Slashing
-        trust.updateReputation(contribContributor, CONTRIBUTOR_ROLE, accepted, report.weightedAverage);
+        _trust.updateReputation(contribContributor, CONTRIBUTOR_ROLE, accepted, report.weightedAverage);
 
         // 4. Handle Claim Unlock (external call for stake unlock)
         if (shouldUnlockStake && stakeToUnlock > 0) {
@@ -712,14 +751,10 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         if (accepted) {
             // Auto-validate skill if project has one required
             _validateSkillIfRequired(project, contribContributor);
-
-            uint256 reward = _calculateContributorReward(project);
-            if (reward > 0) {
-                rewards.distributeReward(projectId, contribContributor, address(project.rewardToken), reward);
-            }
+            // Reward distribution is now deferred to claimContributionReward after challenge period
         } else {
             // Notify oracle to reset validation state for this index
-            oracle.resetContributionState(projectId, contributionIndex);
+            _oracle.resetContributionState(projectId, contributionIndex);
         }
 
         // 5. Handle Validators (Rewards & Slashing)
@@ -735,6 +770,28 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         emit ContributionFinalized(projectId, contributionIndex, finalStatus, report.weightedAverage);
     }
 
+    /**
+     * @notice Claim rewards for a validated contribution after the challenge period
+     * @param projectId Unique identifier for the project
+     * @param contributionIndex Index of the contribution
+     */
+    function claimContributionReward(bytes32 projectId, uint256 contributionIndex) external nonReentrant {
+        Contribution storage contrib = contributions[projectId][contributionIndex];
+        if (contrib.status != ContributionStatus.Validated) revert NotAvailableForClaim();
+        if (block.timestamp <= contrib.challengeEndsAt) revert ChallengePeriodActive();
+
+        Project storage project = projects[projectId];
+        uint256 reward = _calculateContributorReward(project);
+
+        contrib.status = ContributionStatus.Rewarded;
+
+        if (reward > 0) {
+            _rewards.distributeReward(projectId, contrib.contributor, address(project.rewardToken), reward);
+        }
+
+        emit ContributionRewarded(projectId, contributionIndex, contrib.contributor, reward);
+    }
+
     // ============================================
     // INTERNAL HELPERS
     // ============================================
@@ -745,7 +802,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
      * @param amount Amount of stake to lock
      */
     function _lockStakeForClaim(address user, uint256 amount) internal {
-        vault.lockStake(user, amount, "claim");
+        _vault.lockStake(user, amount, "claim");
     }
 
     /**
@@ -754,7 +811,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
      * @param amount Amount of stake to unlock
      */
     function _unlockStakeForClaimExpired(address user, uint256 amount) internal {
-        vault.unlockStake(user, amount, "claim_expired");
+        _vault.unlockStake(user, amount, "claim_expired");
     }
 
     /**
@@ -763,7 +820,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
      * @param amount Amount of stake to unlock
      */
     function _unlockStakeForClaimFinalized(address user, uint256 amount) internal {
-        vault.unlockStake(user, amount, "claim_finalized");
+        _vault.unlockStake(user, amount, "claim_finalized");
     }
 
     /**
@@ -773,7 +830,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
      */
     function _validateSkillIfRequired(Project storage project, address user) internal {
         if (bytes(project.config.requiredSkill).length == 0) return;
-        trust.validateSkill(user, project.config.requiredSkill);
+        _trust.validateSkill(user, project.config.requiredSkill);
     }
 
     /**
@@ -803,7 +860,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         view
         returns (ConsensusReport memory report)
     {
-        return oracle.getConsensus(projectId, contributionIndex);
+        return _oracle.getConsensus(projectId, contributionIndex);
     }
 
     /**
@@ -817,7 +874,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         view
         returns (Validation[] memory vals)
     {
-        return oracle.getValidations(projectId, contributionIndex);
+        return _oracle.getValidations(projectId, contributionIndex);
     }
 
     /**
@@ -850,9 +907,9 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         // 1. Slash Outliers
         for (uint256 i = 0; i < toSlash.length; i++) {
             if (slashAmounts[i] > 0) {
-                vault.slash(toSlash[i], slashAmounts[i], projectId);
-                oracle.handleValidatorSlash(projectId, contributionIndex, toSlash[i], slashAmounts[i]);
-                trust.updateReputation(toSlash[i], VALIDATOR_ROLE, false, 0);
+                _vault.slash(toSlash[i], slashAmounts[i], projectId);
+                _oracle.handleValidatorSlash(projectId, contributionIndex, toSlash[i], slashAmounts[i]);
+                _trust.updateReputation(toSlash[i], VALIDATOR_ROLE, false, 0);
             }
         }
 
@@ -891,7 +948,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
                 uint256 weight = useConsensusWeights
                     ? consensusWeights[i]
                     : ConsensusLib.calculateBaseWeight(
-                        vals[i].stakeAmount, trust.getTrustScore(vals[i].validator, VALIDATOR_ROLE)
+                        vals[i].stakeAmount, _trust.getTrustScore(vals[i].validator, VALIDATOR_ROLE)
                     );
                 totalAccurateWeight += weight;
             }
@@ -906,7 +963,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
                 uint256 weight = useConsensusWeights
                     ? consensusWeights[i]
                     : ConsensusLib.calculateBaseWeight(
-                        vals[i].stakeAmount, trust.getTrustScore(vals[i].validator, VALIDATOR_ROLE)
+                        vals[i].stakeAmount, _trust.getTrustScore(vals[i].validator, VALIDATOR_ROLE)
                     );
 
                 // Multiply before divide to avoid precision loss
@@ -915,12 +972,18 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
                     (project.state.totalRewardsAvailable * project.config.validatorRewardBasisPoints * weight)
                         / (10000 * project.state.totalQuantityAvailable * totalAccurateWeight);
 
+                // Issue #7 fix: Ensure a minimum reward floor of 1 unit if math rounds to zero
+                // This prevents validator pool collapse for low-decimal tokens or small weights.
+                if (reward == 0 && weight > 0 && project.state.totalRewardsAvailable > 0) {
+                    reward = 1;
+                }
+
                 if (reward > 0) {
-                    rewards.distributeValidatorReward(
+                    _rewards.distributeValidatorReward(
                         projectId, vals[i].validator, address(project.rewardToken), reward
                     );
                 }
-                trust.updateReputation(vals[i].validator, VALIDATOR_ROLE, true, 0);
+                _trust.updateReputation(vals[i].validator, VALIDATOR_ROLE, true, 0);
             }
         }
     }
@@ -1005,7 +1068,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
      * @return Address of the SapienVault contract
      */
     function getVault() external view returns (address) {
-        return address(vault);
+        return address(_vault);
     }
 
     /**
@@ -1013,7 +1076,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
      * @return Address of the Rewards contract
      */
     function getRewards() external view returns (address) {
-        return address(rewards);
+        return address(_rewards);
     }
 
     /**
@@ -1021,7 +1084,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
      * @return Address of the SapienTrust contract
      */
     function getTrust() external view returns (address) {
-        return address(trust);
+        return address(_trust);
     }
 
     /**
@@ -1029,6 +1092,6 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
      * @return Address of the ValidationOracle contract
      */
     function getOracle() external view returns (address) {
-        return address(oracle);
+        return address(_oracle);
     }
 }

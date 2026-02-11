@@ -3,6 +3,7 @@ pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
 import {VALIDATOR_ROLE, CONTRIBUTOR_ROLE, ORIGINATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
+import {ISapienCore} from "../../src/interface/ISapienCore.sol";
 
 contract SecurityFixesVerification is BaseTest {
     bytes32 public projectId = keccak256("project1");
@@ -66,7 +67,7 @@ contract SecurityFixesVerification is BaseTest {
         rewardToken.approve(address(core), totalRewards);
 
         // Anti-dilution check kicks in before precision check because project has existing funding
-        vm.expectRevert("Cannot dilute reward rate");
+        vm.expectRevert(ISapienCore.RewardDilutionNotAllowed.selector);
         core.fundProject(projectId, totalRewards, totalQuantity);
         vm.stopPrank();
     }

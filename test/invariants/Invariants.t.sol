@@ -4,8 +4,8 @@ pragma solidity ^0.8.30;
 import {Test} from "forge-std/Test.sol";
 import {BaseTest} from "test/BaseTest.t.sol";
 import {ProtocolHandler} from "test/handlers/ProtocolHandler.sol";
-import {SapienCore} from "src/SapienCore.sol";
-import {CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "src/interface/ISharedTypes.sol";
+import {SapienCore} from "../../src/SapienCore.sol";
+import {CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
 
 /**
  * @title ProtocolInvariants

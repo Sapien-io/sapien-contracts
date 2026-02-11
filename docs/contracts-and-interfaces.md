@@ -260,7 +260,7 @@ function slash(address user, uint256 amount, bytes32 projectId) external returns
 function initialize(address _vault, uint256 _minStake, uint256 _decayRate, address _admin) public initializer
 ```
 
-#### `hasValidRole`
+#### `hasEnoughStake`
 ```solidity
 /**
  * @notice Check if a user is eligible for a role based on their stake.
@@ -268,7 +268,7 @@ function initialize(address _vault, uint256 _minStake, uint256 _decayRate, addre
  * @param role The role to check eligibility for.
  * @return True if user meets the protocol's minimum staking requirements.
  */
-function hasValidRole(address user, bytes32 role) public view returns (bool)
+function hasEnoughStake(address user, bytes32 role) public view
 ```
 
 #### `getTrustScore`
@@ -662,7 +662,7 @@ function calculateConsensus(ValidationInput[] calldata validations)
 ```
 
 **Key Functions:**
-- `hasValidRole(address user, bytes32 role)` - Check role eligibility
+- `hasEnoughStake(address user, bytes32 role)` - Check role eligibility
 - `hasValidatedSkill(address user, string skill)` - Check skill validation
 - `validateSkill(address user, string skill)` - Mark skill as validated
 - `getTrustScore(address user, bytes32 role)` - Get reputation score

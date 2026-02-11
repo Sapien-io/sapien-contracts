@@ -139,12 +139,14 @@ contract UncheckedReturnValuesTest is BaseTest {
         rewards.setCore(address(core));
         vm.stopPrank();
 
-        // Valid call should succeed
-        vm.startPrank(admin);
-        rewards.setCore(address(core));
-        vm.stopPrank();
-
+        // Core is already set in BaseTest, verify it's set correctly
         assertEq(rewards.core(), address(core), "Core should be set");
+
+        // Opus 4.6 L-5 fix: Re-setting core should revert with CoreAlreadySet
+        vm.startPrank(admin);
+        vm.expectRevert();
+        rewards.setCore(makeAddr("newCore"));
+        vm.stopPrank();
     }
 
     /**

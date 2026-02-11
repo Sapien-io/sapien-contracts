@@ -19,7 +19,7 @@ A Contributor Oracle streamlines the submission of work.
 - **Key Function**: `contribute(bytes32 projectId, uint256 claimId, uint256 contributionIndex, bytes32 submissionHash)`
 
 ### Validator Oracle
-A Validator Oracle provides a UI for human reviewers.
+A Validator Oracle provides a UI for human reviewers or an API for autonomous validators.
 - **Workflow**:
     1. Fetch pending contributions from `ValidationOracle`.
     2. Present the work and the Task Definition Spec (TDS) to the validator.

@@ -233,8 +233,8 @@ contract SapienCoreTest is BaseTest {
         core.batchFinalizeContributions(batchProjectId, indices);
 
         // Verify both finalized
-        assertEq(uint256(getContributionStatus(batchProjectId, 0)), uint256(ContributionStatus.Rewarded));
-        assertEq(uint256(getContributionStatus(batchProjectId, 1)), uint256(ContributionStatus.Rewarded));
+        assertEq(uint256(getContributionStatus(batchProjectId, 0)), uint256(ContributionStatus.Validated));
+        assertEq(uint256(getContributionStatus(batchProjectId, 1)), uint256(ContributionStatus.Validated));
     }
 
     function _setupValidatorForIndex(bytes32 projectId, address validator, uint256 score, bytes32 salt, uint256 index)
@@ -307,7 +307,7 @@ contract SapienCoreTest is BaseTest {
         // Finalize - project has no required skill
         core.finalizeContribution(PROJECT_ID, 0);
 
-        assertEq(uint256(getContributionStatus(PROJECT_ID, 0)), uint256(ContributionStatus.Rewarded));
+        assertEq(uint256(getContributionStatus(PROJECT_ID, 0)), uint256(ContributionStatus.Validated));
     }
 
     function testFinalizeContributionNoStakeUnlock_SKIP() public {
@@ -348,7 +348,7 @@ contract SapienCoreTest is BaseTest {
         // Finalize - should work without unlocking stake
         core.finalizeContribution(noStakeProjectId, 0);
 
-        assertEq(uint256(getContributionStatus(noStakeProjectId, 0)), uint256(ContributionStatus.Rewarded));
+        assertEq(uint256(getContributionStatus(noStakeProjectId, 0)), uint256(ContributionStatus.Validated));
     }
 
     function testBatchContribute() public {
@@ -624,7 +624,7 @@ contract SapienCoreTest is BaseTest {
         vm.startPrank(admin);
 
         // Should revert if fee exceeds 3%
-        vm.expectRevert("Protocol fee cannot exceed 3%");
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.ProtocolFeeTooHigh.selector, 301, 300));
         core.setProtocolFeeBasisPoints(301);
 
         vm.stopPrank();

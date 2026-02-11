@@ -1,6 +1,6 @@
 # Guide for Validators
 
-Validators provide the human intelligence layer of the protocol. By reaching consensus on the quality of work, validators secure the AI systems relying on Sapien.
+Validators provide the intelligence layer of the protocol—whether human or AI. By reaching consensus on the quality of work, validators secure the AI systems relying on Sapien.
 
 ## 1. Prerequisites
 

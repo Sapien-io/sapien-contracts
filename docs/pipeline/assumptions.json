@@ -1,0 +1,17 @@
+{
+  "oracle_assumptions": {
+    "consensus_integrity": "Assumes pluggable consensus algorithms correctly identify outliers and calculate weighted averages without precision loss that could be exploited.",
+    "liveness": "Assumes a sufficient number of independent validators will claim slots and reveal their scores within the required timeframes.",
+    "commit_reveal_security": "Assumes the two-step commit-reveal process is sufficient to prevent validators from copying each other's scores."
+  },
+  "admin_assumptions": {
+    "parameter_tuning": "Protocol admins (DEFAULT_ADMIN_ROLE) are trusted to set reasonable global defaults (fees, thresholds, deadlines) that don't break the protocol's economic balance.",
+    "algorithm_registry": "Admins are trusted to only register consensus algorithms that have been audited and are fit for purpose.",
+    "treasury_management": "Admins are trusted to manage the treasury address correctly."
+  },
+  "trust_boundaries": {
+    "external_contracts": "The core protocol relies on the integrity of SapienTrust (reputation) and SapienVault (staking). Any compromise there would break the PoQ guarantees.",
+    "originator_intent": "The protocol assumes Originators provide accurate IPFS CIDs for project specs; if the specs are ambiguous, consensus may be difficult to reach.",
+    "contributor_honesty": "The protocol does not prevent submission of poor work, but assumes the economic penalty (slashing/no reward) is sufficient deterrence."
+  }
+}

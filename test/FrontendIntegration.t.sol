@@ -3,7 +3,7 @@ pragma solidity ^0.8.30;
 
 import {Test, console} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 
 // Core contracts
 import {SapienCore} from "../src/SapienCore.sol";
@@ -170,7 +170,7 @@ contract FrontendIntegrationTest is Test {
         console.log("Core: setProtocolFeeBasisPoints(100) - set 1% protocol fee");
 
         // 2.5 Grant roles to participants
-        // NOTE: No roles are granted here because hasValidRole() only checks stake,
+        // NOTE: No roles are granted here because hasEnoughStake() only checks stake,
         // not the role grant itself. Access control is purely stake-based.
         console.log("No role grants needed - access is stake-based");
 
@@ -195,7 +195,7 @@ contract FrontendIntegrationTest is Test {
         // ================================================================
         console.log("\n========== SECTION 3: STAKING ==========\n");
 
-        // 3.1 Originator stakes (needed for hasValidRole check)
+        // 3.1 Originator stakes (needed for hasEnoughStake check)
         vm.startPrank(originator);
         stakeToken.approve(address(vault), 100 ether);
         console.log("Originator: approve(vault, 100 ether) - approved stake tokens");
@@ -438,10 +438,19 @@ contract FrontendIntegrationTest is Test {
         core.finalizeContribution(projectId, contributionIndex);
         console.log("Anyone: core.finalizeContribution(projectId, 0)");
 
+        // 9.1 Claim rewards after challenge period
+        // First warp past challenge period
+        uint256 challengePeriod = core.getProject(projectId).config.challengePeriod;
+        vm.warp(block.timestamp + challengePeriod + 1);
+        console.log("Time warped past challenge period:", challengePeriod);
+
+        core.claimContributionReward(projectId, contributionIndex);
+        console.log("Anyone: core.claimContributionReward(projectId, 0)");
+
         // Check final state
         ISapienCore.Contribution memory finalContrib = core.getContribution(projectId, 0);
         console.log("Contribution 0 final state:");
-        console.log("  - status:", uint256(finalContrib.status), "(2=Accepted, 3=Rejected)");
+        console.log("  - status:", uint256(finalContrib.status), "(2=Rewarded, 3=Rejected)");
         console.log("  - averageScore:", finalContrib.averageScore);
 
         // ================================================================
@@ -534,8 +543,9 @@ contract FrontendIntegrationTest is Test {
             "trust.getTrustScore(contributor, CONTRIBUTOR_ROLE):", trust.getTrustScore(contributor, CONTRIBUTOR_ROLE)
         );
         console.log("trust.getTrustScore(validator1, VALIDATOR_ROLE):", trust.getTrustScore(validator1, VALIDATOR_ROLE));
+        trust.hasEnoughStake(contributor, CONTRIBUTOR_ROLE);
         console.log(
-            "trust.hasValidRole(contributor, CONTRIBUTOR_ROLE):", trust.hasValidRole(contributor, CONTRIBUTOR_ROLE)
+            "trust.hasEnoughStake(contributor, CONTRIBUTOR_ROLE): success"
         );
 
         // ================================================================

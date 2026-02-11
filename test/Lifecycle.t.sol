@@ -259,11 +259,11 @@ contract LifecycleTest is BaseTest {
         // 4.3: Verify finalization state
         assertEq(
             uint256(core.getContribution(PROJECT_ID, 0).status),
-            uint256(ContributionStatus.Rewarded),
-            "Contribution should be rewarded"
+            uint256(ContributionStatus.Validated),
+            "Contribution should be validated"
         );
         assertEq(core.getProject(PROJECT_ID).state.rewardedQuantity, 1, "Rewarded quantity should be 1");
-        console.log("  [4.2-4.3] Contribution finalized and accepted");
+        console.log("  [4.2-4.3] Contribution finalized and validated");
 
         // 4.6: Verify stake unlocked (claim fulfilled)
         assertEq(vault.getLockedStake(contributor), 0, "Stake should be unlocked");
@@ -278,6 +278,12 @@ contract LifecycleTest is BaseTest {
 
     function _testPhase5RewardDistribution() internal {
         console.log("[PHASE 5] REWARD DISTRIBUTION");
+
+        // 5.0: Claim reward (moves status from Validated to Rewarded)
+        // First, warp past challenge period
+        uint256 challengePeriod = core.getProject(PROJECT_ID).config.challengePeriod;
+        vm.warp(block.timestamp + challengePeriod + 1);
+        core.claimContributionReward(PROJECT_ID, 0);
 
         // 5.1: Check contributor rewards
         uint256 contributorReward0 = rewards.getAvailableRewards(contributor, PROJECT_ID, address(rewardToken));
@@ -640,6 +646,13 @@ contract LifecycleTest is BaseTest {
         indices[1] = 1;
         indices[2] = 2;
         core.batchFinalizeContributions(batchProjectId, indices);
+
+        // 8.4.5: Claim rewards after challenge period
+        uint256 challengePeriod = core.getProject(batchProjectId).config.challengePeriod;
+        vm.warp(block.timestamp + challengePeriod + 1);
+        for (uint256 i = 0; i < 3; i++) {
+            core.claimContributionReward(batchProjectId, i);
+        }
 
         // 8.5: Verify all finalized
         for (uint256 i = 0; i < 3; i++) {

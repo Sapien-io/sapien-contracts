@@ -5,12 +5,12 @@ import {Test} from "forge-std/Test.sol";
 import {BaseTest} from "test/BaseTest.t.sol";
 import {ProtocolHandler} from "test/handlers/ProtocolHandler.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
-import {SapienCore} from "src/SapienCore.sol";
-import {ValidationOracle} from "src/ValidationOracle.sol";
-import {SapienTrust} from "src/SapienTrust.sol";
-import {SapienVault} from "src/SapienVault.sol";
-import {Rewards} from "src/Rewards.sol";
-import {CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "src/interface/ISharedTypes.sol";
+import {SapienCore} from "../../src/SapienCore.sol";
+import {ValidationOracle} from "../../src/ValidationOracle.sol";
+import {SapienTrust} from "../../src/SapienTrust.sol";
+import {SapienVault} from "../../src/SapienVault.sol";
+import {Rewards} from "../../src/Rewards.sol";
+import {CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
 
 contract InvariantsV2Test is BaseTest {
     ProtocolHandler public handler;

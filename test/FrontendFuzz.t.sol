@@ -96,6 +96,11 @@ contract FrontendFuzzTest is BaseTest {
         // 6. Finalize
         core.finalizeContribution(projectId, 0);
 
+        // 6.5 Claim reward after challenge period
+        uint256 challengePeriod = core.getProject(projectId).config.challengePeriod;
+        vm.warp(block.timestamp + challengePeriod + 1);
+        core.claimContributionReward(projectId, 0);
+
         // 7-9. Verify & claim rewards (extracted to avoid stack too deep)
         _verifyAndClaimRewards(projectId, expectedProjectRewards, quantity, frontendOperator, claimFeeBps);
     }

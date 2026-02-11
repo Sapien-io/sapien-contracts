@@ -14,6 +14,7 @@ import {ISapienVault} from "./interface/ISapienVault.sol";
 import {IConsensusAlgorithm} from "./interface/IConsensusAlgorithm.sol";
 import {
     VALIDATOR_ROLE,
+    UPDATER_ROLE,
     SAPIEN_CORE_ROLE,
     UNAUTHORIZED_MISSING_VALIDATOR_ROLE,
     UNAUTHORIZED_MISSING_CORE_ROLE,
@@ -98,7 +99,18 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
     mapping(bytes32 => mapping(uint256 => Validation[])) public validations;
 
     // Storage gap for future upgrades
-    uint256[25] private __gap;
+    uint256[37] private __gap;
+
+    // ============================================
+    // MODIFIERS
+    // ============================================
+
+    modifier onlyCoreOrAdmin() {
+        if (!hasRole(SAPIEN_CORE_ROLE, msg.sender) && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
+            revert Unauthorized(UNAUTHORIZED_MISSING_CORE_ROLE);
+        }
+        _;
+    }
 
     // ============================================
     // INITIALIZER
@@ -129,6 +141,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
 
         trust = ISapienTrust(_trust);
         vault = ISapienVault(_vault);
+
         defaultAlgorithm = keccak256(abi.encodePacked(_defaultAlgorithmName));
         revealDeadline = 3 days; // Default to 3 days
     }
@@ -137,10 +150,17 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
     // VALIDATOR FUNCTIONS
     // ============================================
 
-    function enqueueValidation(bytes32 projectId, uint256 contributionIndex, uint256 submittedAt) external {
-        if (!hasRole(SAPIEN_CORE_ROLE, msg.sender) && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
-            revert Unauthorized(UNAUTHORIZED_MISSING_CORE_ROLE);
-        }
+    /**
+     * @notice Enqueue a contribution index for validation
+     * @dev Called by SapienCore on submission. Creates queue slots for validators.
+     * @param projectId Unique identifier for the project
+     * @param contributionIndex The index of the submitted contribution
+     * @param submittedAt The timestamp when the contribution was submitted
+     */
+    function enqueueValidation(bytes32 projectId, uint256 contributionIndex, uint256 submittedAt)
+        external
+        onlyCoreOrAdmin
+    {
 
         // Clear previous state for this index to prevent inconsistency on re-queue
         delete validationCommits[projectId][contributionIndex];
@@ -173,7 +193,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @return claimId Unique identifier for the created validation claim
      */
     function claimToValidate(bytes32 projectId) external returns (uint256 claimId) {
-        if (!trust.hasValidRole(msg.sender, VALIDATOR_ROLE)) revert Unauthorized(UNAUTHORIZED_MISSING_VALIDATOR_ROLE);
+        trust.hasEnoughStake(msg.sender, VALIDATOR_ROLE);
         if (!trust.hasRequiredStake(msg.sender)) revert Unauthorized(UNAUTHORIZED_INSUFFICIENT_STAKE);
 
         uint256 requiredStake = _getRequiredValidatorStake(projectId);
@@ -243,7 +263,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @param amount The total amount of SAPIEN to lock for validation capacity
      */
     function setValidatorCapacity(uint256 amount) external nonReentrant {
-        if (!trust.hasValidRole(msg.sender, VALIDATOR_ROLE)) revert Unauthorized(UNAUTHORIZED_MISSING_VALIDATOR_ROLE);
+        trust.hasEnoughStake(msg.sender, VALIDATOR_ROLE);
 
         ValidatorState storage vState = validatorStates[msg.sender];
         uint256 currentCapacity = vState.capacity;
@@ -399,6 +419,10 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
 
     /**
      * @notice Commit multiple validation score hashes with minimum stake (backward compatible)
+     * @param projectId Unique identifier for the project
+     * @param claimId Unique identifier for the validation claim
+     * @param contributionIndices The indices within the project's contribution sequence
+     * @param commitHashes Array of keccak256(score, stakeAmount, salt)
      */
     function batchCommitValidations(
         bytes32 projectId,
@@ -466,7 +490,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         }
 
         // 1. Verify Validator Role & Stake
-        if (!trust.hasValidRole(msg.sender, VALIDATOR_ROLE)) revert Unauthorized(UNAUTHORIZED_MISSING_VALIDATOR_ROLE);
+        trust.hasEnoughStake(msg.sender, VALIDATOR_ROLE);
         if (!trust.hasRequiredStake(msg.sender)) revert Unauthorized(UNAUTHORIZED_INSUFFICIENT_STAKE);
 
         // Sybil Protection: Originator and Contributor cannot validate
@@ -520,10 +544,24 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         emit ValidationCommitted(projectId, contributionIndex, msg.sender, commitHash);
     }
 
+    /**
+     * @notice Reveal a committed validation score
+     * @param projectId Unique identifier for the project
+     * @param contributionIndex The index within the project's contribution sequence
+     * @param score The validation score (0-10000)
+     * @param salt The salt used in the commit
+     */
     function revealValidation(bytes32 projectId, uint256 contributionIndex, uint256 score, bytes32 salt) external {
         _revealValidation(projectId, contributionIndex, score, salt);
     }
 
+    /**
+     * @notice Reveal multiple committed validation scores in batch
+     * @param projectId Unique identifier for the project
+     * @param contributionIndices The indices within the project's contribution sequence
+     * @param scores The validation scores (0-10000)
+     * @param salts The salts used in the commits
+     */
     function batchRevealValidations(
         bytes32 projectId,
         uint256[] calldata contributionIndices,
@@ -571,7 +609,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
             if (deadline == 0) deadline = revealDeadline;
         }
         if (block.timestamp > commit.committedAt + deadline) {
-            revert("Reveal deadline passed");
+            revert RevealDeadlinePassed(deadline, block.timestamp - commit.committedAt);
         }
 
         AssignmentState storage assignment = assignments[projectId][contributionIndex][msg.sender];
@@ -659,10 +697,10 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @dev Check if a validation commit is expired
      * @param commit The validation commit to check
      * @param submittedAt Timestamp when the contribution was submitted
-     * @param deadline Reveal deadline in seconds
+     * @param fallbackDeadline Fallback reveal deadline for legacy commits without a snapshot
      * @return true if the commit is expired and should be slashed
      */
-    function _isCommitExpired(ValidationCommit memory commit, uint256 submittedAt, uint256 deadline)
+    function _isCommitExpired(ValidationCommit memory commit, uint256 submittedAt, uint256 fallbackDeadline)
         internal
         view
         returns (bool)
@@ -671,6 +709,12 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         if (commit.committedAt < submittedAt || commit.revealed) {
             return false;
         }
+
+        // Opus 4.6 M-2 fix: Use per-commit snapshot instead of current project deadline.
+        // This prevents originators from retroactively shortening the deadline to
+        // prematurely expire validator commitments.
+        uint256 deadline = commit.revealDeadlineSnapshot;
+        if (deadline == 0) deadline = fallbackDeadline; // Fallback for legacy commits
 
         uint256 commitDeadline = commit.committedAt + deadline;
         return block.timestamp > commitDeadline;
@@ -833,10 +877,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         uint256 minValidations,
         string calldata requiredSkill,
         address originator
-    ) external {
-        if (!hasRole(SAPIEN_CORE_ROLE, msg.sender) && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
-            revert Unauthorized(UNAUTHORIZED_MISSING_CORE_ROLE);
-        }
+    ) external onlyCoreOrAdmin {
         ProjectSettings storage settings = projectSettings[projectId];
         settings.maxValidations = maxValidations;
         settings.minValidations = minValidations;
@@ -862,19 +903,13 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         _emitProjectStateChange(projectId);
     }
 
-    function setProjectMaxValidations(bytes32 projectId, uint256 maxValidations) external {
-        if (!hasRole(SAPIEN_CORE_ROLE, msg.sender) && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
-            revert Unauthorized(UNAUTHORIZED_MISSING_CORE_ROLE);
-        }
-        if (maxValidations > 100) revert("Max validations cannot exceed 100");
+    function setProjectMaxValidations(bytes32 projectId, uint256 maxValidations) external onlyCoreOrAdmin {
+        if (maxValidations > 100) revert MaxValidationsExceeded(maxValidations, 100);
         projectSettings[projectId].maxValidations = maxValidations;
         _emitProjectStateChange(projectId);
     }
 
-    function setProjectRequiredSkill(bytes32 projectId, string calldata requiredSkill) external {
-        if (!hasRole(SAPIEN_CORE_ROLE, msg.sender) && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
-            revert Unauthorized(UNAUTHORIZED_MISSING_CORE_ROLE);
-        }
+    function setProjectRequiredSkill(bytes32 projectId, string calldata requiredSkill) external onlyCoreOrAdmin {
         projectSettings[projectId].requiredSkill = requiredSkill;
         _emitProjectStateChange(projectId);
     }
@@ -890,10 +925,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         _emitProjectStateChange(projectId);
     }
 
-    function setProjectOriginator(bytes32 projectId, address originator) external {
-        if (!hasRole(SAPIEN_CORE_ROLE, msg.sender) && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
-            revert Unauthorized(UNAUTHORIZED_MISSING_CORE_ROLE);
-        }
+    function setProjectOriginator(bytes32 projectId, address originator) external onlyCoreOrAdmin {
         projectSettings[projectId].originator = originator;
         _emitProjectStateChange(projectId);
     }
@@ -915,10 +947,10 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         _emitProjectStateChange(projectId);
     }
 
-    function setContributionContributor(bytes32 projectId, uint256 contributionIndex, address contributor) external {
-        if (!hasRole(SAPIEN_CORE_ROLE, msg.sender) && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
-            revert Unauthorized(UNAUTHORIZED_MISSING_CORE_ROLE);
-        }
+    function setContributionContributor(bytes32 projectId, uint256 contributionIndex, address contributor)
+        external
+        onlyCoreOrAdmin
+    {
         contributionStates[projectId][contributionIndex].contributor = contributor;
         emit ContributionContributorUpdated(projectId, contributionIndex, contributor);
     }
@@ -929,11 +961,17 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
     {
         ValidationCommit[] storage commits = validationCommits[projectId][contributionIndex];
         ProjectSettings storage settings = projectSettings[projectId];
-        uint256 deadline = settings.revealDeadline;
-        if (deadline == 0) deadline = revealDeadline;
 
         for (uint256 i = 0; i < commits.length; i++) {
             if (commits[i].validator == validator && !commits[i].revealed) {
+                // Opus 4.6 M-2 fix: Use per-commit snapshot for expiry check,
+                // consistent with _revealValidation. Fallback for legacy commits.
+                uint256 deadline = commits[i].revealDeadlineSnapshot;
+                if (deadline == 0) {
+                    deadline = settings.revealDeadline;
+                    if (deadline == 0) deadline = revealDeadline;
+                }
+
                 if (block.timestamp > commits[i].committedAt + deadline) {
                     AssignmentState storage assignment = assignments[projectId][contributionIndex][validator];
                     uint256 stake = assignment.committedStake;
@@ -983,10 +1021,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @param projectId Unique identifier for the project
      * @param contributionIndex The index within the project's contribution sequence
      */
-    function resetContributionState(bytes32 projectId, uint256 contributionIndex) external {
-        if (!hasRole(SAPIEN_CORE_ROLE, msg.sender) && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
-            revert Unauthorized(UNAUTHORIZED_MISSING_CORE_ROLE);
-        }
+    function resetContributionState(bytes32 projectId, uint256 contributionIndex) external onlyCoreOrAdmin {
 
         // Clear assignments' committed status for all who committed
         ValidationCommit[] storage commits = validationCommits[projectId][contributionIndex];
@@ -1016,10 +1051,8 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      */
     function handleValidatorSlash(bytes32 projectId, uint256 contributionIndex, address validator, uint256 slashAmount)
         external
+        onlyCoreOrAdmin
     {
-        if (!hasRole(SAPIEN_CORE_ROLE, msg.sender) && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
-            revert Unauthorized(UNAUTHORIZED_MISSING_CORE_ROLE);
-        }
 
         if (slashAmount == 0) return;
 

@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {Test} from "forge-std/Test.sol";
 import {BaseTest} from "./BaseTest.t.sol";
 import {SapienCore} from "../src/SapienCore.sol";
+import {ISapienCore} from "../src/interface/ISapienCore.sol";
 import {ValidationOracle} from "../src/ValidationOracle.sol";
 import {SapienTrust} from "../src/SapienTrust.sol";
 import {SapienVault} from "../src/SapienVault.sol";
@@ -24,7 +25,8 @@ import {
     SLASHER_ROLE,
     PAUSER_ROLE,
     UPDATER_ROLE,
-    SAPIEN_CORE_ROLE
+    SAPIEN_CORE_ROLE,
+    ISharedTypes
 } from "../src/interface/ISharedTypes.sol";
 import {IValidationOracle} from "../src/interface/IValidationOracle.sol";
 import {ISapienCore} from "../src/interface/ISapienCore.sol";
@@ -136,7 +138,7 @@ contract CoverageTest is BaseTest {
 
     function test_CoreSetMaxValidations_Over100Reverts() public {
         vm.prank(admin);
-        vm.expectRevert("Max validations cannot exceed 100");
+        vm.expectRevert(abi.encodeWithSelector(ISharedTypes.MaxValidationsExceeded.selector, 101, 100));
         core.setMaxValidations(101);
     }
 
@@ -931,7 +933,7 @@ contract CoverageTest is BaseTest {
         rewardToken.approve(address(core), 2000 ether);
         core.fundProject(PID, 1000 ether, 10);
         // Now try to add more quantity with less reward per unit
-        vm.expectRevert("Cannot dilute reward rate");
+        vm.expectRevert(ISapienCore.RewardDilutionNotAllowed.selector);
         core.fundProject(PID, 10 ether, 10);
         vm.stopPrank();
     }
@@ -1347,7 +1349,7 @@ contract CoverageTest is BaseTest {
 
     function test_OracleSetProjectMaxValidations_Over100() public {
         vm.prank(admin);
-        vm.expectRevert("Max validations cannot exceed 100");
+        vm.expectRevert(abi.encodeWithSelector(ISharedTypes.MaxValidationsExceeded.selector, 101, 100));
         oracle.setProjectMaxValidations(PID, 101);
     }
 
@@ -1467,7 +1469,7 @@ contract CoverageTest is BaseTest {
     // ============================================
 
     // ============================================
-    // ValidationOracle: hasValidRole check in claimToValidate (line 177)
+    // ValidationOracle: hasEnoughStake check in claimToValidate (line 177)
     // ============================================
 
     function test_OracleClaimToValidate_NoValidatorRole() public {
@@ -1581,7 +1583,7 @@ contract CoverageTest is BaseTest {
         vm.prank(validator1);
         uint256 claimId = oracle.claimToValidate(PID);
 
-        // Slash validator below minStake (100 ether) to make hasValidRole return false
+        // Slash validator below minStake (100 ether) to make hasEnoughStake return false
         // validator1 has 1000 ether staked, 200 locked for capacity
         // Slashing 950 leaves ~50 ether which is below 100 ether minStakeRequired
         vm.prank(admin);
@@ -1589,7 +1591,7 @@ contract CoverageTest is BaseTest {
 
         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), uint256(100 ether), bytes32("salt")));
         vm.prank(validator1);
-        vm.expectRevert(); // hasValidRole returns false or hasRequiredStake fails
+        vm.expectRevert(); // hasEnoughStake returns false or hasRequiredStake fails
         oracle.commitValidationWithStake(PID, claimId, 0, 100 ether, commitHash);
     }
 

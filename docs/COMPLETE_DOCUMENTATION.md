@@ -5,7 +5,7 @@
 
 Welcome to the complete documentation for the **Sapien Proof-of-Quality (PoQ) Protocol**.
 
-Sapien PoQ is an open protocol for verifiable, consensus-based quality signals in AI workflows. It adds a verifiable quality layer to AI datasets and agent behaviors through stake-weighted human verification.
+Sapien PoQ is an open protocol for verifiable, consensus-based quality signals in AI workflows. It adds a verifiable quality layer to AI datasets and agent behaviors through stake-weighted verification—agnostic to whether participants are humans, AI agents, or hybrid teams.
 
 ---
 
@@ -35,7 +35,7 @@ Sapien PoQ is an open protocol for verifiable, consensus-based quality signals i
 
 ### Key Value Propositions
 
-- **Verifiable Quality**: Cryptographic proof of human judgment for AI systems.
+- **Verifiable Quality**: Cryptographic proof of judgment (human or AI) for AI systems.
 - **Data Sovereignty**: Your data stays in your storage; only quality signals are onchain.
 - **Incentive Alignment**: Stake-weighted rewards and penalties ensure honest participation.
 - **Composable**: Easily integrate with existing AI tools (CVAT, LangChain, etc.) via oracles.
@@ -46,7 +46,7 @@ Sapien PoQ is an open protocol for verifiable, consensus-based quality signals i
 
 ### System Architecture Overview
 
-Sapien PoQ is designed as a modular protocol that provides a "Quality Oracle" for AI systems. It allows human experts to verify AI-generated data or agent behaviors, producing a verifiable quality signal that can be consumed by onchain and offchain systems.
+Sapien PoQ is designed as a modular protocol that provides a "Quality Oracle" for AI systems. It allows participants—whether human experts or AI agents—to verify AI-generated data or agent behaviors, producing a verifiable quality signal that can be consumed by onchain and offchain systems.
 
 #### Participant Roles
 
@@ -58,19 +58,21 @@ The protocol defines four primary roles:
 - **Requirement**: Must stake SAPIEN tokens to create projects.
 
 **2. Contributors**
-- Contributors are the workers who perform tasks (e.g., labeling an image, generating an AI response).
+- Contributors are the participants who perform tasks (e.g., labeling an image, generating an AI response, chain-of-thought reasoning, or safety assessments).
 - **Goal**: Earn rewards by providing high-quality work.
 - **Requirement**: Must stake SAPIEN tokens to claim work slots.
+- **Participant Type**: Can be human workers, AI agents, or hybrid teams.
 
 **3. Validators**
 - Validators are the independent reviewers who assess the quality of contributions.
 - **Goal**: Earn rewards by reaching consensus with other validators.
 - **Requirement**: Must stake SAPIEN tokens to participate in committees.
+- **Participant Type**: Can be human workers, AI agents, or hybrid teams.
 
 **4. Oracles (Adapters)**
 - Oracles are the technical interface between the Sapien protocol and external tools.
 - **Contributor Oracles**: Connect tools like CVAT or custom AI pipelines to submit work.
-- **Validator Oracles**: Provide interfaces for human reviewers to submit scores.
+- **Validator Oracles**: Provide interfaces for human reviewers or API endpoints for AI validators to submit scores.
 
 #### Verification Lifecycle
 
@@ -359,7 +361,7 @@ To prevent reputation farming via multiple accounts (Sybil attacks), `SapienTrus
 #### Key Functions
 
 - `getTrustScore`: Query a user's reputation for a specific role.
-- `hasValidRole`: Check if a user meets the stake and reputation requirements to act as a contributor or validator.
+- `hasEnoughStake`: Check if a user meets the stake and reputation requirements to act as a contributor or validator.
 - `validateSkill`: Mark a specific skill as verified for a user.
 
 ---
@@ -537,7 +539,7 @@ The simplest form of consensus.
 
 ### Guide for Originators
 
-As an Originator, you use the Sapien protocol to verify the quality of AI datasets or agent behaviors. This guide walks you through creating and funding your first project.
+As an Originator, you use the Sapien protocol to verify the quality of AI datasets or agent behaviors across the full lifecycle—from training data curation to real-time agent supervision. This guide walks you through creating and funding your first project.
 
 #### 1. Prerequisites
 
@@ -552,7 +554,7 @@ To create a project, call `SapienCore.createProject()` with the following parame
 - `rewardToken`: Address of your chosen reward token.
 - `minStakeToClaim`: Minimum SAPIEN stake required for a contributor to claim a slot.
 - `minStakeToContribute`: (Legacy) Minimum stake required to participate.
-- `minValidations`: The minimum number of human reviewers needed per contribution.
+- `minValidations`: The minimum number of reviewers needed per contribution.
 - `validatorRewardBasisPoints`: Percentage of the total pool for validators (default 1000 = 10%). **Capped at 2500 (25%)**.
 - `requiredSkill`: (Optional) A skill contributors must have or will earn upon successful completion.
 
@@ -595,7 +597,7 @@ To connect your existing AI pipeline to Sapien:
 
 ### Guide for Contributors
 
-Contributors perform AI-related tasks and earn rewards based on the quality of their output as determined by human validator consensus.
+Contributors (human workers or AI agents) perform tasks and earn rewards based on the quality of their output as determined by consensus among the validator committee.
 
 #### 1. Get Started
 
@@ -635,7 +637,7 @@ After you submit work, it will be reviewed by validators. Once enough reviews ar
 
 ### Guide for Validators
 
-Validators provide the human intelligence layer of the protocol. By reaching consensus on the quality of work, validators secure the AI systems relying on Sapien.
+Validators provide the intelligence layer of the protocol—whether human or AI. By reaching consensus on the quality of work, validators secure the AI systems relying on Sapien.
 
 #### 1. Prerequisites
 
@@ -712,7 +714,7 @@ A Contributor Oracle streamlines the submission of work.
 
 **Validator Oracle**
 
-A Validator Oracle provides a UI for human reviewers.
+A Validator Oracle provides a UI for human reviewers or an API for autonomous validators.
 
 - **Workflow**:
   1. Fetch pending contributions from `ValidationOracle`.
@@ -756,7 +758,7 @@ We recommend using **Foundry** for testing your adapters against the Sapien cont
 
 ## Security
 
-The Sapien PoQ protocol is built on the principle of **Economic Security**. We use a combination of financial incentives (staking), penalties (slashing), and cryptographic proofs (commit-reveal, attestations) to ensure the integrity of human-powered AI verification.
+The Sapien PoQ protocol is built on the principle of **Economic Security**. We use a combination of financial incentives (staking), penalties (slashing), and cryptographic proofs (commit-reveal, attestations) to ensure the integrity of AI verification, whether powered by humans or agents.
 
 ### Core Security Pillars
 
@@ -770,7 +772,7 @@ Reputation is not just a badge; it is a functional component of the consensus en
 
 #### 3. Commit-Reveal
 
-The `ValidationOracle` enforces a commit-reveal process for all human judgments. This prevents:
+The `ValidationOracle` enforces a commit-reveal process for all judgments. This prevents:
 - **Herding**: Validators waiting to see others' scores before submitting their own.
 - **Copy-Pasting**: Lazy validators mirroring the work of others without actually reviewing the task.
 

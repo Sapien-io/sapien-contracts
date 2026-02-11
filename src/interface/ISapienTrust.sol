@@ -25,7 +25,7 @@ interface ISapienTrust is ISharedTypes {
     // ============================================
 
     error InvalidAddress();
-    error InsufficientStake(address user, uint256 required, uint256 actual);
+    error InsufficientStake(bytes32 role, uint256 required, uint256 actual);
 
     // ============================================
     // IDENTITY FUNCTIONS
@@ -33,11 +33,11 @@ interface ISapienTrust is ISharedTypes {
 
     /**
      * @notice Check if a user is eligible for a role based on their stake
+     * @dev Reverts with InsufficientStake if requirements not met
      * @param user Address of the user
      * @param role Role identifier (e.g. CONTRIBUTOR_ROLE)
-     * @return True if user meets the role's minimum stake requirements
      */
-    function hasValidRole(address user, bytes32 role) external view returns (bool);
+    function hasEnoughStake(address user, bytes32 role) external view;
 
     /**
      * @notice Check if a user has a validated skill

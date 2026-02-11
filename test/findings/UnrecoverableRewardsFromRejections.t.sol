@@ -379,13 +379,18 @@ contract UnrecoverableRewardsFromRejectionsTest is BaseTest {
         vm.prank(contributor2);
         core.finalizeContribution(projectId, 0);
 
+        // Claim reward after challenge period
+        uint256 challengePeriod = core.getProject(projectId).config.challengePeriod;
+        vm.warp(block.timestamp + challengePeriod + 1);
+        core.claimContributionReward(projectId, 0);
+
         // ============================================
         // VERIFY: Second contributor can claim the PRESERVED rewards!
         // ============================================
         assertEq(
             uint256(getContributionStatus(projectId, 0)),
             uint256(ContributionStatus.Rewarded),
-            "Contribution should be accepted"
+            "Contribution should be rewarded"
         );
 
         uint256 availableRewards = rewards.getAvailableRewards(contributor2, projectId, address(rewardToken));
@@ -454,11 +459,16 @@ contract UnrecoverableRewardsFromRejectionsTest is BaseTest {
         vm.prank(contributor);
         core.finalizeContribution(projectId, 0);
 
+        // Claim reward after challenge period
+        uint256 challengePeriod = core.getProject(projectId).config.challengePeriod;
+        vm.warp(block.timestamp + challengePeriod + 1);
+        core.claimContributionReward(projectId, 0);
+
         // Verify contribution was accepted
         assertEq(
             uint256(getContributionStatus(projectId, 0)),
             uint256(ContributionStatus.Rewarded),
-            "Contribution should be accepted"
+            "Contribution should be rewarded"
         );
 
         // Verify rewards were properly distributed

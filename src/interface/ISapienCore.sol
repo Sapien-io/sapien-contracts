@@ -50,6 +50,10 @@ interface ISapienCore is ISharedTypes {
     event ProtocolFeeCollected(bytes32 indexed projectId, address indexed token, uint256 amount);
     event OperatorFeePaid(bytes32 indexed projectId, address indexed operator, uint256 amount);
     event ConsensusThresholdUpdated(uint256 threshold);
+    event ChallengePeriodUpdated(uint256 period);
+    event ContributionRewarded(
+        bytes32 indexed projectId, uint256 indexed contributionIndex, address indexed contributor, uint256 amount
+    );
 
     // ============================================
     // ERRORS
@@ -70,6 +74,13 @@ interface ISapienCore is ISharedTypes {
     error MissingRequiredSkill(address user, string requiredSkill);
     error InvalidValidatorRewards();
     error InvalidConfiguration();
+    error ProtocolFeeTooHigh(uint256 provided, uint256 max);
+    error ConsensusThresholdOutOfRange(uint256 provided, uint256 min, uint256 max);
+    error RewardDilutionNotAllowed();
+    error RewardPerSlotTooLow(uint256 provided, uint256 minimum);
+    error MaxClaimsPerUserExceeded(uint256 requested, uint256 current, uint256 max);
+    error NotAvailableForClaim();
+    error ChallengePeriodActive();
 
     // ============================================
     // PROJECT FUNCTIONS
@@ -107,6 +118,8 @@ interface ISapienCore is ISharedTypes {
     function treasury() external view returns (address);
     function setConsensusThreshold(uint256 _threshold) external;
     function consensusThreshold() external view returns (uint256);
+    function setChallengePeriod(uint256 _period) external;
+    function challengePeriod() external view returns (uint256);
 
     /**
      * @notice Fund an existing project with rewards and contribution quantity
@@ -198,6 +211,13 @@ interface ISapienCore is ISharedTypes {
      * @param contributionIndices The indices within the project's contribution sequence
      */
     function batchFinalizeContributions(bytes32 projectId, uint256[] calldata contributionIndices) external;
+
+    /**
+     * @notice Claim rewards for a validated contribution after the challenge period
+     * @param projectId Unique identifier for the project
+     * @param contributionIndex Index of the contribution
+     */
+    function claimContributionReward(bytes32 projectId, uint256 contributionIndex) external;
 
     // ============================================
     // GETTER FUNCTIONS

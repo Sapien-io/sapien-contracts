@@ -1,0 +1,47 @@
+{
+  "invariant_targets": [
+    {
+      "contract": "SapienVault",
+      "invariants": [
+        "invariant_VaultAssetsMatchBalance",
+        "invariant_UserLockedLeTotalStake",
+        "invariant_TotalLockedLeTotalAssets"
+      ],
+      "handler": "VaultHandler"
+    },
+    {
+      "contract": "Rewards",
+      "invariants": [
+        "invariant_RewardsSolvency",
+        "invariant_RewardsConservationPerProject"
+      ],
+      "handler": "RewardsHandler"
+    },
+    {
+      "contract": "SapienCore",
+      "invariants": [
+        "invariant_ProjectSlotAccounting",
+        "invariant_RewardedLeSubmitted",
+        "invariant_UserClaimLimitEnforced"
+      ],
+      "handler": "ProtocolHandler"
+    },
+    {
+      "contract": "ValidationOracle",
+      "invariants": [
+        "invariant_ValidatorInFlightLeCapacity",
+        "invariant_ValidatorCapacityLeVaultLocked",
+        "invariant_QueueHeadTailConsistency"
+      ],
+      "handler": "OracleHandler"
+    },
+    {
+      "contract": "SapienTrust",
+      "invariants": [
+        "invariant_ReputationWithinBounds",
+        "invariant_DailyReputationGainCap"
+      ],
+      "handler": "TrustHandler"
+    }
+  ]
+}

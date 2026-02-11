@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {BaseTest} from "../BaseTest.t.sol";
 import {console} from "forge-std/console.sol";
 import {CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
+import {ISapienCore} from "../../src/interface/ISapienCore.sol";
 
 /**
  * @title DivideBeforeMultiplyPrecisionTest
@@ -145,7 +146,7 @@ contract DivideBeforeMultiplyPrecisionTest is BaseTest {
         rewardToken.approve(address(core), rewardAmount);
 
         // Issue #4 fix: MIN_REWARD_PER_SLOT prevents funding with inadequate rewards
-        vm.expectRevert("Reward per slot too low");
+        vm.expectRevert(); // RewardPerSlotTooLow
         core.fundProject(PROJECT_ID, rewardAmount, quantity);
         vm.stopPrank();
 

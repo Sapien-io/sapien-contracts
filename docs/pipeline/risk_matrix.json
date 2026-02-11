@@ -1,0 +1,182 @@
+[
+  {
+    "id": "F-01",
+    "title": "Storage Collision in SapienCore",
+    "severity": "CRITICAL",
+    "likelihood": "HIGH",
+    "category": "Upgradeability",
+    "description": "Insertion of 'userActiveClaimedQuantity' shifts existing state variable slots.",
+    "impact": "Protocol-wide configuration corruption on upgrade."
+  },
+  {
+    "id": "F-02",
+    "title": "Oracle Trust Assumption",
+    "severity": "HIGH",
+    "likelihood": "MEDIUM",
+    "category": "Integration",
+    "description": "Unconditional trust in ValidationOracle.getConsensus results.",
+    "impact": "Financial loss if oracle is compromised or consensus is manipulated."
+  },
+  {
+    "id": "F-03",
+    "title": "Missing Role Grant Logic",
+    "severity": "MEDIUM",
+    "likelihood": "HIGH",
+    "category": "Deployment",
+    "description": "UPDATER_ROLE not granted between Core and Oracle during initialization.",
+    "impact": "Deployment failure; protocol non-functional until manual intervention."
+  },
+  {
+    "id": "F-04",
+    "title": "Storage Gap Inconsistency in ValidationOracle",
+    "severity": "MEDIUM",
+    "likelihood": "MEDIUM",
+    "category": "Upgradeability",
+    "description": "Gap size increased without variable removal, inconsistent with gap management.",
+    "impact": "Future storage collisions or inheritance issues."
+  },
+  {
+    "id": "F-05",
+    "title": "Queue Pollution in ValidationOracle",
+    "severity": "MEDIUM",
+    "likelihood": "MEDIUM",
+    "category": "Logic",
+    "description": "Re-enqueued contributions add new slots without clearing stale ones.",
+    "impact": "Validators claiming stale slots, wasted gas, sync issues."
+  },
+  {
+    "id": "F-06",
+    "title": "Inflation Attack Risk in SapienVault",
+    "severity": "MEDIUM",
+    "likelihood": "MEDIUM",
+    "category": "Economic",
+    "description": "Missing initial 'dead' share minting for first depositor protection.",
+    "impact": "First depositor vulnerable to donation-based inflation attack."
+  },
+  {
+    "id": "F-07",
+    "title": "Validator Reward Rounding to Zero",
+    "severity": "MEDIUM",
+    "likelihood": "MEDIUM",
+    "category": "Economic",
+    "description": "Reward math rounds down to zero for small weights or low-decimal tokens.",
+    "impact": "Loss of incentives for validators."
+  },
+  {
+    "id": "F-08",
+    "title": "Inefficient Storage Deletion",
+    "severity": "MEDIUM",
+    "likelihood": "LOW",
+    "category": "Gas",
+    "description": "Using 'delete' on arrays of structs in enqueueValidation.",
+    "impact": "Potential block gas limit exhaustion."
+  },
+  {
+    "id": "F-09",
+    "title": "Liveness Griefing via Reveal Delay",
+    "severity": "MEDIUM",
+    "likelihood": "LOW",
+    "category": "Economic",
+    "description": "Validators can delay finalization by not revealing commits.",
+    "impact": "Project progress stalled for up to 3 days."
+  },
+  {
+    "id": "F-10",
+    "title": "Validator Queue Monopoly",
+    "severity": "MEDIUM",
+    "likelihood": "LOW",
+    "category": "Economic",
+    "description": "Whales can fill the pending queue using high capacity.",
+    "impact": "Centralization of consensus and censorship."
+  },
+  {
+    "id": "F-11",
+    "title": "Reward Rate Manipulation (Sandwiching)",
+    "severity": "MEDIUM",
+    "likelihood": "LOW",
+    "category": "Economic",
+    "description": "Funding projects during finalization changes reward rates.",
+    "impact": "Extraction of value from earlier participants."
+  },
+  {
+    "id": "F-12",
+    "title": "Unbounded Loops in SapienCore",
+    "severity": "LOW",
+    "likelihood": "LOW",
+    "category": "Gas",
+    "description": "Batch functions lack input array length limits.",
+    "impact": "DoS for specific transactions if arrays are too large."
+  },
+  {
+    "id": "F-13",
+    "title": "Unreclaimable Reward Dust",
+    "severity": "LOW",
+    "likelihood": "HIGH",
+    "category": "Economic",
+    "description": "Rounding dust accumulates in Rewards contract with no withdrawal mechanism.",
+    "impact": "Small amount of tokens permanently trapped."
+  },
+  {
+    "id": "F-14",
+    "title": "Emergency Withdrawal Risk",
+    "severity": "LOW",
+    "likelihood": "LOW",
+    "category": "Security",
+    "description": "totalAllocated does not track tokens in distributeReward.",
+    "impact": "Admin might accidentally withdraw user-owed tokens."
+  },
+  {
+    "id": "F-15",
+    "title": "Redundant Storage Gap in SapienVault",
+    "severity": "LOW",
+    "likelihood": "LOW",
+    "category": "Gas",
+    "description": "Excessive gap slots (49) reserved despite high inheritance.",
+    "impact": "Code clutter and slight deployment gas increase."
+  },
+  {
+    "id": "F-16",
+    "title": "Redundant Reward Logic",
+    "severity": "LOW",
+    "likelihood": "LOW",
+    "category": "Gas",
+    "description": "_calculateContributorReward called twice in _finalizeContribution.",
+    "impact": "Small unnecessary gas expenditure."
+  },
+  {
+    "id": "F-17",
+    "title": "Packing Opportunities",
+    "severity": "LOW",
+    "likelihood": "LOW",
+    "category": "Gas",
+    "description": "Structs use uint256 for small values like scores and timestamps.",
+    "impact": "Increased SLOAD/SSTORE gas costs."
+  },
+  {
+    "id": "F-18",
+    "title": "Strategic Non-Reveal",
+    "severity": "LOW",
+    "likelihood": "LOW",
+    "category": "Economic",
+    "description": "Validators may withhold reveals to influence weighted averages.",
+    "impact": "Minor consensus bias."
+  },
+  {
+    "id": "F-19",
+    "title": "Reputation Incentive Decoupling",
+    "severity": "LOW",
+    "likelihood": "LOW",
+    "category": "Design",
+    "description": "Some consensus algorithms ignore reputation scores.",
+    "impact": "Weakened long-term quality incentives."
+  },
+  {
+    "id": "F-20",
+    "title": "Anti-dilution Behavior Change",
+    "severity": "LOW",
+    "likelihood": "HIGH",
+    "category": "Documentation",
+    "description": "Fees no longer count towards anti-dilution effective amounts.",
+    "impact": "User confusion regarding funding requirements."
+  }
+]

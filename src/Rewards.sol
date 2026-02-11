@@ -115,6 +115,11 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
         if (_core == address(0)) {
             revert InvalidAddress();
         }
+        // Opus 4.6 L-5 fix: Enforce one-time-set to prevent compromised admin
+        // from redirecting core to a malicious contract that drains project rewards.
+        if (core != address(0)) {
+            revert CoreAlreadySet();
+        }
         core = _core;
         emit CoreAddressUpdated(_core);
     }

@@ -8,11 +8,14 @@ contract RewardsTest is BaseTest {
     bytes32 public constant PROJECT_ID = keccak256("test-project");
 
     function testSetCore() public {
-        address newCore = makeAddr("newCore");
+        // Core is already set in BaseTest setup, verify one-time-set restriction
+        address currentCore = rewards.core();
+        assertTrue(currentCore != address(0), "Core should already be set");
 
+        // Re-setting should revert with CoreAlreadySet (Opus 4.6 L-5 fix)
         vm.prank(admin);
-        rewards.setCore(newCore);
-        assertEq(rewards.core(), newCore);
+        vm.expectRevert(IRewards.CoreAlreadySet.selector);
+        rewards.setCore(makeAddr("newCore"));
 
         // Unauthorized
         vm.prank(contributor);

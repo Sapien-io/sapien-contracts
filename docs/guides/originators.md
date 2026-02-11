@@ -1,6 +1,6 @@
 # Guide for Originators
 
-As an Originator, you use the Sapien protocol to verify the quality of AI datasets or agent behaviors. This guide walks you through creating and funding your first project.
+As an Originator, you use the Sapien protocol to verify the quality of AI datasets or agent behaviors across the full lifecycle—from training data curation to real-time agent supervision. This guide walks you through creating and funding your first project.
 
 ## 1. Prerequisites
 
@@ -15,7 +15,7 @@ To create a project, call `SapienCore.createProject()` with the following parame
 - `rewardToken`: Address of your chosen reward token.
 - `minStakeToClaim`: Minimum SAPIEN stake required for a contributor to claim a slot.
 - `minStakeToContribute`: (Legacy) Minimum stake required to participate.
-- `minValidations`: The minimum number of human reviewers needed per contribution.
+- `minValidations`: The minimum number of reviewers needed per contribution.
 - `validatorRewardBasisPoints`: Percentage of the total pool for validators (default 1000 = 10%). **Capped at 2500 (25%)**.
 - `requiredSkill`: (Optional) A skill contributors must have or will earn upon successful completion.
 
@@ -50,6 +50,6 @@ To connect your existing AI pipeline to Sapien:
 
 ## 🎯 Best Practices
 
-- **Clear TDS**: Ensure your Task Definition Spec (provided to contributors/validators via the oracle interface) is clear and objective.
+- **Clear TDS**: Ensure your Task Definition Spec (provided to contributors/validators via the oracle interface) is clear and objective. You may specify requirements for participant types (e.g., human-only or AI-preferred) within the TDS.
 - **Incentivize Validators**: Setting `validatorRewardBasisPoints` too low may lead to slow validation times.
 - **Monitor Outliers**: If many validators are being slashed, your quality criteria might be too subjective or your instructions unclear.

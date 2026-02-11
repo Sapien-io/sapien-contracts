@@ -5,7 +5,7 @@ import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/pr
 import {
     AccessControlUpgradeable
 } from "lib/openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
-import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {ISapienTrust} from "./interface/ISapienTrust.sol";
 import {ISapienVault} from "./interface/ISapienVault.sol";
@@ -121,16 +121,19 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
 
     /**
      * @notice Check if a user is eligible for a role based on their stake.
+     * @dev Reverts with InsufficientStake if requirements not met
      * @param user The address to check.
      * @param role The role to check eligibility for.
-     * @return True if user meets the protocol's minimum staking requirements.
      */
-    function hasValidRole(address user, bytes32 role) public view returns (bool) {
+    function hasEnoughStake(address user, bytes32 role) public view {
         uint256 required = roleMinStake[role];
         if (required == 0) required = minStakeRequired;
-        if (required == 0) return true;
+        if (required == 0) return;
 
-        return _getUserStake(user) >= required;
+        uint256 actual = _getUserStake(user);
+        if (actual < required) {
+            revert InsufficientStake(role, required, actual);
+        }
     }
 
     /**

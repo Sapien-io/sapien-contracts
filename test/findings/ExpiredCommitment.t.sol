@@ -77,8 +77,8 @@ contract ExpiredCommitmentTest is BaseTest {
         console.log("Actual loss (socialized):", lost);
         assertTrue(lost > 50 ether && lost <= 100 ether);
 
-        // Verify contribution is rewarded
-        assertEq(uint256(core.getContribution(PROJECT_ID, 0).status), uint256(ContributionStatus.Rewarded));
+        // Verify contribution is validated
+        assertEq(uint256(core.getContribution(PROJECT_ID, 0).status), uint256(ContributionStatus.Validated));
     }
 
     function _setupValidator(address v, uint256 amount) internal {

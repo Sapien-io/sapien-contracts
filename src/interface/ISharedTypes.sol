@@ -57,6 +57,8 @@ interface ISharedTypes {
     error ClaimAlreadyExpired(uint256 claimId, uint256 deadline);
     error CapacityReached();
     error InsufficientCapacity();
+    error MaxValidationsExceeded(uint256 provided, uint256 max);
+    error RevealDeadlinePassed(uint256 deadline, uint256 current);
 
     enum ClaimStatus {
         Active,
@@ -95,6 +97,7 @@ interface ISharedTypes {
         uint256 minValidations;
         uint256 maxValidations;
         uint256 validatorRewardBasisPoints;
+        uint256 challengePeriod;
         string requiredSkill;
     }
 
@@ -161,6 +164,7 @@ interface ISharedTypes {
         uint256 submittedAt;
         uint256 totalValidations;
         uint256 averageScore;
+        uint256 challengeEndsAt;
         ContributionStatus status;
     }
 

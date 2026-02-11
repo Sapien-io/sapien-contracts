@@ -112,18 +112,14 @@ contract ZeroAddressChecksTest is BaseTest {
         trust.grantRole(ORIGINATOR_ROLE, originator);
         vm.stopPrank();
 
-        // Note: createProject does NOT check for zero address
-        // This test documents that zero address is accepted (potential issue)
+        // Opus 4.6 L-3 fix: createProject now checks for zero address
         vm.startPrank(originator);
+        vm.expectRevert();
         core.createProject(PROJECT_ID, address(0), "test-project", 0, 0, 3, 1000, "");
         vm.stopPrank();
 
-        // Project is created (this documents the missing check)
-        assertEq(core.getProject(PROJECT_ID).originator, originator, "Project should be created");
-
-        console.log("=== Missing Zero Address Check ===");
-        console.log("createProject accepts address(0) for rewardToken");
-        console.log("This may cause issues when trying to fund the project");
+        console.log("=== Zero Address Check Fixed ===");
+        console.log("createProject correctly rejects address(0) for rewardToken");
     }
 
     // ============================================
@@ -300,10 +296,9 @@ contract ZeroAddressChecksTest is BaseTest {
         console.log("6. Rewards.setCore() - Checks core address");
         console.log("7. Rewards.emergencyWithdraw() - Checks 'to' address");
 
-        console.log("\n[WARN] Functions that MAY need zero address checks:");
+        console.log("\n[OK] Functions with zero address checks (Opus 4.6 fixes):");
         console.log("1. SapienCore.createProject() - rewardToken parameter");
-        console.log("   - Currently: No explicit check found");
-        console.log("   - Recommendation: Add check if zero address is invalid");
+        console.log("   - Opus 4.6 L-3 fix: Now reverts with InvalidAddress");
 
         console.log("\n2. ValidationOracle.registerProject() - originator parameter");
         console.log("   - Currently: No explicit check found");
