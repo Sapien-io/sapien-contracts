@@ -16,8 +16,6 @@ contract InvariantTest is BaseTest {
     }
 
     function test_Invariant_VaultSolvency() public {
-        uint256 totalAssets = stakeToken.balanceOf(address(vault));
-
         vm.prank(contributor);
         core.claimToContribute(PROJECT_ID, 1);
 
@@ -26,7 +24,7 @@ contract InvariantTest is BaseTest {
         assertTrue(stakeToken.balanceOf(address(vault)) >= locked, "Vault must hold at least locked assets");
     }
 
-    function test_Invariant_ProjectRewardsConservation() public {
+    function test_Invariant_ProjectRewardsConservation() public view {
         uint256 initialRewards = core.getProject(PROJECT_ID).state.totalRewardsAvailable;
 
         // Simulate a reward event

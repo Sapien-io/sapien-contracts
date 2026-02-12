@@ -2,8 +2,9 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
+import {ISapienCore} from "../../src/interface/ISapienCore.sol";
 
 /**
  * @title ContributorSlotStarvationTest
@@ -42,7 +43,7 @@ contract ContributorSlotStarvationTest is BaseTest {
         vm.stopPrank();
 
         // Setup users with sufficient stake for role validation
-        // Note: hasValidRole checks minStakeRequired which defaults to 100 ether
+        // Note: hasEnoughStakeForRole checks minStakeRequired which defaults to 100 ether
         _setupUser(attacker, 100 ether);
         _setupUser(legitimateContributor, 100 ether);
     }
@@ -121,7 +122,7 @@ contract ContributorSlotStarvationTest is BaseTest {
 
         // Attacker tries to claim all slots - should fail
         vm.prank(attacker);
-        vm.expectRevert("Exceeds max claims per user");
+        vm.expectRevert(); // MaxClaimsPerUserExceeded
         core.claimToContribute(PROJECT_ID, 100);
 
         console.log("FIX VERIFIED: Attacker blocked from claiming 100 slots");

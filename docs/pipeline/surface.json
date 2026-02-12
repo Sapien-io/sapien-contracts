@@ -1,0 +1,182 @@
+{
+  "contracts": {
+    "SapienCore": {
+      "external_functions": [
+        "initialize",
+        "setClaimDeadlineDays",
+        "getClaimDeadlineDays",
+        "setProtocolFeeBasisPoints",
+        "setTreasury",
+        "setConsensusThreshold",
+        "createProject",
+        "fundProject(bytes32,uint256,uint256)",
+        "fundProject(bytes32,uint256,uint256,address,uint256)",
+        "reclaimExpiredIndices",
+        "claimToContribute",
+        "releaseExpiredClaim",
+        "contribute",
+        "batchContribute",
+        "finalizeContribution",
+        "batchFinalizeContributions",
+        "getProject",
+        "getClaim",
+        "getContribution",
+        "getNextClaimId",
+        "getIndexToClaimant",
+        "getIndexClaimDeadline",
+        "getVault",
+        "getRewards",
+        "getTrust",
+        "getOracle"
+      ],
+      "payable_paths": [],
+      "external_calls": [
+        "ISapienVault.getStake",
+        "ISapienVault.getLockedStake",
+        "ISapienVault.lockStake",
+        "ISapienVault.unlockStake",
+        "ISapienVault.slash",
+        "IRewards.allocateRewards",
+        "IRewards.distributeReward",
+        "IRewards.distributeValidatorReward",
+        "ISapienTrust.hasEnoughStakeForRole",
+        "ISapienTrust.updateReputation",
+        "ISapienTrust.validateSkill",
+        "ISapienTrust.getTrustScore",
+        "IValidationOracle.registerProject",
+        "IValidationOracle.enqueueValidation",
+        "IValidationOracle.getConsensus",
+        "IValidationOracle.getValidations",
+        "IValidationOracle.resetContributionState",
+        "IValidationOracle.handleValidatorSlash",
+        "IValidationOracle.setContributionContributor",
+        "IERC20.safeTransferFrom",
+        "IERC20.balanceOf"
+      ]
+    },
+    "SapienVault": {
+      "external_functions": [
+        "initialize",
+        "lockStake",
+        "unlockStake",
+        "getAvailableStake",
+        "getLockedStake",
+        "pause",
+        "unpause",
+        "slash",
+        "getStake",
+        "totalStaked",
+        "totalAssets",
+        "deposit",
+        "mint",
+        "transfer",
+        "transferFrom",
+        "withdraw",
+        "redeem",
+        "stakingToken"
+      ],
+      "payable_paths": [],
+      "external_calls": [
+        "IERC20.balanceOf",
+        "IERC20.safeTransfer",
+        "IERC20.safeTransferFrom"
+      ]
+    },
+    "SapienTrust": {
+      "external_functions": [
+        "initialize",
+        "hasEnoughStakeForRole",
+        "hasValidatedSkill",
+        "validateSkill",
+        "getTrustScore",
+        "updateReputation",
+        "hasRequiredStake",
+        "setReputationDecay",
+        "setMinStakeRequired",
+        "setRoleMinStake"
+      ],
+      "payable_paths": [],
+      "external_calls": [
+        "ISapienVault.convertToAssets",
+        "IERC20.balanceOf"
+      ]
+    },
+    "Rewards": {
+      "external_functions": [
+        "initialize",
+        "setCore",
+        "setMaxFeeBps",
+        "pause",
+        "unpause",
+        "emergencyWithdraw",
+        "allocateRewards",
+        "distributeReward",
+        "distributeValidatorReward",
+        "claimRewards",
+        "claimAllRewards",
+        "claimValidatorRewards",
+        "claimAllValidatorRewards",
+        "getAvailableRewards",
+        "getTotalRewardsEarned",
+        "getAvailableValidatorRewards",
+        "getTotalValidatorRewardsEarned",
+        "getRemainingProjectRewards"
+      ],
+      "payable_paths": [],
+      "external_calls": [
+        "IERC20.safeTransfer",
+        "IERC20.balanceOf"
+      ]
+    },
+    "ValidationOracle": {
+      "external_functions": [
+        "initialize",
+        "enqueueValidation",
+        "claimToValidate",
+        "setValidatorCapacity",
+        "getPendingValidationCount",
+        "getAvailableCapacity",
+        "isValidatorAssigned",
+        "cancelExpiredValidationClaim",
+        "commitValidation",
+        "commitValidationWithStake",
+        "batchCommitValidations",
+        "batchCommitValidationsWithStake",
+        "revealValidation",
+        "batchRevealValidations",
+        "getConsensus",
+        "getValidations",
+        "getValidationCommits",
+        "getAlgorithm",
+        "registerProject",
+        "registerAlgorithm",
+        "setProjectAlgorithm",
+        "setProjectNumberOfValidations",
+        "setProjectRequiredSkill",
+        "setProjectRevealDeadline",
+        "setProjectOriginator",
+        "setProjectMinValidatorReputation",
+        "setContributionContributor",
+        "cancelExpiredCommitment",
+        "resetContributionState",
+        "setRevealDeadline",
+        "handleValidatorSlash"
+      ],
+      "payable_paths": [],
+      "external_calls": [
+        "ISapienTrust.hasEnoughStakeForRole",
+        "ISapienTrust.hasRequiredStake",
+        "ISapienTrust.hasValidatedSkill",
+        "ISapienTrust.getTrustScore",
+        "ISapienTrust.updateReputation",
+        "ISapienTrust.roleMinStake",
+        "ISapienTrust.minStakeRequired",
+        "ISapienVault.getAvailableStake",
+        "ISapienVault.lockStake",
+        "ISapienVault.unlockStake",
+        "ISapienVault.slash",
+        "IConsensusAlgorithm.calculateConsensus"
+      ]
+    }
+  }
+}

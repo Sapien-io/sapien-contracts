@@ -2,9 +2,8 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
-import {IRewards} from "../../src/interface/IRewards.sol";
 
 /**
  * @title RewardPoolDrainTest
@@ -196,6 +195,11 @@ contract RewardPoolDrainTest is BaseTest {
         _validateContribution(PROJECT_ID, 0, 8000);
         core.finalizeContribution(PROJECT_ID, 0);
 
+        // Claim reward after challenge period
+        uint256 challengePeriod = core.getProject(PROJECT_ID).config.challengePeriod;
+        vm.warp(block.timestamp + challengePeriod + 1);
+        core.claimContributionReward(PROJECT_ID, 0);
+
         uint256 poolAfterAccept = rewards.getRemainingProjectRewards(PROJECT_ID, address(rewardToken));
         console.log("Pool after acceptance:", poolAfterAccept / 1e18, "tokens");
 
@@ -245,6 +249,11 @@ contract RewardPoolDrainTest is BaseTest {
         _submitContribution(contributor, PROJECT_ID, 0);
         _validateContribution(PROJECT_ID, 0, 8000);
         core.finalizeContribution(PROJECT_ID, 0);
+
+        // Claim reward after challenge period
+        uint256 challengePeriod = core.getProject(PROJECT_ID).config.challengePeriod;
+        vm.warp(block.timestamp + challengePeriod + 1);
+        core.claimContributionReward(PROJECT_ID, 0);
 
         uint256 actualReward = rewards.getAvailableRewards(contributor, PROJECT_ID, address(rewardToken));
         console.log("Actual contributor reward:", actualReward / 1e18, "tokens");

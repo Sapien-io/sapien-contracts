@@ -35,7 +35,7 @@ The protocol is implemented as a suite of modular EVM smart contracts:
 ## Participant Roles
 
 1.  **Originators**: The "buyers" of quality who create projects, define criteria, and fund reward pools.
-2.  **Contributors**: The workers performing tasks (e.g., labeling images, generating responses).
+2.  **Contributors**: The participants performing tasks (e.g., labeling images, generating responses, or chain-of-thought reasoning).
 3.  **Validators**: Independent reviewers assessing contribution quality to reach consensus.
 4.  **Oracles (Adapters)**: Technical interfaces connecting external tools to the protocol.
 

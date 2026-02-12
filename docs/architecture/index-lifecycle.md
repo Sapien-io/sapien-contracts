@@ -29,7 +29,7 @@ sequenceDiagram
     Note over FE, SC: 3. Submission & Enqueueing
     FE->>SC: contribute(projectId, index: 3, hash)
     SC->>VO: enqueueValidation(projectId, index: 3)
-    Note right of VO: Multiplier Effect:<br/>index 3 added to pendingQueue<br/>maxValidations times (e.g., 10x)
+    Note right of VO: Multiplier Effect:<br/>index 3 added to pendingQueue<br/>numberOfValidations times (e.g., 10x)
 
     Note over V, VO: 4. Validator Pickup
     V->>VO: claimToValidate(projectId)
@@ -70,7 +70,7 @@ oracle.enqueueValidation(projectId, contributionIndex, block.timestamp);
 ```
 
 ### 3. The Validation Queue (The "Multiplier" Effect)
-When index `3` is submitted, the `ValidationOracle` adds it to the queue multiple times based on the project's `maxValidations` setting.
+When index `3` is submitted, the `ValidationOracle` adds it to the queue multiple times based on the project's `numberOfValidations` setting.
 
 ```solidity
 // ValidationOracle.sol
@@ -80,7 +80,7 @@ for (uint256 i = 0; i < max; i++) {
 }
 ```
 
-If `maxValidations` is 10, index `3` is added 10 times, ensuring 10 different people review the data.
+If `numberOfValidations` is 10, index `3` is added 10 times, ensuring 10 different people review the data.
 
 ### 4. Validator Pickup
 When a validator calls `claimToValidate`, they "pop" the next number off the queue.
@@ -103,6 +103,8 @@ availableIndices[projectId][stackTop[projectId]] = index;
 ```
 
 The next contributor to call `claimToContribute` will receive `3` from the recycle bin before any new indices are generated.
+
+**Reward pool preservation:** When a contribution is rejected, validators are **not** paid (even though they performed validation). The contributor's reward portion remains in the project pool and is automatically available for the next contributor who submits on that index. This prevents reward pool drain when tasks are re-submitted and re-validated. See [Validator Rewards on Rejection fix](../security/fixes/validator-rewards-on-rejection.md).
 
 ## Summary Mapping
 

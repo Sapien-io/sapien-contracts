@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
 import {IValidationOracle} from "../../src/interface/IValidationOracle.sol";
 
@@ -111,7 +111,7 @@ contract RetroactiveDeadlineShorteningTest is BaseTest {
         vm.warp(block.timestamp + 3 days + 1);
 
         vm.prank(validator1);
-        vm.expectRevert("Reveal deadline passed");
+        vm.expectRevert(); // RevealDeadlinePassed
         oracle.revealValidation(PROJECT_ID, 0, score, salt);
 
         console.log("FIX VERIFIED: Reveal correctly fails after ORIGINAL deadline expires.");

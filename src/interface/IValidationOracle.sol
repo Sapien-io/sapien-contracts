@@ -6,6 +6,7 @@ import {IConsensusAlgorithm} from "./IConsensusAlgorithm.sol";
 
 /**
  * @title IValidationOracle
+ * @author Sapien Team
  * @notice Stateless consensus oracle for Sapien V2
  * @dev Manages the commit-reveal process and consensus calculations
  */
@@ -13,8 +14,7 @@ interface IValidationOracle is ISharedTypes {
     // Structs for State Grouping
     struct ProjectSettings {
         bytes32 algorithm;
-        uint256 maxValidations;
-        uint256 minValidations;
+        uint256 numberOfValidations;
         uint256 revealDeadline;
         string requiredSkill;
         address originator;
@@ -28,6 +28,7 @@ interface IValidationOracle is ISharedTypes {
         uint256 submittedAt;
         address contributor;
         uint256 activeClaimCount;
+        uint256 submissionNonce; // F-05: Incremented on each re-queue to invalidate stale commits
     }
 
     struct ValidatorState {
@@ -45,41 +46,146 @@ interface IValidationOracle is ISharedTypes {
     // EVENTS
     // ============================================
 
+    /**
+     * @notice Emitted when a validator claims a validation slot
+     * @param projectId Unique identifier for the project
+     * @param claimId Unique identifier for the claim
+     * @param validator Address of the validator
+     * @param deadline Timestamp when the claim expires
+     */
     event ValidationClaimed(
         bytes32 indexed projectId, uint256 indexed claimId, address indexed validator, uint256 deadline
     );
+
+    /**
+     * @notice Emitted when a validator commits a validation score hash
+     * @param projectId Unique identifier for the project
+     * @param contributionIndex Index of the contribution being validated
+     * @param validator Address of the validator
+     * @param commitHash keccak256(score, stakeAmount, salt)
+     * @param stakeAmount Amount staked for this validation
+     */
     event ValidationCommitted(
-        bytes32 indexed projectId, uint256 indexed contributionIndex, address indexed validator, bytes32 commitHash
+        bytes32 indexed projectId,
+        uint256 indexed contributionIndex,
+        address indexed validator,
+        bytes32 commitHash,
+        uint256 stakeAmount
     );
+
+    /**
+     * @notice Emitted when a validator reveals their score
+     * @param projectId Unique identifier for the project
+     * @param contributionIndex Index of the contribution
+     * @param validator Address of the validator
+     * @param score The revealed score
+     * @param stakeAmount Amount staked for this validation
+     */
     event ValidationRevealed(
-        bytes32 indexed projectId, uint256 indexed contributionIndex, address indexed validator, uint256 score
+        bytes32 indexed projectId,
+        uint256 indexed contributionIndex,
+        address indexed validator,
+        uint256 score,
+        uint256 stakeAmount
     );
-    event ConsensusReached(
-        bytes32 indexed projectId, uint256 indexed contributionIndex, uint256 weightedAverage, uint256 validatorCount
-    );
-    event AlgorithmRegistered(string name, address implementation);
+
+    /**
+     * @notice Emitted when a new consensus algorithm is registered
+     * @param name Name of the algorithm
+     * @param implementation Address of the algorithm contract
+     */
+    event AlgorithmRegistered(string name, address indexed implementation);
+
+    /**
+     * @notice Emitted when a project's settings are updated
+     * @param projectId Unique identifier for the project
+     * @param algorithm Current algorithm identifier
+     * @param numberOfValidations Number of validations required
+     * @param revealDeadline Time allowed for reveal
+     * @param requiredSkill Skill required for validators
+     * @param originator Address of the project creator
+     * @param nextValidationClaimId Next claim ID to be issued
+     * @param queueHead Current head of the pending queue
+     * @param queueTail Current tail of the pending queue
+     * @param minValidatorReputation Minimum reputation requirement
+     */
     event ProjectStateChange(
         bytes32 indexed projectId,
-        bytes32 algorithm,
-        uint256 maxValidations,
-        uint256 minValidations,
+        bytes32 indexed algorithm,
+        uint256 numberOfValidations,
         uint256 revealDeadline,
         string requiredSkill,
-        address originator,
+        address indexed originator,
         uint256 nextValidationClaimId,
         uint256 queueHead,
         uint256 queueTail,
         uint256 minValidatorReputation
     );
-    event ContributionContributorUpdated(bytes32 indexed projectId, uint256 contributionIndex, address contributor);
-    event RevealDeadlineUpdated(uint256 newDeadline);
-    event IndexAssignedToValidator(
-        bytes32 indexed projectId, uint256 indexed claimId, uint256 indexed index, address validator
+
+    /**
+     * @notice Emitted when the contributor for a contribution is updated
+     * @param projectId Unique identifier for the project
+     * @param contributionIndex Index of the contribution
+     * @param contributor Address of the contributor
+     */
+    event ContributionContributorUpdated(
+        bytes32 indexed projectId, uint256 indexed contributionIndex, address indexed contributor
     );
-    event ValidatorCapacityUpdated(address indexed validator, uint256 newCapacity);
+    /**
+     * @notice Emitted when the reveal deadline is updated globally
+     * @param newDeadline New global reveal deadline
+     */
+    event RevealDeadlineUpdated(uint256 indexed newDeadline);
+
+    /**
+     * @notice Emitted when a specific index is assigned to a validator
+     * @param projectId Unique identifier for the project
+     * @param claimId Unique identifier for the claim
+     * @param index The contribution index
+     * @param validator Address of the validator
+     * @param deadline Timestamp when the assignment expires
+     */
+    event IndexAssignedToValidator(
+        bytes32 indexed projectId, uint256 indexed claimId, uint256 indexed index, address validator, uint256 deadline
+    );
+
+    /**
+     * @notice Emitted when a validator's capacity is updated
+     * @param validator Address of the validator
+     * @param oldCapacity Previous capacity
+     * @param newCapacity New capacity
+     */
+    event ValidatorCapacityUpdated(address indexed validator, uint256 indexed oldCapacity, uint256 indexed newCapacity);
+
+    /**
+     * @notice Emitted when a validator is slashed for an expired claim
+     * @param projectId Unique identifier for the project
+     * @param claimId Unique identifier for the claim
+     * @param validator Address of the validator
+     * @param slashAmount Amount slashed
+     */
     event ValidatorSlashedForExpiredClaim(
         bytes32 indexed projectId, uint256 indexed claimId, address indexed validator, uint256 slashAmount
     );
+
+    /**
+     * @notice Emitted when an expired commitment is cancelled and slashed
+     * @param projectId Unique identifier for the project
+     * @param contributionIndex Index of the contribution
+     * @param validator Address of the validator
+     * @param slashAmount Amount slashed
+     */
+    event ExpiredCommitmentCancelled(
+        bytes32 indexed projectId, uint256 indexed contributionIndex, address indexed validator, uint256 slashAmount
+    );
+
+    /**
+     * @notice Emitted when a validation claim expires
+     * @param projectId Unique identifier for the project
+     * @param claimId Unique identifier for the claim
+     * @param validator Address of the validator
+     */
+    event ValidationClaimExpired(bytes32 indexed projectId, uint256 indexed claimId, address indexed validator);
 
     // ============================================
     // ERRORS
@@ -98,6 +204,12 @@ interface IValidationOracle is ISharedTypes {
     error InsufficientValidatorReputation(address validator, uint256 required, uint256 actual);
     error StakeBelowMinimum(uint256 provided, uint256 minimum);
     error StakeExceedsCapacity(uint256 provided, uint256 available);
+    error BatchSizeTooLarge(uint256 provided, uint256 max);
+    error MaxValidatorClaimsPerProjectExceeded(address validator, bytes32 projectId, uint256 max);
+    error InvalidNumberOfValidations(uint256 provided);
+    error ReputationOutOfRange(uint256 provided, uint256 max);
+    error ProjectNotRegistered(bytes32 projectId);
+    error CapacityUnchanged(uint256 current);
 
     // ============================================
     // CORE FUNCTIONS
@@ -263,14 +375,13 @@ interface IValidationOracle is ISharedTypes {
     /**
      * @notice Register a new project and its configuration
      * @param projectId Unique identifier for the project
-     * @param maxValidations Maximum validations allowed for this project's contributions
+     * @param numberOfValidations Exact number of validations required per contribution
      * @param requiredSkill Specific skill required for validators
      * @param originator Address of the project creator
      */
     function registerProject(
         bytes32 projectId,
-        uint256 maxValidations,
-        uint256 minValidations,
+        uint256 numberOfValidations,
         string calldata requiredSkill,
         address originator
     ) external;
@@ -290,11 +401,11 @@ interface IValidationOracle is ISharedTypes {
     function setProjectAlgorithm(bytes32 projectId, string calldata algorithmName) external;
 
     /**
-     * @notice Set the maximum validations allowed for a project
+     * @notice Set the number of validations required for a project
      * @param projectId Unique identifier for the project
-     * @param maxValidations Maximum number of validators allowed per contribution
+     * @param numberOfValidations Exact number of validations required per contribution
      */
-    function setProjectMaxValidations(bytes32 projectId, uint256 maxValidations) external;
+    function setProjectNumberOfValidations(bytes32 projectId, uint256 numberOfValidations) external;
 
     /**
      * @notice Set the required skill for a project
@@ -379,6 +490,8 @@ interface IValidationOracle is ISharedTypes {
 
     /**
      * @notice Handle slashing of a validator after consensus (called by SapienCore)
+     * @param projectId Unique identifier for the project
+     * @param contributionIndex Index of the contribution
      * @param validator The validator being slashed
      * @param slashAmount The amount being slashed
      */

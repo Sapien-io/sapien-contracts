@@ -23,23 +23,24 @@ bytes32 constant SAPIEN_CORE_ROLE = keccak256("SAPIEN_CORE_ROLE");
 string constant UNAUTHORIZED_MISSING_ORIGINATOR_ROLE = "Missing ORIGINATOR_ROLE";
 string constant UNAUTHORIZED_MISSING_CONTRIBUTOR_ROLE = "Missing CONTRIBUTOR_ROLE";
 string constant UNAUTHORIZED_MISSING_VALIDATOR_ROLE = "Missing VALIDATOR_ROLE";
-string constant UNAUTHORIZED_MISSING_CORE_ROLE = "Missing SAPIEN_CORE_ROLE or DEFAULT_ADMIN_ROLE";
-string constant UNAUTHORIZED_NOT_PROJECT_ORIGINATOR = "Caller is not the project originator";
-string constant UNAUTHORIZED_ORIGINATOR_CANNOT_CONTRIBUTE = "Originator cannot contribute to own project";
-string constant UNAUTHORIZED_NOT_CLAIM_OWNER = "Caller is not the claim owner";
-string constant UNAUTHORIZED_NOT_INDEX_OWNER = "Caller is not the index owner";
-string constant UNAUTHORIZED_NO_ASSIGNMENT = "No assignment exists for this index";
+string constant UNAUTHORIZED_MISSING_CORE_ROLE = "Missing CORE or ADMIN role";
+string constant UNAUTHORIZED_NOT_PROJECT_ORIGINATOR = "Not project originator";
+string constant UNAUTHORIZED_ORIGINATOR_CANNOT_CONTRIBUTE = "Originator cannot contribute";
+string constant UNAUTHORIZED_NOT_CLAIM_OWNER = "Not claim owner";
+string constant UNAUTHORIZED_NOT_INDEX_OWNER = "Not index owner";
+string constant UNAUTHORIZED_NO_ASSIGNMENT = "No assignment for index";
 string constant UNAUTHORIZED_INSUFFICIENT_STAKE = "Insufficient stake";
-string constant UNAUTHORIZED_INSUFFICIENT_AVAILABLE_STAKE = "Insufficient available stake to lock";
-string constant UNAUTHORIZED_CANNOT_REDUCE_BELOW_INFLIGHT = "Cannot reduce capacity below in-flight stake";
-string constant UNAUTHORIZED_ORIGINATOR_CANNOT_VALIDATE = "Originator cannot validate own project";
-string constant UNAUTHORIZED_CONTRIBUTOR_CANNOT_VALIDATE = "Contributor cannot validate own contribution";
+string constant UNAUTHORIZED_INSUFFICIENT_AVAILABLE_STAKE = "Insufficient stake to lock";
+string constant UNAUTHORIZED_CANNOT_REDUCE_BELOW_INFLIGHT = "Capacity < in-flight stake";
+string constant UNAUTHORIZED_ORIGINATOR_CANNOT_VALIDATE = "Originator cannot validate";
+string constant UNAUTHORIZED_CONTRIBUTOR_CANNOT_VALIDATE = "Contributor cannot validate";
 string constant UNAUTHORIZED_ARRAY_LENGTH_MISMATCH = "Array length mismatch";
-string constant UNAUTHORIZED_SKILL_COOLDOWN = "Skill validation cooldown not elapsed";
-string constant UNAUTHORIZED_CLAIM_NOT_EXPIRED = "Claim has not expired yet";
+string constant UNAUTHORIZED_SKILL_COOLDOWN = "Skill cooldown not elapsed";
+string constant UNAUTHORIZED_CLAIM_NOT_EXPIRED = "Claim not expired yet";
 
 /**
  * @title ISharedTypes
+ * @author Sapien Team
  * @notice Shared type definitions used across multiple protocol interfaces
  * @dev Centralizes structs and enums to avoid duplication and struct conversion overhead
  */
@@ -57,6 +58,8 @@ interface ISharedTypes {
     error ClaimAlreadyExpired(uint256 claimId, uint256 deadline);
     error CapacityReached();
     error InsufficientCapacity();
+    error AllValidationsClaimed(bytes32 projectId);
+    error RevealDeadlinePassed(uint256 deadline, uint256 current);
 
     enum ClaimStatus {
         Active,
@@ -92,9 +95,9 @@ interface ISharedTypes {
         uint256 claimDeadlineDays;
         uint256 minStakeToClaim;
         uint256 minStakeToContribute;
-        uint256 minValidations;
-        uint256 maxValidations;
+        uint256 numberOfValidations;
         uint256 validatorRewardBasisPoints;
+        uint256 challengePeriod;
         string requiredSkill;
     }
 
@@ -161,18 +164,21 @@ interface ISharedTypes {
         uint256 submittedAt;
         uint256 totalValidations;
         uint256 averageScore;
+        uint256 challengeEndsAt;
         ContributionStatus status;
+        uint256 rewardRateSnapshot; // F-11: Reward per slot locked at submission time (prevents sandwiching)
     }
 
     /**
      * @notice Validation commit in commit-reveal scheme
      */
     struct ValidationCommit {
-        address validator;
         bytes32 commitHash;
-        uint256 committedAt;
-        uint256 revealDeadlineSnapshot; // Deadline in effect at commit time (prevents retroactive shortening)
+        address validator;
         bool revealed;
+        uint64 committedAt;
+        uint64 revealDeadlineSnapshot;
+        uint64 nonce;
     }
 
     /**
@@ -180,11 +186,11 @@ interface ISharedTypes {
      */
     struct Validation {
         bytes32 projectId;
-        address validator;
-        uint256 contributionIndex;
-        uint256 score;
         uint256 stakeAmount;
-        uint256 submittedAt;
+        uint256 contributionIndex;
+        address validator;
+        uint64 submittedAt;
+        uint16 score;
         bool rewarded;
         bool slashed;
     }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test} from "forge-std/Test.sol";
-import {console} from "forge-std/console.sol";
+import {Test} from "lib/forge-std/src/Test.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {CappedLinearConsensus} from "../src/consensus/CappedLinearConsensus.sol";
 import {LinearStakeConsensus} from "../src/consensus/LinearStakeConsensus.sol";
 import {IConsensusAlgorithm} from "../src/interface/IConsensusAlgorithm.sol";
@@ -542,7 +542,7 @@ contract StakeReputationConsensusTest is Test {
         assertTrue(cappedRatio >= linearRatio, "Established validator should have better ratio in stake*rep");
     }
 
-    function test_ReputationBreaksTheTie() public {
+    function test_ReputationBreaksTheTie() public view {
         // When stake is equal, reputation should break the tie
         IConsensusAlgorithm.ValidationInput[] memory inputs = new IConsensusAlgorithm.ValidationInput[](4);
 
@@ -657,7 +657,7 @@ contract StakeReputationConsensusTest is Test {
         assertTrue(result.weightedAverage <= 10000, "Consensus should not exceed max");
     }
 
-    function test_MassiveSybilAttackMitigated() public {
+    function test_MassiveSybilAttackMitigated() public view {
         // Extreme scenario: 1 established validator vs 10 Sybils
         IConsensusAlgorithm.ValidationInput[] memory inputs = new IConsensusAlgorithm.ValidationInput[](11);
 

@@ -5,7 +5,7 @@ import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/pr
 import {
     AccessControlUpgradeable
 } from "lib/openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
-import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {ISapienTrust} from "./interface/ISapienTrust.sol";
 import {ISapienVault} from "./interface/ISapienVault.sol";
@@ -13,6 +13,7 @@ import {UPDATER_ROLE, UNAUTHORIZED_SKILL_COOLDOWN} from "./interface/ISharedType
 
 /**
  * @title SapienTrust
+ * @author Sapien Team
  * @notice Unified identity and reputation layer for Sapien V2
  * @dev Simplified Proof of Quality (PoQ) reputation system with implicit identity via staking.
  */
@@ -82,10 +83,14 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
     /// @notice Cooldown period between skill validations (1 day)
     uint256 public constant SKILL_VALIDATION_COOLDOWN = 1 days;
 
-    // Storage gap for future upgrades
+    /// @notice Whether protocol roles (UPDATER_ROLE) have been configured (F-03 fix)
+    /// @dev Prevents accidental re-configuration after initial setup
+    bool public protocolRolesConfigured;
+
+    // Storage gap for future upgrades (10 own slots + 40 gap = 50)
     // forge-lint: disable-next-line(mixed-case-variable)
     // __gap follows OpenZeppelin upgradeable contract pattern
-    uint256[41] private __gap;
+    uint256[40] private __gap;
 
     // ============================================
     // INITIALIZER
@@ -121,16 +126,19 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
 
     /**
      * @notice Check if a user is eligible for a role based on their stake.
+     * @dev Reverts with InsufficientStake if requirements not met
      * @param user The address to check.
      * @param role The role to check eligibility for.
-     * @return True if user meets the protocol's minimum staking requirements.
      */
-    function hasValidRole(address user, bytes32 role) public view returns (bool) {
+    function hasEnoughStakeForRole(address user, bytes32 role) public view {
         uint256 required = roleMinStake[role];
+        if (required == 0) return;
         if (required == 0) required = minStakeRequired;
-        if (required == 0) return true;
 
-        return _getUserStake(user) >= required;
+        uint256 actual = _getUserStake(user);
+        if (actual < required) {
+            revert InsufficientStake(role, required, actual);
+        }
     }
 
     /**
@@ -146,6 +154,8 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
     /**
      * @notice Mark a skill as validated for a user.
      * @dev Only callable by protocol contracts (SapienCore) after proven quality work.
+     * @param user Address of the user
+     * @param skill Name of the skill to validate
      */
     function validateSkill(address user, string calldata skill) external onlyRole(UPDATER_ROLE) {
         if (lastSkillValidatedAt[user] != 0 && block.timestamp < lastSkillValidatedAt[user] + SKILL_VALIDATION_COOLDOWN)
@@ -154,7 +164,7 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
         }
 
         userSkills[user][skill].validated = true;
-        userSkills[user][skill].completionCount++;
+        ++userSkills[user][skill].completionCount;
         lastSkillValidatedAt[user] = block.timestamp;
         emit SkillValidated(user, skill, userSkills[user][skill].completionCount);
     }
@@ -200,11 +210,11 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
         }
 
         uint256 oldScore = rep.score;
-        rep.totalActions++;
+        ++rep.totalActions;
         rep.lastUpdated = block.timestamp;
 
         if (success) {
-            rep.successfulActions++;
+            ++rep.successfulActions;
             // Basic increase + quality bonus
             uint256 bonus = SUCCESS_INCREASE;
             if (qualityScore > 5000) {
@@ -237,12 +247,18 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
     // STAKING & SYBIL PROTECTION
     // ============================================
 
+    /**
+     * @notice Check if a user meets the global minimum staking requirement
+     * @param user Address of the user to check
+     * @return True if user meets global minimum requirement
+     */
     function hasRequiredStake(address user) public view returns (bool) {
         if (minStakeRequired == 0) return true;
         return _getUserStake(user) >= minStakeRequired;
     }
 
     /**
+     * @notice Internal helper to get a user's staked amount from the vault
      * @dev Get a user's staked amount from the vault
      * @param user Address of the user
      * @return Amount of assets staked by the user
@@ -258,6 +274,7 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
     // ============================================
 
     /**
+     * @notice Internal helper to apply reputation decay based on time passed
      * @dev Apply reputation decay based on time passed since last update
      * @param currentScore Current reputation score
      * @param lastUpdate Timestamp of last reputation update
@@ -282,6 +299,7 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
     }
 
     /**
+     * @notice Return the minimum of two values
      * @dev Return the minimum of two values
      * @param a First value
      * @param b Second value
@@ -292,6 +310,7 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
     }
 
     /**
+     * @notice Return the maximum of two values
      * @dev Return the maximum of two values
      * @param a First value
      * @param b Second value
@@ -305,19 +324,50 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
     // ADMIN FUNCTIONS
     // ============================================
 
+    /**
+     * @notice Set the reputation decay rate per day
+     * @param _decayRate New decay rate in basis points
+     */
     function setReputationDecay(uint256 _decayRate) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_decayRate > 10000) revert("Decay rate cannot exceed 100%");
+        if (_decayRate > 10000) revert DecayRateOutOfRange(_decayRate, 10000);
         reputationDecayPerDay = _decayRate;
         emit ReputationDecayUpdated(_decayRate);
     }
 
+    /**
+     * @notice Set the global minimum stake required
+     * @param _minStake New minimum stake amount
+     */
     function setMinStakeRequired(uint256 _minStake) external onlyRole(DEFAULT_ADMIN_ROLE) {
         minStakeRequired = _minStake;
         emit MinStakeRequiredUpdated(_minStake);
     }
 
+    /**
+     * @notice Set the minimum stake required for a specific role
+     * @param role Role identifier
+     * @param _minStake New minimum stake amount
+     */
     function setRoleMinStake(bytes32 role, uint256 _minStake) external onlyRole(DEFAULT_ADMIN_ROLE) {
         roleMinStake[role] = _minStake;
         emit RoleMinStakeUpdated(role, _minStake);
+    }
+
+    /**
+     * @notice Grant UPDATER_ROLE to the SapienCore and ValidationOracle contracts (F-03 fix)
+     * @dev Must be called by admin after all contracts are deployed. Can only be called once.
+     *      This ensures that updateReputation() and validateSkill() can be called by protocol contracts.
+     * @param _core Address of the SapienCore contract
+     * @param _oracle Address of the ValidationOracle contract
+     */
+    function setupProtocolRoles(address _core, address _oracle) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (protocolRolesConfigured) revert ProtocolRolesAlreadyConfigured();
+        if (_core == address(0) || _oracle == address(0)) revert InvalidAddress();
+
+        _grantRole(UPDATER_ROLE, _core);
+        _grantRole(UPDATER_ROLE, _oracle);
+        protocolRolesConfigured = true;
+
+        emit ProtocolRolesConfigured(_core, _oracle);
     }
 }

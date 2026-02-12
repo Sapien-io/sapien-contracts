@@ -5,6 +5,7 @@ import {ISharedTypes} from "./ISharedTypes.sol";
 
 /**
  * @title ISapienTrust
+ * @author Sapien Team
  * @notice Unified identity and reputation layer for Sapien V2
  * @dev Manages simplified user skills and Proof of Quality (PoQ) reputation.
  *      Identity is implicit: anyone with sufficient stake can participate.
@@ -14,18 +15,57 @@ interface ISapienTrust is ISharedTypes {
     // EVENTS
     // ============================================
 
-    event ReputationUpdated(address indexed user, bytes32 role, uint256 oldScore, uint256 newScore);
-    event SkillValidated(address indexed user, string skill, uint256 completionCount);
-    event ReputationDecayUpdated(uint256 decayRate);
-    event MinStakeRequiredUpdated(uint256 minStake);
-    event RoleMinStakeUpdated(bytes32 role, uint256 minStake);
+    /**
+     * @notice Emitted when a user's reputation score is updated
+     * @param user Address of the user
+     * @param role Role identifier
+     * @param oldScore Previous reputation score
+     * @param newScore New reputation score
+     */
+    event ReputationUpdated(address indexed user, bytes32 indexed role, uint256 oldScore, uint256 indexed newScore);
+
+    /**
+     * @notice Emitted when a user's skill is validated
+     * @param user Address of the user
+     * @param skill Name of the skill
+     * @param completionCount Number of successful completions
+     */
+    event SkillValidated(address indexed user, string skill, uint256 indexed completionCount);
+
+    /**
+     * @notice Emitted when the reputation decay rate is updated
+     * @param decayRate New decay rate in basis points
+     */
+    event ReputationDecayUpdated(uint256 indexed decayRate);
+
+    /**
+     * @notice Emitted when the global minimum stake requirement is updated
+     * @param minStake New minimum stake amount
+     */
+    event MinStakeRequiredUpdated(uint256 indexed minStake);
+
+    /**
+     * @notice Emitted when the minimum stake for a specific role is updated
+     * @param role Role identifier
+     * @param minStake New minimum stake amount
+     */
+    event RoleMinStakeUpdated(bytes32 indexed role, uint256 indexed minStake);
+
+    /**
+     * @notice Emitted when protocol roles are configured
+     * @param core Address of the SapienCore contract
+     * @param oracle Address of the ValidationOracle contract
+     */
+    event ProtocolRolesConfigured(address indexed core, address indexed oracle);
 
     // ============================================
     // ERRORS
     // ============================================
 
     error InvalidAddress();
-    error InsufficientStake(address user, uint256 required, uint256 actual);
+    error InsufficientStake(bytes32 role, uint256 required, uint256 actual);
+    error ProtocolRolesAlreadyConfigured();
+    error DecayRateOutOfRange(uint256 provided, uint256 max);
 
     // ============================================
     // IDENTITY FUNCTIONS
@@ -33,11 +73,11 @@ interface ISapienTrust is ISharedTypes {
 
     /**
      * @notice Check if a user is eligible for a role based on their stake
+     * @dev Reverts with InsufficientStake if requirements not met
      * @param user Address of the user
      * @param role Role identifier (e.g. CONTRIBUTOR_ROLE)
-     * @return True if user meets the role's minimum stake requirements
      */
-    function hasValidRole(address user, bytes32 role) external view returns (bool);
+    function hasEnoughStakeForRole(address user, bytes32 role) external view;
 
     /**
      * @notice Check if a user has a validated skill
@@ -127,4 +167,12 @@ interface ISapienTrust is ISharedTypes {
      * @param _minStake Minimum amount of staking tokens required
      */
     function setRoleMinStake(bytes32 role, uint256 _minStake) external;
+
+    /**
+     * @notice Grant UPDATER_ROLE to the SapienCore and ValidationOracle contracts (F-03 fix)
+     * @dev Must be called by admin after all contracts are deployed. Can only be called once.
+     * @param _core Address of the SapienCore contract
+     * @param _oracle Address of the ValidationOracle contract
+     */
+    function setupProtocolRoles(address _core, address _oracle) external;
 }

@@ -1,0 +1,29 @@
+[
+  {
+    "id": "UPG-01",
+    "file": "src/SapienCore.sol",
+    "type": "Storage Collision",
+    "severity": "Critical",
+    "description": "The 'userActiveClaimedQuantity' mapping was inserted into the storage layout before existing variables '_claimDeadlineDays', 'protocolFeeBasisPoints', 'treasury', and 'consensusThreshold'. [Note: _maxValidations has since been removed; replaced by per-project numberOfValidations.]",
+    "impact": "If SapienCore is upgraded from a version that already had these variables, the mapping will occupy their old slots, leading to data corruption and incorrect configuration values being read from storage.",
+    "recommendation": "Move 'userActiveClaimedQuantity' to the end of the state variables, just before the '__gap' at line 100, and ensure all previously deployed variables maintain their original slot order."
+  },
+  {
+    "id": "UPG-02",
+    "file": "src/ValidationOracle.sol",
+    "type": "Storage Gap Inconsistency",
+    "severity": "Medium",
+    "description": "The storage gap '__gap' was increased from 25 to 37 without a corresponding removal of state variables, as noted in regression finding REG-02.",
+    "impact": "Inconsistent gap management can lead to storage collisions in future upgrades or if child contracts are introduced that rely on a specific storage layout.",
+    "recommendation": "Adopt a strict total slot count (e.g., 50 slots per contract) and adjust the gap size correctly whenever variables are added or removed."
+  },
+  {
+    "id": "UPG-03",
+    "file": "src/SapienVault.sol",
+    "type": "Redundant Storage Gap",
+    "severity": "Low",
+    "description": "SapienVault inherits from several upgradeable contracts (ERC4626Upgradeable, AccessControlUpgradeable, etc.) which have their own gaps, yet it reserves 49 slots for itself while only using one (lockedStake).",
+    "impact": "While not directly harmful, it suggests a lack of coordination in storage layout management across the inheritance tree.",
+    "recommendation": "Verify the full storage layout using 'forge inspect SapienVault storage-layout' to ensure no shadowing or unintentional overlaps occur."
+  }
+]

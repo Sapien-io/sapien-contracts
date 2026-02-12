@@ -5,7 +5,7 @@
 
 Welcome to the complete documentation for the **Sapien Proof-of-Quality (PoQ) Protocol**.
 
-Sapien PoQ is an open protocol for verifiable, consensus-based quality signals in AI workflows. It adds a verifiable quality layer to AI datasets and agent behaviors through stake-weighted human verification.
+Sapien PoQ is an open protocol for verifiable, consensus-based quality signals in AI workflows. It adds a verifiable quality layer to AI datasets and agent behaviors through stake-weighted verification—agnostic to whether participants are humans, AI agents, or hybrid teams.
 
 ---
 
@@ -35,7 +35,7 @@ Sapien PoQ is an open protocol for verifiable, consensus-based quality signals i
 
 ### Key Value Propositions
 
-- **Verifiable Quality**: Cryptographic proof of human judgment for AI systems.
+- **Verifiable Quality**: Cryptographic proof of judgment (human or AI) for AI systems.
 - **Data Sovereignty**: Your data stays in your storage; only quality signals are onchain.
 - **Incentive Alignment**: Stake-weighted rewards and penalties ensure honest participation.
 - **Composable**: Easily integrate with existing AI tools (CVAT, LangChain, etc.) via oracles.
@@ -46,7 +46,7 @@ Sapien PoQ is an open protocol for verifiable, consensus-based quality signals i
 
 ### System Architecture Overview
 
-Sapien PoQ is designed as a modular protocol that provides a "Quality Oracle" for AI systems. It allows human experts to verify AI-generated data or agent behaviors, producing a verifiable quality signal that can be consumed by onchain and offchain systems.
+Sapien PoQ is designed as a modular protocol that provides a "Quality Oracle" for AI systems. It allows participants—whether human experts or AI agents—to verify AI-generated data or agent behaviors, producing a verifiable quality signal that can be consumed by onchain and offchain systems.
 
 #### Participant Roles
 
@@ -58,19 +58,21 @@ The protocol defines four primary roles:
 - **Requirement**: Must stake SAPIEN tokens to create projects.
 
 **2. Contributors**
-- Contributors are the workers who perform tasks (e.g., labeling an image, generating an AI response).
+- Contributors are the participants who perform tasks (e.g., labeling an image, generating an AI response, chain-of-thought reasoning, or safety assessments).
 - **Goal**: Earn rewards by providing high-quality work.
 - **Requirement**: Must stake SAPIEN tokens to claim work slots.
+- **Participant Type**: Can be human workers, AI agents, or hybrid teams.
 
 **3. Validators**
 - Validators are the independent reviewers who assess the quality of contributions.
 - **Goal**: Earn rewards by reaching consensus with other validators.
 - **Requirement**: Must stake SAPIEN tokens to participate in committees.
+- **Participant Type**: Can be human workers, AI agents, or hybrid teams.
 
 **4. Oracles (Adapters)**
 - Oracles are the technical interface between the Sapien protocol and external tools.
 - **Contributor Oracles**: Connect tools like CVAT or custom AI pipelines to submit work.
-- **Validator Oracles**: Provide interfaces for human reviewers to submit scores.
+- **Validator Oracles**: Provide interfaces for human reviewers or API endpoints for AI validators to submit scores.
 
 #### Verification Lifecycle
 
@@ -93,9 +95,9 @@ Once enough reveals are gathered (or the deadline passes), the `ValidationOracle
 
 **Phase 5: Finalization & Settlement**
 `SapienCore` finalizes the contribution:
-- If accepted: Rewards are distributed via the `Rewards` contract to the contributor and honest validators.
-- If rejected: The work is released back into the project pool for another contributor to attempt.
-- Outlier validators are slashed via the `SapienVault`, and their reputation in `SapienTrust` is penalized.
+- If accepted: Rewards are distributed via the `Rewards` contract to the contributor and honest validators. Validators are paid only on acceptance.
+- If rejected: The work is released back into the project pool for another contributor to attempt. **No validator rewards** are distributed (the reward pool is unchanged); the contributor's reward portion remains available for the next submission on that index.
+- Outlier validators are slashed via the `SapienVault`, and their reputation in `SapienTrust` is penalized—for both accepted and rejected contributions.
 
 #### Technical Stack
 
@@ -218,7 +220,7 @@ Once consensus is reached, `SapienCore` executes the outcome. Success leads to r
   - `rewardToken`: The ERC20 token used for payouts.
   - `minStakeToClaim`: Minimum stake required for a contributor to claim slots.
   - `minStakeToContribute`: Minimum stake required to contribute (optional/secondary check).
-  - `minValidations`: Minimum number of validator reveals required to reach consensus (defaults to 3).
+  - `numberOfValidations`: Exact number of validations required per contribution (also determines queue slots, defaults to 3).
   - `validatorRewardBasisPoints`: The percentage of the reward pool reserved for validators (e.g., 1000 = 10%). Capped at 2500 (25%).
   - `requiredSkill`: Optional skill requirement for contributors.
 
@@ -359,7 +361,7 @@ To prevent reputation farming via multiple accounts (Sybil attacks), `SapienTrus
 #### Key Functions
 
 - `getTrustScore`: Query a user's reputation for a specific role.
-- `hasValidRole`: Check if a user meets the stake and reputation requirements to act as a contributor or validator.
+- `hasEnoughStakeForRole`: Check if a user meets the stake and reputation requirements to act as a contributor or validator.
 - `validateSkill`: Mark a specific skill as verified for a user.
 
 ---
@@ -429,11 +431,13 @@ The `ValidationOracle` is a stateless consensus engine that manages the validati
 
 The `Rewards` contract handles the allocation, distribution, and claiming of reward tokens for projects on the Sapien platform. It maintains separate accounting for contributors and validators to ensure fair and transparent payouts.
 
+**Validator rewards on acceptance only:** Validators are paid only when a contribution is *accepted*. On rejection, no validator rewards are distributed; the pool is unchanged and the contributor's share remains available for the next submission on that index.
+
 #### Responsibilities
 
 - **Reward Escrow**: Holding funds deposited by Originators until they are earned by participants.
 - **Allocation**: Mapping reward pools to specific project IDs.
-- **Distribution**: Recording the earnings for contributors and validators after successful consensus.
+- **Distribution**: Recording the earnings for contributors and validators after a contribution is *accepted* (validators are not paid on rejection).
 - **Claiming**: Allowing users to withdraw their earned rewards to their personal wallets.
 
 #### Key Functions
@@ -537,7 +541,7 @@ The simplest form of consensus.
 
 ### Guide for Originators
 
-As an Originator, you use the Sapien protocol to verify the quality of AI datasets or agent behaviors. This guide walks you through creating and funding your first project.
+As an Originator, you use the Sapien protocol to verify the quality of AI datasets or agent behaviors across the full lifecycle—from training data curation to real-time agent supervision. This guide walks you through creating and funding your first project.
 
 #### 1. Prerequisites
 
@@ -552,7 +556,7 @@ To create a project, call `SapienCore.createProject()` with the following parame
 - `rewardToken`: Address of your chosen reward token.
 - `minStakeToClaim`: Minimum SAPIEN stake required for a contributor to claim a slot.
 - `minStakeToContribute`: (Legacy) Minimum stake required to participate.
-- `minValidations`: The minimum number of human reviewers needed per contribution.
+- `numberOfValidations`: Exact number of validations required per contribution (also determines queue slots).
 - `validatorRewardBasisPoints`: Percentage of the total pool for validators (default 1000 = 10%). **Capped at 2500 (25%)**.
 - `requiredSkill`: (Optional) A skill contributors must have or will earn upon successful completion.
 
@@ -564,13 +568,16 @@ Call `SapienCore.fundProject(projectId, rewardAmount, quantity)`:
 - `rewardAmount`: Total amount of reward tokens to deposit.
 - `quantity`: The total number of contributions you want verified.
 
-**Protocol Fee**: A protocol fee (default 1% = 100 basis points) is automatically deducted from your funding amount and sent to the Sapien treasury. The remaining amount is allocated to your project's reward pool.
+**Protocol Fee**: A protocol fee (default 1% = 100 basis points) is automatically deducted from your funding amount and sent to the Sapien treasury. An optional operator fee (up to 2%) may also be deducted if funding through a third-party interface. The remaining amount is allocated to your project's reward pool.
 
-**Example**: If you fund with 1000 USDC:
+**Anti-Dilution Protection**: When adding funds to an existing project, the protocol enforces that the effective reward rate per slot does not decrease. The check uses the **post-fee amount** (after protocol and operator fees), so originators must account for fees when planning additional funding. Transactions that would reduce the per-slot reward rate are rejected.
+
+**Example**: If you fund with 1000 USDC and a 2% operator fee:
 - Protocol fee (1%): 10 USDC → Sent to Sapien treasury
-- Project rewards: 990 USDC → Allocated to your project
+- Operator fee (2%): 19.8 USDC → Sent to operator
+- Project rewards: 970.2 USDC → Allocated to your project
 
-*Note: The protocol will automatically calculate the per-task reward based on `totalRewards / quantity`, where `totalRewards` is the amount after the protocol fee deduction.*
+*Note: The per-task reward is based on the post-fee pool (`totalRewards / quantity`). Additional funding must maintain or exceed the current post-fee reward rate per slot.*
 
 #### 4. Choose a Consensus Algorithm
 
@@ -595,7 +602,7 @@ To connect your existing AI pipeline to Sapien:
 
 ### Guide for Contributors
 
-Contributors perform AI-related tasks and earn rewards based on the quality of their output as determined by human validator consensus.
+Contributors (human workers or AI agents) perform tasks and earn rewards based on the quality of their output as determined by consensus among the validator committee.
 
 #### 1. Get Started
 
@@ -635,7 +642,7 @@ After you submit work, it will be reviewed by validators. Once enough reviews ar
 
 ### Guide for Validators
 
-Validators provide the human intelligence layer of the protocol. By reaching consensus on the quality of work, validators secure the AI systems relying on Sapien.
+Validators provide the intelligence layer of the protocol—whether human or AI. By reaching consensus on the quality of work, validators secure the AI systems relying on Sapien.
 
 #### 1. Prerequisites
 
@@ -712,7 +719,7 @@ A Contributor Oracle streamlines the submission of work.
 
 **Validator Oracle**
 
-A Validator Oracle provides a UI for human reviewers.
+A Validator Oracle provides a UI for human reviewers or an API for autonomous validators.
 
 - **Workflow**:
   1. Fetch pending contributions from `ValidationOracle`.
@@ -756,7 +763,7 @@ We recommend using **Foundry** for testing your adapters against the Sapien cont
 
 ## Security
 
-The Sapien PoQ protocol is built on the principle of **Economic Security**. We use a combination of financial incentives (staking), penalties (slashing), and cryptographic proofs (commit-reveal, attestations) to ensure the integrity of human-powered AI verification.
+The Sapien PoQ protocol is built on the principle of **Economic Security**. We use a combination of financial incentives (staking), penalties (slashing), and cryptographic proofs (commit-reveal, attestations) to ensure the integrity of AI verification, whether powered by humans or agents.
 
 ### Core Security Pillars
 
@@ -770,7 +777,7 @@ Reputation is not just a badge; it is a functional component of the consensus en
 
 #### 3. Commit-Reveal
 
-The `ValidationOracle` enforces a commit-reveal process for all human judgments. This prevents:
+The `ValidationOracle` enforces a commit-reveal process for all judgments. This prevents:
 - **Herding**: Validators waiting to see others' scores before submitting their own.
 - **Copy-Pasting**: Lazy validators mirroring the work of others without actually reviewing the task.
 

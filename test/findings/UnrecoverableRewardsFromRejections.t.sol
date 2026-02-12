@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
 import {ISapienCore} from "../../src/interface/ISapienCore.sol";
 
@@ -63,7 +63,7 @@ contract UnrecoverableRewardsFromRejectionsTest is BaseTest {
             "test-project",
             10 ether, // minStakeToClaim
             10 ether, // minStakeToContribute
-            3, // minValidations
+            3, // numberOfValidations
             1000, // validatorRewardBasisPoints (10%)
             "" // No required skill for simplicity
         );
@@ -379,13 +379,18 @@ contract UnrecoverableRewardsFromRejectionsTest is BaseTest {
         vm.prank(contributor2);
         core.finalizeContribution(projectId, 0);
 
+        // Claim reward after challenge period
+        uint256 challengePeriod = core.getProject(projectId).config.challengePeriod;
+        vm.warp(block.timestamp + challengePeriod + 1);
+        core.claimContributionReward(projectId, 0);
+
         // ============================================
         // VERIFY: Second contributor can claim the PRESERVED rewards!
         // ============================================
         assertEq(
             uint256(getContributionStatus(projectId, 0)),
             uint256(ContributionStatus.Rewarded),
-            "Contribution should be accepted"
+            "Contribution should be rewarded"
         );
 
         uint256 availableRewards = rewards.getAvailableRewards(contributor2, projectId, address(rewardToken));
@@ -454,11 +459,16 @@ contract UnrecoverableRewardsFromRejectionsTest is BaseTest {
         vm.prank(contributor);
         core.finalizeContribution(projectId, 0);
 
+        // Claim reward after challenge period
+        uint256 challengePeriod = core.getProject(projectId).config.challengePeriod;
+        vm.warp(block.timestamp + challengePeriod + 1);
+        core.claimContributionReward(projectId, 0);
+
         // Verify contribution was accepted
         assertEq(
             uint256(getContributionStatus(projectId, 0)),
             uint256(ContributionStatus.Rewarded),
-            "Contribution should be accepted"
+            "Contribution should be rewarded"
         );
 
         // Verify rewards were properly distributed

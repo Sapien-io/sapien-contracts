@@ -47,11 +47,20 @@ contract ProtocolHandler is Test {
     }
 
     function addContributor(address contributor) public {
+        if (contributor == address(0)) return;
+        for (uint256 i = 0; i < contributors.length; i++) {
+            if (contributors[i] == contributor) return;
+        }
         contributors.push(contributor);
         _setupUser(contributor);
     }
 
     function addValidator(address validator) public {
+        if (validator == address(0)) return;
+        // Skip if already added — re-adding triggers CapacityUnchanged revert
+        for (uint256 i = 0; i < validators.length; i++) {
+            if (validators[i] == validator) return;
+        }
         validators.push(validator);
         _setupUser(validator);
         vm.prank(validator);
@@ -59,10 +68,11 @@ contract ProtocolHandler is Test {
     }
 
     function _setupUser(address user) internal {
-        stakeToken.mint(user, INITIAL_STAKE);
+        uint256 amount = INITIAL_STAKE * 2;
+        stakeToken.mint(user, amount);
         vm.startPrank(user);
-        stakeToken.approve(address(vault), INITIAL_STAKE);
-        vault.deposit(INITIAL_STAKE, user);
+        stakeToken.approve(address(vault), amount);
+        vault.deposit(amount, user);
         vm.stopPrank();
     }
 

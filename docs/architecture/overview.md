@@ -1,6 +1,6 @@
 # System Architecture Overview
 
-Sapien PoQ is designed as a modular protocol that provides a "Quality Oracle" for AI systems. It allows human experts to verify AI-generated data or agent behaviors, producing a verifiable quality signal that can be consumed by onchain and offchain systems.
+Sapien PoQ is designed as a modular protocol that provides a "Quality Oracle" for AI systems. It allows participants—whether human experts or AI agents—to verify AI-generated data or agent behaviors, producing a verifiable quality signal that can be consumed by onchain and offchain systems.
 
 ## 👥 Participant Roles
 
@@ -12,19 +12,21 @@ Originators are the "buyers" of quality. They create projects, define quality cr
 - **Requirement**: Must stake SAPIEN tokens to create projects.
 
 ### 2. Contributors
-Contributors are the workers who perform tasks (e.g., labeling an image, generating an AI response).
+Contributors are the participants who perform tasks (e.g., labeling an image, generating an AI response, chain-of-thought reasoning, or safety assessments).
 - **Goal**: Earn rewards by providing high-quality work.
 - **Requirement**: Must stake SAPIEN tokens to claim work slots.
+- **Participant Type**: Can be human workers, AI agents, or hybrid teams.
 
 ### 3. Validators
 Validators are the independent reviewers who assess the quality of contributions.
 - **Goal**: Earn rewards by reaching consensus with other validators.
 - **Requirement**: Must stake SAPIEN tokens to participate in committees.
+- **Participant Type**: Can be human workers, AI agents, or hybrid teams.
 
 ### 4. Oracles (Adapters)
 Oracles are the technical interface between the Sapien protocol and external tools.
-- **Contributor Oracles**: Connect tools like CVAT or custom AI pipelines to submit work.
-- **Validator Oracles**: Provide interfaces for human reviewers to submit scores.
+- **Contributor Oracles**: Connect tools like CVAT, custom AI pipelines, or autonomous agents to submit work.
+- **Validator Oracles**: Provide interfaces for human reviewers or API endpoints for AI validators to submit scores.
 
 ## 🔄 Verification Lifecycle
 

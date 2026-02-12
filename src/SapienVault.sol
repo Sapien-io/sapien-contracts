@@ -21,6 +21,7 @@ import {LOCKER_ROLE, SLASHER_ROLE, PAUSER_ROLE} from "./interface/ISharedTypes.s
 
 /**
  * @title SapienVault
+ * @author Sapien Team
  * @notice ERC-4626 compliant vault for staking with slashing capability (Upgradeable)
  * @dev Users deposit staking tokens and receive vault shares.
  *      Slashing burns shares from penalized users, reducing their position.
@@ -67,6 +68,12 @@ contract SapienVault is
 
         _grantRole(DEFAULT_ADMIN_ROLE, _defaultAdmin);
         _grantRole(PAUSER_ROLE, _defaultAdmin);
+
+        // Inflation attack protection: mint small amount of shares to dead address
+        // This anchors the share price even if assets are small.
+        // Note: This requires the first depositor to provide assets to back these shares,
+        // or for the admin to fund the vault.
+        _mint(address(0xdead), 1000);
     }
 
     /**
@@ -77,7 +84,7 @@ contract SapienVault is
     }
 
     // ============================================
-    // Stake Locking Functions
+    // STAKE LOCKING FUNCTIONS
     // ============================================
 
     /**
@@ -143,7 +150,7 @@ contract SapienVault is
     }
 
     // ============================================
-    // Pause Functions
+    // PAUSE FUNCTIONS
     // ============================================
 
     /**
@@ -161,7 +168,7 @@ contract SapienVault is
     }
 
     // ============================================
-    // Slashing Functions
+    // SLASHING FUNCTIONS
     // ============================================
 
     /**
@@ -205,7 +212,7 @@ contract SapienVault is
     }
 
     // ============================================
-    // Internal Helper Functions
+    // INTERNAL HELPER FUNCTIONS
     // ============================================
 
     /**
@@ -251,12 +258,38 @@ contract SapienVault is
     }
 
     // ============================================
-    // Override ERC-4626 Functions with Restrictions
+    // OVERRIDE ERC-4626 FUNCTIONS WITH RESTRICTIONS
     // ============================================
+
+    /**
+     * @notice Override deposit to prevent deposits during emergency pause
+     * @dev Opus 4.6 L-4 fix: Without this, users can deposit during pause but cannot
+     *      withdraw, trapping their tokens until the vault is unpaused.
+     * @param assets The amount of assets to deposit
+     * @param receiver The address to receive the minted shares
+     * @return shares The amount of shares minted
+     */
+    function deposit(uint256 assets, address receiver) public virtual override whenNotPaused returns (uint256) {
+        return super.deposit(assets, receiver);
+    }
+
+    /**
+     * @notice Override mint to prevent mints during emergency pause
+     * @dev Opus 4.6 L-4 fix: Share-denominated counterpart to deposit().
+     * @param shares The amount of shares to mint
+     * @param receiver The address to receive the minted shares
+     * @return assets The amount of assets deposited
+     */
+    function mint(uint256 shares, address receiver) public virtual override whenNotPaused returns (uint256) {
+        return super.mint(shares, receiver);
+    }
 
     /**
      * @notice Override transfer to prevent transfers beyond unlocked stake
      * @dev Reverts if sender is trying to transfer locked stake
+     * @param to The recipient address
+     * @param amount The amount of shares to transfer
+     * @return True if transfer was successful
      */
     function transfer(address to, uint256 amount)
         public
@@ -273,6 +306,10 @@ contract SapienVault is
     /**
      * @notice Override transferFrom to prevent transfers beyond unlocked stake
      * @dev Reverts if from address is trying to transfer locked stake
+     * @param from The sender address
+     * @param to The recipient address
+     * @param amount The amount of shares to transfer
+     * @return True if transfer was successful
      */
     function transferFrom(address from, address to, uint256 amount)
         public
@@ -289,7 +326,10 @@ contract SapienVault is
     /**
      * @notice Override withdraw to prevent withdrawals beyond unlocked stake
      * @dev Reverts if owner is trying to withdraw locked stake
+     * @param assets The amount of assets to withdraw
+     * @param receiver The address to receive the assets
      * @param owner The account owner
+     * @return shares The amount of shares burned
      */
     function withdraw(uint256 assets, address receiver, address owner)
         public
@@ -305,7 +345,10 @@ contract SapienVault is
     /**
      * @notice Override redeem to prevent redemptions beyond unlocked stake
      * @dev Reverts if owner is trying to redeem locked stake
+     * @param shares The amount of shares to redeem
+     * @param receiver The address to receive the assets
      * @param owner The account owner
+     * @return assets The amount of assets redeemed
      */
     function redeem(uint256 shares, address receiver, address owner)
         public

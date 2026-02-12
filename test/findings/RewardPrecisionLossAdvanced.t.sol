@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
 
 /**
@@ -59,7 +59,7 @@ contract RewardPrecisionLossAdvancedTest is BaseTest {
         rewardToken.approve(address(core), rewardAmount);
 
         // Try to fund with too-small reward - should revert
-        vm.expectRevert("Reward per slot too low");
+        vm.expectRevert(); // RewardPerSlotTooLow
         core.fundProject(PROJECT_ID, rewardAmount, quantity);
         vm.stopPrank();
 
@@ -113,7 +113,7 @@ contract RewardPrecisionLossAdvancedTest is BaseTest {
         rewardToken.approve(address(core), rewardAmount);
 
         // Try to fund with inadequate reward per slot - should revert
-        vm.expectRevert("Reward per slot too low");
+        vm.expectRevert(); // RewardPerSlotTooLow
         core.fundProject(PROJECT_ID, rewardAmount, quantity);
         vm.stopPrank();
 

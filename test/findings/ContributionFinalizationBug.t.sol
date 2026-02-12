@@ -12,11 +12,11 @@ contract ContributionFinalizationBugTest is BaseTest {
 
     function test_ContributionFinalizationBug_StatusIsPending() public {
         bytes32 projectId = keccak256("bug_project");
-        uint256 maxValidations = 1;
+        uint256 numberOfValidations = 1;
 
         // 1. Setup project
         vm.startPrank(admin);
-        oracle.registerProject(projectId, maxValidations, 1, "", originator);
+        oracle.registerProject(projectId, numberOfValidations, "", originator);
         vm.stopPrank();
 
         vm.startPrank(originator);
@@ -60,15 +60,15 @@ contract ContributionFinalizationBugTest is BaseTest {
         Vm.Log[] memory entries = vm.getRecordedLogs();
 
         bool foundEvent = false;
-        // ContributionFinalized event signature
-        bytes32 eventSig = keccak256("ContributionFinalized(bytes32,uint256,uint8,uint256)");
+        // ContributionFinalized event signature (updated to include contributor and claimId params)
+        bytes32 eventSig = keccak256("ContributionFinalized(bytes32,uint256,uint8,uint256,address,uint256)");
 
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].topics[0] == eventSig) {
                 if (entries[i].topics[1] == projectId && entries[i].topics[2] == bytes32(contributionIndex)) {
                     foundEvent = true;
 
-                    (uint256 decodedStatus, uint256 decodedScore) = abi.decode(entries[i].data, (uint256, uint256));
+                    (uint256 decodedStatus,,,) = abi.decode(entries[i].data, (uint256, uint256, address, uint256));
 
                     emit log_named_uint("Emitted Status", decodedStatus);
 

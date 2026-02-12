@@ -45,5 +45,5 @@ To prevent reputation farming via multiple accounts (Sybil attacks), `SapienTrus
 ## 🛠️ Key Functions
 
 - `getTrustScore`: Query a user's reputation for a specific role.
-- `hasValidRole`: Check if a user meets the stake and reputation requirements to act as a contributor or validator.
+- `hasEnoughStakeForRole`: Check if a user meets the stake and reputation requirements to act as a contributor or validator.
 - `validateSkill`: Mark a specific skill as verified for a user.

@@ -1,0 +1,72 @@
+[
+  {
+    "id": "STATIC-01",
+    "file": "src/SapienCore.sol",
+    "line": 63,
+    "type": "Storage Layout Shift",
+    "severity": "CRITICAL",
+    "description": "The mapping 'userActiveClaimedQuantity' was inserted into the middle of the state variable list. In upgradeable contracts, adding new variables in the middle of existing ones shifts the storage slots of all subsequent variables.",
+    "impact": "When the contract is upgraded, existing values for '_claimDeadlineDays', 'protocolFeeBasisPoints', 'treasury', and 'consensusThreshold' will be read from incorrect slots, leading to protocol-wide configuration corruption and potential loss of funds or broken logic. [Note: _maxValidations has since been removed; replaced by per-project numberOfValidations.]",
+    "recommendation": "Move 'userActiveClaimedQuantity' to the end of the state variable list, just before the '__gap' array, and decrement the gap size by 1 (from 32 to 31)."
+  },
+  {
+    "id": "STATIC-02",
+    "file": "src/ValidationOracle.sol",
+    "line": 101,
+    "type": "Storage Gap Inconsistency",
+    "severity": "MEDIUM",
+    "description": "The storage gap '__gap' was increased to 37, changing the total reserved slots for the contract. While it now sums to 50 (13 used + 37 gap), this change from a previous total (likely 38) is inconsistent with how gaps should be managed during upgrades.",
+    "impact": "Inconsistent total slot counts can lead to collisions if this contract is inherited by others or if the layout was expected to remain constant.",
+    "recommendation": "Maintain a consistent total slot count (e.g., 50) across all versions. If the previous version had a different total, ensure the transition is safe and documented."
+  },
+  {
+    "id": "STATIC-03",
+    "file": "src/SapienVault.sol",
+    "line": 262,
+    "type": "Missing Pause Protection on Initializer/Config",
+    "severity": "LOW",
+    "description": "While 'deposit' and 'mint' are protected by 'whenNotPaused', many other state-changing functions in the protocol (like role management or global config) are not.",
+    "impact": "Admins can still modify critical parameters during an emergency pause, which might be undesirable depending on the nature of the emergency.",
+    "recommendation": "Evaluate if other administrative functions should also be restricted by 'whenNotPaused'."
+  },
+  {
+    "id": "STATIC-04",
+    "file": "src/Rewards.sol",
+    "line": 166,
+    "type": "Emergency Withdrawal Risk",
+    "severity": "LOW",
+    "description": "The 'emergencyWithdraw' function allows the admin to withdraw tokens not currently 'allocated'. However, 'totalAllocated' is updated during 'allocateRewards' and 'claimRewards', but not during 'distributeReward'.",
+    "impact": "If 'totalAllocated' doesn't accurately reflect all 'promised' rewards (including those distributed to contributor/validator buckets but not yet claimed), the admin might accidentally withdraw tokens that are owed to users.",
+    "recommendation": "Ensure 'totalAllocated' correctly tracks all tokens that should remain in the contract for all user buckets."
+  },
+  {
+    "id": "STATIC-05",
+    "file": "src/SapienCore.sol",
+    "line": 418,
+    "type": "Unbounded Loop (DoS)",
+    "severity": "LOW",
+    "description": "Functions like 'reclaimExpiredIndices', 'batchFinalizeContributions', 'batchCommitValidations', etc., iterate over caller-provided arrays without length limits.",
+    "impact": "If the input array is extremely large, the transaction may exceed the block gas limit, leading to a Denial of Service for that specific transaction.",
+    "recommendation": "Add documentation or requirements specifying a maximum batch size for these functions."
+  },
+  {
+    "id": "STATIC-06",
+    "file": "src/ValidationOracle.sol",
+    "line": 622,
+    "type": "Input Validation (Fail-Fast)",
+    "severity": "LOW",
+    "description": "Validation scores are checked to be <= 10000 in '_revealValidation'. This is good practice (fail-fast) to prevent invalid data from breaking consensus calculations.",
+    "impact": "N/A (This is a positive finding, but noted as a check performed).",
+    "recommendation": "Ensure similar checks exist for all user-provided inputs that affect mathematical formulas."
+  },
+  {
+    "id": "STATIC-07",
+    "file": "src/consensus/CappedLinearConsensus.sol",
+    "line": 52,
+    "type": "Rounding Direction",
+    "severity": "LOW",
+    "description": "Base weight calculation might round to zero for very small stakes or reputation scores. The code correctly reverts in this case.",
+    "impact": "Small stakers might be unable to participate if their weight rounds to zero.",
+    "recommendation": "Consider if a minimum weight should be enforced or if rounding should favor the user."
+  }
+]

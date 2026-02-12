@@ -12,9 +12,9 @@
 
 ## 1. Project Overview
 
-Sapien Proof-of-Quality (PoQ) Protocol is an open protocol for verifiable, consensus-based quality signals in AI workflows. It adds a verifiable quality layer to AI datasets and agent behaviors through stake-weighted human verification.
+Sapien Proof-of-Quality (PoQ) Protocol is an open protocol for verifiable, consensus-based quality signals in AI workflows. It adds a verifiable quality layer to AI datasets and agent behaviors through stake-weighted verification—agnostic to whether participants are humans, AI agents, or hybrid teams.
 
-**Core concept:** Originators create projects (tasks needing human verification), Contributors submit work against those projects, and Validators stake tokens to commit-reveal quality scores. A pluggable consensus algorithm aggregates validator scores, determines contributor rewards, and slashes outlier validators.
+**Core concept:** Originators create projects (tasks needing verification), Contributors submit work against those projects, and Validators stake tokens to commit-reveal quality scores. A pluggable consensus algorithm aggregates validator scores, determines contributor rewards, and slashes outlier validators.
 
 ### Protocol Participants
 

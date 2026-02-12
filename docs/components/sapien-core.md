@@ -18,7 +18,7 @@ Allows an Originator to initialize a new project with specific parameters:
 - `rewardToken`: The ERC20 token used for payouts.
 - `minStakeToClaim`: Minimum stake required for a contributor to claim slots.
 - `minStakeToContribute`: Minimum stake required to contribute (optional/secondary check).
-- `minValidations`: Minimum number of validator reveals required to reach consensus (defaults to 3).
+- `numberOfValidations`: Exact number of validations required per contribution (also determines queue slots, defaults to 3).
 - `validatorRewardBasisPoints`: The percentage of the reward pool reserved for validators (e.g., 1000 = 10%). Capped at 2500 (25%).
 - `requiredSkill`: Optional skill requirement for contributors.
 

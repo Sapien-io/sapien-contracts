@@ -17,7 +17,7 @@ contract ValidatorSlashingEnhancementsTest is BaseTest {
         super.setUp();
         PROJECT_ID = keccak256(abi.encodePacked("slashing-test-project"));
         vm.prank(admin);
-        oracle.registerProject(PROJECT_ID, 10, 3, "", originator);
+        oracle.registerProject(PROJECT_ID, 3, "", originator);
     }
 
     /**

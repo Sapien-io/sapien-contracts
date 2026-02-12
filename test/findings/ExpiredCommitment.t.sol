@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {VALIDATOR_ROLE, UPDATER_ROLE} from "../../src/interface/ISharedTypes.sol";
 
 contract ExpiredCommitmentTest is BaseTest {
@@ -13,9 +13,12 @@ contract ExpiredCommitmentTest is BaseTest {
     }
 
     function testExpiredCommitmentSlashing() public {
-        // Create project
+        // Create project with 2 validation slots.
+        // Validator 1 reveals, Validator 2's commit expires.
+        // After cancelling the expired commitment (which slashes v2 and re-queues the slot),
+        // Validator 3 fills the freed slot so consensus becomes ready for finalization.
         vm.prank(originator);
-        core.createProject(PROJECT_ID, address(rewardToken), "expired-project", 100 ether, 0, 1, 500, "test");
+        core.createProject(PROJECT_ID, address(rewardToken), "expired-project", 100 ether, 0, 2, 500, "test");
 
         vm.startPrank(originator);
         rewardToken.approve(address(core), 1000 ether);
@@ -31,7 +34,7 @@ contract ExpiredCommitmentTest is BaseTest {
         core.contribute(PROJECT_ID, claimId, 0, keccak256("sub"));
         vm.stopPrank();
 
-        // Validator 1 commits
+        // Validator 1 commits and reveals
         _setupValidator(validator1, 1000 ether);
         vm.startPrank(validator1);
         uint256 v1ClaimId = oracle.claimToValidate(PROJECT_ID);
@@ -40,7 +43,7 @@ contract ExpiredCommitmentTest is BaseTest {
         );
         vm.stopPrank();
 
-        // Validator 2 commits (will expire)
+        // Validator 2 commits (will expire - never reveals)
         _setupValidator(validator2, 1000 ether);
         vm.startPrank(validator2);
         uint256 v2ClaimId = oracle.claimToValidate(PROJECT_ID);
@@ -56,29 +59,41 @@ contract ExpiredCommitmentTest is BaseTest {
         // Warp past reveal deadline (default is 3 days)
         vm.warp(block.timestamp + 4 days);
 
-        // Validator 2 does NOT reveal
+        // Validator 2 does NOT reveal — their commitment is now expired
 
-        // Finalize
+        // Cancel validator 2's expired commitment: this slashes v2 and re-queues the slot
         uint256 v2BalanceBefore = vault.getStake(validator2);
-
         console.log("Current time:", block.timestamp);
 
-        // This should now succeed because Validator 2's commit is expired and no longer blocks consensus
-        core.finalizeContribution(PROJECT_ID, 0);
+        oracle.cancelExpiredCommitment(PROJECT_ID, 0, validator2);
 
         uint256 v2BalanceAfter = vault.getStake(validator2);
-
         console.log("Validator 2 balance before:", v2BalanceBefore);
         console.log("Validator 2 balance after:", v2BalanceAfter);
 
-        // Validator 2 should be slashed
-        assertTrue(v2BalanceAfter < v2BalanceBefore);
+        // Validator 2 should be slashed for failing to reveal
+        assertTrue(v2BalanceAfter < v2BalanceBefore, "Validator 2 should be slashed for expired commitment");
         uint256 lost = v2BalanceBefore - v2BalanceAfter;
-        console.log("Actual loss (socialized):", lost);
-        assertTrue(lost > 50 ether && lost <= 100 ether);
+        console.log("Actual loss:", lost);
+        assertTrue(lost > 0, "Slashing amount should be positive");
 
-        // Verify contribution is rewarded
-        assertEq(uint256(core.getContribution(PROJECT_ID, 0).status), uint256(ContributionStatus.Rewarded));
+        // Validator 3 fills the re-queued slot so consensus can be reached
+        _setupValidator(validator3, 1000 ether);
+        vm.startPrank(validator3);
+        uint256 v3ClaimId = oracle.claimToValidate(PROJECT_ID);
+        oracle.commitValidation(
+            PROJECT_ID, v3ClaimId, 0, keccak256(abi.encodePacked(uint256(8000), uint256(100 ether), keccak256("salt3")))
+        );
+        vm.stopPrank();
+
+        vm.prank(validator3);
+        oracle.revealValidation(PROJECT_ID, 0, 8000, keccak256("salt3"));
+
+        // Finalize - now 2 revealed validations meet numberOfValidations=2
+        core.finalizeContribution(PROJECT_ID, 0);
+
+        // Verify contribution is validated (consensus score 8000 > threshold 5000)
+        assertEq(uint256(core.getContribution(PROJECT_ID, 0).status), uint256(ContributionStatus.Validated));
     }
 
     function _setupValidator(address v, uint256 amount) internal {

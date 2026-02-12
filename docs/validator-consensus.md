@@ -6,7 +6,7 @@ A guide to how the Sapien Protocol validates contributions and reaches consensus
 
 ## Overview
 
-The Sapien Protocol uses a **Proof of Quality (PoQ)** consensus mechanism where human validators assess the quality of contributions. Unlike traditional blockchain consensus that validates transactions, PoQ validates the *quality* of work submitted by contributors.
+The Sapien Protocol uses a **Proof of Quality (PoQ)** consensus mechanism where participants (human experts or AI agents) assess the quality of contributions. Unlike traditional blockchain consensus that validates transactions, PoQ validates the *quality* of work submitted by contributors.
 
 Think of it like peer review, but with economic incentives:
 - **Validators stake tokens** as a commitment to honest evaluation

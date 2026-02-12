@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {BaseTest} from "../BaseTest.t.sol";
 import {VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
 import {ValidationOracle} from "../../src/ValidationOracle.sol";
+import {IValidationOracle} from "../../src/interface/IValidationOracle.sol";
 
 // Malicious contract that attempts reentrancy
 contract MaliciousReentrant {
@@ -96,7 +97,7 @@ contract ValidationOracleReentrancyTest is BaseTest {
 
         // Setup project
         vm.startPrank(admin);
-        oracle.registerProject(PROJECT_ID, 10, 3, "", originator);
+        oracle.registerProject(PROJECT_ID, 3, "", originator);
         oracle.enqueueValidation(PROJECT_ID, 0, block.timestamp);
         vm.stopPrank();
 
@@ -192,7 +193,7 @@ contract ValidationOracleReentrancyTest is BaseTest {
     /**
      * @notice Test that setValidatorCapacity has nonReentrant modifier
      * @dev Verifies nonReentrant modifier is present (reentrancy protection verified by modifier existence)
-     * Note: Direct reentrancy testing is difficult because setValidatorCapacity requires hasValidRole check,
+     * Note: Direct reentrancy testing is difficult because setValidatorCapacity requires hasEnoughStakeForRole check,
      * which requires the caller to have stake. A wrapper contract would fail this check before reentrancy check.
      * The nonReentrant modifier provides protection against reentrancy attacks.
      */
@@ -401,13 +402,10 @@ contract ValidationOracleReentrancyTest is BaseTest {
     function test_setValidatorCapacity_SameAmount_ReentrancyPrevented() public {
         uint256 currentCapacity = oracle.getAvailableCapacity(validator1);
 
-        // Set to same capacity (should return early)
+        // Set to same capacity - now reverts with CapacityUnchanged
         vm.prank(validator1);
+        vm.expectRevert(abi.encodeWithSelector(IValidationOracle.CapacityUnchanged.selector, currentCapacity));
         oracle.setValidatorCapacity(currentCapacity);
-
-        // Verify capacity unchanged
-        uint256 capacityAfterSame = oracle.getAvailableCapacity(validator1);
-        assertEq(capacityAfterSame, currentCapacity, "Capacity should be unchanged");
 
         // Now attempt to change capacity - should work normally
         uint256 availableStake = vault.getAvailableStake(validator1);

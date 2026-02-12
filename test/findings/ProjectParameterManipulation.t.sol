@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {ISharedTypes, ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
 import {IValidationOracle} from "../../src/interface/IValidationOracle.sol";
 
@@ -47,7 +47,7 @@ contract ProjectParameterManipulationTest is BaseTest {
         _setupValidator(validator2, 100 ether);
         _setupValidator(validator3, 100 ether);
 
-        // Setup malicious originator with stake (required for hasValidRole check)
+        // Setup malicious originator with stake (required for hasEnoughStakeForRole check)
         _setupUser(maliciousOriginator, 100 ether);
 
         // Fund malicious originator with reward tokens
@@ -67,7 +67,7 @@ contract ProjectParameterManipulationTest is BaseTest {
             "test-project",
             0,
             0,
-            3, // minValidations
+            3, // numberOfValidations
             1000,
             ""
         );
@@ -93,7 +93,7 @@ contract ProjectParameterManipulationTest is BaseTest {
         vm.prank(maliciousOriginator);
         oracle.setProjectRevealDeadline(PROJECT_ID, minDeadline + 1);
 
-        (,,, uint256 newDeadline,,,,,,) = oracle.projectSettings(PROJECT_ID);
+        (,, uint256 newDeadline,,,,,,) = oracle.projectSettings(PROJECT_ID);
         assertGe(newDeadline, minDeadline, "Deadline should be at or above minimum");
         console.log("Valid deadline set:", newDeadline);
     }
@@ -111,7 +111,7 @@ contract ProjectParameterManipulationTest is BaseTest {
             "test-project",
             0,
             0,
-            3, // minValidations
+            3, // numberOfValidations
             1000,
             ""
         );
@@ -127,7 +127,7 @@ contract ProjectParameterManipulationTest is BaseTest {
 
         // Validator claims (no skill required at this point)
         vm.prank(validator1);
-        uint256 v1ClaimId = oracle.claimToValidate(PROJECT_ID);
+        oracle.claimToValidate(PROJECT_ID);
 
         // ATTACK: Originator adds skill requirement
         // Note: setProjectRequiredSkill requires SAPIEN_CORE_ROLE or DEFAULT_ADMIN_ROLE
@@ -138,7 +138,7 @@ contract ProjectParameterManipulationTest is BaseTest {
         vm.prank(admin);
         oracle.setProjectRequiredSkill(PROJECT_ID, "expert-skill");
 
-        (,,,, string memory newSkill,,,,,) = oracle.projectSettings(PROJECT_ID);
+        (,,, string memory newSkill,,,,,) = oracle.projectSettings(PROJECT_ID);
         console.log("New skill requirement added:", newSkill);
 
         // Validator1 cannot commit if skill check is enforced at commit time
@@ -159,7 +159,7 @@ contract ProjectParameterManipulationTest is BaseTest {
             "test-project",
             0,
             0,
-            3, // minValidations
+            3, // numberOfValidations
             1000,
             ""
         );
@@ -182,7 +182,7 @@ contract ProjectParameterManipulationTest is BaseTest {
         console.log("Validator1 reputation:", v1Rep);
 
         vm.prank(validator1);
-        uint256 v1ClaimId = oracle.claimToValidate(PROJECT_ID);
+        oracle.claimToValidate(PROJECT_ID);
         console.log("Validator1 claimed successfully with reputation:", v1Rep);
 
         // ATTACK: Raise reputation requirement above validator's reputation
@@ -190,7 +190,7 @@ contract ProjectParameterManipulationTest is BaseTest {
         vm.prank(maliciousOriginator);
         oracle.setProjectMinValidatorReputation(PROJECT_ID, 9000);
 
-        (,,,,,,,,, uint256 newMinRep) = oracle.projectSettings(PROJECT_ID);
+        (,,,,,,,, uint256 newMinRep) = oracle.projectSettings(PROJECT_ID);
         console.log("New min reputation requirement:", newMinRep);
 
         // New validators can't claim

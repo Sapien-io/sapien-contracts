@@ -2,8 +2,9 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
+import {ISapienCore} from "../../src/interface/ISapienCore.sol";
 
 /**
  * @title ConsensusThresholdBoundaryTest
@@ -49,7 +50,7 @@ contract ConsensusThresholdBoundaryTest is BaseTest {
 
         // Try to set threshold to 0 - should revert
         vm.prank(admin);
-        vm.expectRevert("Threshold cannot be below minimum");
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.ConsensusThresholdOutOfRange.selector, 0, 1000, 10000));
         core.setConsensusThreshold(0);
 
         console.log("FIX VERIFIED: Zero threshold blocked");
@@ -64,7 +65,7 @@ contract ConsensusThresholdBoundaryTest is BaseTest {
 
         // Create project
         vm.startPrank(originator);
-        core.createProject(PROJECT_ID, address(rewardToken), "threshold-test", 0, 0, 2, 1000, "");
+        core.createProject(PROJECT_ID, address(rewardToken), "threshold-test", 0, 0, 3, 1000, "");
         rewardToken.approve(address(core), 100 ether);
         core.fundProject(PROJECT_ID, 100 ether, 10);
         vm.stopPrank();
@@ -100,7 +101,7 @@ contract ConsensusThresholdBoundaryTest is BaseTest {
 
         // Try to set threshold to 1 - should revert
         vm.prank(admin);
-        vm.expectRevert("Threshold cannot be below minimum");
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.ConsensusThresholdOutOfRange.selector, 1, 1000, 10000));
         core.setConsensusThreshold(1);
 
         console.log("=== Fix Verification: Low Threshold Blocked ===");
@@ -117,7 +118,7 @@ contract ConsensusThresholdBoundaryTest is BaseTest {
 
         // Try to set threshold > 10000
         vm.prank(admin);
-        vm.expectRevert("Threshold cannot exceed 10000");
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.ConsensusThresholdOutOfRange.selector, 10001, 1000, 10000));
         core.setConsensusThreshold(10001);
         console.log("Correctly reverted when trying to set threshold to 10001");
 
@@ -143,7 +144,7 @@ contract ConsensusThresholdBoundaryTest is BaseTest {
 
         // Create project
         vm.startPrank(originator);
-        core.createProject(PROJECT_ID, address(rewardToken), "threshold-test", 0, 0, 2, 1000, "");
+        core.createProject(PROJECT_ID, address(rewardToken), "threshold-test", 0, 0, 3, 1000, "");
         rewardToken.approve(address(core), 100 ether);
         core.fundProject(PROJECT_ID, 100 ether, 10);
         vm.stopPrank();
@@ -181,7 +182,7 @@ contract ConsensusThresholdBoundaryTest is BaseTest {
 
         // Create project
         vm.startPrank(originator);
-        core.createProject(PROJECT_ID, address(rewardToken), "threshold-test", 0, 0, 2, 1000, "");
+        core.createProject(PROJECT_ID, address(rewardToken), "threshold-test", 0, 0, 3, 1000, "");
         rewardToken.approve(address(core), 100 ether);
         core.fundProject(PROJECT_ID, 100 ether, 10);
         vm.stopPrank();

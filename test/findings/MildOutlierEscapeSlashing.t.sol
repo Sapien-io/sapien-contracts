@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
 
 /**
@@ -51,7 +51,7 @@ contract MildOutlierEscapeSlashingTest is BaseTest {
     function test_MildOutlierEscapesSlash() public {
         // Create project
         vm.startPrank(originator);
-        core.createProject(PROJECT_ID, address(rewardToken), "outlier-test", 0, 0, 3, 1000, "");
+        core.createProject(PROJECT_ID, address(rewardToken), "outlier-test", 0, 0, 4, 1000, "");
         rewardToken.approve(address(core), 100 ether);
         core.fundProject(PROJECT_ID, 100 ether, 10);
         vm.stopPrank();
@@ -117,8 +117,8 @@ contract MildOutlierEscapeSlashingTest is BaseTest {
 
         // Create two projects
         vm.startPrank(originator);
-        core.createProject(project1, address(rewardToken), "project1", 0, 0, 3, 1000, "");
-        core.createProject(project2, address(rewardToken), "project2", 0, 0, 3, 1000, "");
+        core.createProject(project1, address(rewardToken), "project1", 0, 0, 4, 1000, "");
+        core.createProject(project2, address(rewardToken), "project2", 0, 0, 4, 1000, "");
         rewardToken.approve(address(core), 200 ether);
         core.fundProject(project1, 100 ether, 10);
         core.fundProject(project2, 100 ether, 10);
@@ -184,7 +184,7 @@ contract MildOutlierEscapeSlashingTest is BaseTest {
     function test_LazyValidatorReceivesRewards() public {
         // Create project
         vm.startPrank(originator);
-        core.createProject(PROJECT_ID, address(rewardToken), "outlier-test", 0, 0, 3, 1000, "");
+        core.createProject(PROJECT_ID, address(rewardToken), "outlier-test", 0, 0, 4, 1000, "");
         rewardToken.approve(address(core), 100 ether);
         core.fundProject(PROJECT_ID, 100 ether, 10);
         vm.stopPrank();

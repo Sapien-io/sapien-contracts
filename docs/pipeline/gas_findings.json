@@ -1,0 +1,38 @@
+[
+  {
+    "id": "GAS-01",
+    "file": "src/ValidationOracle.sol",
+    "type": "Inefficient Storage Deletion",
+    "severity": "Medium",
+    "description": "The 'enqueueValidation' function uses 'delete' on 'validationCommits' and 'validations' arrays for a given contribution index.",
+    "impact": "Deleting an entire array of structs is expensive because the EVM must iterate over every field of every element to clear it. For contributions with many validators, this operation could exceed the block gas limit.",
+    "recommendation": "Instead of deleting, use a 'nonce' or 'submissionId' to invalidate old data, or use a pattern that doesn't require clearing the entire storage history."
+  },
+  {
+    "id": "GAS-02",
+    "file": "src/interface/ISharedTypes.sol",
+    "type": "Packing Opportunities",
+    "severity": "Low",
+    "description": "Structs such as 'UserReputation', 'ProjectConfig', and 'ProjectState' use multiple 'uint256' fields for values that have known small bounds (e.g., scores 0-10000, basis points, timestamps).",
+    "impact": "Increased gas costs for storage operations (SSTORE/SLOAD) as each 'uint256' occupies a full 32-byte slot.",
+    "recommendation": "Use smaller types (uint16 for scores, uint64 for timestamps, uint32 for counters) and group them together to enable the compiler to pack them into single 32-byte slots."
+  },
+  {
+    "id": "GAS-03",
+    "file": "src/SapienCore.sol",
+    "type": "Unbounded Loops",
+    "severity": "Low",
+    "description": "Functions like 'reclaimExpiredIndices' and 'batchFinalizeContributions' iterate over input arrays without a maximum length check.",
+    "impact": "Large input arrays can cause transactions to fail due to gas limits, potentially creating a griefing vector or making it impossible to process many items at once.",
+    "recommendation": "Implement a reasonable cap on the number of items that can be processed in a single batch call."
+  },
+  {
+    "id": "GAS-04",
+    "file": "src/SapienCore.sol",
+    "type": "Redundant Logic",
+    "severity": "Low",
+    "description": "In '_finalizeContribution', the internal view function '_calculateContributorReward' is called twice (lines 712 and 740).",
+    "impact": "Small amount of unnecessary gas spent on redundant calculations.",
+    "recommendation": "Calculate the reward once and store it in a local variable."
+  }
+]

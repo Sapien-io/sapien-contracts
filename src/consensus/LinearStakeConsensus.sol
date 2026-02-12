@@ -9,6 +9,7 @@ import {ConsensusLib} from "../libraries/ConsensusLib.sol";
  * @notice Current system - linear stake-weighted consensus
  * @dev Weight = stake (vulnerable to whale attacks with >50% stake)
  * Security Grade: C+ (vulnerable to whale manipulation)
+ * @author Sapien Team
  */
 contract LinearStakeConsensus is IConsensusAlgorithm {
     /**
@@ -28,7 +29,7 @@ contract LinearStakeConsensus is IConsensusAlgorithm {
         uint256[] memory scores = new uint256[](validations.length);
         uint256[] memory weights = new uint256[](validations.length);
 
-        for (uint256 i = 0; i < validations.length; i++) {
+        for (uint256 i = 0; i < validations.length; ++i) {
             scores[i] = validations[i].score;
             weights[i] = validations[i].stakeAmount;
 
@@ -56,14 +57,26 @@ contract LinearStakeConsensus is IConsensusAlgorithm {
         return result;
     }
 
+    /**
+     * @notice Get the name of the consensus algorithm
+     * @return The name string
+     */
     function getName() external pure returns (string memory) {
         return "LinearStake";
     }
 
+    /**
+     * @notice Get the security grade of the algorithm
+     * @return The security grade string
+     */
     function getSecurityGrade() external pure returns (string memory) {
         return "C+";
     }
 
+    /**
+     * @notice Get the description of the algorithm
+     * @return The description string
+     */
     function getDescription() external pure returns (string memory) {
         return "Linear stake-weighted consensus. Weight = stake. Vulnerable to whale attacks (>50% stake).";
     }

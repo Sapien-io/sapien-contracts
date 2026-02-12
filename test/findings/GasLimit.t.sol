@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
 
 contract GasLimitTest is BaseTest {
@@ -16,14 +16,10 @@ contract GasLimitTest is BaseTest {
         // Create project with many validators
         uint256 validatorCount = 50; // Try 50 validators
 
-        vm.startPrank(admin);
-        core.setMaxValidations(validatorCount);
-        vm.stopPrank();
-
-        // Register project with high maxValidations
+        // Register project with numberOfValidations matching validator count
         bytes32 projectId = keccak256("gas-project");
         vm.startPrank(originator);
-        core.createProject(projectId, address(rewardToken), "gas-project", 100 ether, 10, 3, 500, "test");
+        core.createProject(projectId, address(rewardToken), "gas-project", 100 ether, 10, validatorCount, 500, "test");
         rewardToken.approve(address(core), 1000 ether);
         core.fundProject(projectId, 1000 ether, 10);
         vm.stopPrank();

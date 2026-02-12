@@ -1,0 +1,71 @@
+{
+  "protocol": "Sapien PoQ",
+  "audit_date": "2026-02-09",
+  "severity_counts": {
+    "CRITICAL": 1,
+    "MEDIUM": 5,
+    "LOW": 7
+  },
+  "findings": [
+    {
+      "id": "C-01",
+      "title": "Storage Layout Shift in SapienCore.sol",
+      "severity": "CRITICAL",
+      "file": "src/SapienCore.sol",
+      "category": "Upgradeability",
+      "description": "Mapping inserted in middle of state variables shifts storage slots for all subsequent variables.",
+      "impact": "Protocol-wide configuration corruption on upgrade (treasury, fees, thresholds).",
+      "recommendation": "Move mapping to the end of state variable list before the gap."
+    },
+    {
+      "id": "M-01",
+      "title": "Validator Rewards Rounding to Zero",
+      "severity": "MEDIUM",
+      "file": "src/SapienCore.sol",
+      "category": "Economic",
+      "description": "Integer division rounds down, leading to zero rewards for validators in some configurations.",
+      "impact": "Breaks validator incentives; lack of participation.",
+      "recommendation": "Increase calculation precision or enforce minimum rewards."
+    },
+    {
+      "id": "M-02",
+      "title": "Liveness Griefing via Reveal Delay",
+      "severity": "MEDIUM",
+      "file": "src/ValidationOracle.sol",
+      "category": "Economic",
+      "description": "Malicious validators can withhold reveals to delay consensus finalization for days.",
+      "impact": "Protocol liveness degradation and delayed rewards.",
+      "recommendation": "Allow finalization on super-majority reveals before deadline."
+    },
+    {
+      "id": "M-03",
+      "title": "Validator Queue Monopoly by Whales",
+      "severity": "MEDIUM",
+      "file": "src/ValidationOracle.sol",
+      "category": "Economic",
+      "description": "Whales can fill the validation queue, excluding other participants.",
+      "impact": "Centralization of validation power.",
+      "recommendation": "Implement per-user validation claim limits."
+    },
+    {
+      "id": "M-04",
+      "title": "Reward Rate Manipulation (Sandwiching)",
+      "severity": "MEDIUM",
+      "file": "src/SapienCore.sol",
+      "category": "Economic",
+      "description": "Reward rate calculated at finalization allows manipulation via fundProject calls.",
+      "impact": "Value extraction and unfair reward distribution.",
+      "recommendation": "Snapshot reward rates at earlier lifecycle stages."
+    },
+    {
+      "id": "M-05",
+      "title": "Storage Gap Inconsistency in ValidationOracle.sol",
+      "severity": "MEDIUM",
+      "file": "src/ValidationOracle.sol",
+      "category": "Upgradeability",
+      "description": "Inconsistent gap management during upgrades.",
+      "impact": "Potential storage collisions in future versions.",
+      "recommendation": "Maintain fixed total slot count (e.g., 50)."
+    }
+  ]
+}

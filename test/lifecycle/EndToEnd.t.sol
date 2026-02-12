@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {console} from "forge-std/Test.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {BaseTest} from "../BaseTest.t.sol";
 import {CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
 
@@ -24,7 +24,7 @@ contract EndToEndTest is BaseTest {
             "end-to-end-project",
             100 ether, // minStakeToClaim
             50 ether, // minStakeToContribute
-            3, // minValidations
+            3, // numberOfValidations
             1000, // 10% validator rewards
             SKILL
         );
@@ -33,10 +33,10 @@ contract EndToEndTest is BaseTest {
         core.fundProject(PROJECT_ID, 1000 ether, 10);
         vm.stopPrank();
 
-        // Fix: Set maxValidations to 3 so queue aligns with minValidations
+        // Fix: Set numberOfValidations to 3 so queue aligns with validation count
         // Otherwise queue has 10 slots per contribution (default) and we only claim 3
         vm.prank(admin);
-        oracle.setProjectMaxValidations(PROJECT_ID, 3);
+        oracle.setProjectNumberOfValidations(PROJECT_ID, 3);
 
         // 2. Contributor Claim & Submit
         vm.startPrank(contributor);
@@ -100,6 +100,12 @@ contract EndToEndTest is BaseTest {
         indices[0] = 0;
         indices[1] = 1;
         core.batchFinalizeContributions(PROJECT_ID, indices);
+
+        // 4.5 Claim rewards after challenge period
+        uint256 challengePeriod = core.getProject(PROJECT_ID).config.challengePeriod;
+        vm.warp(block.timestamp + challengePeriod + 1);
+        core.claimContributionReward(PROJECT_ID, 0);
+        core.claimContributionReward(PROJECT_ID, 1);
 
         // 5. Assertions
         assertEq(uint256(core.getContribution(PROJECT_ID, 0).status), uint256(ContributionStatus.Rewarded));

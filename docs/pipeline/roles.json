@@ -1,0 +1,124 @@
+{
+  "roles": {
+    "DEFAULT_ADMIN_ROLE": {
+      "description": "Global protocol administrator with powers to configure system parameters, grant/revoke roles, and manage emergency states.",
+      "modifiers": [
+        "onlyRole(DEFAULT_ADMIN_ROLE)"
+      ],
+      "privileged_actions": [
+        "Set protocol fees",
+        "Set treasury address",
+        "Set consensus thresholds",
+        "Set number of validations (per project)",
+        "Set reputation decay rates",
+        "Set minimum staking requirements",
+        "Set max operator fees",
+        "Pause/Unpause Rewards",
+        "Emergency withdraw stuck tokens in Rewards",
+        "Register consensus algorithms",
+        "Set global reveal deadlines"
+      ]
+    },
+    "ORIGINATOR_ROLE": {
+      "description": "Authorized project creators who can register new work requests and fund them.",
+      "modifiers": [
+        "None (checked via ISapienTrust.hasEnoughStakeForRole)"
+      ],
+      "privileged_actions": [
+        "Create new projects",
+        "Fund own projects",
+        "Set own project consensus algorithms",
+        "Set own project reveal deadlines",
+        "Set own project reputation requirements"
+      ]
+    },
+    "CONTRIBUTOR_ROLE": {
+      "description": "Workers who perform tasks and earn rewards.",
+      "modifiers": [
+        "None (checked via ISapienTrust.hasEnoughStakeForRole)"
+      ],
+      "privileged_actions": [
+        "Claim contribution slots",
+        "Submit work (contribute)"
+      ]
+    },
+    "VALIDATOR_ROLE": {
+      "description": "Auditors who verify contributions and reach consensus.",
+      "modifiers": [
+        "None (checked via ISapienTrust.hasEnoughStakeForRole)"
+      ],
+      "privileged_actions": [
+        "Claim validation slots",
+        "Set validator capacity",
+        "Commit and reveal validation scores"
+      ]
+    },
+    "LOCKER_ROLE": {
+      "description": "Authorized contracts allowed to lock/unlock user stake in the vault.",
+      "modifiers": [
+        "onlyRole(LOCKER_ROLE)"
+      ],
+      "privileged_actions": [
+        "Lock user stake",
+        "Unlock user stake"
+      ],
+      "holders": [
+        "SapienCore",
+        "ValidationOracle"
+      ]
+    },
+    "SLASHER_ROLE": {
+      "description": "Authorized contracts allowed to burn user shares (slash stake) in the vault.",
+      "modifiers": [
+        "onlyRole(SLASHER_ROLE)"
+      ],
+      "privileged_actions": [
+        "Slash user assets"
+      ],
+      "holders": [
+        "SapienCore",
+        "ValidationOracle"
+      ]
+    },
+    "PAUSER_ROLE": {
+      "description": "Authorized addresses allowed to pause/unpause vault operations.",
+      "modifiers": [
+        "onlyRole(PAUSER_ROLE)"
+      ],
+      "privileged_actions": [
+        "Pause vault",
+        "Unpause vault"
+      ]
+    },
+    "UPDATER_ROLE": {
+      "description": "Authorized contracts allowed to update user reputation and skills.",
+      "modifiers": [
+        "onlyRole(UPDATER_ROLE)"
+      ],
+      "privileged_actions": [
+        "Update reputation scores",
+        "Validate user skills"
+      ],
+      "holders": [
+        "SapienCore",
+        "ValidationOracle"
+      ]
+    },
+    "SAPIEN_CORE_ROLE": {
+      "description": "Special role for the SapienCore contract to call restricted Oracle functions.",
+      "modifiers": [
+        "onlyRole(SAPIEN_CORE_ROLE)",
+        "onlyCoreOrAdmin (internal check)"
+      ],
+      "privileged_actions": [
+        "Register projects in Oracle",
+        "Enqueue validations",
+        "Reset contribution states",
+        "Handle validator slashes"
+      ],
+      "holders": [
+        "SapienCore"
+      ]
+    }
+  }
+}

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {
     ORIGINATOR_ROLE,
     CONTRIBUTOR_ROLE,
@@ -64,7 +64,7 @@ contract TaskRewardDilutionTest is BaseTest {
             "reward-dilution-test",
             10 ether, // minStakeToClaim
             10 ether, // minStakeToContribute
-            3, // minValidations
+            3, // numberOfValidations
             1000, // validatorRewardBasisPoints (10%)
             ""
         );

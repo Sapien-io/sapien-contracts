@@ -37,7 +37,7 @@ For every step in the lifecycle, tests must verify three components:
 -   **Events**: `ProjectCreated`, `ProjectFunded`, `ProtocolFeeCollected`.
 -   **Edge Cases**:
     -   Fee Math: Test with 1 wei, prime numbers, checking for rounding to zero.
-    -   Config Limits: Max validations > 100, zero deadlines.
+    -   Config Limits: Zero deadlines, invalid numberOfValidations values.
 
 ### Phase 2: Contribution
 **Goal**: Verify reservation logic and "Skin in the Game" locking.

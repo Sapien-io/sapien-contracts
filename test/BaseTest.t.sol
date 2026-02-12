@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test} from "forge-std/Test.sol";
+import {Test} from "lib/forge-std/src/Test.sol";
 import {SapienCore} from "../src/SapienCore.sol";
 import {ValidationOracle} from "../src/ValidationOracle.sol";
 import {SapienTrust} from "../src/SapienTrust.sol";
@@ -141,6 +141,9 @@ abstract contract BaseTest is Test, ISharedTypes {
      * @param capacity The capacity amount to set
      */
     function _setValidatorCapacity(address validator, uint256 capacity) internal {
+        // Skip if capacity is already at target to avoid CapacityUnchanged revert
+        (uint256 currentCapacity,) = oracle.validatorStates(validator);
+        if (currentCapacity == capacity) return;
         vm.prank(validator);
         oracle.setValidatorCapacity(capacity);
     }

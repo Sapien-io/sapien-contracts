@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 import {BaseTest} from "./BaseTest.t.sol";
 import {ISapienCore} from "../src/interface/ISapienCore.sol";
 import {IRewards} from "../src/interface/IRewards.sol";
-import {ISharedTypes, ORIGINATOR_ROLE, UPDATER_ROLE} from "../src/interface/ISharedTypes.sol";
+import {UPDATER_ROLE} from "../src/interface/ISharedTypes.sol";
 
 contract OperatorFeeTest is BaseTest {
     string public constant PROJECT_CID = "test-project";
@@ -13,8 +13,8 @@ contract OperatorFeeTest is BaseTest {
     address public treasury = makeAddr("treasury");
     uint256 public constant INITIAL_BALANCE = 10000 ether;
 
-    event OperatorFeePaid(bytes32 indexed projectId, address indexed operator, uint256 amount);
-    event ProtocolFeeCollected(bytes32 indexed projectId, address indexed token, uint256 amount);
+    event OperatorFeePaid(bytes32 indexed projectId, address indexed operator, uint256 indexed amount);
+    event ProtocolFeeCollected(bytes32 indexed projectId, address indexed token, uint256 indexed amount);
 
     function setUp() public override {
         super.setUp();
@@ -50,14 +50,18 @@ contract OperatorFeeTest is BaseTest {
 
         // Protocol fee is taken FIRST from the original amount:
         // Protocol fee = 1% of 1000 = 10 ether
-        vm.expectEmit(true, true, false, true);
+        vm.expectEmit(true, true, true, true);
         emit ProtocolFeeCollected(PROJECT_ID, address(rewardToken), 10 ether);
 
         // Operator fee is taken from the remainder:
         // After protocol: 1000 - 10 = 990
         // Operator fee = 2% of 990 = 19.8 ether
-        vm.expectEmit(true, true, false, true);
+        vm.expectEmit(true, true, true, true);
         emit OperatorFeePaid(PROJECT_ID, operator, 19.8 ether);
+
+        // ProjectFunded is emitted at the end of _fundProject
+        vm.expectEmit(true, false, false, true);
+        emit ISapienCore.ProjectFunded(PROJECT_ID, rewardAmount, quantity, 970.2 ether);
 
         core.fundProject(PROJECT_ID, rewardAmount, quantity, operator, operatorFeeBps);
 
@@ -111,9 +115,9 @@ contract OperatorFeeTest is BaseTest {
     event OperatorFeeCollected(
         address indexed claimer, address indexed feeRecipient, address indexed token, uint256 amount
     );
-    event MaxFeeBpsUpdated(uint256 newMaxFeeBps);
+    event MaxFeeBpsUpdated(uint256 indexed newMaxFeeBps);
 
-    function testDefaultMaxFeeBpsIs4Percent() public {
+    function testDefaultMaxFeeBpsIs4Percent() public view {
         // Verify default is 4% (400 bps)
         assertEq(rewards.maxFeeBps(), 400);
         assertEq(rewards.DEFAULT_MAX_FEE_BPS(), 400);

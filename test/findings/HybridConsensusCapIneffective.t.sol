@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test} from "forge-std/Test.sol";
-import {console} from "forge-std/console.sol";
+import {Test} from "test/BaseTest.t.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {HybridConsensus} from "../../src/consensus/HybridConsensus.sol";
 import {CappedLinearConsensus} from "../../src/consensus/CappedLinearConsensus.sol";
 import {IConsensusAlgorithm} from "../../src/interface/IConsensusAlgorithm.sol";

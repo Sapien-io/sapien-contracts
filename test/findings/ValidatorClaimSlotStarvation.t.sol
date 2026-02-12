@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {ISharedTypes, ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
 
 /**
@@ -31,7 +31,7 @@ import {ISharedTypes, ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from ".
  * IMPACT:
  * - Severity: HIGH
  * - Queue Slot Starvation: Legitimate validators cannot claim blocked slots
- * - Contribution Deadline Risk: Contributions may fail to reach minValidations before deadlines
+ * - Contribution Deadline Risk: Contributions may fail to reach numberOfValidations before deadlines
  * - Economic Griefing: Low-cost attack vector for disrupting validation queue
  * - Gas Waste: Cleanup operations via slashing require additional transactions
  */
@@ -63,7 +63,7 @@ contract ValidatorClaimSlotStarvationTest is BaseTest {
             "test-project",
             10 ether, // minStakeToClaim
             10 ether, // minStakeToContribute
-            3, // minValidations
+            10, // numberOfValidations
             1000, // validatorRewardBasisPoints (10%)
             "" // No required skill
         );
@@ -99,9 +99,9 @@ contract ValidatorClaimSlotStarvationTest is BaseTest {
         core.contribute(PROJECT_ID, claimId5, 4, keccak256("submission5"));
         vm.stopPrank();
 
-        // Verify we have queue slots (5 contributions * 10 maxValidations each = 50 slots)
+        // Verify we have queue slots (5 contributions * 10 numberOfValidations each = 50 slots)
         uint256 pendingCount = oracle.getPendingValidationCount(PROJECT_ID);
-        assertEq(pendingCount, 50, "Should have 50 pending validation slots (5 contributions * 10 maxValidations)");
+        assertEq(pendingCount, 50, "Should have 50 pending validation slots (5 contributions * 10 numberOfValidations)");
 
         // ============================================
         // 2. ATTACK: VALIDATOR CLAIMS MORE SLOTS THAN CAPACITY
@@ -283,7 +283,7 @@ contract ValidatorClaimSlotStarvationTest is BaseTest {
         // 3. VERIFY LEGITIMATE VALIDATORS ARE NOT BLOCKED
         // ============================================
         // Validator2 and validator3 can still claim slots
-        // 3 contributions * 10 maxValidations = 30 slots, validator1 claimed 1, so 29 remaining
+        // 3 contributions * 10 numberOfValidations = 30 slots, validator1 claimed 1, so 29 remaining
         uint256 pendingCount = oracle.getPendingValidationCount(PROJECT_ID);
         assertEq(pendingCount, 29, "Queue should have 29 remaining slots (30 - 1 claimed by validator1)");
 

@@ -5,6 +5,7 @@ import {IConsensusAlgorithm} from "../interface/IConsensusAlgorithm.sol";
 
 /**
  * @title ConsensusLib
+ * @author Sapien Team
  * @notice Shared utilities for consensus algorithm implementations
  * @dev Provides common calculations used across multiple algorithms
  */
@@ -119,6 +120,7 @@ library ConsensusLib {
 
     /**
      * @dev Count the number of outliers in validations
+     * @notice Identifies validations that deviate significantly from the mean
      * @param validations Array of validation inputs
      * @param mean Weighted average score
      * @param stdDev Standard deviation
@@ -130,16 +132,17 @@ library ConsensusLib {
         returns (uint256 count)
     {
         uint256 absoluteThreshold = 1500;
-        for (uint256 i = 0; i < validations.length; i++) {
+        for (uint256 i = 0; i < validations.length; ++i) {
             uint256 deviation = validations[i].score > mean ? validations[i].score - mean : mean - validations[i].score;
             if (deviation > absoluteThreshold || (stdDev > 0 && deviation > 2 * stdDev)) {
-                count++;
+                ++count;
             }
         }
     }
 
     /**
      * @dev Fill arrays with outlier validator addresses and their slash amounts
+     * @notice Populates pre-allocated arrays with outlier information
      * @param validations Array of validation inputs
      * @param mean Weighted average score
      * @param stdDev Standard deviation
@@ -155,7 +158,7 @@ library ConsensusLib {
     ) internal pure {
         uint256 absoluteThreshold = 1500;
         uint256 index = 0;
-        for (uint256 i = 0; i < validations.length; i++) {
+        for (uint256 i = 0; i < validations.length; ++i) {
             uint256 score = validations[i].score;
             uint256 deviation = score > mean ? score - mean : mean - score;
 
@@ -163,13 +166,14 @@ library ConsensusLib {
                 validatorsToSlash[index] = validations[i].validator;
                 uint256 effectiveStdDev = _calculateEffectiveStdDev(deviation, stdDev);
                 slashAmounts[index] = calculateSlashAmount(validations[i].stakeAmount, deviation, effectiveStdDev);
-                index++;
+                ++index;
             }
         }
     }
 
     /**
      * @dev Calculate effective standard deviation for slash calculation
+     * @notice Adjusts standard deviation to ensure proportional slashing for large deviations
      * @param deviation Absolute deviation from mean
      * @param stdDev Standard deviation
      * @return Effective standard deviation adjusted for deviation severity
@@ -211,15 +215,15 @@ library ConsensusLib {
         // Determine slash percentage based on severity
         uint256 slashPercentage;
 
-        if (sigmaMultiple >= 500) {
+        if (sigmaMultiple > 499) {
             slashPercentage = 10000; // 100% - extreme outlier (5σ+)
-        } else if (sigmaMultiple >= 400) {
+        } else if (sigmaMultiple > 399) {
             slashPercentage = 7500; // 75% - very extreme (4σ-5σ)
-        } else if (sigmaMultiple >= 300) {
+        } else if (sigmaMultiple > 299) {
             slashPercentage = 5000; // 50% - significant (3σ-4σ)
-        } else if (sigmaMultiple >= 200) {
+        } else if (sigmaMultiple > 199) {
             slashPercentage = 2500; // 25% - moderate (2σ-3σ)
-        } else if (sigmaMultiple >= 150) {
+        } else if (sigmaMultiple > 149) {
             slashPercentage = 1000; // 10% - mild outlier (1.5σ-2σ)
         } else {
             return 0; // Less than 1.5σ, no slash
@@ -301,19 +305,19 @@ library ConsensusLib {
      */
     function applyCap(uint256[] memory weights, uint256 maxBps) internal pure {
         uint256 len = weights.length;
-        if (len <= 1) return; // No capping needed for single validator
+        if (len < 2) return; // No capping needed for single validator
 
-        for (uint256 iter = 0; iter < MAX_CAP_ITERATIONS; iter++) {
+        for (uint256 iter = 0; iter < MAX_CAP_ITERATIONS; ++iter) {
             // Compute current total
             uint256 totalWeight = 0;
-            for (uint256 i = 0; i < len; i++) {
+            for (uint256 i = 0; i < len; ++i) {
                 totalWeight += weights[i];
             }
             if (totalWeight == 0) return;
 
             // Find and clamp overweight validators
             bool changed = false;
-            for (uint256 i = 0; i < len; i++) {
+            for (uint256 i = 0; i < len; ++i) {
                 uint256 maxAllowed = (totalWeight * maxBps) / 10000;
                 if (weights[i] > maxAllowed) {
                     weights[i] = maxAllowed > 0 ? maxAllowed : 1;

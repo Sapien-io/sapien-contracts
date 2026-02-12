@@ -1,0 +1,60 @@
+{
+  "properties": [
+    {
+      "id": "CV-01",
+      "name": "Vault Assets Integrity",
+      "description": "vault.totalAssets() == stakingToken.balanceOf(address(vault))",
+      "category": "Conservation of Value",
+      "priority": "High"
+    },
+    {
+      "id": "CV-02",
+      "name": "Global Rewards Solvency",
+      "description": "rewardToken.balanceOf(address(rewards)) >= rewards.totalAllocated(rewardToken)",
+      "category": "Solvency",
+      "priority": "Critical"
+    },
+    {
+      "id": "SL-01",
+      "name": "Stake Liquidity",
+      "description": "vault.getLockedStake(user) <= vault.getStake(user)",
+      "category": "Staking",
+      "priority": "High"
+    },
+    {
+      "id": "PA-01",
+      "name": "Project Slot Integrity",
+      "description": "submittedQuantity + activeClaimedQuantity <= totalQuantityAvailable",
+      "category": "Accounting",
+      "priority": "High"
+    },
+    {
+      "id": "VO-01",
+      "name": "Validator Stake In-Flight Bound",
+      "description": "vState.inFlightStake <= vState.capacity",
+      "category": "Oracle",
+      "priority": "Medium"
+    },
+    {
+      "id": "RT-01",
+      "name": "Reputation Bounds",
+      "description": "500 <= trustScore <= 10000",
+      "category": "Reputation",
+      "priority": "Medium"
+    },
+    {
+      "id": "FI-01",
+      "name": "Consensus Threshold",
+      "description": "Accepted contribution score >= consensusThreshold",
+      "category": "Fairness",
+      "priority": "High"
+    },
+    {
+      "id": "FI-02",
+      "name": "Sybil Resistance",
+      "description": "Validator cannot be originator or contributor of the same project/index",
+      "category": "Security",
+      "priority": "Critical"
+    }
+  ]
+}

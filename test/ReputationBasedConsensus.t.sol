@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {BaseTest} from "./BaseTest.t.sol";
 import {IConsensusAlgorithm} from "../src/interface/IConsensusAlgorithm.sol";
 import {IValidationOracle} from "../src/interface/IValidationOracle.sol";
@@ -60,7 +60,7 @@ contract ReputationBasedConsensusTest is BaseTest {
             "test-reputation-project",
             0, // minStakeToClaim
             0, // minStakeToContribute
-            3, // minValidations
+            3, // numberOfValidations
             1000, // validatorRewardBasisPoints (10%)
             "" // requiredSkill
         );
@@ -133,8 +133,8 @@ contract ReputationBasedConsensusTest is BaseTest {
         }
         vm.stopPrank();
 
-        // Now setup project
-        _setupProjectWithContribution();
+        // Now setup project (4 validators used in this test)
+        _setupProjectWithContribution(4);
 
         uint256 rep1 = trust.getTrustScore(validator1, VALIDATOR_ROLE);
         uint256 rep2 = trust.getTrustScore(validator2, VALIDATOR_ROLE);
@@ -245,8 +245,7 @@ contract ReputationBasedConsensusTest is BaseTest {
         // Verify it was set
         (
             bytes32 algorithm,
-            uint256 maxValidations,
-            uint256 minValidations,
+            uint256 numberOfValidations,
             uint256 revealDeadline,
             string memory requiredSkill,
             address originatorAddr,
@@ -258,8 +257,7 @@ contract ReputationBasedConsensusTest is BaseTest {
 
         IValidationOracle.ProjectSettings memory settings = IValidationOracle.ProjectSettings({
             algorithm: algorithm,
-            maxValidations: maxValidations,
-            minValidations: minValidations,
+            numberOfValidations: numberOfValidations,
             revealDeadline: revealDeadline,
             requiredSkill: requiredSkill,
             originator: originatorAddr,
@@ -380,7 +378,7 @@ contract ReputationBasedConsensusTest is BaseTest {
         }
         vm.stopPrank();
 
-        _setupProjectWithContribution();
+        _setupProjectWithContribution(3); // 3 validators in this test
 
         // Set validator capacities
         _setValidatorCapacity(validator1, STAKE_AMOUNT);
@@ -425,7 +423,7 @@ contract ReputationBasedConsensusTest is BaseTest {
         }
         vm.stopPrank();
 
-        _setupProjectWithContribution();
+        _setupProjectWithContribution(3); // 3 validators in this test
 
         // Set validator capacities
         _setValidatorCapacity(validator1, STAKE_AMOUNT);
@@ -474,6 +472,10 @@ contract ReputationBasedConsensusTest is BaseTest {
     // ============================================
 
     function _setupProjectWithContribution() internal {
+        _setupProjectWithContribution(1);
+    }
+
+    function _setupProjectWithContribution(uint256 numValidations) internal {
         // Create project
         vm.prank(originator);
         core.createProject(
@@ -482,7 +484,7 @@ contract ReputationBasedConsensusTest is BaseTest {
             "test-reputation-project",
             0, // minStakeToClaim
             0, // minStakeToContribute
-            1, // minValidations (low for testing)
+            numValidations, // numberOfValidations
             1000, // validatorRewardBasisPoints (10%)
             "" // requiredSkill
         );
@@ -553,7 +555,7 @@ contract EligibilityTierEdgeCasesTest is BaseTest {
 
         // Should revert when trying to set above 10000
         vm.prank(originator);
-        vm.expectRevert("Min reputation cannot exceed 10000");
+        vm.expectRevert(abi.encodeWithSelector(IValidationOracle.ReputationOutOfRange.selector, 10001, 10000));
         oracle.setProjectMinValidatorReputation(PROJECT_ID, 10001);
     }
 
@@ -617,8 +619,7 @@ contract EligibilityTierEdgeCasesTest is BaseTest {
         // Verify the setting was applied by checking the struct
         (
             bytes32 algorithm,
-            uint256 maxValidations,
-            uint256 minValidations,
+            uint256 numberOfValidations,
             uint256 revealDeadline,
             string memory requiredSkill,
             address originatorAddr,
@@ -630,8 +631,7 @@ contract EligibilityTierEdgeCasesTest is BaseTest {
 
         IValidationOracle.ProjectSettings memory settings = IValidationOracle.ProjectSettings({
             algorithm: algorithm,
-            maxValidations: maxValidations,
-            minValidations: minValidations,
+            numberOfValidations: numberOfValidations,
             revealDeadline: revealDeadline,
             requiredSkill: requiredSkill,
             originator: originatorAddr,

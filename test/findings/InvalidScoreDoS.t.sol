@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {IConsensusAlgorithm} from "../../src/interface/IConsensusAlgorithm.sol";
 import {ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
 
@@ -62,7 +62,7 @@ contract InvalidScoreDoSTest is BaseTest {
             "test-project",
             10 ether, // minStakeToClaim
             10 ether, // minStakeToContribute
-            3, // minValidations
+            3, // numberOfValidations
             1000, // validatorRewardBasisPoints (10%)
             "" // No required skill
         );
@@ -140,7 +140,7 @@ contract InvalidScoreDoSTest is BaseTest {
         // 5. VERIFY INVALID SCORE WAS NOT STORED
         // ============================================
         // The invalid score was never stored, so consensus can proceed
-        // (though it may not be ready yet if minValidations not met)
+        // (though it may not be ready yet if numberOfValidations not met)
         console.log("=== Fix Confirmed ===");
         console.log("Invalid score", invalidScore, "was rejected at reveal time");
         console.log("Invalid score never stored, preventing DoS");

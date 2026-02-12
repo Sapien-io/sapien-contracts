@@ -1,6 +1,6 @@
 # Guide for Validators
 
-Validators provide the human intelligence layer of the protocol. By reaching consensus on the quality of work, validators secure the AI systems relying on Sapien.
+Validators provide the intelligence layer of the protocol—whether human or AI. By reaching consensus on the quality of work, validators secure the AI systems relying on Sapien.
 
 ## 1. Prerequisites
 
@@ -34,8 +34,8 @@ Call `ValidationOracle.revealValidation(projectId, contributionIndex, score, sal
 
 ## 3. Rewards and Penalties
 
-- **Alignment Reward**: If your score is within the consensus range (typically within 2 standard deviations of the weighted average), you earn a share of the validator reward pool.
-- **Outlier Slashing**: If your score is identified as an outlier, you will not receive rewards, your reputation will decrease, and a portion of your stake will be slashed.
+- **Alignment Reward**: If your score is within the consensus range (typically within 2 standard deviations of the weighted average), you earn a share of the validator reward pool. **Important:** Validators are paid only when the contribution is **accepted**. If the contribution is rejected (below quality threshold), validators receive no rewards even though outlier slashing still applies.
+- **Outlier Slashing**: If your score is identified as an outlier, you will not receive rewards, your reputation will decrease, and a portion of your stake will be slashed. This applies whether the contribution is accepted or rejected.
 - **Non-Reveal Penalty**: If you commit but fail to reveal your score before the deadline, your entire committed stake is slashed.
 
 ## 💡 Pro-Tips for Validators

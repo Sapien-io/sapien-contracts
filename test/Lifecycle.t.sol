@@ -89,7 +89,7 @@ contract LifecycleTest is BaseTest {
             "comprehensive-project",
             100 ether, // minStakeToClaim
             50 ether, // minStakeToContribute
-            3, // minValidations
+            3, // numberOfValidations
             1000, // 10% validator rewards
             SKILL // skill earned on completion (not required upfront for contributors)
         );
@@ -99,7 +99,7 @@ contract LifecycleTest is BaseTest {
         // 1.2: Verify project exists and parameters are correct
         assertEq(core.getProject(PROJECT_ID).originator, originator, "Originator should be set");
         assertEq(core.getProject(PROJECT_ID).config.minStakeToClaim, 100 ether, "Min stake to claim should be set");
-        assertEq(core.getProject(PROJECT_ID).config.minValidations, 3, "Min validations should be set");
+        assertEq(core.getProject(PROJECT_ID).config.numberOfValidations, 3, "numberOfValidations should be set");
         console.log("  [1.2] Project parameters verified");
 
         // 1.3: Fund project
@@ -259,11 +259,11 @@ contract LifecycleTest is BaseTest {
         // 4.3: Verify finalization state
         assertEq(
             uint256(core.getContribution(PROJECT_ID, 0).status),
-            uint256(ContributionStatus.Rewarded),
-            "Contribution should be rewarded"
+            uint256(ContributionStatus.Validated),
+            "Contribution should be validated"
         );
         assertEq(core.getProject(PROJECT_ID).state.rewardedQuantity, 1, "Rewarded quantity should be 1");
-        console.log("  [4.2-4.3] Contribution finalized and accepted");
+        console.log("  [4.2-4.3] Contribution finalized and validated");
 
         // 4.6: Verify stake unlocked (claim fulfilled)
         assertEq(vault.getLockedStake(contributor), 0, "Stake should be unlocked");
@@ -278,6 +278,12 @@ contract LifecycleTest is BaseTest {
 
     function _testPhase5RewardDistribution() internal {
         console.log("[PHASE 5] REWARD DISTRIBUTION");
+
+        // 5.0: Claim reward (moves status from Validated to Rewarded)
+        // First, warp past challenge period
+        uint256 challengePeriod = core.getProject(PROJECT_ID).config.challengePeriod;
+        vm.warp(block.timestamp + challengePeriod + 1);
+        core.claimContributionReward(PROJECT_ID, 0);
 
         // 5.1: Check contributor rewards
         uint256 contributorReward0 = rewards.getAvailableRewards(contributor, PROJECT_ID, address(rewardToken));
@@ -556,11 +562,11 @@ contract LifecycleTest is BaseTest {
         core.fundProject(batchProjectId, 500 ether, 5);
         vm.stopPrank();
 
-        // Set maxValidations to match minValidations (2) so queue has exactly 2 slots per contribution
+        // Set numberOfValidations to 2 so queue has exactly 2 slots per contribution
         // This ensures sequential claims get assigned to different contribution indices as expected
         // Must be set after project creation but before contributions are submitted
         vm.prank(admin);
-        oracle.setProjectMaxValidations(batchProjectId, 2);
+        oracle.setProjectNumberOfValidations(batchProjectId, 2);
 
         // 8.2: Multiple contributors submit work
         address[] memory contributors = new address[](3);
@@ -602,7 +608,7 @@ contract LifecycleTest is BaseTest {
         vm.prank(validator2);
         uint256 v2ClaimId2 = oracle.claimToValidate(batchProjectId);
 
-        // The queue assigns sequentially: [0, 0, 1, 1, 2, 2] for 3 contributions with minValidations=2
+        // The queue assigns sequentially: [0, 0, 1, 1, 2, 2] for 3 contributions with numberOfValidations=2
         // Assignment order: v1ClaimId0 -> 0, v2ClaimId0 -> 0, v1ClaimId1 -> 1, v2ClaimId1 -> 1, v1ClaimId2 -> 2, v2ClaimId2 -> 2
         // Commit using the correct claimId-index pairs based on sequential queue assignment
         bytes32 salt0 = keccak256(abi.encodePacked("batch-salt", uint256(0)));
@@ -640,6 +646,13 @@ contract LifecycleTest is BaseTest {
         indices[1] = 1;
         indices[2] = 2;
         core.batchFinalizeContributions(batchProjectId, indices);
+
+        // 8.4.5: Claim rewards after challenge period
+        uint256 challengePeriod = core.getProject(batchProjectId).config.challengePeriod;
+        vm.warp(block.timestamp + challengePeriod + 1);
+        for (uint256 i = 0; i < 3; i++) {
+            core.claimContributionReward(batchProjectId, i);
+        }
 
         // 8.5: Verify all finalized
         for (uint256 i = 0; i < 3; i++) {

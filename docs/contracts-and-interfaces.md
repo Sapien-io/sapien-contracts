@@ -76,7 +76,7 @@ function initialize(
  * @param rewardToken ERC20 token to be used for rewards
  * @param minStakeToClaim Minimum stake required for a contributor to claim a slot
  * @param minStakeToContribute Minimum stake required for a contributor to participate (legacy)
- * @param minValidations Minimum number of validations required to finalize a contribution
+ * @param numberOfValidations Exact number of validations required per contribution (also determines queue slots)
  * @param validatorRewardBasisPoints Percentage of rewards allocated to validators (bps)
  * @param requiredSkill Specific skill that contributors will earn upon successful completion
  * @return The hashed projectId (bytes32)
@@ -86,7 +86,7 @@ function createProject(
     address rewardToken,
     uint256 minStakeToClaim,
     uint256 minStakeToContribute,
-    uint256 minValidations,
+    uint256 numberOfValidations,
     uint256 validatorRewardBasisPoints,
     string calldata requiredSkill
 ) external returns (bytes32)
@@ -260,7 +260,7 @@ function slash(address user, uint256 amount, bytes32 projectId) external returns
 function initialize(address _vault, uint256 _minStake, uint256 _decayRate, address _admin) public initializer
 ```
 
-#### `hasValidRole`
+#### `hasEnoughStakeForRole`
 ```solidity
 /**
  * @notice Check if a user is eligible for a role based on their stake.
@@ -268,7 +268,7 @@ function initialize(address _vault, uint256 _minStake, uint256 _decayRate, addre
  * @param role The role to check eligibility for.
  * @return True if user meets the protocol's minimum staking requirements.
  */
-function hasValidRole(address user, bytes32 role) public view returns (bool)
+function hasEnoughStakeForRole(address user, bytes32 role) public view
 ```
 
 #### `getTrustScore`
@@ -392,10 +392,10 @@ function revealValidation(
  * @notice Calculate consensus for a contribution
  * @param projectId Unique identifier for the project
  * @param contributionIndex The index within the project's contribution sequence
- * @param minValidations Minimum validations required to reach consensus
+ * @param numberOfValidations Number of validations required to reach consensus
  * @return report Final consensus report containing average, count, and slashes
  */
-function getConsensus(bytes32 projectId, uint256 contributionIndex, uint256 minValidations)
+function getConsensus(bytes32 projectId, uint256 contributionIndex, uint256 numberOfValidations)
     external
     view
     returns (ConsensusReport memory report)
@@ -662,7 +662,7 @@ function calculateConsensus(ValidationInput[] calldata validations)
 ```
 
 **Key Functions:**
-- `hasValidRole(address user, bytes32 role)` - Check role eligibility
+- `hasEnoughStakeForRole(address user, bytes32 role)` - Check role eligibility
 - `hasValidatedSkill(address user, string skill)` - Check skill validation
 - `validateSkill(address user, string skill)` - Mark skill as validated
 - `getTrustScore(address user, bytes32 role)` - Get reputation score
