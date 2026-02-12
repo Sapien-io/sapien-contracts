@@ -14,3 +14,8 @@ deploy-local :;
 	@./script/deploy-local.sh
 
 coverage :; forge coverage --ir-minimum
+
+
+lint :; npx solhint "src/**/*.sol" > solhint-report.txt
+
+build :; forge clean && forge build > build-report.txt

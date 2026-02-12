@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "lib/forge-std/src/Test.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 
@@ -17,19 +18,14 @@ import {LinearStakeConsensus} from "../src/consensus/LinearStakeConsensus.sol";
 
 // Interfaces
 import {ISapienCore} from "../src/interface/ISapienCore.sol";
-import {ISapienVault} from "../src/interface/ISapienVault.sol";
-import {ISapienTrust} from "../src/interface/ISapienTrust.sol";
 import {IValidationOracle} from "../src/interface/IValidationOracle.sol";
-import {IRewards} from "../src/interface/IRewards.sol";
 
 // Roles and shared types
 import {
-    ORIGINATOR_ROLE,
     CONTRIBUTOR_ROLE,
     VALIDATOR_ROLE,
     UPDATER_ROLE,
-    SAPIEN_CORE_ROLE,
-    ISharedTypes
+    SAPIEN_CORE_ROLE
 } from "../src/interface/ISharedTypes.sol";
 
 // Mock token
@@ -170,7 +166,7 @@ contract FrontendIntegrationTest is Test {
         console.log("Core: setProtocolFeeBasisPoints(100) - set 1% protocol fee");
 
         // 2.5 Grant roles to participants
-        // NOTE: No roles are granted here because hasEnoughStake() only checks stake,
+        // NOTE: No roles are granted here because hasEnoughStakeForRole() only checks stake,
         // not the role grant itself. Access control is purely stake-based.
         console.log("No role grants needed - access is stake-based");
 
@@ -195,7 +191,7 @@ contract FrontendIntegrationTest is Test {
         // ================================================================
         console.log("\n========== SECTION 3: STAKING ==========\n");
 
-        // 3.1 Originator stakes (needed for hasEnoughStake check)
+        // 3.1 Originator stakes (needed for hasEnoughStakeForRole check)
         vm.startPrank(originator);
         stakeToken.approve(address(vault), 100 ether);
         console.log("Originator: approve(vault, 100 ether) - approved stake tokens");
@@ -268,7 +264,7 @@ contract FrontendIntegrationTest is Test {
             "my-awesome-project-cid", // IPFS CID
             10 ether, // minStakeToClaim - contributors need 10 ETH staked
             5 ether, // minStakeToContribute
-            3, // minValidations - need 3 validators
+            3, // numberOfValidations - need 3 validators
             1000, // validatorRewardBasisPoints - 10% goes to validators
             "" // requiredSkill - no skill requirement
         );
@@ -276,7 +272,7 @@ contract FrontendIntegrationTest is Test {
         console.log("  - projectId:", vm.toString(projectId));
         console.log("  - rewardToken:", address(rewardToken));
         console.log("  - minStakeToClaim: 10 ether");
-        console.log("  - minValidations: 3");
+        console.log("  - numberOfValidations: 3");
         console.log("  - validatorRewardBps: 1000 (10%)");
 
         // 5.2 Fund the project (with operator fee)
@@ -543,9 +539,9 @@ contract FrontendIntegrationTest is Test {
             "trust.getTrustScore(contributor, CONTRIBUTOR_ROLE):", trust.getTrustScore(contributor, CONTRIBUTOR_ROLE)
         );
         console.log("trust.getTrustScore(validator1, VALIDATOR_ROLE):", trust.getTrustScore(validator1, VALIDATOR_ROLE));
-        trust.hasEnoughStake(contributor, CONTRIBUTOR_ROLE);
+        trust.hasEnoughStakeForRole(contributor, CONTRIBUTOR_ROLE);
         console.log(
-            "trust.hasEnoughStake(contributor, CONTRIBUTOR_ROLE): success"
+            "trust.hasEnoughStakeForRole(contributor, CONTRIBUTOR_ROLE): success"
         );
 
         // ================================================================

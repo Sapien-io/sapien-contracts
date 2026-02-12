@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {ISapienCore} from "../../src/interface/ISapienCore.sol";
 
 contract PrecisionLossTest is BaseTest {

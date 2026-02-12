@@ -211,7 +211,8 @@ contract RewardsTest is BaseTest {
         vm.stopPrank();
 
         vm.startPrank(address(core));
-        // allocateRewards doesn't check amount 0
+        // allocateRewards now checks amount 0
+        vm.expectRevert(IRewards.InvalidAmount.selector);
         rewards.allocateRewards(PROJECT_ID, address(rewardToken), 0);
 
         rewards.allocateRewards(PROJECT_ID, address(rewardToken), 100 ether);

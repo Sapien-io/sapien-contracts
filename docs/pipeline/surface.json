@@ -4,9 +4,7 @@
       "external_functions": [
         "initialize",
         "setClaimDeadlineDays",
-        "setMaxValidations",
         "getClaimDeadlineDays",
-        "getMaxValidations",
         "setProtocolFeeBasisPoints",
         "setTreasury",
         "setConsensusThreshold",
@@ -41,7 +39,7 @@
         "IRewards.allocateRewards",
         "IRewards.distributeReward",
         "IRewards.distributeValidatorReward",
-        "ISapienTrust.hasEnoughStake",
+        "ISapienTrust.hasEnoughStakeForRole",
         "ISapienTrust.updateReputation",
         "ISapienTrust.validateSkill",
         "ISapienTrust.getTrustScore",
@@ -87,7 +85,7 @@
     "SapienTrust": {
       "external_functions": [
         "initialize",
-        "hasEnoughStake",
+        "hasEnoughStakeForRole",
         "hasValidatedSkill",
         "validateSkill",
         "getTrustScore",
@@ -153,7 +151,7 @@
         "registerProject",
         "registerAlgorithm",
         "setProjectAlgorithm",
-        "setProjectMaxValidations",
+        "setProjectNumberOfValidations",
         "setProjectRequiredSkill",
         "setProjectRevealDeadline",
         "setProjectOriginator",
@@ -166,7 +164,7 @@
       ],
       "payable_paths": [],
       "external_calls": [
-        "ISapienTrust.hasEnoughStake",
+        "ISapienTrust.hasEnoughStakeForRole",
         "ISapienTrust.hasRequiredStake",
         "ISapienTrust.hasValidatedSkill",
         "ISapienTrust.getTrustScore",

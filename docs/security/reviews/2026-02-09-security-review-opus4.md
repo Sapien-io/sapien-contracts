@@ -289,7 +289,7 @@ These functions can be called by anyone to clean up expired validator commitment
 
 **Location**: `ValidationOracle.sol:claimToValidate():175-238`
 
-The validation queue creates `maxValidations` entries per contribution index. A validator calling `claimToValidate` multiple times may be assigned the same `contributionIndex` multiple times if it appears consecutively in the queue. While `assignment.hasCommitted` prevents double-commits, the duplicate assignment wastes a queue slot that another validator could have used. Consider adding a check to skip indices the validator is already assigned to.
+The validation queue creates `numberOfValidations` entries per contribution index. A validator calling `claimToValidate` multiple times may be assigned the same `contributionIndex` multiple times if it appears consecutively in the queue. While `assignment.hasCommitted` prevents double-commits, the duplicate assignment wastes a queue slot that another validator could have used. Consider adding a check to skip indices the validator is already assigned to.
 
 ---
 
@@ -310,10 +310,10 @@ The validation queue creates `maxValidations` entries per contribution index. A 
 ### Cross-Contract Interactions Verified
 
 - [x] Core → Oracle: `registerProject`, `enqueueValidation`, `setContributionContributor`, `resetContributionState`, `handleValidatorSlash`, `getConsensus`, `getValidations`
-- [x] Core → Trust: `hasEnoughStake`, `updateReputation`, `validateSkill`, `getTrustScore`
+- [x] Core → Trust: `hasEnoughStakeForRole`, `updateReputation`, `validateSkill`, `getTrustScore`
 - [x] Core → Vault: `getStake`, `lockStake`, `unlockStake`, `slash`, `getLockedStake`
 - [x] Core → Rewards: `allocateRewards`, `distributeReward`, `distributeValidatorReward`
-- [x] Oracle → Trust: `hasEnoughStake`, `hasRequiredStake`, `getTrustScore`, `hasValidatedSkill`, `roleMinStake`, `minStakeRequired`, `updateReputation`
+- [x] Oracle → Trust: `hasEnoughStakeForRole`, `hasRequiredStake`, `getTrustScore`, `hasValidatedSkill`, `roleMinStake`, `minStakeRequired`, `updateReputation`
 - [x] Oracle → Vault: `lockStake`, `unlockStake`, `slash`, `getAvailableStake`, `getLockedStake`
 
 ### Security Properties Verified

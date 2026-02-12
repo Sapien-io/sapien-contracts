@@ -4,7 +4,7 @@
     "file": "src/SapienCore.sol",
     "type": "Storage Collision",
     "severity": "Critical",
-    "description": "The 'userActiveClaimedQuantity' mapping was inserted into the storage layout before existing variables '_claimDeadlineDays', '_maxValidations', 'protocolFeeBasisPoints', 'treasury', and 'consensusThreshold'.",
+    "description": "The 'userActiveClaimedQuantity' mapping was inserted into the storage layout before existing variables '_claimDeadlineDays', 'protocolFeeBasisPoints', 'treasury', and 'consensusThreshold'. [Note: _maxValidations has since been removed; replaced by per-project numberOfValidations.]",
     "impact": "If SapienCore is upgraded from a version that already had these variables, the mapping will occupy their old slots, leading to data corruption and incorrect configuration values being read from storage.",
     "recommendation": "Move 'userActiveClaimedQuantity' to the end of the state variables, just before the '__gap' at line 100, and ensure all previously deployed variables maintain their original slot order."
   },

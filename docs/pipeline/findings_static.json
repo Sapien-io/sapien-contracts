@@ -6,7 +6,7 @@
     "type": "Storage Layout Shift",
     "severity": "CRITICAL",
     "description": "The mapping 'userActiveClaimedQuantity' was inserted into the middle of the state variable list. In upgradeable contracts, adding new variables in the middle of existing ones shifts the storage slots of all subsequent variables.",
-    "impact": "When the contract is upgraded, existing values for '_claimDeadlineDays', '_maxValidations', 'protocolFeeBasisPoints', 'treasury', and 'consensusThreshold' will be read from incorrect slots, leading to protocol-wide configuration corruption and potential loss of funds or broken logic.",
+    "impact": "When the contract is upgraded, existing values for '_claimDeadlineDays', 'protocolFeeBasisPoints', 'treasury', and 'consensusThreshold' will be read from incorrect slots, leading to protocol-wide configuration corruption and potential loss of funds or broken logic. [Note: _maxValidations has since been removed; replaced by per-project numberOfValidations.]",
     "recommendation": "Move 'userActiveClaimedQuantity' to the end of the state variable list, just before the '__gap' array, and decrement the gap size by 1 (from 32 to 31)."
   },
   {

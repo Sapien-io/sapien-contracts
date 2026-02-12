@@ -9,7 +9,7 @@
         "Set protocol fees",
         "Set treasury address",
         "Set consensus thresholds",
-        "Set max validations",
+        "Set number of validations (per project)",
         "Set reputation decay rates",
         "Set minimum staking requirements",
         "Set max operator fees",
@@ -22,7 +22,7 @@
     "ORIGINATOR_ROLE": {
       "description": "Authorized project creators who can register new work requests and fund them.",
       "modifiers": [
-        "None (checked via ISapienTrust.hasEnoughStake)"
+        "None (checked via ISapienTrust.hasEnoughStakeForRole)"
       ],
       "privileged_actions": [
         "Create new projects",
@@ -35,7 +35,7 @@
     "CONTRIBUTOR_ROLE": {
       "description": "Workers who perform tasks and earn rewards.",
       "modifiers": [
-        "None (checked via ISapienTrust.hasEnoughStake)"
+        "None (checked via ISapienTrust.hasEnoughStakeForRole)"
       ],
       "privileged_actions": [
         "Claim contribution slots",
@@ -45,7 +45,7 @@
     "VALIDATOR_ROLE": {
       "description": "Auditors who verify contributions and reach consensus.",
       "modifiers": [
-        "None (checked via ISapienTrust.hasEnoughStake)"
+        "None (checked via ISapienTrust.hasEnoughStakeForRole)"
       ],
       "privileged_actions": [
         "Claim validation slots",

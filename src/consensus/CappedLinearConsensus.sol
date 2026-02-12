@@ -15,11 +15,17 @@ import {ConsensusLib} from "../libraries/ConsensusLib.sol";
  *      2. Attackers can't instantly dominate consensus with fresh accounts
  *      3. 30% iterative cap prevents whale dominance
  * Security Grade: A- (prevents whale dominance + Sybil resistance)
+ * @author Sapien Team
  */
 contract CappedLinearConsensus is IConsensusAlgorithm {
     /// @notice Maximum weight percentage per validator (30%)
     uint256 public constant MAX_WEIGHT_BPS = 3000; // 30%
 
+    /**
+     * @notice Calculate consensus for a set of validations
+     * @param validations Array of validation inputs
+     * @return result The consensus result including weighted average and outliers
+     */
     function calculateConsensus(ValidationInput[] calldata validations)
         external
         pure
@@ -27,34 +33,7 @@ contract CappedLinearConsensus is IConsensusAlgorithm {
     {
         if (validations.length == 0) revert NoValidations();
 
-        uint256 len = validations.length;
-
-        // Allocate arrays
-        uint256[] memory scores = new uint256[](len);
-        uint256[] memory weights = new uint256[](len);
-
-        // Single pass: validate inputs and calculate base weights
-        uint256 totalWeight = 0;
-        for (uint256 i = 0; i < len; i++) {
-            if (validations[i].score > 10000) {
-                revert InvalidScore(validations[i].score);
-            }
-            if (validations[i].stakeAmount == 0) {
-                revert InvalidStakeAmount();
-            }
-
-            scores[i] = validations[i].score;
-
-            // Calculate base weight = stake * effective_reputation / 10000
-            uint256 baseWeight = ConsensusLib.calculateBaseWeight(validations[i].stakeAmount, validations[i].reputation);
-
-            // Ensure baseWeight > 0 to prevent zero-weight validators (handles rounding edge cases)
-            if (baseWeight == 0) revert InvalidStakeAmount();
-
-            weights[i] = baseWeight;
-            totalWeight += baseWeight;
-        }
-
+        (uint256[] memory scores, uint256[] memory weights, uint256 totalWeight) = _prepareWeights(validations);
         if (totalWeight == 0) revert InvalidStakeAmount();
 
         // Apply iterative cap - properly limits any single validator to MAX_WEIGHT_BPS
@@ -62,35 +41,68 @@ contract CappedLinearConsensus is IConsensusAlgorithm {
 
         // Verify total weight after capping is still > 0 to prevent division by zero
         uint256 totalCappedWeight = 0;
-        for (uint256 i = 0; i < weights.length; i++) {
+        for (uint256 i = 0; i < weights.length; ++i) {
             totalCappedWeight += weights[i];
         }
         if (totalCappedWeight == 0) revert InvalidStakeAmount();
 
-        // Calculate weighted average with capped weights
+        // Calculate weighted average and outliers
         result.weightedAverage = ConsensusLib.calculateWeightedAverage(scores, weights);
-
-        // Calculate standard deviation
         result.stdDev = ConsensusLib.calculateStandardDeviation(scores, weights, result.weightedAverage);
-
-        // Identify outliers
         (result.validatorsToSlash, result.slashAmounts) =
             ConsensusLib.identifyOutliers(validations, result.weightedAverage, result.stdDev);
-
-        // Return weights for transparency
         result.validatorWeights = weights;
 
         return result;
     }
 
+    /**
+     * @notice Prepare base weights and scores from validations
+     * @param validations Array of validation inputs
+     * @return scores Array of scores
+     * @return weights Array of base weights
+     * @return totalWeight Total base weight
+     */
+    function _prepareWeights(ValidationInput[] calldata validations)
+        internal
+        pure
+        returns (uint256[] memory scores, uint256[] memory weights, uint256 totalWeight)
+    {
+        uint256 len = validations.length;
+        scores = new uint256[](len);
+        weights = new uint256[](len);
+
+        for (uint256 i = 0; i < len; ++i) {
+            if (validations[i].score > 10000) revert InvalidScore(validations[i].score);
+            if (validations[i].stakeAmount == 0) revert InvalidStakeAmount();
+
+            scores[i] = validations[i].score;
+            weights[i] = ConsensusLib.calculateBaseWeight(validations[i].stakeAmount, validations[i].reputation);
+            if (weights[i] == 0) revert InvalidStakeAmount();
+            totalWeight += weights[i];
+        }
+    }
+
+    /**
+     * @notice Get the name of the consensus algorithm
+     * @return The name string
+     */
     function getName() external pure returns (string memory) {
         return "CappedLinear";
     }
 
+    /**
+     * @notice Get the security grade of the algorithm
+     * @return The security grade string
+     */
     function getSecurityGrade() external pure returns (string memory) {
         return "A-";
     }
 
+    /**
+     * @notice Get the description of the algorithm
+     * @return The description string
+     */
     function getDescription() external pure returns (string memory) {
         return "Stake x Reputation weighted with iterative 30% cap. Weight = min(stake * rep, 30% of total). Provides Sybil resistance and prevents whale dominance.";
     }

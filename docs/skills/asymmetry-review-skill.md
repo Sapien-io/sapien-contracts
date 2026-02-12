@@ -56,7 +56,7 @@ Check how logic is implemented across contracts:
 ## Known Asymmetries (Current State)
 
 -   **Storage Gaps**: High variance in gap sizes (`SapienCore`: 33, `SapienVault`: 49, `Rewards`: 42, `ValidationOracle`: 25).
--   **Error Handling**: `SapienCore` uses string reverts in some places (`revert("Max validations cannot exceed 100")`) while other contracts are moving towards pure custom errors.
+-   **Error Handling**: [Note: The `revert("Max validations cannot exceed 100")` has been removed; `numberOfValidations` is now set per-project without a global cap.] Some contracts use string reverts while others use pure custom errors.
 -   **Unauthorized Reasons**: `ISharedTypes.sol` defines string constants for reasons (e.g., `UNAUTHORIZED_NOT_CLAIM_OWNER`) and a single `error Unauthorized(string reason)`. Some contracts use this pattern, while others use dedicated error types like `error OnlyCore()`.
 -   **Constants**: `ValidationOracle` uses error codes from `ISharedTypes.sol` inside `revert Unauthorized(CODE)`, while `Rewards` uses dedicated custom error types like `revert OnlyCore()`.
 

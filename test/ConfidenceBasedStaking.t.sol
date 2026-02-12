@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {BaseTest} from "./BaseTest.t.sol";
 import {IValidationOracle} from "../src/interface/IValidationOracle.sol";
 import {VALIDATOR_ROLE, ISharedTypes} from "../src/interface/ISharedTypes.sol";
@@ -80,7 +80,7 @@ contract ConfidenceBasedStakingTest is BaseTest {
             "confidence-staking-project",
             MIN_STAKE, // minStakeToClaim
             0, // minStakeToContribute
-            3, // minValidations
+            3, // numberOfValidations
             1000, // validatorRewardBasisPoints (10%)
             "" // No skill required
         );
@@ -480,6 +480,9 @@ contract ConfidenceBasedStakingTest is BaseTest {
             keccak256(abi.encodePacked(consensusScore, MEDIUM_STAKE, saltMed))
         );
 
+        // Warp so validation.submittedAt > contribution.submittedAt (required for reward filtering)
+        vm.warp(block.timestamp + 1);
+
         // Reveal all
         vm.prank(accurateHigh);
         oracle.revealValidation(TEST_PROJECT_ID, contributionIndex, consensusScore, saltHigh);
@@ -488,8 +491,8 @@ contract ConfidenceBasedStakingTest is BaseTest {
         vm.prank(mediumConfidenceValidator);
         oracle.revealValidation(TEST_PROJECT_ID, contributionIndex, consensusScore, saltMed);
 
-        // Finalize
-        vm.warp(block.timestamp + 1 hours);
+        // Finalize - warp past reveal deadline and challenge period so rewards are distributed
+        vm.warp(block.timestamp + 4 days);
         vm.prank(originator);
         core.finalizeContribution(TEST_PROJECT_ID, contributionIndex);
 
@@ -716,8 +719,23 @@ contract ConfidenceBasedStakingTest is BaseTest {
         console.log("Low rep:", lowRep);
         assertTrue(highRep > lowRep, "High rep validator should have more reputation");
 
-        // Now create project and contribution
-        _createTestProject();
+        // Create project with numberOfValidations=4 (need 4 validator slots)
+        vm.startPrank(originator);
+        deal(address(rewardToken), originator, 10000 ether);
+        rewardToken.approve(address(core), 10000 ether);
+        core.createProject(
+            TEST_PROJECT_ID,
+            address(rewardToken),
+            "confidence-staking-project",
+            MIN_STAKE, // minStakeToClaim
+            0, // minStakeToContribute
+            4, // numberOfValidations (4 validators in this test)
+            1000, // validatorRewardBasisPoints (10%)
+            "" // No skill required
+        );
+        core.fundProject(TEST_PROJECT_ID, 1000 ether, 100);
+        vm.stopPrank();
+
         (, uint256 contributionIndex) = _createContribution();
 
         // All stake the same amount, same score

@@ -2,7 +2,6 @@
 pragma solidity ^0.8.30;
 
 import "../BaseTest.t.sol";
-import "forge-std/console.sol";
 import {ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
 
 /**
@@ -27,7 +26,7 @@ contract CEIFixVerificationTest is BaseTest {
 
         // Create project
         vm.startPrank(originator);
-        core.createProject(PROJECT_ID, address(rewardToken), "test-project", 0, 0, 1, 1000, "");
+        core.createProject(PROJECT_ID, address(rewardToken), "test-project", 0, 0, 2, 1000, "");
         rewardToken.approve(address(core), 100 ether);
         core.fundProject(PROJECT_ID, 100 ether, 10);
         vm.stopPrank();
@@ -197,9 +196,11 @@ contract CEIFixVerificationTest is BaseTest {
             core.getContribution(PROJECT_ID, 0).contributor, contributor, "Oracle should have contributor recorded"
         );
 
-        // Setup validators
+        // Setup validators (need 2 to match numberOfValidations)
         _setupValidator(validator1, 100 ether);
+        _setupValidator(validator2, 100 ether);
         _validateContribution(validator1, PROJECT_ID, 0, 8000);
+        _validateContribution(validator2, PROJECT_ID, 0, 8000);
 
         // Fast forward and finalize
         vm.warp(block.timestamp + 4 days);

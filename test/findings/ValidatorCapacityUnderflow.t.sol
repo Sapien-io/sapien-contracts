@@ -19,7 +19,7 @@ contract ValidatorCapacityUnderflowTest is BaseTest {
         super.setUp();
         PROJECT_ID = keccak256(abi.encodePacked("capacity-vulnerability-project"));
         vm.prank(admin);
-        oracle.registerProject(PROJECT_ID, 10, 3, "", originator);
+        oracle.registerProject(PROJECT_ID, 3, "", originator);
     }
 
     /**

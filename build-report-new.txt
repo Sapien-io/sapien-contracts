@@ -1,0 +1,1346 @@
+Compiling 73 files with Solc 0.8.30
+Solc 0.8.30 finished in 201.30s
+Compiler run successful!
+note[mixed-case-variable]: mutable variables should use mixedCase
+  --> test/findings/ValidatorCapacityUnderflow.t.sol:16:20
+   |
+16 |     bytes32 public PROJECT_ID;
+   |                    ^^^^^^^^^^ help: consider using: `projectId`
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#mixed-case-variable
+
+note[unused-import]: unused imports should be removed
+ --> test/lifecycle/SecurityFixes.t.sol:4:9
+  |
+4 | import {console} from "forge-std/Test.sol";
+  |         ^^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+ --> test/lifecycle/EndToEnd.t.sol:6:27
+  |
+6 | import {CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
+  |                           ^^^^^^^^^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+  --> test/StakeReputationConsensus.t.sol:77:36
+   |
+77 |                 validator: address(uint160(i + 1)), score: 5000, stakeAmount: 100 ether, reputation: DEFAULT_REP
+   |                                    ^^^^^^^^^^^^^^
+   |
+   = note: consider disabling this lint if you're certain the cast is safe
+           
+           // casting to 'uint160' is safe because [explain why]
+           // forge-lint: disable-next-line(unsafe-typecast)
+           
+           
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+note[mixed-case-variable]: mutable variables should use mixedCase
+  --> src/SapienVault.sol:47:25
+   |
+47 |     uint256[49] private __gap;
+   |                         ^^^^^ help: consider using: `_gap`
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#mixed-case-variable
+
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+   --> test/findings/Opus4_L4_VaultDepositNotPaused.t.sol:116:9
+    |
+116 |         vault.transfer(admin, 1);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/StakeReputationConsensus.t.sol:118:36
+    |
+118 |                 validator: address(uint160(i + 1)),
+    |                                    ^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'uint160' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+note[unused-import]: unused imports should be removed
+ --> test/findings/ProjectParameterManipulation.t.sol:6:9
+  |
+6 | import {ISharedTypes, ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
+  |         ^^^^^^^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+  --> test/findings/VaultVampirism.t.sol:49:41
+   |
+49 |         vault.slash(victim, 1000 ether, bytes32("project_id"));
+   |                                         ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: consider disabling this lint if you're certain the cast is safe
+           
+           // casting to 'bytes32' is safe because [explain why]
+           // forge-lint: disable-next-line(unsafe-typecast)
+           
+           
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+  --> test/findings/VaultVampirism.t.sol:98:52
+   |
+98 |         vault.slash(originator, type(uint256).max, bytes32("p1")); // Slash all
+   |                                                    ^^^^^^^^^^^^^
+   |
+   = note: consider disabling this lint if you're certain the cast is safe
+           
+           // casting to 'bytes32' is safe because [explain why]
+           // forge-lint: disable-next-line(unsafe-typecast)
+           
+           
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+note[unused-import]: unused imports should be removed
+ --> test/findings/IndexReclamationRace.t.sol:6:44
+  |
+6 | import {ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
+  |                                            ^^^^^^^^^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unaliased-plain-import]: use named imports '{A, B}' or alias 'import ".." as X'
+ --> test/findings/CEIFixVerification.t.sol:4:8
+  |
+4 | import "../BaseTest.t.sol";
+  |        ^^^^^^^^^^^^^^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unaliased-plain-import
+
+note[mixed-case-variable]: mutable variables should use mixedCase
+  --> src/Rewards.sol:68:25
+   |
+68 |     uint256[42] private __gap;
+   |                         ^^^^^ help: consider using: `_gap`
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#mixed-case-variable
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/StakeReputationConsensus.t.sol:170:36
+    |
+170 |                 validator: address(uint160(i + 1)),
+    |                                    ^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'uint160' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+note[unused-import]: unused imports should be removed
+ --> test/findings/ValidatorCapacityVaultDesync.t.sol:6:9
+  |
+6 | import {ISharedTypes, ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
+  |         ^^^^^^^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/StakeReputationConsensus.t.sol:288:36
+    |
+288 |                 validator: address(uint160(i + 1)), score: 5000, stakeAmount: 100 ether, reputation: DEFAULT_REP
+    |                                    ^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'uint160' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+note[mixed-case-variable]: mutable variables should use mixedCase
+  --> test/findings/ValidatorSlashingEnhancements.t.sol:14:20
+   |
+14 |     bytes32 public PROJECT_ID;
+   |                    ^^^^^^^^^^ help: consider using: `projectId`
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#mixed-case-variable
+
+note[mixed-case-variable]: mutable variables should use mixedCase
+  --> src/SapienTrust.sol:93:25
+   |
+93 |     uint256[40] private __gap;
+   |                         ^^^^^ help: consider using: `_gap`
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#mixed-case-variable
+
+note[mixed-case-variable]: mutable variables should use mixedCase
+  --> test/findings/IndexRequeuingInconsistency.t.sol:17:20
+   |
+17 |     bytes32 public PROJECT_ID;
+   |                    ^^^^^^^^^^ help: consider using: `projectId`
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#mixed-case-variable
+
+note[screaming-snake-case-immutable]: immutables should use SCREAMING_SNAKE_CASE
+ --> test/mocks/MockERC20.sol:7:29
+  |
+7 |     uint8 private immutable _decimals;
+  |                             ^^^^^^^^^ help: consider using: `_DECIMALS`
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#screaming-snake-case-immutable
+
+note[unused-import]: unused imports should be removed
+ --> test/findings/Opus4_L5_RewardsCoreReassignment.t.sol:6:9
+  |
+6 | import {ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
+  |         ^^^^^^^^^^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+ --> test/findings/Opus4_L5_RewardsCoreReassignment.t.sol:6:26
+  |
+6 | import {ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
+  |                          ^^^^^^^^^^^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+ --> test/findings/Opus4_L5_RewardsCoreReassignment.t.sol:6:44
+  |
+6 | import {ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
+  |                                            ^^^^^^^^^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/ConfidenceBasedStaking.t.sol:177:87
+    |
+177 |         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), belowMinStake, bytes32("salt")));
+    |                                                                                       ^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+note[unused-import]: unused imports should be removed
+ --> test/invariants/Invariants.t.sol:4:9
+  |
+4 | import {Test} from "forge-std/Test.sol";
+  |         ^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[mixed-case-variable]: mutable variables should use mixedCase
+  --> test/SapienCore.t.sol:18:20
+   |
+18 |     bytes32 public PROJECT_ID;
+   |                    ^^^^^^^^^^ help: consider using: `projectId`
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#mixed-case-variable
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/StakeReputationConsensus.t.sol:459:36
+    |
+459 |                 validator: address(uint160(i + 1)),
+    |                                    ^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'uint160' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/StakeReputationConsensus.t.sol:506:36
+    |
+506 |                 validator: address(uint160(i + 1)),
+    |                                    ^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'uint160' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/StakeReputationConsensus.t.sol:646:36
+    |
+646 |                 validator: address(uint160(i + 1)),
+    |                                    ^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'uint160' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/StakeReputationConsensus.t.sol:677:36
+    |
+677 |                 validator: address(uint160(i + 1)),
+    |                                    ^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'uint160' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+   --> test/Vault.t.sol:113:9
+    |
+113 |         vault.transfer(validator2, 10);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+   --> test/Vault.t.sol:137:9
+    |
+137 |         vault.transfer(validator2, availableShares); // already transferred half
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+   --> test/Vault.t.sol:241:9
+    |
+241 |         vault.transfer(validator1, 1);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+
+note[mixed-case-variable]: mutable variables should use mixedCase
+   --> src/ValidationOracle.sol:111:25
+    |
+111 |     uint256[36] private __gap;
+    |                         ^^^^^ help: consider using: `_gap`
+    |
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#mixed-case-variable
+
+note[unused-import]: unused imports should be removed
+ --> test/findings/Opus4_L1_ClaimCounterDrift.t.sol:6:44
+  |
+6 | import {ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
+  |                                            ^^^^^^^^^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/ConfidenceBasedStaking.t.sol:193:88
+    |
+193 |         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), excessiveStake, bytes32("salt")));
+    |                                                                                        ^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/ConfidenceBasedStaking.t.sol:269:84
+    |
+269 |         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), HIGH_STAKE, bytes32("salt")));
+    |                                                                                    ^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/ConfidenceBasedStaking.t.sol:317:86
+    |
+317 |         bytes32 commitHash = keccak256(abi.encodePacked(uint256(9000), MEDIUM_STAKE, bytes32("med")));
+    |                                                                                      ^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/ConfidenceBasedStaking.t.sol:324:75
+    |
+324 |         oracle.revealValidation(TEST_PROJECT_ID, contributionIndex, 9000, bytes32("med"));
+    |                                                                           ^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/ConfidenceBasedStaking.t.sol:337:77
+    |
+337 |         bytes32 hash = keccak256(abi.encodePacked(uint256(7500), MIN_STAKE, bytes32("back_compat")));
+    |                                                                             ^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/ConfidenceBasedStaking.t.sol:343:75
+    |
+343 |         oracle.revealValidation(TEST_PROJECT_ID, contributionIndex, 7500, bytes32("back_compat"));
+    |                                                                           ^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+note[unused-import]: unused imports should be removed
+ --> test/findings/ContributorSlotStarvation.t.sol:6:44
+  |
+6 | import {ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
+  |                                            ^^^^^^^^^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+ --> test/findings/ContributorSlotStarvation.t.sol:7:9
+  |
+7 | import {ISapienCore} from "../../src/interface/ISapienCore.sol";
+  |         ^^^^^^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+ --> test/Coverage.t.sol:4:9
+  |
+4 | import {Test} from "forge-std/Test.sol";
+  |         ^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+  --> test/Coverage.t.sol:12:9
+   |
+12 | import {MockERC20} from "./mocks/MockERC20.sol";
+   |         ^^^^^^^^^
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+  --> test/Coverage.t.sol:24:5
+   |
+24 |     LOCKER_ROLE,
+   |     ^^^^^^^^^^^
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+  --> test/Coverage.t.sol:25:5
+   |
+25 |     SLASHER_ROLE,
+   |     ^^^^^^^^^^^^
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+  --> test/Coverage.t.sol:26:5
+   |
+26 |     PAUSER_ROLE,
+   |     ^^^^^^^^^^^
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+  --> test/Coverage.t.sol:27:5
+   |
+27 |     UPDATER_ROLE,
+   |     ^^^^^^^^^^^^
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+  --> test/Coverage.t.sol:28:5
+   |
+28 |     SAPIEN_CORE_ROLE,
+   |     ^^^^^^^^^^^^^^^^
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+ --> test/lifecycle/Adversarial.t.sol:4:9
+  |
+4 | import {console} from "forge-std/Test.sol";
+  |         ^^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+ --> test/lifecycle/Adversarial.t.sol:6:27
+  |
+6 | import {CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
+  |                           ^^^^^^^^^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[mixed-case-variable]: mutable variables should use mixedCase
+   --> test/FrontendIntegration.t.sol:145:17
+    |
+145 |         bytes32 LOCKER_ROLE = keccak256("LOCKER_ROLE");
+    |                 ^^^^^^^^^^^ help: consider using: `lockerRole`
+    |
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#mixed-case-variable
+
+note[mixed-case-variable]: mutable variables should use mixedCase
+   --> test/FrontendIntegration.t.sol:146:17
+    |
+146 |         bytes32 SLASHER_ROLE = keccak256("SLASHER_ROLE");
+    |                 ^^^^^^^^^^^^ help: consider using: `slasherRole`
+    |
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#mixed-case-variable
+
+note[mixed-case-variable]: mutable variables should use mixedCase
+  --> test/Oracle.t.sol:16:20
+   |
+16 |     bytes32 public PROJECT_ID;
+   |                    ^^^^^^^^^^ help: consider using: `projectId`
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#mixed-case-variable
+
+note[unused-import]: unused imports should be removed
+  --> test/Coverage.t.sol:29:5
+   |
+29 |     ISharedTypes
+   |     ^^^^^^^^^^^^
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unwrapped-modifier-logic]: wrap modifier logic to reduce code size
+   --> src/ValidationOracle.sol:117:5
+    |
+117 | /     modifier onlyCoreOrAdmin() {
+118 | |         if (!hasRole(SAPIEN_CORE_ROLE, msg.sender) && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
+119 | |             revert Unauthorized(UNAUTHORIZED_MISSING_CORE_ROLE);
+...   |
+122 | |     }
+    | |_____^
+    |
+help: wrap modifier logic to reduce code size
+    |
+117 ~     modifier onlyCoreOrAdmin() {
+118 +         _onlyCoreOrAdmin();
+119 +         _;
+120 +     }
+121 + 
+122 +     function _onlyCoreOrAdmin() internal {
+123 +         if (!hasRole(SAPIEN_CORE_ROLE, msg.sender) && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
+124 +             revert Unauthorized(UNAUTHORIZED_MISSING_CORE_ROLE);
+125 +         }
+126 +     }
+    |
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unwrapped-modifier-logic
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> src/ValidationOracle.sol:577:41
+    |
+577 |                 revealDeadlineSnapshot: uint64(deadlineSnapshot),
+    |                                         ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'uint64' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> src/ValidationOracle.sol:689:24
+    |
+689 |                 score: uint16(score),
+    |                        ^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'uint16' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+note[unused-import]: unused imports should be removed
+ --> test/invariants/InvariantsV2.t.sol:4:9
+  |
+4 | import {Test} from "forge-std/Test.sol";
+  |         ^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+ --> test/invariants/InvariantsV2.t.sol:7:9
+  |
+7 | import {MockERC20} from "test/mocks/MockERC20.sol";
+  |         ^^^^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+ --> test/invariants/InvariantsV2.t.sol:9:9
+  |
+9 | import {ValidationOracle} from "../../src/ValidationOracle.sol";
+  |         ^^^^^^^^^^^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+  --> test/invariants/InvariantsV2.t.sol:10:9
+   |
+10 | import {SapienTrust} from "../../src/SapienTrust.sol";
+   |         ^^^^^^^^^^^
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+  --> test/invariants/InvariantsV2.t.sol:11:9
+   |
+11 | import {SapienVault} from "../../src/SapienVault.sol";
+   |         ^^^^^^^^^^^
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+  --> test/invariants/InvariantsV2.t.sol:12:9
+   |
+12 | import {Rewards} from "../../src/Rewards.sol";
+   |         ^^^^^^^
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+  --> test/handlers/ProtocolHandler.sol:11:9
+   |
+11 | import {CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
+   |         ^^^^^^^^^^^^^^^^
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+  --> test/handlers/ProtocolHandler.sol:11:27
+   |
+11 | import {CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
+   |                           ^^^^^^^^^^^^^^
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[unused-import]: unused imports should be removed
+ --> test/FrontendIntegration.t.sol:7:9
+  |
+7 | import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
+  |         ^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/Oracle.t.sol:862:93
+    |
+862 |         bytes32 commitHash1 = keccak256(abi.encodePacked(uint256(8000), uint256(100 ether), bytes32("salt1")));
+    |                                                                                             ^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/Oracle.t.sol:872:93
+    |
+872 |         bytes32 commitHash2 = keccak256(abi.encodePacked(uint256(8000), uint256(100 ether), bytes32("salt2")));
+    |                                                                                             ^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/ConfidenceBasedStaking.t.sol:598:83
+    |
+598 |         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), MIN_STAKE, bytes32("exact")));
+    |                                                                                   ^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+   --> test/Coverage.t.sol:426:9
+    |
+426 |         vault.transferFrom(sender, receiver, shares / 2);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/Coverage.t.sol:463:65
+    |
+463 |         hashes[0] = keccak256(abi.encodePacked(score, minStake, bytes32("salt1")));
+    |                                                                 ^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/Coverage.t.sol:487:83
+    |
+487 |         hashes[0] = keccak256(abi.encodePacked(uint256(8000), uint256(100 ether), bytes32("salt1")));
+    |                                                                                   ^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/findings/TangentReplication.t.sol:251:75
+    |
+251 |             keccak256(abi.encodePacked(uint256(5000), uint256(100 ether), bytes32("salt1")))
+    |                                                                           ^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/findings/TangentReplication.t.sol:267:21
+    |
+267 |                     bytes32("salt2")
+    |                     ^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/findings/TangentReplication.t.sol:277:53
+    |
+277 |         oracle.revealValidation(projectId, 0, 5000, bytes32("salt1"));
+    |                                                     ^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/findings/ContributorSlotStarvation.t.sol:239:37
+    |
+239 |             address sybil = address(uint160(0x5000 + i));
+    |                                     ^^^^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'uint160' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+note[mixed-case-variable]: mutable variables should use mixedCase
+   --> src/SapienCore.sol:105:25
+    |
+105 |     uint256[31] private __gap;
+    |                         ^^^^^ help: consider using: `_gap`
+    |
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#mixed-case-variable
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/ConfidenceBasedStaking.t.sol:605:75
+    |
+605 |         oracle.revealValidation(TEST_PROJECT_ID, contributionIndex, 8000, bytes32("exact"));
+    |                                                                           ^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/ConfidenceBasedStaking.t.sol:621:92
+    |
+621 |         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), uint256(100 ether), bytes32("exact_cap")));
+    |                                                                                            ^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/ConfidenceBasedStaking.t.sol:628:75
+    |
+628 |         oracle.revealValidation(TEST_PROJECT_ID, contributionIndex, 8000, bytes32("exact_cap"));
+    |                                                                           ^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/ConfidenceBasedStaking.t.sol:639:84
+    |
+639 |         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), uint256(0), bytes32("zero")));
+    |                                                                                    ^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+note[unused-import]: unused imports should be removed
+ --> test/findings/ContributionFinalizationBug.t.sol:5:9
+  |
+5 | import {ISharedTypes} from "../../src/interface/ISharedTypes.sol";
+  |         ^^^^^^^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/findings/CancelledCommitReputationUpdate.t.sol:397:34
+    |
+397 |         console.log("  Change:", int256(rep1After) - int256(rep1BeforeCancel));
+    |                                  ^^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'int256' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/findings/CancelledCommitReputationUpdate.t.sol:397:54
+    |
+397 |         console.log("  Change:", int256(rep1After) - int256(rep1BeforeCancel));
+    |                                                      ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'int256' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/findings/CancelledCommitReputationUpdate.t.sol:403:34
+    |
+403 |         console.log("  Change:", int256(rep2After) - int256(rep2BeforeCancel));
+    |                                  ^^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'int256' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/findings/CancelledCommitReputationUpdate.t.sol:403:54
+    |
+403 |         console.log("  Change:", int256(rep2After) - int256(rep2BeforeCancel));
+    |                                                      ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'int256' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/Coverage.t.sol:548:92
+    |
+548 |         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), uint256(100 ether), bytes32("salt")));
+    |                                                                                            ^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/Coverage.t.sol:586:92
+    |
+586 |         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), uint256(100 ether), bytes32("salt")));
+    |                                                                                            ^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/Coverage.t.sol:607:92
+    |
+607 |         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), uint256(100 ether), bytes32("salt")));
+    |                                                                                            ^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/findings/SecurityFixesVerification.t.sol:120:21
+    |
+120 | /                     bytes32( // casting to 'bytes32' is safe because we're converting a string literal to bytes32
+121 | |                         uint256(
+122 | |                             uint160(
+...   |
+127 | |                     )
+    | |_____________________^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/findings/SecurityFixesVerification.t.sol:137:52
+    |
+137 |         oracle.revealValidation(projectId, 0, 100, bytes32("salt1"));
+    |                                                    ^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/findings/SecurityFixesVerification.t.sol:148:13
+    |
+148 | /             bytes32(
+149 | |                 uint256(
+150 | |                     uint160(
+...   |
+155 | |             )
+    | |_____________^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+note[mixed-case-variable]: mutable variables should use mixedCase
+  --> test/OperatorFee.t.sol:11:20
+   |
+11 |     bytes32 public PROJECT_ID;
+   |                    ^^^^^^^^^^ help: consider using: `projectId`
+   |
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#mixed-case-variable
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/ConfidenceBasedStaking.t.sol:655:90
+    |
+655 |         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), slightlyAboveMin, bytes32("above")));
+    |                                                                                          ^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/ConfidenceBasedStaking.t.sol:662:75
+    |
+662 |         oracle.revealValidation(TEST_PROJECT_ID, contributionIndex, 8000, bytes32("above"));
+    |                                                                           ^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/ConfidenceBasedStaking.t.sol:679:79
+    |
+679 |         bytes32 hash1 = keccak256(abi.encodePacked(uint256(8000), HIGH_STAKE, bytes32("track")));
+    |                                                                               ^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'bytes32' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[erc20-unchecked-transfer]: ERC20 'transfer' and 'transferFrom' calls should check the return value
+    --> test/Coverage.t.sol:1219:9
+     |
+1219 |         vault.transfer(receiver, shares / 2);
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: https://book.getfoundry.sh/reference/forge/forge-lint#erc20-unchecked-transfer
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/findings/TimestampManipulation.t.sol:210:29
+    |
+210 |             int256 offset = int256(i) - 15; // Range from -15 to +15
+    |                             ^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'int256' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/findings/TimestampManipulation.t.sol:214:31
+    |
+214 |             if (offset < 0 && uint256(-offset) > baseTime) {
+    |                               ^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'uint256' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/findings/TimestampManipulation.t.sol:220:55
+    |
+220 |             manipulatedTime = offset < 0 ? baseTime - uint256(-offset) : baseTime + uint256(offset);
+    |                                                       ^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'uint256' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/findings/TimestampManipulation.t.sol:220:85
+    |
+220 |             manipulatedTime = offset < 0 ? baseTime - uint256(-offset) : baseTime + uint256(offset);
+    |                                                                                     ^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'uint256' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+note[asm-keccak256]: use of inefficient hashing mechanism; consider using inline assembly
+   --> src/SapienCore.sol:255:37
+    |
+255 |         bytes32 expectedProjectId = keccak256(abi.encodePacked(ipfsCid));
+    |                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#asm-keccak256
+
+note[unused-import]: unused imports should be removed
+ --> test/findings/PrecisionLoss.t.sol:6:9
+  |
+6 | import {ISapienCore} from "../../src/interface/ISapienCore.sol";
+  |         ^^^^^^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+note[mixed-case-variable]: mutable variables should use mixedCase
+   --> test/findings/DivideBeforeMultiplyPrecision.t.sol:228:17
+    |
+228 |         uint256 MAX_WEIGHT_BPS = 3000;
+    |                 ^^^^^^^^^^^^^^ help: consider using: `maxWeightBps`
+    |
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#mixed-case-variable
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> src/SapienCore.sol:567:63
+    |
+567 |             IndexReservation({claimant: msg.sender, deadline: uint48(deadline)});
+    |                                                               ^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'uint48' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+  --> test/findings/MildOutlierEscapeSlashing.t.sol:99:41
+   |
+99 |         console.log("Capacity change:", int256(finalCapacity) - int256(initialCapacity));
+   |                                         ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: consider disabling this lint if you're certain the cast is safe
+           
+           // casting to 'int256' is safe because [explain why]
+           // forge-lint: disable-next-line(unsafe-typecast)
+           
+           
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+  --> test/findings/MildOutlierEscapeSlashing.t.sol:99:65
+   |
+99 |         console.log("Capacity change:", int256(finalCapacity) - int256(initialCapacity));
+   |                                                                 ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: consider disabling this lint if you're certain the cast is safe
+           
+           // casting to 'int256' is safe because [explain why]
+           // forge-lint: disable-next-line(unsafe-typecast)
+           
+           
+   = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/findings/MildOutlierEscapeSlashing.t.sol:100:43
+    |
+100 |         console.log("Reputation change:", int256(finalReputation) - int256(initialReputation));
+    |                                           ^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'int256' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    --> test/Coverage.t.sol:1238:92
+     |
+1238 |         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), uint256(100 ether), bytes32("salt")));
+     |                                                                                            ^^^^^^^^^^^^^^^
+     |
+     = note: consider disabling this lint if you're certain the cast is safe
+             
+             // casting to 'bytes32' is safe because [explain why]
+             // forge-lint: disable-next-line(unsafe-typecast)
+             
+             
+     = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    --> test/Coverage.t.sol:1255:92
+     |
+1255 |         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), uint256(100 ether), bytes32("salt")));
+     |                                                                                            ^^^^^^^^^^^^^^^
+     |
+     = note: consider disabling this lint if you're certain the cast is safe
+             
+             // casting to 'bytes32' is safe because [explain why]
+             // forge-lint: disable-next-line(unsafe-typecast)
+             
+             
+     = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    --> test/Coverage.t.sol:1278:92
+     |
+1278 |         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), uint256(100 ether), bytes32("salt")));
+     |                                                                                            ^^^^^^^^^^^^^^^
+     |
+     = note: consider disabling this lint if you're certain the cast is safe
+             
+             // casting to 'bytes32' is safe because [explain why]
+             // forge-lint: disable-next-line(unsafe-typecast)
+             
+             
+     = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+note[unused-import]: unused imports should be removed
+ --> test/findings/DivideBeforeMultiplyPrecision.t.sol:7:9
+  |
+7 | import {ISapienCore} from "../../src/interface/ISapienCore.sol";
+  |         ^^^^^^^^^^^
+  |
+  = help: https://book.getfoundry.sh/reference/forge/forge-lint#unused-import
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    --> test/Coverage.t.sol:1294:92
+     |
+1294 |         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), uint256(100 ether), bytes32("salt")));
+     |                                                                                            ^^^^^^^^^^^^^^^
+     |
+     = note: consider disabling this lint if you're certain the cast is safe
+             
+             // casting to 'bytes32' is safe because [explain why]
+             // forge-lint: disable-next-line(unsafe-typecast)
+             
+             
+     = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+   --> test/findings/MildOutlierEscapeSlashing.t.sol:100:69
+    |
+100 |         console.log("Reputation change:", int256(finalReputation) - int256(initialReputation));
+    |                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: consider disabling this lint if you're certain the cast is safe
+            
+            // casting to 'int256' is safe because [explain why]
+            // forge-lint: disable-next-line(unsafe-typecast)
+            
+            
+    = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    --> test/Coverage.t.sol:1561:92
+     |
+1561 |         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), uint256(100 ether), bytes32("salt")));
+     |                                                                                            ^^^^^^^^^^^^^^^
+     |
+     = note: consider disabling this lint if you're certain the cast is safe
+             
+             // casting to 'bytes32' is safe because [explain why]
+             // forge-lint: disable-next-line(unsafe-typecast)
+             
+             
+     = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    --> test/Coverage.t.sol:1579:92
+     |
+1579 |         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), uint256(201 ether), bytes32("salt")));
+     |                                                                                            ^^^^^^^^^^^^^^^
+     |
+     = note: consider disabling this lint if you're certain the cast is safe
+             
+             // casting to 'bytes32' is safe because [explain why]
+             // forge-lint: disable-next-line(unsafe-typecast)
+             
+             
+     = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+
+warning[unsafe-typecast]: typecasts that can truncate values should be checked
+    --> test/Coverage.t.sol:1600:92
+     |
+1600 |         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), uint256(100 ether), bytes32("salt")));
+     |                                                                                            ^^^^^^^^^^^^^^^
+     |
+     = note: consider disabling this lint if you're certain the cast is safe
+             
+             // casting to 'bytes32' is safe because [explain why]
+             // forge-lint: disable-next-line(unsafe-typecast)
+             
+             
+     = help: https://book.getfoundry.sh/reference/forge/forge-lint#unsafe-typecast
+

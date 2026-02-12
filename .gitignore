@@ -35,3 +35,8 @@ paper.fdb_latexmk
 paper.fls
 paper.synctex.gz
 paper.log
+
+docs/pipeline/
+test-report.txt 
+build-report.txt
+solhint-report.txt

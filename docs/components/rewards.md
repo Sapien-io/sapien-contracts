@@ -2,6 +2,14 @@
 
 The `Rewards` contract handles the allocation, distribution, and claiming of reward tokens for projects on the Sapien platform. It maintains separate accounting for contributors and validators to ensure fair and transparent payouts.
 
+## Validator Rewards on Acceptance Only
+
+**Validators are paid only when a contribution is accepted.** When a contribution is rejected (consensus score below threshold), validators receive no rewards—even though they performed validation work. Outlier slashing still applies in both cases.
+
+This design prevents reward pool drain: rejected tasks return to the pool and can be re-submitted on the same index. If validators were paid on rejection, they would be paid again when the slot is re-done and accepted, doubling the validation cost for a single accepted contribution. See [Validator Rewards on Rejection fix](../security/fixes/validator-rewards-on-rejection.md) for details.
+
+When a contribution is rejected, the contributor's reward portion remains in the project pool and is available for the next contributor who submits on that index.
+
 ## 📋 Responsibilities
 
 - **Reward Escrow**: Holding funds deposited by Originators until they are earned by participants.

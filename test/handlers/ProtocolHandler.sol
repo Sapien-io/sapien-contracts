@@ -48,12 +48,19 @@ contract ProtocolHandler is Test {
 
     function addContributor(address contributor) public {
         if (contributor == address(0)) return;
+        for (uint256 i = 0; i < contributors.length; i++) {
+            if (contributors[i] == contributor) return;
+        }
         contributors.push(contributor);
         _setupUser(contributor);
     }
 
     function addValidator(address validator) public {
         if (validator == address(0)) return;
+        // Skip if already added — re-adding triggers CapacityUnchanged revert
+        for (uint256 i = 0; i < validators.length; i++) {
+            if (validators[i] == validator) return;
+        }
         validators.push(validator);
         _setupUser(validator);
         vm.prank(validator);

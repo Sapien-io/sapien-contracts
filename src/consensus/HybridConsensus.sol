@@ -12,11 +12,17 @@ import {ConsensusLib} from "../libraries/ConsensusLib.sol";
  *      weight decreases, which may cause new validators to exceed the threshold.
  *      The algorithm repeats until convergence (max 10 iterations).
  * Security Grade: A (best overall protection)
+ * @author Sapien Team
  */
 contract HybridConsensus is IConsensusAlgorithm {
     /// @notice Maximum weight percentage per validator (30%)
     uint256 public constant MAX_WEIGHT_BPS = 3000; // 30%
 
+    /**
+     * @notice Calculate consensus for a set of validations
+     * @param validations Array of validation inputs
+     * @return result The consensus result including weighted average and outliers
+     */
     function calculateConsensus(ValidationInput[] calldata validations)
         external
         pure
@@ -47,6 +53,13 @@ contract HybridConsensus is IConsensusAlgorithm {
         return result;
     }
 
+    /**
+     * @notice Calculate initial weights for a set of validations
+     * @param validations Array of validation inputs
+     * @return scores Array of scores
+     * @return weights Array of weights
+     * @return totalWeight Total weight
+     */
     function _calculateInitialWeights(ValidationInput[] calldata validations)
         internal
         pure
@@ -56,7 +69,7 @@ contract HybridConsensus is IConsensusAlgorithm {
         weights = new uint256[](validations.length);
         totalWeight = 0;
 
-        for (uint256 i = 0; i < validations.length; i++) {
+        for (uint256 i = 0; i < validations.length; ++i) {
             if (validations[i].score > 10000) revert InvalidScore(validations[i].score);
             if (validations[i].stakeAmount == 0) revert InvalidStakeAmount();
             if (validations[i].reputation > 10000) revert InvalidReputation(validations[i].reputation);
@@ -69,14 +82,26 @@ contract HybridConsensus is IConsensusAlgorithm {
         }
     }
 
+    /**
+     * @notice Get the name of the consensus algorithm
+     * @return The name string
+     */
     function getName() external pure returns (string memory) {
         return "Hybrid";
     }
 
+    /**
+     * @notice Get the security grade of the algorithm
+     * @return The security grade string
+     */
     function getSecurityGrade() external pure returns (string memory) {
         return "A";
     }
 
+    /**
+     * @notice Get the description of the algorithm
+     * @return The description string
+     */
     function getDescription() external pure returns (string memory) {
         return "Hybrid consensus: Weight = min(sqrt(stake) * reputation, 30% cap). Best overall protection combining whale resistance, quality incentives, and hard limits.";
     }

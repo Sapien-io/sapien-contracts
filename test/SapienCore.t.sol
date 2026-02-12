@@ -36,7 +36,7 @@ contract SapienCoreTest is BaseTest {
             PROJECT_CID,
             10 ether, // minStakeToClaim
             0, // minStakeToContribute
-            3, // minValidations
+            3, // numberOfValidations
             1000, // validatorRewardBasisPoints
             "" // requiredSkill
         );
@@ -106,15 +106,16 @@ contract SapienCoreTest is BaseTest {
     function testCreateProjectReverts() public {
         testCreateProject();
 
+        // Duplicate projectId should revert
         vm.startPrank(originator);
         vm.expectRevert(); // ProjectAlreadyExists
         core.createProject(PROJECT_ID, address(rewardToken), PROJECT_CID, 10 ether, 0, 3, 1000, "");
         vm.stopPrank();
 
-        address nonOriginator = makeAddr("nonOriginator");
-        vm.prank(nonOriginator);
-        vm.expectRevert(); // Unauthorized
-        core.createProject(keccak256("new-project"), address(rewardToken), "new-project", 10 ether, 0, 3, 1000, "");
+        // Zero-address reward token should revert
+        vm.prank(originator);
+        vm.expectRevert(); // InvalidAddress
+        core.createProject(keccak256("zero-token-project"), address(0), "zero-token-project", 10 ether, 0, 3, 1000, "");
     }
 
     function testClaimToContributeReverts() public {
@@ -192,10 +193,6 @@ contract SapienCoreTest is BaseTest {
     // ============================================
 
     function testBatchFinalizeContributions_SKIP() public {
-        // Create project with maxValidations=3 to match test logic
-        vm.prank(admin);
-        core.setMaxValidations(3);
-
         vm.startPrank(originator);
         bytes32 batchProjectId = keccak256(abi.encodePacked("batch-finalize-project"));
         core.createProject(batchProjectId, address(rewardToken), "batch-finalize-project", 10 ether, 0, 3, 1000, "");
@@ -276,10 +273,9 @@ contract SapienCoreTest is BaseTest {
         testContribute();
 
         // Try to finalize before consensus is ready (not enough validations)
+        // Should revert with ValidationNotReady instead of silently returning
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.ValidationNotReady.selector, PROJECT_ID, 0));
         core.finalizeContribution(PROJECT_ID, 0);
-
-        // Contribution should still be pending
-        assertEq(uint256(getContributionStatus(PROJECT_ID, 0)), uint256(ContributionStatus.Pending));
     }
 
     function testFinalizeContributionNoReward() public {

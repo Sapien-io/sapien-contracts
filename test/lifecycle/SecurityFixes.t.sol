@@ -30,7 +30,7 @@ contract SecurityFixesTest is BaseTest {
             "security-project",
             100 ether, // minStakeToClaim
             50 ether, // minStakeToContribute
-            1, // minValidations
+            1, // numberOfValidations
             1000, // 10% validator rewards
             SKILL
         );

@@ -43,7 +43,7 @@ contract ProtocolInvariantsTest is BaseTest {
     /**
      * @notice INVARIANT: Rewards contract balance >= total allocated rewards
      */
-    function invariant_RewardsSolvency() public {
+    function invariant_RewardsSolvency() public view {
         uint256 balance = rewardToken.balanceOf(address(rewards));
         uint256 allocated = rewards.totalAllocated(address(rewardToken));
         assertGe(balance, allocated, "Rewards contract must be solvent");
@@ -92,7 +92,7 @@ contract ProtocolInvariantsTest is BaseTest {
     /**
      * @notice INVARIANT: Project slot state must remain consistent
      */
-    function invariant_ProjectSlotAccounting() public {
+    function invariant_ProjectSlotAccounting() public view {
         SapienCore.Project memory p = core.getProject(PROJECT_ID);
         uint256 total = p.state.totalQuantityAvailable;
         uint256 submitted = p.state.submittedQuantity;

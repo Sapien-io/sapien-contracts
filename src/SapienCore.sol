@@ -19,9 +19,6 @@ import {
     ORIGINATOR_ROLE,
     CONTRIBUTOR_ROLE,
     VALIDATOR_ROLE,
-    UPDATER_ROLE,
-    UNAUTHORIZED_MISSING_ORIGINATOR_ROLE,
-    UNAUTHORIZED_MISSING_CONTRIBUTOR_ROLE,
     UNAUTHORIZED_NOT_PROJECT_ORIGINATOR,
     UNAUTHORIZED_ORIGINATOR_CANNOT_CONTRIBUTE,
     UNAUTHORIZED_NOT_CLAIM_OWNER,
@@ -32,6 +29,7 @@ import {ConsensusLib} from "./libraries/ConsensusLib.sol";
 
 /**
  * @title SapienCore
+ * @author Sapien Team
  * @notice Central coordinator for projects, contributions, and rewards.
  * @dev Merges ProjectRegistry and ContributionManager.
  *      Hierarchy: Core -> Oracle -> Trust -> Vault.
@@ -60,7 +58,6 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
     mapping(bytes32 => mapping(uint256 => bool)) internal indexIsAvailable;
 
     uint256 internal _claimDeadlineDays;
-    uint256 internal _maxValidations;
 
     // Protocol fee configuration
     /// @notice Protocol fee in basis points (e.g., 100 = 1%)
@@ -71,7 +68,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
     uint256 public constant MAX_PROTOCOL_FEE_BPS = 300;
 
     /// @notice Maximum fee that a dapp operator can charge (2%)
-    uint256 public constant MAX_OPERATOR_FEE_BPS = 200;
+    uint256 public constant MAX_ORGINATION_OPERATOR_FEE_BPS = 200;
 
     /// @notice Minimum consensus threshold (10% = 1000 basis points)
     /// @dev Prevents threshold being set too low which would approve everything
@@ -84,6 +81,10 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
     /// @notice Maximum active claimed slots per user per project (Issue #6 fix)
     /// @dev Prevents slot starvation attacks where one user claims all slots
     uint256 public constant MAX_CLAIMS_PER_USER = 10;
+
+    /// @notice Maximum items in a single batch operation (F-12 fix)
+    /// @dev Prevents DoS via gas exhaustion from unbounded loops
+    uint256 public constant MAX_BATCH_SIZE = 50;
 
     /// @notice Treasury address to receive protocol fees
     address public treasury; // Address to receive protocol fees
@@ -98,10 +99,10 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
     /// @dev projectId => user => activeClaimedQuantity
     mapping(bytes32 => mapping(address => uint256)) internal userActiveClaimedQuantity;
 
-    // Storage gap for future upgrades
+    // Storage gap for future upgrades (19 own slots + 31 gap = 50)
     // forge-lint: disable-next-line(mixed-case-variable)
     // __gap follows OpenZeppelin upgradeable contract pattern
-    uint256[30] private __gap;
+    uint256[31] private __gap;
 
     // ============================================
     // INITIALIZER
@@ -142,7 +143,6 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         _oracle = IValidationOracle(oracleAddr);
 
         _claimDeadlineDays = 7;
-        _maxValidations = 10;
         protocolFeeBasisPoints = 100; // Default 1%
         consensusThreshold = 5000; // Default 50%
         challengePeriod = 1 days; // Default 1 day
@@ -158,18 +158,8 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
      * @param _days Number of days contributors have to submit after claiming
      */
     function setClaimDeadlineDays(uint256 _days) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_days == 0) revert InvalidClaimDeadline(_days);
         _claimDeadlineDays = _days;
-    }
-
-    /**
-     * @notice Set the maximum number of validations allowed per contribution
-     * @dev Only callable by admin. Maximum value is 100.
-     * @param _max Maximum number of validations (max 100)
-     */
-    function setMaxValidations(uint256 _max) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_max > 100) revert MaxValidationsExceeded(_max, 100);
-        _maxValidations = _max;
-        emit ISapienCore.MaxValidationsUpdated(_max);
     }
 
     /**
@@ -178,14 +168,6 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
      */
     function getClaimDeadlineDays() external view returns (uint256) {
         return _claimDeadlineDays;
-    }
-
-    /**
-     * @notice Get the maximum number of validations allowed per contribution
-     * @return Maximum number of validations
-     */
-    function getMaxValidations() external view returns (uint256) {
-        return _maxValidations;
     }
 
     /**
@@ -228,6 +210,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
      * @param _period The challenge period in seconds
      */
     function setChallengePeriod(uint256 _period) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_period == 0) revert InvalidChallengePeriod(_period);
         challengePeriod = _period;
         emit ChallengePeriodUpdated(_period);
     }
@@ -236,22 +219,34 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
     // PROJECT FUNCTIONS
     // ============================================
 
+    /**
+     * @notice Create a new project in the protocol
+     * @param projectId Unique identifier for the project
+     * @param rewardToken ERC20 token to be used for rewards
+     * @param ipfsCid The original IPFS CID of the project spec document
+     * @param minStakeToClaim Minimum stake required for a contributor to claim a slot
+     * @param minStakeToContribute Minimum stake required for a contributor to participate (legacy)
+     * @param numberOfValidations Exact number of validations required per contribution
+     * @param validatorRewardBasisPoints Percentage of rewards allocated to validators (bps)
+     * @param requiredSkill Specific skill that contributors will earn upon successful completion
+     * @return The hashed projectId (bytes32)
+     */
     function createProject(
         bytes32 projectId,
         address rewardToken,
-        string memory ipfsCid, // The original IPFS CID of the project spec document
+        string calldata ipfsCid, // The original IPFS CID of the project spec document
         uint256 minStakeToClaim,
         uint256 minStakeToContribute,
-        uint256 minValidations,
+        uint256 numberOfValidations,
         uint256 validatorRewardBasisPoints,
-        string memory requiredSkill
+        string calldata requiredSkill
     ) external returns (bytes32) {
         Project storage p = projects[projectId];
 
         if (p.originator != address(0)) {
             revert ProjectAlreadyExists(projectId);
         }
-        _trust.hasEnoughStake(msg.sender, ORIGINATOR_ROLE);
+        _trust.hasEnoughStakeForRole(msg.sender, ORIGINATOR_ROLE);
         // Opus 4.6 L-3 fix: Prevent projects with zero-address reward token
         if (rewardToken == address(0)) revert InvalidAddress();
         if (validatorRewardBasisPoints > 2500) revert InvalidValidatorRewards();
@@ -270,19 +265,12 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         p.config.claimDeadlineDays = _claimDeadlineDays;
         p.config.minStakeToClaim = minStakeToClaim;
         p.config.minStakeToContribute = minStakeToContribute;
-        p.config.minValidations = minValidations == 0 ? 3 : minValidations;
-        p.config.maxValidations = _maxValidations;
-        // Issue #7 fix: Ensure minValidations doesn't exceed maxValidations
-        if (p.config.minValidations > p.config.maxValidations) {
-            revert InvalidConfiguration();
-        }
+        p.config.numberOfValidations = numberOfValidations == 0 ? 3 : numberOfValidations;
         p.config.validatorRewardBasisPoints = validatorRewardBasisPoints == 0 ? 1000 : validatorRewardBasisPoints;
         p.config.requiredSkill = requiredSkill;
         p.config.challengePeriod = challengePeriod;
 
-        _registerProjectWithOracle(
-            projectId, p.config.maxValidations, p.config.minValidations, requiredSkill, msg.sender
-        );
+        _registerProjectWithOracle(projectId, p.config.numberOfValidations, requiredSkill, msg.sender);
 
         _trust.updateReputation(msg.sender, ORIGINATOR_ROLE, true, 0);
 
@@ -294,8 +282,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
             p.config.claimDeadlineDays,
             p.config.minStakeToClaim,
             p.config.minStakeToContribute,
-            p.config.minValidations,
-            p.config.maxValidations,
+            p.config.numberOfValidations,
             p.config.validatorRewardBasisPoints,
             p.config.requiredSkill
         );
@@ -304,27 +291,40 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
     }
 
     /**
+     * @notice Register a project with the ValidationOracle
      * @dev Register a project with the ValidationOracle
      * @param projectId Unique identifier for the project
-     * @param maxValidations Maximum validations allowed for this project
-     * @param minValidations Minimum validations required for consensus
+     * @param numberOfValidations Exact number of validations required per contribution
      * @param requiredSkill Skill required for validators
      * @param originator Address of the project creator
      */
     function _registerProjectWithOracle(
         bytes32 projectId,
-        uint256 maxValidations,
-        uint256 minValidations,
+        uint256 numberOfValidations,
         string memory requiredSkill,
         address originator
     ) internal {
-        _oracle.registerProject(projectId, maxValidations, minValidations, requiredSkill, originator);
+        _oracle.registerProject(projectId, numberOfValidations, requiredSkill, originator);
     }
 
+    /**
+     * @notice Fund an existing project with rewards and contribution quantity
+     * @param projectId Unique identifier for the project
+     * @param rewardAmount Amount of reward tokens to add
+     * @param quantity Number of contribution slots to add
+     */
     function fundProject(bytes32 projectId, uint256 rewardAmount, uint256 quantity) external nonReentrant {
         _fundProject(projectId, rewardAmount, quantity, address(0), 0);
     }
 
+    /**
+     * @notice Fund an existing project with rewards and contribution quantity, including an operator fee
+     * @param projectId Unique identifier for the project
+     * @param rewardAmount Amount of reward tokens to add
+     * @param quantity Number of contribution slots to add
+     * @param operator Address of the dapp operator/interface
+     * @param operatorFeeBps Fee in basis points (e.g. 100 = 1%) to pay to the operator
+     */
     function fundProject(
         bytes32 projectId,
         uint256 rewardAmount,
@@ -335,6 +335,14 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         _fundProject(projectId, rewardAmount, quantity, operator, operatorFeeBps);
     }
 
+    /**
+     * @notice Internal helper to fund a project
+     * @param projectId Unique identifier for the project
+     * @param rewardAmount Amount of reward tokens to add
+     * @param quantity Number of contribution slots to add
+     * @param operator Address of the dapp operator/interface
+     * @param operatorFeeBps Fee in basis points (e.g. 100 = 1%) to pay to the operator
+     */
     function _fundProject(
         bytes32 projectId,
         uint256 rewardAmount,
@@ -366,7 +374,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         }
 
         // Operator Fee Logic - taken from remaining amount after protocol fee
-        if (operatorFeeBps > MAX_OPERATOR_FEE_BPS) revert InvalidAmount();
+        if (operatorFeeBps > MAX_ORGINATION_OPERATOR_FEE_BPS) revert InvalidAmount();
 
         uint256 operatorFee = 0;
         uint256 rewardAmountAfterFee = amountAfterProtocolFee;
@@ -423,12 +431,19 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
             _rewards.allocateRewards(projectId, address(project.rewardToken), actualReceived);
         }
 
-        emit ProjectFunded(projectId, rewardAmount, quantity);
+        emit ProjectFunded(projectId, rewardAmount, quantity, rewardAmountAfterFee);
     }
 
+    /**
+     * @notice Reclaim contribution slots that were claimed but not submitted by the deadline
+     * @param projectId Unique identifier for the project
+     * @param indices The indices within the project's contribution sequence to reclaim
+     */
     function reclaimExpiredIndices(bytes32 projectId, uint256[] calldata indices) external nonReentrant {
+        // F-12 fix: Prevent DoS via gas exhaustion from unbounded loops
+        if (indices.length > MAX_BATCH_SIZE) revert BatchSizeTooLarge(indices.length, MAX_BATCH_SIZE);
         Project storage project = projects[projectId];
-        for (uint256 i = 0; i < indices.length; i++) {
+        for (uint256 i = 0; i < indices.length; ++i) {
             uint256 index = indices[i];
             IndexReservation storage reservation = indexReservations[projectId][index];
 
@@ -442,10 +457,9 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
             delete indexReservations[projectId][index];
 
             _addToAvailableIndices(projectId, index);
-            project.state.activeClaimedQuantity--;
-            // Issue #6 fix: Decrease user's active claim count
+            --project.state.activeClaimedQuantity;
             if (userActiveClaimedQuantity[projectId][claimant] > 0) {
-                userActiveClaimedQuantity[projectId][claimant]--;
+                --userActiveClaimedQuantity[projectId][claimant];
             }
 
             emit IndexReclaimed(projectId, index, claimant);
@@ -456,6 +470,12 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
     // CONTRIBUTION FUNCTIONS
     // ============================================
 
+    /**
+     * @notice Claim a number of contribution slots in a project
+     * @param projectId Unique identifier for the project
+     * @param quantity Number of slots to claim
+     * @return claimId Unique identifier for the created claim
+     */
     function claimToContribute(bytes32 projectId, uint256 quantity) external nonReentrant returns (uint256 claimId) {
         Project storage project = projects[projectId];
         _verifyClaimEligibility(projectId, quantity, project);
@@ -493,10 +513,11 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
 
         project.state.activeClaimedQuantity += quantity;
         userActiveClaimedQuantity[projectId][msg.sender] += quantity;
-        emit ClaimCreated(projectId, claimId, msg.sender, quantity);
+        emit ClaimCreated(projectId, claimId, msg.sender, quantity, deadline);
     }
 
     /**
+     * @notice Internal helper to verify if a user is eligible to claim slots
      * @dev Verify that a user is eligible to claim contribution slots
      * @param projectId Unique identifier for the project
      * @param quantity Number of slots to claim
@@ -504,10 +525,9 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
      */
     function _verifyClaimEligibility(bytes32 projectId, uint256 quantity, Project storage project) internal view {
         if (project.originator == address(0)) revert ProjectDoesNotExist(projectId);
-        // Opus 4.6 L-3 fix: Prevent zero-quantity claims that create orphaned state
         if (quantity == 0) revert InvalidAmount();
         if (msg.sender == project.originator) revert Unauthorized(UNAUTHORIZED_ORIGINATOR_CANNOT_CONTRIBUTE);
-        _trust.hasEnoughStake(msg.sender, CONTRIBUTOR_ROLE);
+        _trust.hasEnoughStakeForRole(msg.sender, CONTRIBUTOR_ROLE);
 
         uint256 available = project.state.totalQuantityAvailable
             - (project.state.submittedQuantity + project.state.activeClaimedQuantity);
@@ -515,6 +535,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
     }
 
     /**
+     * @notice Internal helper to assign indices to a claim
      * @dev Assign contribution indices to a claim, reusing expired indices when available
      * @param projectId Unique identifier for the project
      * @param quantity Number of indices to assign
@@ -529,7 +550,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         uint256 deadline,
         Project storage project
     ) internal {
-        for (uint256 i = 0; i < quantity; i++) {
+        for (uint256 i = 0; i < quantity; ++i) {
             uint256 assignedIndex;
             if (stackTop[projectId] > 0) {
                 assignedIndex = availableIndices[projectId][stackTop[projectId]];
@@ -544,7 +565,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
             // casting to 'uint48' is safe because deadline is block.timestamp + claimDeadlineDays * 1 days,
             // which fits in uint48 (max ~8.9 million years)
             IndexReservation({claimant: msg.sender, deadline: uint48(deadline)});
-            emit IndexAssigned(projectId, claimId, assignedIndex, msg.sender);
+            emit IndexAssigned(projectId, claimId, assignedIndex, msg.sender, deadline);
         }
     }
 
@@ -586,6 +607,13 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         emit ClaimExpired(projectId, claimId, claim.contributor, slashedAmount);
     }
 
+    /**
+     * @notice Submit a contribution for a specific slot in a claim
+     * @param projectId Unique identifier for the project
+     * @param claimId Unique identifier for the claim
+     * @param contributionIndex The index within the project's contribution sequence
+     * @param submissionHash Hash of the submitted work (e.g. IPFS CID)
+     */
     function contribute(bytes32 projectId, uint256 claimId, uint256 contributionIndex, bytes32 submissionHash)
         external
         nonReentrant
@@ -593,6 +621,13 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         _contribute(projectId, claimId, contributionIndex, submissionHash);
     }
 
+    /**
+     * @notice Submit multiple contributions for a project in a single transaction
+     * @param projectId Unique identifier for the project
+     * @param claimId Unique identifier for the claim
+     * @param contributionIndices The indices within the project's contribution sequence
+     * @param submissionHashes Hashes of the submitted work (e.g. IPFS CID)
+     */
     function batchContribute(
         bytes32 projectId,
         uint256 claimId,
@@ -602,7 +637,9 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         if (contributionIndices.length != submissionHashes.length) {
             revert Unauthorized(UNAUTHORIZED_ARRAY_LENGTH_MISMATCH);
         }
-        for (uint256 i = 0; i < contributionIndices.length; i++) {
+        // F-12 fix: Prevent DoS via gas exhaustion from unbounded loops
+        if (contributionIndices.length > MAX_BATCH_SIZE) revert BatchSizeTooLarge(contributionIndices.length, MAX_BATCH_SIZE);
+        for (uint256 i = 0; i < contributionIndices.length; ++i) {
             _contribute(projectId, claimId, contributionIndices[i], submissionHashes[i]);
         }
     }
@@ -626,6 +663,11 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
             revert ContributionAlreadySubmitted(contributionIndex);
         }
 
+        // F-11 fix: Snapshot the reward rate at submission time to prevent sandwiching attacks.
+        // This locks the contributor's reward at the rate in effect when they submit, so
+        // frontrunning/backrunning fundProject cannot manipulate their payout.
+        uint256 rewardSnapshot = _calculateContributorReward(projects[projectId]);
+
         contributions[projectId][contributionIndex] = Contribution({
             projectId: projectId,
             contributor: msg.sender,
@@ -636,7 +678,8 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
             totalValidations: 0,
             averageScore: 0,
             challengeEndsAt: 0,
-            status: ContributionStatus.Pending
+            status: ContributionStatus.Pending,
+            rewardRateSnapshot: rewardSnapshot
         });
 
         // CEI Pattern: Effects (state changes) before Interactions (external calls)
@@ -650,28 +693,41 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
 
         if (claim.submittedCount == claim.quantity) {
             claim.status = ClaimStatus.Fulfilled;
+            emit ClaimFulfilled(projectId, claimId, msg.sender);
         }
 
         // Interactions (external calls) after state changes
         _oracle.setContributionContributor(projectId, contributionIndex, msg.sender);
         _oracle.enqueueValidation(projectId, contributionIndex, block.timestamp);
 
-        emit ContributionSubmitted(projectId, contributionIndex, msg.sender);
+        emit ContributionSubmitted(projectId, contributionIndex, msg.sender, claimId, submissionHash);
     }
 
     // ============================================
     // FINALIZATION FUNCTIONS
     // ============================================
 
+    /**
+     * @notice Finalize a contribution by calculating consensus and distributing rewards/slashing
+     * @param projectId Unique identifier for the project
+     * @param contributionIndex The index within the project's contribution sequence
+     */
     function finalizeContribution(bytes32 projectId, uint256 contributionIndex) external nonReentrant {
         _finalizeContribution(projectId, contributionIndex);
     }
 
+    /**
+     * @notice Finalize multiple contributions for a project in a single transaction
+     * @param projectId Unique identifier for the project
+     * @param contributionIndices The indices within the project's contribution sequence
+     */
     function batchFinalizeContributions(bytes32 projectId, uint256[] calldata contributionIndices)
         external
         nonReentrant
     {
-        for (uint256 i = 0; i < contributionIndices.length; i++) {
+        // F-12 fix: Prevent DoS via gas exhaustion from unbounded loops
+        if (contributionIndices.length > MAX_BATCH_SIZE) revert BatchSizeTooLarge(contributionIndices.length, MAX_BATCH_SIZE);
+        for (uint256 i = 0; i < contributionIndices.length; ++i) {
             _finalizeContribution(projectId, contributionIndices[i]);
         }
     }
@@ -686,15 +742,16 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         // 1. Get Consensus from Oracle
         ConsensusReport memory report = _fetchConsensus(projectId, contributionIndex);
 
-        if (!report.isReady) return;
+        if (!report.isReady) revert ValidationNotReady(projectId, contributionIndex);
 
         // 2. Process Outcome
         bool accepted = report.weightedAverage >= consensusThreshold;
 
         // CEI Pattern: Effects (state changes) before Interactions (external calls)
-        // Store contributor address and claimId before potential deletion
+        // Store contributor address, claimId, and submittedAt before potential deletion
         address contribContributor = contrib.contributor;
         uint256 contribClaimId = contrib.claimId;
+        uint256 contributionSubmittedAt = contrib.submittedAt;
 
         ContributionStatus finalStatus;
         {
@@ -757,17 +814,23 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
             _oracle.resetContributionState(projectId, contributionIndex);
         }
 
-        // 5. Handle Validators (Rewards & Slashing)
+        // 5. Handle Validators (Slashing always; rewards only on acceptance)
+        // F-08/M-1 fix: Don't pay validators on rejection. When rejected, the slot goes back
+        // into the pool and will be re-done; paying validators twice would drain the reward
+        // pool. Slashing outliers still applies in both accepted and rejected cases.
         _processValidators(
             projectId,
             contributionIndex,
             project,
             report.validatorsToSlash,
             report.slashAmounts,
-            report.validatorWeights
+            report.validatorWeights,
+            accepted,
+            contributionSubmittedAt
         );
 
-        emit ContributionFinalized(projectId, contributionIndex, finalStatus, report.weightedAverage);
+        emit ConsensusReached(projectId, contributionIndex, report.weightedAverage, report.validatorCount);
+        emit ContributionFinalized(projectId, contributionIndex, finalStatus, report.weightedAverage, contribContributor, contribClaimId);
     }
 
     /**
@@ -781,7 +844,9 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         if (block.timestamp <= contrib.challengeEndsAt) revert ChallengePeriodActive();
 
         Project storage project = projects[projectId];
-        uint256 reward = _calculateContributorReward(project);
+        // F-11 fix: Use the snapshotted reward rate from submission time (prevents sandwiching).
+        // Falls back to live calculation for contributions submitted before the snapshot was added.
+        uint256 reward = contrib.rewardRateSnapshot > 0 ? contrib.rewardRateSnapshot : _calculateContributorReward(project);
 
         contrib.status = ContributionStatus.Rewarded;
 
@@ -789,7 +854,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
             _rewards.distributeReward(projectId, contrib.contributor, address(project.rewardToken), reward);
         }
 
-        emit ContributionRewarded(projectId, contributionIndex, contrib.contributor, reward);
+        emit ContributionRewarded(projectId, contributionIndex, contrib.contributor, reward, address(project.rewardToken));
     }
 
     // ============================================
@@ -889,12 +954,15 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
     }
 
     /**
-     * @notice Process validator rewards and slashes after consensus is reached
+     * @notice Process validator slashes and rewards after consensus is reached
      * @param projectId Unique identifier for the project
      * @param contributionIndex Index of the finalized contribution
      * @param project The project storage reference
      * @param toSlash List of validators to be slashed
      * @param slashAmounts Corresponding slash amounts
+     * @param consensusWeights Weights from consensus (for reward distribution)
+     * @param accepted True if contribution was accepted; rewards only when true
+     * @param contributionSubmittedAt When the contribution was submitted (filters out stale validations)
      */
     function _processValidators(
         bytes32 projectId,
@@ -902,10 +970,12 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         Project storage project,
         address[] memory toSlash,
         uint256[] memory slashAmounts,
-        uint256[] memory consensusWeights
+        uint256[] memory consensusWeights,
+        bool accepted,
+        uint256 contributionSubmittedAt
     ) internal {
-        // 1. Slash Outliers
-        for (uint256 i = 0; i < toSlash.length; i++) {
+        // 1. Slash Outliers (always, for both accepted and rejected)
+        for (uint256 i = 0; i < toSlash.length; ++i) {
             if (slashAmounts[i] > 0) {
                 _vault.slash(toSlash[i], slashAmounts[i], projectId);
                 _oracle.handleValidatorSlash(projectId, contributionIndex, toSlash[i], slashAmounts[i]);
@@ -913,8 +983,12 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
             }
         }
 
-        // 2. Distribute Rewards to Accurate Validators (using consensus weights for proportional fairness)
-        _distributeValidatorRewards(projectId, contributionIndex, project, toSlash, consensusWeights);
+        // 2. Distribute Rewards to Accurate Validators (only when contribution is accepted)
+        if (accepted) {
+            _distributeValidatorRewards(
+                projectId, contributionIndex, project, toSlash, consensusWeights, contributionSubmittedAt
+            );
+        }
     }
 
     /**
@@ -924,17 +998,37 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
      * @param project Storage reference to the project
      * @param toSlash Array of validators to exclude from rewards
      * @param consensusWeights Weights from the consensus algorithm (parallel to validations array)
+     * @param contributionSubmittedAt Filter validations to those from this submission (avoids paying
+     *        validators from a prior rejected round when the same index is re-submitted)
      */
     function _distributeValidatorRewards(
         bytes32 projectId,
         uint256 contributionIndex,
         Project storage project,
         address[] memory toSlash,
-        uint256[] memory consensusWeights
+        uint256[] memory consensusWeights,
+        uint256 contributionSubmittedAt
     ) internal {
-        Validation[] memory vals = _fetchValidations(projectId, contributionIndex);
+        Validation[] memory allVals = _fetchValidations(projectId, contributionIndex);
 
-        if (vals.length == 0 || project.state.totalQuantityAvailable == 0) return;
+        // Filter to validations from the current submission only (matches _prepareValidationInputs).
+        // After rejection+resubmit, the oracle retains old validations; we must not pay them.
+        // Use > (not >=) so validations revealed in the same block as contribution submit are
+        // excluded (reject-then-immediate-resubmit edge case).
+        uint256 validCount = 0;
+        for (uint256 i = 0; i < allVals.length; ++i) {
+            if (allVals[i].submittedAt > contributionSubmittedAt) validCount++;
+        }
+        if (validCount == 0 || project.state.totalQuantityAvailable == 0) return;
+
+        Validation[] memory vals = new Validation[](validCount);
+        uint256 idx = 0;
+        for (uint256 i = 0; i < allVals.length; ++i) {
+            if (allVals[i].submittedAt > contributionSubmittedAt) {
+                vals[idx] = allVals[i];
+                idx++;
+            }
+        }
 
         // Use consensus weights when available (M-1 fix: ensures reward distribution
         // matches the same weight formula used by the consensus algorithm).
@@ -943,7 +1037,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
 
         // Calculate total weight for accurate (non-outlier) validators
         uint256 totalAccurateWeight = 0;
-        for (uint256 i = 0; i < vals.length; i++) {
+        for (uint256 i = 0; i < vals.length; ++i) {
             if (!_isOutlier(vals[i].validator, toSlash)) {
                 uint256 weight = useConsensusWeights
                     ? consensusWeights[i]
@@ -958,7 +1052,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         if (totalAccurateWeight == 0) return;
 
         // Distribute rewards proportionally using consensus weights
-        for (uint256 i = 0; i < vals.length; i++) {
+        for (uint256 i = 0; i < vals.length; ++i) {
             if (!_isOutlier(vals[i].validator, toSlash)) {
                 uint256 weight = useConsensusWeights
                     ? consensusWeights[i]
@@ -995,7 +1089,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
      * @return True if validator is an outlier
      */
     function _isOutlier(address validator, address[] memory outliers) internal pure returns (bool) {
-        for (uint256 i = 0; i < outliers.length; i++) {
+        for (uint256 i = 0; i < outliers.length; ++i) {
             if (outliers[i] == validator) return true;
         }
         return false;
@@ -1091,7 +1185,7 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
      * @notice Get the oracle contract address
      * @return Address of the ValidationOracle contract
      */
-    function getOracle() external view returns (address) {
+    function getValidationOracle() external view returns (address) {
         return address(_oracle);
     }
 }

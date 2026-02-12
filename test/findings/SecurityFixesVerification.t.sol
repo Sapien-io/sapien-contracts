@@ -26,7 +26,7 @@ contract SecurityFixesVerification is BaseTest {
             "project1",
             0, // minStakeToClaim
             0, // minStakeToContribute
-            1, // minValidations
+            2, // numberOfValidations
             1000, // 10% validator rewards
             "" // requiredSkill
         );
@@ -39,10 +39,10 @@ contract SecurityFixesVerification is BaseTest {
     function test_AccessControl_ValidationOracle() public {
         address attacker = makeAddr("attacker");
 
-        // attacker tries to change max validations
+        // attacker tries to change numberOfValidations
         vm.startPrank(attacker);
         vm.expectRevert(); // Should revert with Unauthorized() or AccessControl error
-        oracle.setProjectMaxValidations(projectId, 0);
+        oracle.setProjectNumberOfValidations(projectId, 0);
 
         // attacker tries to change required skill
         vm.expectRevert();
@@ -137,14 +137,28 @@ contract SecurityFixesVerification is BaseTest {
         oracle.revealValidation(projectId, 0, 100, bytes32("salt1"));
         vm.stopPrank();
 
-        // Consensus should be blocked because validator2 hasn't revealed and deadline hasn't passed
-        // even though validator1 has revealed and minValidations is 1.
-        ConsensusReport memory report = oracle.getConsensus(projectId, 0);
-        assertFalse(report.isReady);
+        // Validator 2 reveals
+        vm.startPrank(validator2);
+        oracle.revealValidation(
+            projectId,
+            0,
+            100,
+            // forge-lint: disable-next-line(unsafe-typecast)
+            // casting to 'bytes32' is safe because we're converting a string literal to bytes32
+            bytes32(
+                uint256(
+                    uint160(
+                        // forge-lint: disable-next-line(unsafe-typecast)
+                        bytes20("salt2") // casting to 'bytes20' is safe because we're converting a string literal to bytes20
+                    )
+                )
+            )
+        );
+        vm.stopPrank();
 
-        // After 3 days + 1, it should be ready because validator2 is expired
-        vm.warp(block.timestamp + 3 days + 1);
-        report = oracle.getConsensus(projectId, 0);
-        assertTrue(report.isReady);
+        // M-02 FIX: Consensus proceeds immediately when numberOfValidations is met (F-09 fix).
+        // We have 2 reveals and numberOfValidations is 2.
+        ConsensusReport memory report = oracle.getConsensus(projectId, 0);
+        assertTrue(report.isReady, "Consensus ready when numberOfValidations met (liveness griefing fix)");
     }
 }

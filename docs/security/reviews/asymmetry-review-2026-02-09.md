@@ -42,7 +42,7 @@ This review identifies inconsistencies in implementation patterns, coding style,
 **Asymmetry**:
 - `SapienCore` and `ValidationOracle` mix `revert("string")` with `revert CustomError()`.
 - `SapienCore` uses `revert Unauthorized(UNAUTHORIZED_...)` where `UNAUTHORIZED_...` is a string constant, while `Rewards` uses a dedicated `error OnlyCore()`.
-- `ValidationOracle` uses inline `revert("Max validations cannot exceed 100")` while `SapienCore` has a mix.
+- [Note: The inline `revert("Max validations cannot exceed 100")` has been removed; `numberOfValidations` is now set per-project without a global cap.]
 
 **Risk/Impact**: Inconsistent error reporting and higher gas costs for string reverts. It makes integration harder for frontends that expect consistent custom error types.
 
@@ -68,7 +68,7 @@ This review identifies inconsistencies in implementation patterns, coding style,
 
 **Location(s)**: `SapienCore.sol`
 
-**Asymmetry**: In `SapienCore.sol`, internal variables for contracts (`vault`, `rewards`, `trust`, `oracle`) are not prefixed with an underscore, while other internal variables like `_claimDeadlineDays` and `_maxValidations` are. In other contracts like `ValidationOracle.sol`, state variables are generally public or use consistent naming.
+**Asymmetry**: In `SapienCore.sol`, internal variables for contracts (`vault`, `rewards`, `trust`, `oracle`) are not prefixed with an underscore, while other internal variables like `_claimDeadlineDays` are. [Note: `_maxValidations` has since been removed; validation counts are now configured per-project via `numberOfValidations`.] In other contracts like `ValidationOracle.sol`, state variables are generally public or use consistent naming.
 
 **Risk/Impact**: Confusion between local and state variables, and inconsistency with the rest of the codebase.
 

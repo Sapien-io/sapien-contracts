@@ -15,7 +15,7 @@ To create a project, call `SapienCore.createProject()` with the following parame
 - `rewardToken`: Address of your chosen reward token.
 - `minStakeToClaim`: Minimum SAPIEN stake required for a contributor to claim a slot.
 - `minStakeToContribute`: (Legacy) Minimum stake required to participate.
-- `minValidations`: The minimum number of reviewers needed per contribution.
+- `numberOfValidations`: Exact number of validations required per contribution (also determines queue slots).
 - `validatorRewardBasisPoints`: Percentage of the total pool for validators (default 1000 = 10%). **Capped at 2500 (25%)**.
 - `requiredSkill`: (Optional) A skill contributors must have or will earn upon successful completion.
 
@@ -27,13 +27,18 @@ Call `SapienCore.fundProject(projectId, rewardAmount, quantity)`:
 - `rewardAmount`: Total amount of reward tokens to deposit.
 - `quantity`: The total number of contributions you want verified.
 
-**Protocol Fee**: A protocol fee (default 1%) is automatically deducted from your funding amount and sent to the Sapien treasury. The remaining amount is allocated to your project's reward pool.
+**Protocol Fee**: A protocol fee (default 1%) is automatically deducted from your funding amount and sent to the Sapien treasury. An optional operator fee (up to 2%) may also be deducted if funding through a third-party interface. The remaining amount is allocated to your project's reward pool.
 
-**Example**: If you fund with 1000 USDC:
+**Anti-Dilution Protection**: When adding funds to an existing project, the protocol enforces that the effective reward rate per slot (calculated **after all fees are deducted**) does not decrease. This means you must account for both protocol and operator fees when planning additional funding — the post-fee amount per new slot must be at least equal to the current reward rate. Funding transactions that would reduce the effective per-slot reward are rejected with `RewardDilutionNotAllowed`.
+
+**Minimum Reward Per Slot**: Each contribution slot must provide at least `MIN_REWARD_PER_SLOT` (0.001 tokens with 18 decimals) to contributors after the validator share is deducted. This prevents precision loss from rounding rewards to zero.
+
+**Example**: If you fund with 1000 USDC and a 2% operator fee:
 - Protocol fee (1%): 10 USDC → Sent to Sapien treasury
-- Project rewards: 990 USDC → Allocated to your project
+- Operator fee (2%): 19.8 USDC → Sent to operator
+- Project rewards: 970.2 USDC → Allocated to your project
 
-*Note: The protocol will automatically calculate the per-task reward based on `totalRewards / quantity`, where `totalRewards` is the amount after the protocol fee deduction.*
+*Note: The per-task reward is based on the post-fee pool. When you later call `fundProject` again, the anti-dilution check ensures the new post-fee rate per slot is not lower than the existing rate. Plan your funding amounts accordingly.*
 
 ## 4. Choose a Consensus Algorithm
 

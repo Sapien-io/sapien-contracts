@@ -3,7 +3,7 @@ pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
 import {SLASHER_ROLE} from "../../src/interface/ISharedTypes.sol";
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 
 contract VaultVampirismTest is BaseTest {
     address public victim = makeAddr("victim");

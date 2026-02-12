@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {VALIDATOR_ROLE, UPDATER_ROLE} from "../../src/interface/ISharedTypes.sol";
 
 /**
@@ -241,7 +241,7 @@ contract CancelledCommitReputationUpdateTest is BaseTest {
     function test_ReputationAffectsConsensusWeighting() public {
         // Setup project
         vm.prank(originator);
-        core.createProject(PROJECT_ID, address(rewardToken), "reputation-gaming-project", 100 ether, 0, 1, 500, "test");
+        core.createProject(PROJECT_ID, address(rewardToken), "reputation-gaming-project", 100 ether, 0, 2, 500, "test");
 
         vm.startPrank(originator);
         rewardToken.approve(address(core), 1000 ether);
@@ -338,7 +338,7 @@ contract CancelledCommitReputationUpdateTest is BaseTest {
     function test_InconsistencyBetweenCancelFunctions() public {
         // Setup project
         vm.prank(originator);
-        core.createProject(PROJECT_ID, address(rewardToken), "reputation-gaming-project", 100 ether, 0, 1, 500, "test");
+        core.createProject(PROJECT_ID, address(rewardToken), "reputation-gaming-project", 100 ether, 0, 2, 500, "test");
 
         vm.startPrank(originator);
         rewardToken.approve(address(core), 1000 ether);

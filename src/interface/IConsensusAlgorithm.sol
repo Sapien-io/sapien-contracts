@@ -3,6 +3,7 @@ pragma solidity ^0.8.30;
 
 /**
  * @title IConsensusAlgorithm
+ * @author Sapien Team
  * @notice Interface for pluggable consensus algorithms
  * @dev Implementations calculate weighted consensus from validator inputs
  */

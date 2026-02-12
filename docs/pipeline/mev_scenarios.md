@@ -15,7 +15,7 @@ This document outlines step-by-step attacker playbooks for the economic and MEV 
 3. **Commit:** Call `commitValidation` with a valid hash (e.g., scoring 5000) within the 1-hour `CLAIM_DURATION`.
 4. **Hold:** Other honest validators reveal their scores.
 5. **Withhold:** The attacker intentionally does NOT call `revealValidation`.
-6. **Result:** Because `minValidations` might be met but some commits are still pending and not yet expired, `ValidationOracle._checkConsensusReady` returns `false`.
+6. **Result:** Because `numberOfValidations` might be met but some commits are still pending and not yet expired, `ValidationOracle._checkConsensusReady` returns `false`.
 7. **Impact:** The `SapienCore.finalizeContribution` call will fail/noop until the `revealDeadline` (default 3 days) passes. The attacker can offer to "reveal for a fee" to unblock the project.
 
 ---

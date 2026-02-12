@@ -515,7 +515,7 @@ export function useCreateProject() {
     rewardToken,
     minStakeToClaim,
     minStakeToContribute,
-    minValidations,
+    numberOfValidations,
     validatorRewardBasisPoints,
     requiredSkill,
   }: {
@@ -523,7 +523,7 @@ export function useCreateProject() {
     rewardToken: `0x${string}`
     minStakeToClaim: bigint
     minStakeToContribute: bigint
-    minValidations: number
+    numberOfValidations: number
     validatorRewardBasisPoints: number
     requiredSkill: string
   }) => {
@@ -536,7 +536,7 @@ export function useCreateProject() {
         rewardToken,
         minStakeToClaim,
         minStakeToContribute,
-        minValidations,
+        numberOfValidations,
         validatorRewardBasisPoints,
         requiredSkill,
       ],
@@ -574,7 +574,7 @@ function CreateProjectForm() {
       rewardToken: CONTRACTS.USDC,
       minStakeToClaim: parseEther('100'),
       minStakeToContribute: parseEther('50'),
-      minValidations: 3,
+      numberOfValidations: 3,
       validatorRewardBasisPoints: 1000, // 10%
       requiredSkill: 'Data Annotation',
     })
@@ -1183,7 +1183,7 @@ import { validationOracleABI } from '../abis'
 export function useConsensus(
   projectId: `0x${string}` | undefined,
   contributionIndex: number | undefined,
-  minValidations: number = 3
+  numberOfValidations: number = 3
 ) {
   const { data: consensus, isLoading, error } = useReadContract({
     address: CONTRACTS.VALIDATION_ORACLE,
@@ -1191,7 +1191,7 @@ export function useConsensus(
     functionName: 'getConsensus',
     args:
       projectId !== undefined && contributionIndex !== undefined
-        ? [projectId, BigInt(contributionIndex), BigInt(minValidations)]
+        ? [projectId, BigInt(contributionIndex), BigInt(numberOfValidations)]
         : undefined,
     query: {
       enabled: projectId !== undefined && contributionIndex !== undefined,
@@ -1258,12 +1258,12 @@ import { useFinalizeContribution } from '../hooks/useFinalizeContribution'
 function FinalizeContribution({
   projectId,
   contributionIndex,
-  minValidations = 3,
+  numberOfValidations = 3,
 }: Props) {
   const { consensus, isReady, weightedAverage } = useConsensus(
     projectId,
     contributionIndex,
-    minValidations
+    numberOfValidations
   )
   const { finalizeContribution, isPending } = useFinalizeContribution()
 

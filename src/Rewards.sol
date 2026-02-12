@@ -16,6 +16,7 @@ import {IRewards} from "./interface/IRewards.sol";
 
 /**
  * @title Rewards
+ * @author Sapien Team
  * @notice Upgradeable reward distribution contract for the Sapien protocol
  * @dev Uses transparent proxy pattern for upgradeability
  */
@@ -180,6 +181,26 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
         IERC20(token).safeTransfer(to, amount);
     }
 
+    /**
+     * @notice Sweep accumulated dust (rounding remainders) from the contract (F-13 fix)
+     * @dev Unlike emergencyWithdraw, this does NOT require pausing. Only sweeps unallocated surplus.
+     *      Dust accumulates from rounding in reward calculations and fee splits.
+     * @param token The token address to sweep
+     * @param to The recipient address for swept dust
+     */
+    function sweepDust(address token, address to) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (to == address(0)) revert InvalidAddress();
+
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        uint256 allocated = totalAllocated[token];
+        uint256 dust = balance > allocated ? balance - allocated : 0;
+
+        if (dust == 0) revert InvalidAmount();
+
+        IERC20(token).safeTransfer(to, dust);
+        emit DustSwept(token, to, dust);
+    }
+
     // ============================================
     // PROJECT REGISTRY FUNCTIONS
     // ============================================
@@ -191,6 +212,8 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
      * @param amount The amount of rewards to allocate
      */
     function allocateRewards(bytes32 projectId, address token, uint256 amount) external onlyCore whenNotPaused {
+        if (amount == 0) revert InvalidAmount();
+        if (token == address(0)) revert InvalidAddress();
         projectRewards[projectId][token] += amount;
         totalAllocated[token] += amount;
         emit RewardsAllocated(projectId, token, amount);
@@ -231,6 +254,7 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
     // ============================================
 
     /**
+     * @notice Internal helper to distribute rewards to either a contributor or validator
      * @dev Internal helper to distribute rewards to either a contributor or validator
      * @param projectId The project identifier (hashed CID)
      * @param user The address to receive rewards (contributor or validator)
@@ -259,6 +283,7 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
     }
 
     /**
+     * @notice Internal helper to validate fee parameters
      * @dev Internal helper to validate fee parameters
      * @param feeRecipient The address to receive the fee
      * @param feeBps The fee in basis points
@@ -273,6 +298,7 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
     }
 
     /**
+     * @notice Internal helper to transfer rewards with optional operator fee
      * @dev Internal helper to transfer rewards with optional operator fee
      * @param token The reward token address
      * @param recipient The primary recipient (claimer)
@@ -350,7 +376,7 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
 
         uint256 totalRewards = 0;
 
-        for (uint256 i = 0; i < projectIds.length; i++) {
+        for (uint256 i = 0; i < projectIds.length; ++i) {
             bytes32 projectId = projectIds[i];
             uint256 availableRewards =
                 contributorRewards[msg.sender][projectId][token] - rewardsClaimed[msg.sender][projectId][token];
@@ -425,7 +451,7 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
 
         uint256 totalRewards = 0;
 
-        for (uint256 i = 0; i < projectIds.length; i++) {
+        for (uint256 i = 0; i < projectIds.length; ++i) {
             bytes32 projectId = projectIds[i];
             uint256 availableRewards =
                 validatorRewards[msg.sender][projectId][token] - validatorRewardsClaimed[msg.sender][projectId][token];

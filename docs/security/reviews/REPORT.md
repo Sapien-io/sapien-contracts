@@ -39,21 +39,21 @@ The following contracts were included in the audit:
 
 ## 4. Summary of Findings
 
-| ID | Title | Severity | Category |
-| :--- | :--- | :--- | :--- |
-| C-01 | Storage Layout Shift in `SapienCore.sol` | CRITICAL | Upgradeability |
-| M-01 | Validator Rewards Rounding to Zero | MEDIUM | Economic |
-| M-02 | Liveness Griefing via Reveal Delay | MEDIUM | Economic |
-| M-03 | Validator Queue Monopoly by Whales | MEDIUM | Economic |
-| M-04 | Reward Rate Manipulation (Sandwiching) | MEDIUM | Economic |
-| M-05 | Storage Gap Inconsistency in `ValidationOracle.sol` | MEDIUM | Upgradeability |
-| L-01 | Missing Pause Protection on Admin Functions | LOW | Security |
-| L-02 | Emergency Withdrawal Risk in `Rewards.sol` | LOW | Security |
-| L-03 | Unbounded Loops in Batch Functions | LOW | DoS |
-| L-04 | Strategic Non-Reveal to Evade Slashing | LOW | Game Theory |
-| L-05 | Reputation Incentive Decoupling | LOW | Game Theory |
-| L-06 | Unreclaimable Reward Dust | LOW | Economic |
-| L-07 | Redundant Storage Gap in `SapienVault.sol` | LOW | Upgradeability |
+| ID | Title | Severity | Category | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| C-01 | Storage Layout Shift in `SapienCore.sol` | CRITICAL | Upgradeability | Fixed |
+| M-01 | Validator Rewards Rounding to Zero | MEDIUM | Economic | Fixed |
+| M-02 | Liveness Griefing via Reveal Delay | MEDIUM | Economic | Fixed |
+| M-03 | Validator Queue Monopoly by Whales | MEDIUM | Economic | Fixed |
+| M-04 | Reward Rate Manipulation (Sandwiching) | MEDIUM | Economic | Fixed |
+| M-05 | Storage Gap Inconsistency in `ValidationOracle.sol` | MEDIUM | Upgradeability | Fixed |
+| L-01 | Missing Pause Protection on Admin Functions | LOW | Security | — |
+| L-02 | Emergency Withdrawal Risk in `Rewards.sol` | LOW | Security | — |
+| L-03 | Unbounded Loops in Batch Functions | LOW | DoS | Fixed |
+| L-04 | Strategic Non-Reveal to Evade Slashing | LOW | Game Theory | — |
+| L-05 | Reputation Incentive Decoupling | LOW | Game Theory | — |
+| L-06 | Unreclaimable Reward Dust | LOW | Economic | — |
+| L-07 | Redundant Storage Gap in `SapienVault.sol` | LOW | Upgradeability | — |
 
 ---
 
@@ -67,7 +67,7 @@ The following contracts were included in the audit:
 The mapping `userActiveClaimedQuantity` was inserted into the middle of the state variable list (line 63). In upgradeable contracts (using the Transparent Proxy pattern), adding new variables in the middle of existing ones shifts the storage slots of all subsequent variables.
 
 **Impact**:
-When the contract is upgraded, existing values for `_claimDeadlineDays`, `_maxValidations`, `protocolFeeBasisPoints`, `treasury`, and `consensusThreshold` will be read from incorrect slots. This leads to protocol-wide configuration corruption, potentially setting the treasury to a zero address, breaking fee logic, or making consensus impossible to reach.
+When the contract is upgraded, existing values for `_claimDeadlineDays`, `_maxValidations` [Note: since refactored to per-project `numberOfValidations`], `protocolFeeBasisPoints`, `treasury`, and `consensusThreshold` will be read from incorrect slots. This leads to protocol-wide configuration corruption, potentially setting the treasury to a zero address, breaking fee logic, or making consensus impossible to reach.
 
 **Recommendation**:
 Move `userActiveClaimedQuantity` to the end of the state variable list, just before the `__gap` array, and decrement the gap size by 1 (from 32 to 31).
@@ -94,13 +94,13 @@ Implement a minimum reward check or increase precision by multiplying the numera
 **File**: `src/ValidationOracle.sol`
 
 **Description**:
-Consensus is only "ready" when `minValidations` is met AND all pending commits have either revealed or expired. A malicious validator can commit and then intentionally withhold their reveal, forcing the protocol to wait for the full `revealDeadline` (default 3 days) before consensus can be finalized.
+Consensus is only "ready" when `numberOfValidations` is met AND all pending commits have either revealed or expired. A malicious validator can commit and then intentionally withhold their reveal, forcing the protocol to wait for the full `revealDeadline` (default 3 days) before consensus can be finalized.
 
 **Impact**:
 Stalling contributor rewards and project progress for days, potentially damaging the reputation and utility of the Sapien protocol.
 
 **Recommendation**:
-Allow consensus to be finalized once `minValidations` are met if a "super-majority" of reveals are already present, even before the deadline.
+Allow consensus to be finalized once `numberOfValidations` are met if a "super-majority" of reveals are already present, even before the deadline.
 
 ---
 

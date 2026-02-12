@@ -2,25 +2,20 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
 
 /**
- * @title MinMaxValidationsMismatchTest
- * @notice Test demonstrating Issue #7: No Minimum Validation Count Enforcement at Project Creation
+ * @title NumberOfValidationsTest
+ * @notice Tests verifying numberOfValidations configuration at project creation
  *
- * VULNERABILITY DESCRIPTION:
- * There's no check that minValidations <= maxValidations. A project could be created with
- * minValidations = 5 while _maxValidations = 3, making consensus impossible to reach.
- *
- * ATTACK VECTOR: Configuration Error / DoS
- *
- * LOCATION: SapienCore.sol lines 226-227
- *
- * SEVERITY: Medium
+ * TESTS:
+ * 1. numberOfValidations defaults to 3 when 0 is passed
+ * 2. numberOfValidations is stored correctly when a valid value is provided
+ * 3. Project can be created and funded with various numberOfValidations values
  */
-contract MinMaxValidationsMismatchTest is BaseTest {
-    bytes32 public constant PROJECT_ID = keccak256("mismatch-test");
+contract NumberOfValidationsTest is BaseTest {
+    bytes32 public constant PROJECT_ID = keccak256("validations-test");
 
     function setUp() public override {
         super.setUp();
@@ -39,196 +34,95 @@ contract MinMaxValidationsMismatchTest is BaseTest {
     }
 
     /**
-     * @notice Test: Create project with minValidations > maxValidations
-     * @dev This should either revert or create an unfinalizable project
+     * @notice Test: numberOfValidations defaults to 3 when 0 is passed
      */
-    function test_MinGreaterThanMaxValidations() public {
-        // Get current global maxValidations
-        uint256 globalMax = core.getMaxValidations();
-        console.log("=== Min/Max Validation Mismatch ===");
-        console.log("Global maxValidations:", globalMax);
-
-        // Try to create project with minValidations > maxValidations
-        uint256 requestedMin = globalMax + 5; // More than max
-
-        vm.startPrank(originator);
-        try core.createProject(
-            PROJECT_ID,
-            address(rewardToken),
-            "mismatch-test",
-            0,
-            0,
-            requestedMin, // minValidations > maxValidations
-            1000,
-            ""
-        ) {
-            console.log("Project created with minValidations:", requestedMin);
-            console.log("But maxValidations is only:", globalMax);
-
-            // Check the actual stored values
-            uint256 storedMin = core.getProject(PROJECT_ID).config.minValidations;
-            uint256 storedMax = core.getProject(PROJECT_ID).config.maxValidations;
-            console.log("Stored minValidations:", storedMin);
-            console.log("Stored maxValidations:", storedMax);
-
-            if (storedMin > storedMax) {
-                console.log("\nVULNERABILITY CONFIRMED:");
-                console.log("Project has minValidations > maxValidations!");
-                console.log("Consensus can NEVER be reached for contributions");
-
-                // Fund and try to demonstrate
-                rewardToken.approve(address(core), 100 ether);
-                core.fundProject(PROJECT_ID, 100 ether, 10);
-            } else {
-                console.log("Note: Values may have been adjusted during creation");
-            }
-        } catch {
-            console.log("Project creation reverted (good - validation exists)");
-            assertTrue(true, "Proper validation prevents invalid configuration");
-        }
-        vm.stopPrank();
-    }
-
-    /**
-     * @notice Test: Demonstrate unfinalizable contribution
-     * @dev If minValidations > maxValidations, contributions get stuck
-     */
-    function test_UnfinalizableContribution() public {
-        // Set low maxValidations at admin level
-        vm.prank(admin);
-        core.setMaxValidations(2);
-
-        console.log("=== Unfinalizable Contribution Test ===");
-        console.log("Global maxValidations set to: 2");
-
-        // Create project with high minValidations
-        vm.startPrank(originator);
-        try core.createProject(
-            PROJECT_ID,
-            address(rewardToken),
-            "mismatch-test",
-            0,
-            0,
-            5, // Request 5 min validations
-            1000,
-            ""
-        ) {
-            // Check actual config
-            uint256 storedMin = core.getProject(PROJECT_ID).config.minValidations;
-            uint256 storedMax = core.getProject(PROJECT_ID).config.maxValidations;
-            console.log("Stored minValidations:", storedMin);
-            console.log("Stored maxValidations:", storedMax);
-
-            if (storedMin > storedMax) {
-                rewardToken.approve(address(core), 100 ether);
-                core.fundProject(PROJECT_ID, 100 ether, 10);
-                vm.stopPrank();
-
-                // Contributor submits
-                vm.startPrank(contributor);
-                uint256 claimId = core.claimToContribute(PROJECT_ID, 1);
-                core.contribute(PROJECT_ID, claimId, 0, keccak256("submission"));
-                vm.stopPrank();
-
-                console.log("\nContribution submitted...");
-
-                // All validators validate
-                _validateContribution(PROJECT_ID, 0, 8000);
-
-                // Try to finalize
-                console.log("Attempting to finalize with", storedMax, "validations...");
-                console.log("But need", storedMin, "validations for consensus");
-
-                try core.finalizeContribution(PROJECT_ID, 0) {
-                    console.log("Finalization succeeded (unexpected)");
-                } catch (bytes memory reason) {
-                    console.log("Finalization FAILED!");
-                    console.log("Contribution is stuck forever!");
-                    console.log("VULNERABILITY CONFIRMED: Funds locked, work wasted");
-                }
-            } else {
-                vm.stopPrank();
-                console.log("Configuration was valid - test skipped");
-            }
-        } catch {
-            vm.stopPrank();
-            console.log("Project creation properly reverted");
-        }
-    }
-
-    /**
-     * @notice Test: Edge case - minValidations = 0
-     * @dev minValidations = 0 means any single validation triggers consensus
-     */
-    function test_ZeroMinValidations() public {
+    function test_ZeroNumberOfValidations() public {
         vm.startPrank(originator);
         core.createProject(
             PROJECT_ID,
             address(rewardToken),
-            "mismatch-test",
+            "validations-test",
             0,
             0,
-            0, // 0 minValidations - should default to 3
+            0, // 0 numberOfValidations - should default to 3
             1000,
             ""
         );
 
-        uint256 storedMin = core.getProject(PROJECT_ID).config.minValidations;
-        console.log("=== Zero MinValidations Test ===");
-        console.log("Requested minValidations: 0");
-        console.log("Stored minValidations:", storedMin);
+        uint256 storedValidations = core.getProject(PROJECT_ID).config.numberOfValidations;
+        console.log("=== Zero NumberOfValidations Test ===");
+        console.log("Requested numberOfValidations: 0");
+        console.log("Stored numberOfValidations:", storedValidations);
 
-        if (storedMin == 3) {
+        if (storedValidations == 3) {
             console.log("Defaulted to 3 (expected behavior)");
-        } else if (storedMin == 0) {
-            console.log("ISSUE: minValidations stored as 0");
+        } else if (storedValidations == 0) {
+            console.log("ISSUE: numberOfValidations stored as 0");
             console.log("Single validation could approve anything!");
         }
         vm.stopPrank();
 
-        assertGe(storedMin, 1, "minValidations should be at least 1");
+        assertGe(storedValidations, 1, "numberOfValidations should be at least 1");
     }
 
     /**
-     * @notice Test: Verify fix - minValidations should not exceed maxValidations
+     * @notice Test: numberOfValidations is stored correctly when a valid value is provided
      */
-    function test_VerifyMinMaxRelationship() public {
-        vm.prank(admin);
-        core.setMaxValidations(5);
-
+    function test_NumberOfValidationsStoredCorrectly() public {
         vm.startPrank(originator);
-        core.createProject(PROJECT_ID, address(rewardToken), "mismatch-test", 0, 0, 3, 1000, "");
+        core.createProject(PROJECT_ID, address(rewardToken), "validations-test", 0, 0, 5, 1000, "");
 
-        uint256 storedMin = core.getProject(PROJECT_ID).config.minValidations;
-        uint256 storedMax = core.getProject(PROJECT_ID).config.maxValidations;
+        uint256 storedValidations = core.getProject(PROJECT_ID).config.numberOfValidations;
 
-        console.log("=== Min/Max Relationship Verification ===");
-        console.log("Stored minValidations:", storedMin);
-        console.log("Stored maxValidations:", storedMax);
+        console.log("=== NumberOfValidations Stored Correctly ===");
+        console.log("Stored numberOfValidations:", storedValidations);
 
-        assertLe(storedMin, storedMax, "minValidations should not exceed maxValidations");
+        assertEq(storedValidations, 5, "numberOfValidations should be stored as 5");
         vm.stopPrank();
     }
 
     /**
-     * @notice Document recommended fix
+     * @notice Test: Project can be created and funded with numberOfValidations = 1
      */
-    function test_DocumentRecommendedFix() public pure {
-        console.log("=== Recommended Fix ===");
-        console.log("");
-        console.log("Add validation in createProject():");
-        console.log("");
-        console.log("  uint256 effectiveMin = minValidations == 0 ? 3 : minValidations;");
-        console.log("  if (effectiveMin > _maxValidations) {");
-        console.log("      revert InvalidConfiguration();");
-        console.log("  }");
-        console.log("");
-        console.log("Or automatically cap minValidations:");
-        console.log("");
-        console.log("  p.config.minValidations = minValidations == 0");
-        console.log("      ? 3");
-        console.log("      : (minValidations > _maxValidations ? _maxValidations : minValidations);");
+    function test_CreateProjectWithSingleValidation() public {
+        vm.startPrank(originator);
+        core.createProject(PROJECT_ID, address(rewardToken), "validations-test", 0, 0, 1, 1000, "");
+
+        uint256 storedValidations = core.getProject(PROJECT_ID).config.numberOfValidations;
+        assertEq(storedValidations, 1, "numberOfValidations should be stored as 1");
+
+        rewardToken.approve(address(core), 100 ether);
+        core.fundProject(PROJECT_ID, 100 ether, 10);
+        vm.stopPrank();
     }
+
+    /**
+     * @notice Test: Contributions can be validated with the configured numberOfValidations
+     */
+    function test_ContributionValidatedWithNumberOfValidations() public {
+        vm.startPrank(originator);
+        core.createProject(PROJECT_ID, address(rewardToken), "validations-test", 0, 0, 2, 1000, "");
+        rewardToken.approve(address(core), 100 ether);
+        core.fundProject(PROJECT_ID, 100 ether, 10);
+        vm.stopPrank();
+
+        // Contributor submits
+        vm.startPrank(contributor);
+        uint256 claimId = core.claimToContribute(PROJECT_ID, 1);
+        core.contribute(PROJECT_ID, claimId, 0, keccak256("submission"));
+        vm.stopPrank();
+
+        // Validate with 2 validators (matching numberOfValidations)
+        _validateContribution(PROJECT_ID, 0, 8000);
+
+        // Finalize should succeed
+        vm.warp(block.timestamp + 4 days);
+        core.finalizeContribution(PROJECT_ID, 0);
+    }
+
+    // ============================================
+    // HELPERS
+    // ============================================
 
     function _validateContribution(bytes32 projectId, uint256 contribIndex, uint256 score) internal {
         bytes32 salt1 = keccak256("salt1");

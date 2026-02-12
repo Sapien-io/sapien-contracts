@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
 import {ISapienCore} from "../../src/interface/ISapienCore.sol";
 
@@ -43,7 +43,7 @@ contract ContributorSlotStarvationTest is BaseTest {
         vm.stopPrank();
 
         // Setup users with sufficient stake for role validation
-        // Note: hasEnoughStake checks minStakeRequired which defaults to 100 ether
+        // Note: hasEnoughStakeForRole checks minStakeRequired which defaults to 100 ether
         _setupUser(attacker, 100 ether);
         _setupUser(legitimateContributor, 100 ether);
     }

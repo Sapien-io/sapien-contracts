@@ -2,7 +2,6 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "./BaseTest.t.sol";
-import {console} from "forge-std/Test.sol";
 
 contract FrontendFuzzTest is BaseTest {
     address public treasury = makeAddr("treasury");
@@ -51,7 +50,7 @@ contract FrontendFuzzTest is BaseTest {
             cid,
             10 ether, // minStakeToClaim
             5 ether, // minStakeToContribute
-            3, // minValidations
+            3, // numberOfValidations
             1000, // 10% validator rewards
             "" // no skill
         );
@@ -109,7 +108,7 @@ contract FrontendFuzzTest is BaseTest {
         bytes32 projectId,
         uint256 expectedProjectRewards,
         uint256 quantity,
-        address frontendOperator,
+        address operatorAddr,
         uint256 claimFeeBps
     ) internal {
         uint256 contributorEarned = rewards.getAvailableRewards(contributor, projectId, address(rewardToken));
@@ -120,11 +119,11 @@ contract FrontendFuzzTest is BaseTest {
 
         assertApproxEqAbs(contributorEarned, expectedContributorReward, 1, "Contributor reward mismatch");
 
-        uint256 operatorBalanceBeforeClaim = rewardToken.balanceOf(frontendOperator);
+        uint256 operatorBalanceBeforeClaim = rewardToken.balanceOf(operatorAddr);
         uint256 contributorBalanceBeforeClaim = rewardToken.balanceOf(contributor);
 
         vm.startPrank(contributor);
-        rewards.claimRewards(projectId, address(rewardToken), frontendOperator, claimFeeBps);
+        rewards.claimRewards(projectId, address(rewardToken), operatorAddr, claimFeeBps);
         vm.stopPrank();
 
         {
@@ -132,7 +131,7 @@ contract FrontendFuzzTest is BaseTest {
             uint256 expectedNetReward = contributorEarned - expectedClaimFee;
 
             assertEq(
-                rewardToken.balanceOf(frontendOperator) - operatorBalanceBeforeClaim,
+                rewardToken.balanceOf(operatorAddr) - operatorBalanceBeforeClaim,
                 expectedClaimFee,
                 "Claim fee mismatch"
             );

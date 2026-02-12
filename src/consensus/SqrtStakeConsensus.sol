@@ -9,8 +9,14 @@ import {ConsensusLib} from "../libraries/ConsensusLib.sol";
  * @notice Square root stake weighting - reduces whale power sublinearly
  * @dev Weight = sqrt(stake)
  * Security Grade: A- (reduces whale power by 22%)
+ * @author Sapien Team
  */
 contract SqrtStakeConsensus is IConsensusAlgorithm {
+    /**
+     * @notice Calculate consensus for a set of validations using square root stake weighting
+     * @param validations Array of validation inputs
+     * @return result The consensus result including weighted average and outliers
+     */
     function calculateConsensus(ValidationInput[] calldata validations)
         external
         pure
@@ -22,7 +28,7 @@ contract SqrtStakeConsensus is IConsensusAlgorithm {
         uint256[] memory scores = new uint256[](validations.length);
         uint256[] memory weights = new uint256[](validations.length);
 
-        for (uint256 i = 0; i < validations.length; i++) {
+        for (uint256 i = 0; i < validations.length; ++i) {
             if (validations[i].score > 10000) {
                 revert InvalidScore(validations[i].score);
             }
@@ -50,14 +56,26 @@ contract SqrtStakeConsensus is IConsensusAlgorithm {
         return result;
     }
 
+    /**
+     * @notice Get the name of the consensus algorithm
+     * @return The name string
+     */
     function getName() external pure returns (string memory) {
         return "SqrtStake";
     }
 
+    /**
+     * @notice Get the security grade of the algorithm
+     * @return The security grade string
+     */
     function getSecurityGrade() external pure returns (string memory) {
         return "A-";
     }
 
+    /**
+     * @notice Get the description of the algorithm
+     * @return The description string
+     */
     function getDescription() external pure returns (string memory) {
         return "Square root stake weighting. Weight = sqrt(stake). Reduces whale power by 22%, proven in quadratic voting research.";
     }

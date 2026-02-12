@@ -95,9 +95,9 @@ Once enough reveals are gathered (or the deadline passes), the `ValidationOracle
 
 **Phase 5: Finalization & Settlement**
 `SapienCore` finalizes the contribution:
-- If accepted: Rewards are distributed via the `Rewards` contract to the contributor and honest validators.
-- If rejected: The work is released back into the project pool for another contributor to attempt.
-- Outlier validators are slashed via the `SapienVault`, and their reputation in `SapienTrust` is penalized.
+- If accepted: Rewards are distributed via the `Rewards` contract to the contributor and honest validators. Validators are paid only on acceptance.
+- If rejected: The work is released back into the project pool for another contributor to attempt. **No validator rewards** are distributed (the reward pool is unchanged); the contributor's reward portion remains available for the next submission on that index.
+- Outlier validators are slashed via the `SapienVault`, and their reputation in `SapienTrust` is penalized—for both accepted and rejected contributions.
 
 #### Technical Stack
 
@@ -220,7 +220,7 @@ Once consensus is reached, `SapienCore` executes the outcome. Success leads to r
   - `rewardToken`: The ERC20 token used for payouts.
   - `minStakeToClaim`: Minimum stake required for a contributor to claim slots.
   - `minStakeToContribute`: Minimum stake required to contribute (optional/secondary check).
-  - `minValidations`: Minimum number of validator reveals required to reach consensus (defaults to 3).
+  - `numberOfValidations`: Exact number of validations required per contribution (also determines queue slots, defaults to 3).
   - `validatorRewardBasisPoints`: The percentage of the reward pool reserved for validators (e.g., 1000 = 10%). Capped at 2500 (25%).
   - `requiredSkill`: Optional skill requirement for contributors.
 
@@ -361,7 +361,7 @@ To prevent reputation farming via multiple accounts (Sybil attacks), `SapienTrus
 #### Key Functions
 
 - `getTrustScore`: Query a user's reputation for a specific role.
-- `hasEnoughStake`: Check if a user meets the stake and reputation requirements to act as a contributor or validator.
+- `hasEnoughStakeForRole`: Check if a user meets the stake and reputation requirements to act as a contributor or validator.
 - `validateSkill`: Mark a specific skill as verified for a user.
 
 ---
@@ -431,11 +431,13 @@ The `ValidationOracle` is a stateless consensus engine that manages the validati
 
 The `Rewards` contract handles the allocation, distribution, and claiming of reward tokens for projects on the Sapien platform. It maintains separate accounting for contributors and validators to ensure fair and transparent payouts.
 
+**Validator rewards on acceptance only:** Validators are paid only when a contribution is *accepted*. On rejection, no validator rewards are distributed; the pool is unchanged and the contributor's share remains available for the next submission on that index.
+
 #### Responsibilities
 
 - **Reward Escrow**: Holding funds deposited by Originators until they are earned by participants.
 - **Allocation**: Mapping reward pools to specific project IDs.
-- **Distribution**: Recording the earnings for contributors and validators after successful consensus.
+- **Distribution**: Recording the earnings for contributors and validators after a contribution is *accepted* (validators are not paid on rejection).
 - **Claiming**: Allowing users to withdraw their earned rewards to their personal wallets.
 
 #### Key Functions
@@ -554,7 +556,7 @@ To create a project, call `SapienCore.createProject()` with the following parame
 - `rewardToken`: Address of your chosen reward token.
 - `minStakeToClaim`: Minimum SAPIEN stake required for a contributor to claim a slot.
 - `minStakeToContribute`: (Legacy) Minimum stake required to participate.
-- `minValidations`: The minimum number of reviewers needed per contribution.
+- `numberOfValidations`: Exact number of validations required per contribution (also determines queue slots).
 - `validatorRewardBasisPoints`: Percentage of the total pool for validators (default 1000 = 10%). **Capped at 2500 (25%)**.
 - `requiredSkill`: (Optional) A skill contributors must have or will earn upon successful completion.
 
@@ -566,13 +568,16 @@ Call `SapienCore.fundProject(projectId, rewardAmount, quantity)`:
 - `rewardAmount`: Total amount of reward tokens to deposit.
 - `quantity`: The total number of contributions you want verified.
 
-**Protocol Fee**: A protocol fee (default 1% = 100 basis points) is automatically deducted from your funding amount and sent to the Sapien treasury. The remaining amount is allocated to your project's reward pool.
+**Protocol Fee**: A protocol fee (default 1% = 100 basis points) is automatically deducted from your funding amount and sent to the Sapien treasury. An optional operator fee (up to 2%) may also be deducted if funding through a third-party interface. The remaining amount is allocated to your project's reward pool.
 
-**Example**: If you fund with 1000 USDC:
+**Anti-Dilution Protection**: When adding funds to an existing project, the protocol enforces that the effective reward rate per slot does not decrease. The check uses the **post-fee amount** (after protocol and operator fees), so originators must account for fees when planning additional funding. Transactions that would reduce the per-slot reward rate are rejected.
+
+**Example**: If you fund with 1000 USDC and a 2% operator fee:
 - Protocol fee (1%): 10 USDC → Sent to Sapien treasury
-- Project rewards: 990 USDC → Allocated to your project
+- Operator fee (2%): 19.8 USDC → Sent to operator
+- Project rewards: 970.2 USDC → Allocated to your project
 
-*Note: The protocol will automatically calculate the per-task reward based on `totalRewards / quantity`, where `totalRewards` is the amount after the protocol fee deduction.*
+*Note: The per-task reward is based on the post-fee pool (`totalRewards / quantity`). Additional funding must maintain or exceed the current post-fee reward rate per slot.*
 
 #### 4. Choose a Consensus Algorithm
 

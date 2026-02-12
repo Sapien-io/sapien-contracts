@@ -56,11 +56,11 @@ contract TrustTest is BaseTest {
         trust.setRoleMinStake(VALIDATOR_ROLE, 2000 ether);
 
         vm.expectRevert(abi.encodeWithSelector(ISapienTrust.InsufficientStake.selector, VALIDATOR_ROLE, 2000 ether, 1000 ether));
-        trust.hasEnoughStake(validator1, VALIDATOR_ROLE);
+        trust.hasEnoughStakeForRole(validator1, VALIDATOR_ROLE);
 
         // Stake more
         _setupUser(validator1, 1000 ether);
-        trust.hasEnoughStake(validator1, VALIDATOR_ROLE);
+        trust.hasEnoughStakeForRole(validator1, VALIDATOR_ROLE);
 
         vm.stopPrank();
     }
@@ -192,7 +192,7 @@ contract TrustTest is BaseTest {
 
         // Should not revert for any user
         address newUser = makeAddr("newUser");
-        trust.hasEnoughStake(newUser, VALIDATOR_ROLE);
+        trust.hasEnoughStakeForRole(newUser, VALIDATOR_ROLE);
         vm.stopPrank();
     }
 
@@ -269,11 +269,11 @@ contract TrustTest is BaseTest {
 
         // Should use role-specific stake (2000 ether)
         vm.expectRevert(abi.encodeWithSelector(ISapienTrust.InsufficientStake.selector, VALIDATOR_ROLE, 2000 ether, 1000 ether));
-        trust.hasEnoughStake(validator1, VALIDATOR_ROLE);
+        trust.hasEnoughStakeForRole(validator1, VALIDATOR_ROLE);
 
         // Set role stake to 0, should use global (100 ether)
         trust.setRoleMinStake(VALIDATOR_ROLE, 0);
-        trust.hasEnoughStake(validator1, VALIDATOR_ROLE);
+        trust.hasEnoughStakeForRole(validator1, VALIDATOR_ROLE);
         vm.stopPrank();
     }
 }

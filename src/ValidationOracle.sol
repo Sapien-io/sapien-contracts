@@ -14,14 +14,11 @@ import {ISapienVault} from "./interface/ISapienVault.sol";
 import {IConsensusAlgorithm} from "./interface/IConsensusAlgorithm.sol";
 import {
     VALIDATOR_ROLE,
-    UPDATER_ROLE,
     SAPIEN_CORE_ROLE,
-    UNAUTHORIZED_MISSING_VALIDATOR_ROLE,
     UNAUTHORIZED_MISSING_CORE_ROLE,
     UNAUTHORIZED_NOT_PROJECT_ORIGINATOR,
     UNAUTHORIZED_NOT_CLAIM_OWNER,
     UNAUTHORIZED_NO_ASSIGNMENT,
-    UNAUTHORIZED_INSUFFICIENT_STAKE,
     UNAUTHORIZED_INSUFFICIENT_AVAILABLE_STAKE,
     UNAUTHORIZED_CANNOT_REDUCE_BELOW_INFLIGHT,
     UNAUTHORIZED_ORIGINATOR_CANNOT_VALIDATE,
@@ -55,6 +52,14 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
 
     /// @notice Minimum reveal deadline to prevent malicious deadline shortening attacks
     uint256 public constant MIN_REVEAL_DEADLINE = 1 hours;
+
+    /// @notice Maximum items in a single batch operation (F-12 fix)
+    /// @dev Prevents DoS via gas exhaustion from unbounded loops
+    uint256 public constant MAX_BATCH_SIZE = 50;
+
+    /// @notice Maximum active validation claims per validator per project (F-10 fix)
+    /// @dev Prevents a single validator from monopolizing the validation queue
+    uint256 public constant MAX_ACTIVE_VALIDATOR_CLAIMS_PER_PROJECT = 3;
 
     // Algorithm Registry
     /// @notice Mapping from algorithm name hash to algorithm implementation address
@@ -98,8 +103,12 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
     /// @dev projectId => contributionIndex => Validation[] array
     mapping(bytes32 => mapping(uint256 => Validation[])) public validations;
 
-    // Storage gap for future upgrades
-    uint256[37] private __gap;
+    /// @notice Active validation claim count per validator per project (F-10 fix)
+    /// @dev projectId => validator => activeClaimCount
+    mapping(bytes32 => mapping(address => uint256)) internal validatorActiveClaimsPerProject;
+
+    // Storage gap for future upgrades (14 own slots + 36 gap = 50)
+    uint256[36] private __gap;
 
     // ============================================
     // MODIFIERS
@@ -161,27 +170,20 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         external
         onlyCoreOrAdmin
     {
-
-        // Clear previous state for this index to prevent inconsistency on re-queue
-        delete validationCommits[projectId][contributionIndex];
-        delete validations[projectId][contributionIndex];
-
         ContributionState storage cState = contributionStates[projectId][contributionIndex];
+
+        // F-05/F-08 fix: Increment nonce to invalidate stale commits/validations from previous
+        // submission cycles. This replaces expensive array deletions with O(1) nonce-based filtering.
+        ++cState.submissionNonce;
         cState.submittedAt = submittedAt;
         cState.activeClaimCount = 0;
 
-        // TODO: Investigate the relationship between minValidations and maxValidations.
-        // Currently, maxValidations determines how many queue slots are created per contribution.
-        // If maxValidations > minValidations, sequential validator claims may all be assigned to
-        // the same contribution index instead of being distributed across indices. Consider:
-        // 1. Enforcing maxValidations == minValidations at project creation
-        // 2. Using minValidations instead of maxValidations for queue slot creation
-        // 3. Implementing a more sophisticated queue assignment algorithm
-        uint256 max = _getMaxValidators(projectId);
+        uint256 numValidations = projectSettings[projectId].numberOfValidations;
+        if (numValidations == 0) numValidations = 3; // Default fallback
         ProjectSettings storage settings = projectSettings[projectId];
-        for (uint256 i = 0; i < max; i++) {
+        for (uint256 i = 0; i < numValidations; ++i) {
             pendingQueue[projectId][settings.queueTail] = contributionIndex;
-            settings.queueTail++;
+            ++settings.queueTail;
         }
     }
 
@@ -193,8 +195,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @return claimId Unique identifier for the created validation claim
      */
     function claimToValidate(bytes32 projectId) external returns (uint256 claimId) {
-        trust.hasEnoughStake(msg.sender, VALIDATOR_ROLE);
-        if (!trust.hasRequiredStake(msg.sender)) revert Unauthorized(UNAUTHORIZED_INSUFFICIENT_STAKE);
+        trust.hasEnoughStakeForRole(msg.sender, VALIDATOR_ROLE);
 
         uint256 requiredStake = _getRequiredValidatorStake(projectId);
         ValidatorState storage vState = validatorStates[msg.sender];
@@ -224,11 +225,20 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
             }
         }
 
-        // Check queue availability
-        uint256 available = settings.queueTail - settings.queueHead;
-        if (available == 0) revert CapacityReached();
+        // F-10 fix: Enforce per-validator claim limit to prevent queue monopolization
+        if (validatorActiveClaimsPerProject[projectId][msg.sender] >= MAX_ACTIVE_VALIDATOR_CLAIMS_PER_PROJECT) {
+            revert MaxValidatorClaimsPerProjectExceeded(msg.sender, projectId, MAX_ACTIVE_VALIDATOR_CLAIMS_PER_PROJECT);
+        }
 
-        claimId = settings.nextValidationClaimId++;
+        // Check queue availability - revert if all numberOfValidations slots have been claimed
+        uint256 available = settings.queueTail - settings.queueHead;
+        if (available == 0) revert AllValidationsClaimed(projectId);
+
+        // F-10: Increment active claim count
+        ++validatorActiveClaimsPerProject[projectId][msg.sender];
+
+        claimId = settings.nextValidationClaimId;
+        ++settings.nextValidationClaimId;
         uint256 deadline = block.timestamp + CLAIM_DURATION;
 
         // Option B: Always claim exactly 1 slot
@@ -236,7 +246,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
 
         // Assign single index from queue
         uint256 index = pendingQueue[projectId][settings.queueHead];
-        settings.queueHead++;
+        ++settings.queueHead;
 
         validationClaims[projectId][claimId] = ValidationClaim({
             validator: msg.sender,
@@ -253,7 +263,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         assignment.hasCommitted = false;
         assignment.committedStake = 0;
 
-        emit IndexAssignedToValidator(projectId, claimId, index, msg.sender);
+        emit IndexAssignedToValidator(projectId, claimId, index, msg.sender, deadline);
         emit ValidationClaimed(projectId, claimId, msg.sender, deadline);
     }
 
@@ -263,11 +273,11 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @param amount The total amount of SAPIEN to lock for validation capacity
      */
     function setValidatorCapacity(uint256 amount) external nonReentrant {
-        trust.hasEnoughStake(msg.sender, VALIDATOR_ROLE);
+        trust.hasEnoughStakeForRole(msg.sender, VALIDATOR_ROLE);
 
         ValidatorState storage vState = validatorStates[msg.sender];
         uint256 currentCapacity = vState.capacity;
-        if (amount == currentCapacity) return;
+        if (amount == currentCapacity) revert CapacityUnchanged(currentCapacity);
 
         // CEI Pattern: Effects (state changes) before Interactions (external calls)
         vState.capacity = amount;
@@ -285,7 +295,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
             uint256 diff = currentCapacity - amount;
             vault.unlockStake(msg.sender, diff, "decrease_capacity");
         }
-        emit ValidatorCapacityUpdated(msg.sender, amount);
+        emit ValidatorCapacityUpdated(msg.sender, currentCapacity, amount);
     }
 
     /**
@@ -339,6 +349,11 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @custom:emits ValidatorSlashedForExpiredClaim If there are uncommitted validations to slash
      */
     // TODO: Should there be a reward for the wallet that calls this?
+    /**
+     * @notice Cancel a validation claim that has passed its deadline
+     * @param projectId Unique identifier for the project
+     * @param claimId Unique identifier for the claim
+     */
     function cancelExpiredValidationClaim(bytes32 projectId, uint256 claimId) external nonReentrant {
         ValidationClaim storage claim = validationClaims[projectId][claimId];
         if (claim.status != ClaimStatus.Active) revert NoClaimAvailable();
@@ -352,6 +367,11 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
 
         // Mark claim as expired before external calls (CEI pattern)
         claim.status = ClaimStatus.Expired;
+
+        // F-10: Release claim slot on expiry
+        if (validatorActiveClaimsPerProject[projectId][claim.validator] > 0) {
+            --validatorActiveClaimsPerProject[projectId][claim.validator];
+        }
 
         if (uncommittedCount > 0) {
             uint256 stakePerValidation = _getRequiredValidatorStake(projectId);
@@ -370,7 +390,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
             // Re-queue the contribution index (Liveness Fix)
             ProjectSettings storage settings = projectSettings[projectId];
             pendingQueue[projectId][settings.queueTail] = claim.contributionIndex;
-            settings.queueTail++;
+            ++settings.queueTail;
 
             // Interactions (external calls) after state changes
             // Slash from vault (stake is already locked)
@@ -381,6 +401,8 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
 
             emit ValidatorSlashedForExpiredClaim(projectId, claimId, claim.validator, totalSlashAmount);
         }
+
+        emit ValidationClaimExpired(projectId, claimId, claim.validator);
     }
 
     /**
@@ -393,6 +415,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
     function commitValidation(bytes32 projectId, uint256 claimId, uint256 contributionIndex, bytes32 commitHash)
         external
     {
+        // TODO: revert with error when Capicity is insufficient
         uint256 minStake = _getRequiredValidatorStake(projectId);
         _commitValidationWithStake(projectId, claimId, contributionIndex, minStake, commitHash);
     }
@@ -433,8 +456,10 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         if (contributionIndices.length != commitHashes.length) {
             revert Unauthorized(UNAUTHORIZED_ARRAY_LENGTH_MISMATCH);
         }
+        // F-12 fix: Prevent DoS via gas exhaustion from unbounded loops
+        if (contributionIndices.length > MAX_BATCH_SIZE) revert BatchSizeTooLarge(contributionIndices.length, MAX_BATCH_SIZE);
         uint256 minStake = _getRequiredValidatorStake(projectId);
-        for (uint256 i = 0; i < contributionIndices.length; i++) {
+        for (uint256 i = 0; i < contributionIndices.length; ++i) {
             _commitValidationWithStake(projectId, claimId, contributionIndices[i], minStake, commitHashes[i]);
         }
     }
@@ -457,7 +482,9 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         if (contributionIndices.length != commitHashes.length || contributionIndices.length != stakeAmounts.length) {
             revert Unauthorized(UNAUTHORIZED_ARRAY_LENGTH_MISMATCH);
         }
-        for (uint256 i = 0; i < contributionIndices.length; i++) {
+        // F-12 fix: Prevent DoS via gas exhaustion from unbounded loops
+        if (contributionIndices.length > MAX_BATCH_SIZE) revert BatchSizeTooLarge(contributionIndices.length, MAX_BATCH_SIZE);
+        for (uint256 i = 0; i < contributionIndices.length; ++i) {
             _commitValidationWithStake(projectId, claimId, contributionIndices[i], stakeAmounts[i], commitHashes[i]);
         }
     }
@@ -467,6 +494,14 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @param projectId Unique identifier for the project
      * @param claimId Unique identifier for the validation claim
      * @param contributionIndex The index within the project's contribution sequence
+     * @param stakeAmount Amount to stake for this validation
+     * @param commitHash keccak256(score, stakeAmount, salt)
+     */
+    /**
+     * @notice Internal helper to commit a validation
+     * @param projectId Unique identifier for the project
+     * @param claimId Unique identifier for the claim
+     * @param contributionIndex Index of the contribution
      * @param stakeAmount Amount to stake for this validation
      * @param commitHash keccak256(score, stakeAmount, salt)
      */
@@ -490,8 +525,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         }
 
         // 1. Verify Validator Role & Stake
-        trust.hasEnoughStake(msg.sender, VALIDATOR_ROLE);
-        if (!trust.hasRequiredStake(msg.sender)) revert Unauthorized(UNAUTHORIZED_INSUFFICIENT_STAKE);
+        trust.hasEnoughStakeForRole(msg.sender, VALIDATOR_ROLE);
 
         // Sybil Protection: Originator and Contributor cannot validate
         ProjectSettings storage settings = projectSettings[projectId];
@@ -520,11 +554,15 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         assignment.hasCommitted = true;
         assignment.committedStake = stakeAmount;
         vState.inFlightStake += stakeAmount;
-        contributionStates[projectId][contributionIndex].activeClaimCount++;
-        claim.committedCount++;
+        ++contributionStates[projectId][contributionIndex].activeClaimCount;
+        ++claim.committedCount;
 
         if (claim.committedCount == claim.quantity) {
             claim.status = ClaimStatus.Fulfilled;
+            // F-10: Release claim slot when fulfilled (validator has committed all assigned work)
+            if (validatorActiveClaimsPerProject[projectId][claim.validator] > 0) {
+                --validatorActiveClaimsPerProject[projectId][claim.validator];
+            }
         }
 
         // Snapshot the reveal deadline at commit time to prevent retroactive shortening (M-2 fix)
@@ -535,13 +573,14 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
             ValidationCommit({
                 validator: msg.sender,
                 commitHash: commitHash,
-                committedAt: block.timestamp,
-                revealDeadlineSnapshot: deadlineSnapshot,
-                revealed: false
+                committedAt: uint64(block.timestamp),
+                revealDeadlineSnapshot: uint64(deadlineSnapshot),
+                revealed: false,
+                nonce: uint64(contributionStates[projectId][contributionIndex].submissionNonce) // F-05: tie commit to submission version
             })
         );
 
-        emit ValidationCommitted(projectId, contributionIndex, msg.sender, commitHash);
+        emit ValidationCommitted(projectId, contributionIndex, msg.sender, commitHash, stakeAmount);
     }
 
     /**
@@ -571,7 +610,9 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         if (contributionIndices.length != scores.length || contributionIndices.length != salts.length) {
             revert Unauthorized(UNAUTHORIZED_ARRAY_LENGTH_MISMATCH);
         }
-        for (uint256 i = 0; i < contributionIndices.length; i++) {
+        // F-12 fix: Prevent DoS via gas exhaustion from unbounded loops
+        if (contributionIndices.length > MAX_BATCH_SIZE) revert BatchSizeTooLarge(contributionIndices.length, MAX_BATCH_SIZE);
+        for (uint256 i = 0; i < contributionIndices.length; ++i) {
             _revealValidation(projectId, contributionIndices[i], scores[i], salts[i]);
         }
     }
@@ -583,13 +624,21 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @param score The validation score (0-10000)
      * @param salt The salt used in the commit
      */
+    /**
+     * @notice Internal helper to reveal a validation
+     * @param projectId Unique identifier for the project
+     * @param contributionIndex Index of the contribution
+     * @param score Revealed score
+     * @param salt Salt used in commit
+     */
     function _revealValidation(bytes32 projectId, uint256 contributionIndex, uint256 score, bytes32 salt) internal {
         ValidationCommit[] storage commits = validationCommits[projectId][contributionIndex];
+        uint256 currentNonce = contributionStates[projectId][contributionIndex].submissionNonce;
 
-        // Find validator's commit
+        // Find validator's commit (F-05: only match commits from current submission nonce)
         uint256 commitIndex = type(uint256).max;
-        for (uint256 i = 0; i < commits.length; i++) {
-            if (commits[i].validator == msg.sender && !commits[i].revealed) {
+        for (uint256 i = 0; i < commits.length; ++i) {
+            if (commits[i].validator == msg.sender && !commits[i].revealed && commits[i].nonce == currentNonce) {
                 commitIndex = i;
                 break;
             }
@@ -637,21 +686,27 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
                 projectId: projectId,
                 validator: msg.sender,
                 contributionIndex: contributionIndex,
-                score: score,
+                score: uint16(score),
                 stakeAmount: stakeAmount,
-                submittedAt: block.timestamp,
+                submittedAt: uint64(block.timestamp),
                 rewarded: false,
                 slashed: false
             })
         );
 
-        emit ValidationRevealed(projectId, contributionIndex, msg.sender, score);
+        emit ValidationRevealed(projectId, contributionIndex, msg.sender, score, stakeAmount);
     }
 
     // ============================================
     // VIEW FUNCTIONS (CONSENSUS)
     // ============================================
 
+    /**
+     * @notice Calculate consensus for a contribution
+     * @param projectId Unique identifier for the project
+     * @param contributionIndex Index of the contribution
+     * @return report Final consensus report
+     */
     function getConsensus(bytes32 projectId, uint256 contributionIndex)
         external
         view
@@ -660,9 +715,9 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         uint256 submittedAt = contributionStates[projectId][contributionIndex].submittedAt;
         if (submittedAt == 0) return report;
 
-        uint256 minValidations = projectSettings[projectId].minValidations;
+        uint256 numberOfValidations = projectSettings[projectId].numberOfValidations;
         (bool ready, uint256 validCount) =
-            _checkConsensusReady(projectId, contributionIndex, minValidations, submittedAt);
+            _checkConsensusReady(projectId, contributionIndex, numberOfValidations, submittedAt);
         if (!ready) {
             report.validatorCount = validCount;
             return report;
@@ -694,17 +749,22 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
     }
 
     /**
+     * @notice Check if a validation commit is expired
      * @dev Check if a validation commit is expired
      * @param commit The validation commit to check
      * @param submittedAt Timestamp when the contribution was submitted
      * @param fallbackDeadline Fallback reveal deadline for legacy commits without a snapshot
+     * @param currentNonce Current submission nonce
      * @return true if the commit is expired and should be slashed
      */
-    function _isCommitExpired(ValidationCommit memory commit, uint256 submittedAt, uint256 fallbackDeadline)
-        internal
-        view
-        returns (bool)
-    {
+    function _isCommitExpired(
+        ValidationCommit memory commit,
+        uint256 submittedAt,
+        uint256 fallbackDeadline,
+        uint256 currentNonce
+    ) internal view returns (bool) {
+        // F-05: Only check commits from the current submission nonce
+        if (commit.nonce != currentNonce) return false;
         // Only check commits that were made after submission and haven't been revealed
         if (commit.committedAt < submittedAt || commit.revealed) {
             return false;
@@ -741,12 +801,13 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         ProjectSettings storage settings = projectSettings[projectId];
         uint256 deadline = settings.revealDeadline;
         if (deadline == 0) deadline = revealDeadline;
+        uint256 currentNonce = contributionStates[projectId][contributionIndex].submissionNonce;
 
-        // Count expired
+        // Count expired (F-05: only current-nonce commits)
         uint256 expiredCount = 0;
-        for (uint256 i = 0; i < commits.length; i++) {
-            if (_isCommitExpired(commits[i], submittedAt, deadline)) {
-                expiredCount++;
+        for (uint256 i = 0; i < commits.length; ++i) {
+            if (_isCommitExpired(commits[i], submittedAt, deadline, currentNonce)) {
+                ++expiredCount;
             }
         }
 
@@ -757,26 +818,26 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         toSlash = new address[](total);
         slashAmounts = new uint256[](total);
 
-        for (uint256 i = 0; i < outliers.length; i++) {
+        for (uint256 i = 0; i < outliers.length; ++i) {
             toSlash[i] = outliers[i];
             slashAmounts[i] = outlierAmounts[i];
         }
 
         uint256 idx = outliers.length;
-        for (uint256 i = 0; i < commits.length; i++) {
-            if (_isCommitExpired(commits[i], submittedAt, deadline)) {
+        for (uint256 i = 0; i < commits.length; ++i) {
+            if (_isCommitExpired(commits[i], submittedAt, deadline, currentNonce)) {
                 toSlash[idx] = commits[i].validator;
                 slashAmounts[idx] = assignments[projectId][contributionIndex][commits[i].validator].committedStake;
-                idx++;
+                ++idx;
             }
         }
     }
 
     /**
-     * @dev Check if consensus is ready (enough validations and all commits revealed or expired)
+     * @dev Check if consensus is ready (all required validations have been revealed)
      * @param projectId Unique identifier for the project
      * @param contributionIndex The index within the project's contribution sequence
-     * @param minValidations Minimum validations required
+     * @param numberOfValidations Exact number of validations required
      * @param submittedAt Timestamp when the contribution was submitted
      * @return bool True if consensus is ready
      * @return uint256 Number of valid validations
@@ -784,33 +845,25 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
     function _checkConsensusReady(
         bytes32 projectId,
         uint256 contributionIndex,
-        uint256 minValidations,
+        uint256 numberOfValidations,
         uint256 submittedAt
     ) internal view returns (bool, uint256) {
         Validation[] storage allVals = validations[projectId][contributionIndex];
 
+        // F-05: Validations are inherently filtered by submittedAt (stale reveals from old nonces
+        // have submittedAt < current submittedAt). Nonce filtering is enforced at commit/reveal time.
         uint256 validCount = 0;
-        for (uint256 i = 0; i < allVals.length; i++) {
+        for (uint256 i = 0; i < allVals.length; ++i) {
             if (allVals[i].submittedAt >= submittedAt) {
-                validCount++;
+                ++validCount;
             }
         }
 
-        if (validCount < minValidations) return (false, validCount);
+        if (validCount < numberOfValidations) return (false, validCount);
 
-        ValidationCommit[] storage commits = validationCommits[projectId][contributionIndex];
-        ProjectSettings storage settings = projectSettings[projectId];
-        uint256 deadline = settings.revealDeadline;
-        if (deadline == 0) deadline = revealDeadline;
-
-        for (uint256 i = 0; i < commits.length; i++) {
-            if (commits[i].committedAt >= submittedAt && !commits[i].revealed) {
-                // Check if commit is NOT expired (still within deadline)
-                if (!_isCommitExpired(commits[i], submittedAt, deadline)) {
-                    return (false, validCount);
-                }
-            }
-        }
+        // Consensus is ready once the exact numberOfValidations threshold is met.
+        // Unrevealed commits are still tracked and their validators are slashed
+        // via _appendExpiredSlashes when applicable.
         return (true, validCount);
     }
 
@@ -831,7 +884,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         Validation[] storage allVals = validations[projectId][contributionIndex];
         IConsensusAlgorithm.ValidationInput[] memory inputs = new IConsensusAlgorithm.ValidationInput[](validCount);
         uint256 inputIdx = 0;
-        for (uint256 i = 0; i < allVals.length; i++) {
+        for (uint256 i = 0; i < allVals.length; ++i) {
             if (allVals[i].submittedAt >= submittedAt) {
                 inputs[inputIdx] = IConsensusAlgorithm.ValidationInput({
                     validator: allVals[i].validator,
@@ -839,16 +892,28 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
                     stakeAmount: allVals[i].stakeAmount,
                     reputation: trust.getTrustScore(allVals[i].validator, VALIDATOR_ROLE)
                 });
-                inputIdx++;
+                ++inputIdx;
             }
         }
         return inputs;
     }
 
+    /**
+     * @notice Get all revealed validations for a contribution
+     * @param projectId Unique identifier for the project
+     * @param contributionIndex Index of the contribution
+     * @return Array of revealed validation structs
+     */
     function getValidations(bytes32 projectId, uint256 contributionIndex) external view returns (Validation[] memory) {
         return validations[projectId][contributionIndex];
     }
 
+    /**
+     * @notice Get all validation commits for a contribution
+     * @param projectId Unique identifier for the project
+     * @param contributionIndex Index of the contribution
+     * @return Array of validation commit structs
+     */
     function getValidationCommits(bytes32 projectId, uint256 contributionIndex)
         external
         view
@@ -857,6 +922,21 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         return validationCommits[projectId][contributionIndex];
     }
 
+    /**
+     * @notice Get a specific validation claim
+     * @param projectId Unique identifier for the project
+     * @param claimId Unique identifier for the claim
+     * @return ValidationClaim struct
+     */
+    function getValidationClaim(bytes32 projectId, uint256 claimId) external view returns (ValidationClaim memory) {
+        return validationClaims[projectId][claimId];
+    }
+
+    /**
+     * @notice Get the consensus algorithm implementation for a project
+     * @param projectId Unique identifier for the project
+     * @return IConsensusAlgorithm implementation
+     */
     function getAlgorithm(bytes32 projectId) public view returns (IConsensusAlgorithm) {
         bytes32 algoName = projectSettings[projectId].algorithm;
         if (algoName == bytes32(0)) algoName = defaultAlgorithm;
@@ -871,30 +951,49 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
     // REGISTRY FUNCTIONS
     // ============================================
 
+    /**
+     * @notice Register a new project and its configuration
+     * @param projectId Unique identifier for the project
+     * @param numberOfValidations Number of validations required
+     * @param requiredSkill Required skill for validators
+     * @param originator Project creator address
+     */
     function registerProject(
         bytes32 projectId,
-        uint256 maxValidations,
-        uint256 minValidations,
+        uint256 numberOfValidations,
         string calldata requiredSkill,
         address originator
     ) external onlyCoreOrAdmin {
+        if (originator == address(0)) revert InvalidAddress();
+        if (numberOfValidations == 0) revert InvalidNumberOfValidations(numberOfValidations);
+
         ProjectSettings storage settings = projectSettings[projectId];
-        settings.maxValidations = maxValidations;
-        settings.minValidations = minValidations;
+        settings.numberOfValidations = numberOfValidations;
         settings.requiredSkill = requiredSkill;
         settings.originator = originator;
 
         _emitProjectStateChange(projectId);
     }
 
+    /**
+     * @notice Register a new consensus algorithm implementation
+     * @param name Human-readable name of the algorithm
+     * @param implementation Implementation contract address
+     */
     function registerAlgorithm(string calldata name, address implementation) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (implementation == address(0)) revert InvalidAddress();
         algorithms[keccak256(abi.encodePacked(name))] = implementation;
         emit AlgorithmRegistered(name, implementation);
     }
 
+    /**
+     * @notice Set the consensus algorithm for a project
+     * @param projectId Unique identifier for the project
+     * @param algorithmName Name of the algorithm to use
+     */
     function setProjectAlgorithm(bytes32 projectId, string calldata algorithmName) external {
         ProjectSettings storage settings = projectSettings[projectId];
+        if (settings.originator == address(0)) revert ProjectNotRegistered(projectId);
         if (msg.sender != settings.originator && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
             revert Unauthorized(UNAUTHORIZED_NOT_PROJECT_ORIGINATOR);
         }
@@ -903,19 +1002,37 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         _emitProjectStateChange(projectId);
     }
 
-    function setProjectMaxValidations(bytes32 projectId, uint256 maxValidations) external onlyCoreOrAdmin {
-        if (maxValidations > 100) revert MaxValidationsExceeded(maxValidations, 100);
-        projectSettings[projectId].maxValidations = maxValidations;
+    /**
+     * @notice Set the number of validations required for a project
+     * @param projectId Unique identifier for the project
+     * @param numberOfValidations Number of validations required
+     */
+    function setProjectNumberOfValidations(bytes32 projectId, uint256 numberOfValidations) external onlyCoreOrAdmin {
+        if (numberOfValidations == 0) revert InvalidNumberOfValidations(numberOfValidations);
+        if (projectSettings[projectId].originator == address(0)) revert ProjectNotRegistered(projectId);
+        projectSettings[projectId].numberOfValidations = numberOfValidations;
         _emitProjectStateChange(projectId);
     }
 
+    /**
+     * @notice Set the required skill for a project
+     * @param projectId Unique identifier for the project
+     * @param requiredSkill Name of the required skill
+     */
     function setProjectRequiredSkill(bytes32 projectId, string calldata requiredSkill) external onlyCoreOrAdmin {
+        if (projectSettings[projectId].originator == address(0)) revert ProjectNotRegistered(projectId);
         projectSettings[projectId].requiredSkill = requiredSkill;
         _emitProjectStateChange(projectId);
     }
 
+    /**
+     * @notice Set the reveal deadline for a project
+     * @param projectId Unique identifier for the project
+     * @param deadline Reveal deadline in seconds
+     */
     function setProjectRevealDeadline(bytes32 projectId, uint256 deadline) external {
         ProjectSettings storage settings = projectSettings[projectId];
+        if (settings.originator == address(0)) revert ProjectNotRegistered(projectId);
         if (msg.sender != settings.originator && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
             revert Unauthorized(UNAUTHORIZED_NOT_PROJECT_ORIGINATOR);
         }
@@ -926,6 +1043,8 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
     }
 
     function setProjectOriginator(bytes32 projectId, address originator) external onlyCoreOrAdmin {
+        if (originator == address(0)) revert InvalidAddress();
+        if (projectSettings[projectId].originator == address(0)) revert ProjectNotRegistered(projectId);
         projectSettings[projectId].originator = originator;
         _emitProjectStateChange(projectId);
     }
@@ -939,31 +1058,47 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      */
     function setProjectMinValidatorReputation(bytes32 projectId, uint256 minReputation) external {
         ProjectSettings storage settings = projectSettings[projectId];
+        if (settings.originator == address(0)) revert ProjectNotRegistered(projectId);
         if (msg.sender != settings.originator && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
             revert Unauthorized(UNAUTHORIZED_NOT_PROJECT_ORIGINATOR);
         }
-        if (minReputation > 10000) revert("Min reputation cannot exceed 10000");
+        if (minReputation > 10000) revert ReputationOutOfRange(minReputation, 10000);
         settings.minValidatorReputation = minReputation;
         _emitProjectStateChange(projectId);
     }
 
+    /**
+     * @notice Set the contributor for a specific contribution index
+     * @param projectId Unique identifier for the project
+     * @param contributionIndex Index within project
+     * @param contributor Address of the contributor
+     */
     function setContributionContributor(bytes32 projectId, uint256 contributionIndex, address contributor)
         external
         onlyCoreOrAdmin
     {
+        if (contributor == address(0)) revert InvalidAddress();
         contributionStates[projectId][contributionIndex].contributor = contributor;
         emit ContributionContributorUpdated(projectId, contributionIndex, contributor);
     }
 
+    /**
+     * @notice Cancel an expired commitment and slash the validator
+     * @param projectId Unique identifier for the project
+     * @param contributionIndex Index of the contribution
+     * @param validator Validator address to cancel
+     */
     function cancelExpiredCommitment(bytes32 projectId, uint256 contributionIndex, address validator)
         external
         nonReentrant
     {
         ValidationCommit[] storage commits = validationCommits[projectId][contributionIndex];
         ProjectSettings storage settings = projectSettings[projectId];
+        uint256 currentNonce = contributionStates[projectId][contributionIndex].submissionNonce;
 
-        for (uint256 i = 0; i < commits.length; i++) {
-            if (commits[i].validator == validator && !commits[i].revealed) {
+        for (uint256 i = 0; i < commits.length; ++i) {
+            // F-05: Only process commits from the current submission nonce
+            if (commits[i].validator == validator && !commits[i].revealed && commits[i].nonce == currentNonce) {
                 // Opus 4.6 M-2 fix: Use per-commit snapshot for expiry check,
                 // consistent with _revealValidation. Fallback for legacy commits.
                 uint256 deadline = commits[i].revealDeadlineSnapshot;
@@ -995,12 +1130,12 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
 
                     // Decrement active claim count BEFORE external calls (CEI pattern)
                     if (contributionStates[projectId][contributionIndex].activeClaimCount > 0) {
-                        contributionStates[projectId][contributionIndex].activeClaimCount--;
+                        --contributionStates[projectId][contributionIndex].activeClaimCount;
                     }
 
                     // Re-queue the contribution index (Liveness Fix)
                     pendingQueue[projectId][settings.queueTail] = contributionIndex;
-                    settings.queueTail++;
+                    ++settings.queueTail;
 
                     // External calls after all state changes (CEI pattern)
                     // Slash from the validator's capacity (stake is already locked in vault)
@@ -1008,6 +1143,8 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
 
                     // Update reputation for not fulfilling obligations (consistent with cancelExpiredValidationClaim)
                     trust.updateReputation(validator, VALIDATOR_ROLE, false, 0);
+
+                    emit ExpiredCommitmentCancelled(projectId, contributionIndex, validator, stake);
                     return;
                 }
             }
@@ -1022,21 +1159,31 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @param contributionIndex The index within the project's contribution sequence
      */
     function resetContributionState(bytes32 projectId, uint256 contributionIndex) external onlyCoreOrAdmin {
+        ContributionState storage cState = contributionStates[projectId][contributionIndex];
+        uint256 currentNonce = cState.submissionNonce;
 
-        // Clear assignments' committed status for all who committed
+        // F-05/F-08 fix: Only clear assignments for current-nonce commits (avoids iterating stale data)
         ValidationCommit[] storage commits = validationCommits[projectId][contributionIndex];
-        for (uint256 i = 0; i < commits.length; i++) {
-            assignments[projectId][contributionIndex][commits[i].validator].hasCommitted = false;
+        for (uint256 i = 0; i < commits.length; ++i) {
+            if (commits[i].nonce == currentNonce) {
+                assignments[projectId][contributionIndex][commits[i].validator].hasCommitted = false;
+            }
         }
 
-        // Clear contribution state
-        delete contributionStates[projectId][contributionIndex];
-
-        // Clear commits and validations
-        delete validationCommits[projectId][contributionIndex];
-        delete validations[projectId][contributionIndex];
+        // F-08 fix: Don't delete arrays — nonce-based invalidation handles stale data.
+        // The next enqueueValidation call will increment the nonce, making all current
+        // commits/validations stale. This saves gas compared to zeroing array elements.
+        // Reset contribution state fields (preserving submissionNonce for next cycle)
+        cState.submittedAt = 0;
+        cState.contributor = address(0);
+        cState.activeClaimCount = 0;
+        // Note: submissionNonce is preserved — it will be incremented by the next enqueueValidation
     }
 
+    /**
+     * @notice Set the global default reveal deadline
+     * @param _newDeadline Deadline in seconds
+     */
     function setRevealDeadline(uint256 _newDeadline) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_newDeadline < MIN_REVEAL_DEADLINE) revert InvalidDeadline();
         revealDeadline = _newDeadline;
@@ -1061,7 +1208,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         // If they had an unrevealed commit for this index, it was just slashed
         // We must reduce inFlightStake
         ValidationCommit[] storage commits = validationCommits[projectId][contributionIndex];
-        for (uint256 i = 0; i < commits.length; i++) {
+        for (uint256 i = 0; i < commits.length; ++i) {
             if (commits[i].validator == validator && !commits[i].revealed) {
                 commits[i].revealed = true; // Mark as processed
                 if (vState.inFlightStake >= slashAmount) {
@@ -1098,24 +1245,22 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @dev Get the required stake for a validator in a project
      * @return required Minimum amount of tokens required to validate
      */
-    function _getRequiredValidatorStake(bytes32) internal view returns (uint256) {
+    /**
+     * @notice Internal helper to get required validator stake for a project
+     * @return Required stake amount
+     */
+    function _getRequiredValidatorStake(bytes32 /* projectId */) internal view returns (uint256) {
         uint256 required = trust.roleMinStake(VALIDATOR_ROLE);
         if (required == 0) required = trust.minStakeRequired();
         return required;
     }
 
     /**
-     * @dev Get the maximum allowed validators for a project
-     * @param projectId Unique identifier for the project
-     * @return max Number of validators allowed per contribution (defaults to 10 if not set)
-     */
-    function _getMaxValidators(bytes32 projectId) internal view returns (uint256) {
-        uint256 max = projectSettings[projectId].maxValidations;
-        return max == 0 ? 10 : max;
-    }
-
-    /**
      * @dev Emit the complete ProjectSettings state for a project
+     * @param projectId Unique identifier for the project
+     */
+    /**
+     * @notice Internal helper to emit ProjectStateChange event
      * @param projectId Unique identifier for the project
      */
     function _emitProjectStateChange(bytes32 projectId) internal {
@@ -1123,8 +1268,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         emit ProjectStateChange(
             projectId,
             settings.algorithm,
-            settings.maxValidations,
-            settings.minValidations,
+            settings.numberOfValidations,
             settings.revealDeadline,
             settings.requiredSkill,
             settings.originator,

@@ -33,6 +33,12 @@ Attacking the protocol with multiple small accounts is mitigated by:
 - **Minimum Entry Stake**: A significant financial barrier to creating new accounts.
 - **Reputation Maturity**: High-weight roles require a history of successful actions that cannot be easily faked or automated.
 
+## 🔧 Applied Security Fixes
+
+Documented fixes for identified vulnerabilities:
+
+- **[Validator Rewards on Rejection](fixes/validator-rewards-on-rejection.md)**: Validators are paid only when a contribution is accepted. On rejection, no validator rewards are distributed, preserving the reward pool for re-submissions on the same index.
+
 ## 🔍 Auditability
 
 Every final quality signal produced by the protocol is recorded as an onchain attestation. These attestations include:

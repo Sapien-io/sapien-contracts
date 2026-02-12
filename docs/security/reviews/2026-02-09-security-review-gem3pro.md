@@ -22,10 +22,10 @@ No Critical or High severity vulnerabilities were identified. A few Low/Informat
 The `cancelExpiredCommitment` function iterates over `validationCommits[projectId][contributionIndex]`. The number of iterations is determined by the number of validators who have committed to a contribution.
 
 **Impact**:
-While `maxValidations` is currently capped at 100 (enforced by `SapienCore` and `ValidationOracle`), effectively bounding this loop, future upgrades or misconfiguration could increase this limit. If the array becomes too large, this function could hit the block gas limit, preventing the clearing of expired commits and potentially stalling the queue for that contribution.
+While `numberOfValidations` is currently capped at 100 (enforced by `SapienCore` and `ValidationOracle`), effectively bounding this loop, future upgrades or misconfiguration could increase this limit. If the array becomes too large, this function could hit the block gas limit, preventing the clearing of expired commits and potentially stalling the queue for that contribution.
 
 **Recommendation**:
-Ensure `maxValidations` remains strictly bounded. Consider implementing a way to process slashings in batches if `maxValidations` is ever increased significantly.
+Ensure `numberOfValidations` remains strictly bounded. Consider implementing a way to process slashings in batches if `numberOfValidations` is ever increased significantly.
 
 ### [INFORMATIONAL] Liveness Dependency on Keepers
 
@@ -64,4 +64,4 @@ Ensure that any future re-initializers (for upgrades) do not accidentally reset 
 
 ## Conclusion
 
-The codebase appears robust. Key security properties (Sybil resistance, stake locking, reentrancy protection) are implemented correctly. The "Low" finding regarding gas limits is currently mitigated by the `maxValidations` cap.
+The codebase appears robust. Key security properties (Sybil resistance, stake locking, reentrancy protection) are implemented correctly. The "Low" finding regarding gas limits is currently mitigated by the `numberOfValidations` cap.

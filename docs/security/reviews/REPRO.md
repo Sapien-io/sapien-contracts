@@ -31,7 +31,7 @@ contract OldSapienCore {
     
     // Existing variables before the shift
     uint256 internal _claimDeadlineDays;
-    uint256 internal _maxValidations;
+    uint256 internal _maxValidations; // [Note: _maxValidations has since been removed; replaced by per-project numberOfValidations]
     uint256 public protocolFeeBasisPoints;
     address public treasury;
     uint256 public consensusThreshold;
@@ -57,7 +57,7 @@ contract NewSapienCore {
 
     // These variables are now shifted by 1 slot
     uint256 internal _claimDeadlineDays;
-    uint256 internal _maxValidations;
+    uint256 internal _maxValidations; // [Note: _maxValidations has since been removed; replaced by per-project numberOfValidations]
     uint256 public protocolFeeBasisPoints;
     address public treasury;
     uint256 public consensusThreshold;
@@ -87,7 +87,7 @@ In `src/SapienCore.sol`:
 63|    mapping(bytes32 => mapping(address => uint256)) internal userActiveClaimedQuantity; // <--- INSERTED HERE
 64|
 65|    uint256 internal _claimDeadlineDays; // <--- SHIFTED
-66|    uint256 internal _maxValidations;    // <--- SHIFTED
+66|    // [Note: _maxValidations has since been removed; replaced by per-project numberOfValidations]
 ```
 
 ---
@@ -109,3 +109,17 @@ Calculation:
 `500,000,000 / 1,000,000,000` = `0.5` -> **0** in Solidity.
 
 Validator receives **0** rewards despite performing work.
+
+---
+
+## Fix Verification (Test Mapping)
+
+| Finding | Test / Verification | Command |
+| :--- | :--- | :--- |
+| C-01 | Storage layout: `userActiveClaimedQuantity` at slot 18 (after config vars) | `forge inspect src/SapienCore.sol:SapienCore storage-layout` |
+| M-01 | `test/findings/DivideBeforeMultiplyPrecision.t.sol` | `forge test --match-path test/findings/DivideBeforeMultiplyPrecision.t.sol` |
+| M-02 | `test/findings/SecurityFixesVerification.t.sol`, `test/findings/TangentReplication.t.sol` | `forge test --match-contract "SecurityFixesVerification\|TangentReplication" --match-test "Tangent3\|Consensus_DoS"` |
+| M-03 | `test/findings/ValidatorClaimSlotStarvation.t.sol` | `forge test --match-path test/findings/ValidatorClaimSlotStarvation.t.sol` |
+| M-04 | Code: `rewardRateSnapshot` in `_contribute` / `claimContributionReward` (F-11) | — |
+| M-05 | Code: `ValidationOracle` 14+36=50 slots | — |
+| L-03 | Code: `MAX_BATCH_SIZE=50` in SapienCore, ValidationOracle | — |

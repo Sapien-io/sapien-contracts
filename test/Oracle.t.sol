@@ -22,7 +22,7 @@ contract OracleTest is BaseTest {
         oracle.grantRole(SAPIEN_CORE_ROLE, admin);
 
         vm.prank(admin);
-        oracle.registerProject(PROJECT_ID, 10, 3, "", originator);
+        oracle.registerProject(PROJECT_ID, 10, "", originator);
     }
 
     function testSybilProtection() public {
@@ -92,14 +92,14 @@ contract OracleTest is BaseTest {
         vm.expectRevert(); // MissingRequiredSkill
         oracle.claimToValidate(PROJECT_ID);
 
-        // Capacity reached - set maxValidations to 1 and enqueue again
+        // Capacity reached - set numberOfValidations to 1 and enqueue again
         vm.startPrank(admin);
         oracle.setProjectRequiredSkill(PROJECT_ID, "");
-        oracle.setProjectMaxValidations(PROJECT_ID, 1);
+        oracle.setProjectNumberOfValidations(PROJECT_ID, 1);
         // Clear queue by claiming all existing items first, then enqueue with new max
         // Actually, let's use a fresh project for this test
         bytes32 projectId2 = keccak256(abi.encodePacked("project2"));
-        oracle.registerProject(projectId2, 1, 1, "", originator);
+        oracle.registerProject(projectId2, 1, "", originator);
         oracle.enqueueValidation(projectId2, 0, block.timestamp);
         vm.stopPrank();
 
@@ -108,12 +108,12 @@ contract OracleTest is BaseTest {
 
         _setValidatorCapacity(validator2, 1000 ether);
         vm.prank(validator2);
-        vm.expectRevert(); // CapacityReached - queue is empty
+        vm.expectRevert(); // AllValidationsClaimed - queue is empty
         oracle.claimToValidate(projectId2);
 
         // Duplicate claim - validator1 already claimed the only slot
         vm.prank(validator1);
-        vm.expectRevert(); // CapacityReached - no more items in queue
+        vm.expectRevert(); // AllValidationsClaimed - no more items in queue
         oracle.claimToValidate(projectId2);
     }
 
@@ -186,7 +186,7 @@ contract OracleTest is BaseTest {
         vm.prank(admin);
         oracle.enqueueValidation(PROJECT_ID, 0, block.timestamp);
 
-        // Less than minValidations
+        // Less than numberOfValidations
         IValidationOracle.ConsensusReport memory report = oracle.getConsensus(PROJECT_ID, 0);
         assertFalse(report.isReady);
 
@@ -250,7 +250,7 @@ contract OracleTest is BaseTest {
         vm.prank(admin);
         oracle.enqueueValidation(PROJECT_ID, contributionIndex, submittedAt);
 
-        // Should have maxValidations (10) items in queue
+        // Should have numberOfValidations (10) items in queue
         uint256 pendingCount = oracle.getPendingValidationCount(PROJECT_ID);
         assertEq(pendingCount, 10);
 
@@ -259,9 +259,9 @@ contract OracleTest is BaseTest {
         vm.expectRevert();
         oracle.enqueueValidation(PROJECT_ID, 1, block.timestamp);
 
-        // Test with custom maxValidations
+        // Test with custom numberOfValidations
         vm.prank(admin);
-        oracle.setProjectMaxValidations(PROJECT_ID, 5);
+        oracle.setProjectNumberOfValidations(PROJECT_ID, 5);
 
         vm.prank(admin);
         oracle.enqueueValidation(PROJECT_ID, 1, block.timestamp);
@@ -324,87 +324,79 @@ contract OracleTest is BaseTest {
     }
 
     function testBatchCommitValidations() public {
-        // Grant VALIDATOR_ROLE and deposit additional stake
+        _setValidatorCapacity(validator1, 1000 ether);
+
+        // Set numberOfValidations to 3 to work with per-validator claim limit of 3
         vm.prank(admin);
-        trust.grantRole(VALIDATOR_ROLE, validator1);
-        _setupUser(validator1, 1100 ether); // Need 1100 ether for 11 validations
-        _setValidatorCapacity(validator1, 1100 ether);
+        oracle.setProjectNumberOfValidations(PROJECT_ID, 3);
 
         vm.prank(admin);
         oracle.enqueueValidation(PROJECT_ID, 0, block.timestamp);
         vm.prank(admin);
         oracle.enqueueValidation(PROJECT_ID, 1, block.timestamp);
 
-        // Claim slots one at a time (Option B: force single-slot claims)
-        // Need to claim 11 slots to get assignments for both index 0 (first 10) and index 1 (11th)
-        vm.startPrank(validator1);
-        uint256 claimId0 = oracle.claimToValidate(PROJECT_ID);
-        // Claim 10 more slots for index 0
-        for (uint256 i = 0; i < 10; i++) {
-            oracle.claimToValidate(PROJECT_ID);
-        }
-        // Claim 1 slot for index 1
-        uint256 claimId1 = oracle.claimToValidate(PROJECT_ID);
-        vm.stopPrank();
-
+        // Queue: [0,0,0,1,1,1] - 3 slots per contribution
         bytes32 salt1 = keccak256("salt1");
         bytes32 salt2 = keccak256("salt2");
         uint256 stake = 100 ether;
         bytes32 h1 = keccak256(abi.encodePacked(uint256(8000), stake, salt1));
         bytes32 h2 = keccak256(abi.encodePacked(uint256(8500), stake, salt2));
 
-        // Commit to index 0 using first claim
-        vm.prank(validator1);
+        vm.startPrank(validator1);
+        // Claim 3 slots (all from index 0), hitting the per-validator active claim limit
+        uint256 claimId0 = oracle.claimToValidate(PROJECT_ID);
+        oracle.claimToValidate(PROJECT_ID);
+        oracle.claimToValidate(PROJECT_ID);
+
+        // Commit to index 0 (fulfills claimId0, freeing one active claim slot)
         oracle.commitValidation(PROJECT_ID, claimId0, 0, h1);
-        // Commit to index 1 using second claim
-        vm.prank(validator1);
+
+        // Now can claim again (active claims dropped from 3 to 2)
+        uint256 claimId1 = oracle.claimToValidate(PROJECT_ID); // gets index 1
+
+        // Commit to index 1
         oracle.commitValidation(PROJECT_ID, claimId1, 1, h2);
+        vm.stopPrank();
 
         // Verify commits were recorded
         IValidationOracle.ConsensusReport memory report = oracle.getConsensus(PROJECT_ID, 0);
         assertFalse(report.isReady); // Not revealed yet
-
-        // Note: With Option B, each claim is for a single slot, so we commit individually
-        // The batch functionality (batchCommitValidations, batchRevealValidations) still works
-        // but is typically used when a validator has multiple separate claims
     }
 
     function testBatchRevealValidations() public {
-        // Grant VALIDATOR_ROLE and deposit additional stake
+        _setValidatorCapacity(validator1, 1000 ether);
+
+        // Set numberOfValidations to 3 to work with per-validator claim limit of 3
         vm.prank(admin);
-        trust.grantRole(VALIDATOR_ROLE, validator1);
-        _setupUser(validator1, 1100 ether); // Need 1100 ether for 11 validations
-        _setValidatorCapacity(validator1, 1100 ether);
+        oracle.setProjectNumberOfValidations(PROJECT_ID, 3);
 
         vm.prank(admin);
         oracle.enqueueValidation(PROJECT_ID, 0, block.timestamp);
         vm.prank(admin);
         oracle.enqueueValidation(PROJECT_ID, 1, block.timestamp);
 
-        // Claim slots one at a time (Option B: force single-slot claims)
-        // Need to claim 11 slots to get assignments for both index 0 and index 1
-        vm.startPrank(validator1);
-        uint256 claimId0 = oracle.claimToValidate(PROJECT_ID);
-        // Claim 10 more slots for index 0
-        for (uint256 i = 0; i < 10; i++) {
-            oracle.claimToValidate(PROJECT_ID);
-        }
-        // Claim 1 slot for index 1
-        uint256 claimId1 = oracle.claimToValidate(PROJECT_ID);
-        vm.stopPrank();
-
+        // Queue: [0,0,0,1,1,1] - 3 slots per contribution
         bytes32 salt1 = keccak256("salt1");
         bytes32 salt2 = keccak256("salt2");
         uint256 stake = 100 ether;
         bytes32 h1 = keccak256(abi.encodePacked(uint256(8000), stake, salt1));
         bytes32 h2 = keccak256(abi.encodePacked(uint256(8500), stake, salt2));
 
-        // Commit to index 0 using first claim
-        vm.prank(validator1);
+        vm.startPrank(validator1);
+        // Claim 3 slots (all from index 0), hitting the per-validator active claim limit
+        uint256 claimId0 = oracle.claimToValidate(PROJECT_ID);
+        oracle.claimToValidate(PROJECT_ID);
+        oracle.claimToValidate(PROJECT_ID);
+
+        // Commit to index 0 (fulfills claimId0, freeing one active claim slot)
         oracle.commitValidation(PROJECT_ID, claimId0, 0, h1);
-        // Commit to index 1 using second claim
-        vm.prank(validator1);
+
+        // Now can claim again (active claims dropped from 3 to 2)
+        uint256 claimId1 = oracle.claimToValidate(PROJECT_ID); // gets index 1
+
+        // Commit to index 1
         oracle.commitValidation(PROJECT_ID, claimId1, 1, h2);
+        vm.stopPrank();
 
         // Reveal both using batch reveal
         uint256[] memory indices = new uint256[](2);
@@ -520,6 +512,10 @@ contract OracleTest is BaseTest {
         _setValidatorCapacity(validator2, 1000 ether);
         _setValidatorCapacity(validator3, 1000 ether);
 
+        // Set numberOfValidations to 3 to match the number of validators
+        vm.prank(admin);
+        oracle.setProjectNumberOfValidations(PROJECT_ID, 3);
+
         vm.prank(admin);
         oracle.enqueueValidation(PROJECT_ID, 0, block.timestamp);
 
@@ -631,11 +627,11 @@ contract OracleTest is BaseTest {
     }
 
     function testMultipleContributionIndices() public {
-        // Grant VALIDATOR_ROLE and deposit additional stake
+        _setValidatorCapacity(validator1, 1000 ether);
+
+        // Set numberOfValidations to 1 so each contribution has exactly 1 queue slot
         vm.prank(admin);
-        trust.grantRole(VALIDATOR_ROLE, validator1);
-        _setupUser(validator1, 2100 ether); // Need 2100 ether for 21 validations
-        _setValidatorCapacity(validator1, 2100 ether);
+        oracle.setProjectNumberOfValidations(PROJECT_ID, 1);
 
         // Enqueue multiple contributions
         vm.prank(admin);
@@ -645,23 +641,7 @@ contract OracleTest is BaseTest {
         vm.prank(admin);
         oracle.enqueueValidation(PROJECT_ID, 2, block.timestamp);
 
-        // Claim slots one at a time (Option B: force single-slot claims)
-        // Need 21 slots: 10 for index 0, 10 for index 1, 1 for index 2
-        vm.startPrank(validator1);
-        uint256 claimId0 = oracle.claimToValidate(PROJECT_ID);
-        // Claim 9 more slots for index 0
-        for (uint256 i = 0; i < 9; i++) {
-            oracle.claimToValidate(PROJECT_ID);
-        }
-        // Claim 10 slots for index 1
-        uint256 claimId1 = oracle.claimToValidate(PROJECT_ID);
-        for (uint256 i = 0; i < 9; i++) {
-            oracle.claimToValidate(PROJECT_ID);
-        }
-        // Claim 1 slot for index 2
-        uint256 claimId2 = oracle.claimToValidate(PROJECT_ID);
-        vm.stopPrank();
-
+        // Queue: [0, 1, 2] - 1 slot per contribution
         bytes32 salt = keccak256("salt");
         uint256 stake = 100 ether;
 
@@ -669,21 +649,22 @@ contract OracleTest is BaseTest {
         bytes32 h2 = keccak256(abi.encodePacked(uint256(8500), stake, salt));
         bytes32 h3 = keccak256(abi.encodePacked(uint256(9000), stake, salt));
 
-        // Commit to all three indices using their respective claims
-        vm.prank(validator1);
+        // Interleave claim-commit to stay within the per-validator active claim limit of 3
+        vm.startPrank(validator1);
+        uint256 claimId0 = oracle.claimToValidate(PROJECT_ID); // index 0
         oracle.commitValidation(PROJECT_ID, claimId0, 0, h1);
-        vm.prank(validator1);
+
+        uint256 claimId1 = oracle.claimToValidate(PROJECT_ID); // index 1
         oracle.commitValidation(PROJECT_ID, claimId1, 1, h2);
-        vm.prank(validator1);
+
+        uint256 claimId2 = oracle.claimToValidate(PROJECT_ID); // index 2
         oracle.commitValidation(PROJECT_ID, claimId2, 2, h3);
 
         // Reveal all three
-        vm.prank(validator1);
         oracle.revealValidation(PROJECT_ID, 0, 8000, salt);
-        vm.prank(validator1);
         oracle.revealValidation(PROJECT_ID, 1, 8500, salt);
-        vm.prank(validator1);
         oracle.revealValidation(PROJECT_ID, 2, 9000, salt);
+        vm.stopPrank();
 
         // Verify all three have validations
         assertEq(oracle.getValidations(PROJECT_ID, 0).length, 1);
@@ -766,21 +747,21 @@ contract OracleTest is BaseTest {
 
     function testFullValidationFlow() public {
         // Complete flow: enqueue -> claim -> commit -> reveal -> consensus
-        // Use a separate project with minValidations=1 for this single-validator test
+        // Use a separate project with numberOfValidations=1 for this single-validator test
         bytes32 singleValProject = keccak256("single-val-project");
         vm.prank(admin);
-        oracle.registerProject(singleValProject, 10, 1, "", originator);
+        oracle.registerProject(singleValProject, 1, "", originator);
 
         // 1. Enqueue
         vm.prank(admin);
         oracle.enqueueValidation(singleValProject, 0, block.timestamp);
-        assertEq(oracle.getPendingValidationCount(singleValProject), 10);
+        assertEq(oracle.getPendingValidationCount(singleValProject), 1);
 
         // 2. Set capacity and claim
         _setValidatorCapacity(validator1, 1000 ether);
         vm.prank(validator1);
         uint256 claimId = oracle.claimToValidate(singleValProject);
-        assertEq(oracle.getPendingValidationCount(singleValProject), 9);
+        assertEq(oracle.getPendingValidationCount(singleValProject), 0);
         assertTrue(oracle.isValidatorAssigned(singleValProject, 0, validator1));
 
         // 3. Commit
@@ -808,27 +789,29 @@ contract OracleTest is BaseTest {
     }
 
     function testClaimToValidateWithQueue() public {
+        // Set numberOfValidations to 3 to work with per-validator claim limit of 3
+        vm.prank(admin);
+        oracle.setProjectNumberOfValidations(PROJECT_ID, 3);
+
         // Test claiming from queue
         vm.prank(admin);
         oracle.enqueueValidation(PROJECT_ID, 0, block.timestamp);
         vm.prank(admin);
         oracle.enqueueValidation(PROJECT_ID, 1, block.timestamp);
 
+        // Queue: [0,0,0,1,1,1] - 3 slots per contribution
         _setValidatorCapacity(validator1, 1000 ether);
 
-        // With Option B, can only claim 1 at a time
-        // Claim available slots one at a time
+        // Claim all 3 index-0 slots (exactly at the per-validator active claim limit)
         vm.startPrank(validator1);
-        oracle.claimToValidate(PROJECT_ID);
-        oracle.claimToValidate(PROJECT_ID);
         oracle.claimToValidate(PROJECT_ID);
         oracle.claimToValidate(PROJECT_ID);
         oracle.claimToValidate(PROJECT_ID);
         vm.stopPrank();
 
-        assertEq(oracle.getPendingValidationCount(PROJECT_ID), 15); // 20 - 5
+        assertEq(oracle.getPendingValidationCount(PROJECT_ID), 3); // 6 - 3
 
-        // Verify assignments - all 5 claimed items are from first enqueue (index 0)
+        // Verify assignments - all 3 claimed items are from first enqueue (index 0)
         assertTrue(oracle.isValidatorAssigned(PROJECT_ID, 0, validator1));
         // Index 1 items are still in queue, not assigned yet
         assertFalse(oracle.isValidatorAssigned(PROJECT_ID, 1, validator1));
@@ -850,7 +833,7 @@ contract OracleTest is BaseTest {
         bytes32 projectId = keccak256("coverage-project-capacity");
         // Register project with admin
         vm.prank(admin);
-        oracle.registerProject(projectId, 10, 3, "", admin);
+        oracle.registerProject(projectId, 10, "", admin);
 
         // Grant VALIDATOR_ROLE to validator1
         vm.prank(admin);
@@ -896,25 +879,25 @@ contract OracleTest is BaseTest {
     function testRegisterProject_Unauthorized() public {
         vm.prank(contributor);
         vm.expectRevert(abi.encodeWithSelector(ISharedTypes.Unauthorized.selector, UNAUTHORIZED_MISSING_CORE_ROLE));
-        oracle.registerProject(keccak256("new-project"), 10, 3, "", contributor);
+        oracle.registerProject(keccak256("new-project"), 10, "", contributor);
     }
 
-    function testSetProjectMaxValidations_Unauthorized() public {
+    function testSetProjectNumberOfValidations_Unauthorized() public {
         bytes32 projectId = keccak256("coverage-project-maxval");
         // Register project with admin
         vm.prank(admin);
-        oracle.registerProject(projectId, 10, 3, "", admin);
+        oracle.registerProject(projectId, 10, "", admin);
 
         vm.prank(contributor);
         vm.expectRevert(abi.encodeWithSelector(ISharedTypes.Unauthorized.selector, UNAUTHORIZED_MISSING_CORE_ROLE));
-        oracle.setProjectMaxValidations(projectId, 20);
+        oracle.setProjectNumberOfValidations(projectId, 20);
     }
 
     function testSetProjectRequiredSkill_Unauthorized() public {
         bytes32 projectId = keccak256("coverage-project-skill");
         // Register project with admin
         vm.prank(admin);
-        oracle.registerProject(projectId, 10, 3, "", admin);
+        oracle.registerProject(projectId, 10, "", admin);
 
         vm.prank(contributor);
         vm.expectRevert(abi.encodeWithSelector(ISharedTypes.Unauthorized.selector, UNAUTHORIZED_MISSING_CORE_ROLE));
@@ -925,7 +908,7 @@ contract OracleTest is BaseTest {
         bytes32 projectId = keccak256("coverage-project-originator");
         // Register project with admin
         vm.prank(admin);
-        oracle.registerProject(projectId, 10, 3, "", admin);
+        oracle.registerProject(projectId, 10, "", admin);
 
         vm.prank(contributor);
         vm.expectRevert(abi.encodeWithSelector(ISharedTypes.Unauthorized.selector, UNAUTHORIZED_MISSING_CORE_ROLE));
@@ -936,7 +919,7 @@ contract OracleTest is BaseTest {
         bytes32 projectId = keccak256("coverage-project-contributor");
         // Register project with admin
         vm.prank(admin);
-        oracle.registerProject(projectId, 10, 3, "", admin);
+        oracle.registerProject(projectId, 10, "", admin);
 
         vm.prank(contributor);
         vm.expectRevert(abi.encodeWithSelector(ISharedTypes.Unauthorized.selector, UNAUTHORIZED_MISSING_CORE_ROLE));
@@ -947,7 +930,7 @@ contract OracleTest is BaseTest {
         bytes32 projectId = keccak256("coverage-project-slash");
         // Register project with admin
         vm.prank(admin);
-        oracle.registerProject(projectId, 10, 3, "", admin);
+        oracle.registerProject(projectId, 10, "", admin);
 
         // Line 609: if (validatorCapacity[validator] > vaultLockedStake)
 

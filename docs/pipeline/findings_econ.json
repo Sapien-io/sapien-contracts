@@ -11,7 +11,7 @@
     "title": "Liveness Griefing via Reveal Delay",
     "severity": "Medium",
     "impact": "Malicious validators can delay the finalization of any contribution by up to 3 days (the default reveal deadline), stalling contributor rewards and project progress.",
-    "description": "Consensus is only 'ready' in `ValidationOracle` when `minValidations` is met AND all pending commits have either revealed or expired. A validator can commit and then simply not reveal, forcing the protocol to wait for the full `revealDeadline` (default 3 days) before `getConsensus` returns a ready report."
+    "description": "Consensus is only 'ready' in `ValidationOracle` when `numberOfValidations` is met AND all pending commits have either revealed or expired. A validator can commit and then simply not reveal, forcing the protocol to wait for the full `revealDeadline` (default 3 days) before `getConsensus` returns a ready report."
   },
   {
     "id": "ECON-03",

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "../BaseTest.t.sol";
-import {console} from "forge-std/console.sol";
+import {console} from "lib/forge-std/src/console.sol";
 import {ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
 import {ISapienCore} from "../../src/interface/ISapienCore.sol";
 
@@ -65,7 +65,7 @@ contract ConsensusThresholdBoundaryTest is BaseTest {
 
         // Create project
         vm.startPrank(originator);
-        core.createProject(PROJECT_ID, address(rewardToken), "threshold-test", 0, 0, 2, 1000, "");
+        core.createProject(PROJECT_ID, address(rewardToken), "threshold-test", 0, 0, 3, 1000, "");
         rewardToken.approve(address(core), 100 ether);
         core.fundProject(PROJECT_ID, 100 ether, 10);
         vm.stopPrank();
@@ -144,7 +144,7 @@ contract ConsensusThresholdBoundaryTest is BaseTest {
 
         // Create project
         vm.startPrank(originator);
-        core.createProject(PROJECT_ID, address(rewardToken), "threshold-test", 0, 0, 2, 1000, "");
+        core.createProject(PROJECT_ID, address(rewardToken), "threshold-test", 0, 0, 3, 1000, "");
         rewardToken.approve(address(core), 100 ether);
         core.fundProject(PROJECT_ID, 100 ether, 10);
         vm.stopPrank();
@@ -182,7 +182,7 @@ contract ConsensusThresholdBoundaryTest is BaseTest {
 
         // Create project
         vm.startPrank(originator);
-        core.createProject(PROJECT_ID, address(rewardToken), "threshold-test", 0, 0, 2, 1000, "");
+        core.createProject(PROJECT_ID, address(rewardToken), "threshold-test", 0, 0, 3, 1000, "");
         rewardToken.approve(address(core), 100 ether);
         core.fundProject(PROJECT_ID, 100 ether, 10);
         vm.stopPrank();
