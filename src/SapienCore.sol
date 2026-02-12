@@ -638,7 +638,9 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
             revert Unauthorized(UNAUTHORIZED_ARRAY_LENGTH_MISMATCH);
         }
         // F-12 fix: Prevent DoS via gas exhaustion from unbounded loops
-        if (contributionIndices.length > MAX_BATCH_SIZE) revert BatchSizeTooLarge(contributionIndices.length, MAX_BATCH_SIZE);
+        if (contributionIndices.length > MAX_BATCH_SIZE) {
+            revert BatchSizeTooLarge(contributionIndices.length, MAX_BATCH_SIZE);
+        }
         for (uint256 i = 0; i < contributionIndices.length; ++i) {
             _contribute(projectId, claimId, contributionIndices[i], submissionHashes[i]);
         }
@@ -726,7 +728,9 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         nonReentrant
     {
         // F-12 fix: Prevent DoS via gas exhaustion from unbounded loops
-        if (contributionIndices.length > MAX_BATCH_SIZE) revert BatchSizeTooLarge(contributionIndices.length, MAX_BATCH_SIZE);
+        if (contributionIndices.length > MAX_BATCH_SIZE) {
+            revert BatchSizeTooLarge(contributionIndices.length, MAX_BATCH_SIZE);
+        }
         for (uint256 i = 0; i < contributionIndices.length; ++i) {
             _finalizeContribution(projectId, contributionIndices[i]);
         }
@@ -830,7 +834,9 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         );
 
         emit ConsensusReached(projectId, contributionIndex, report.weightedAverage, report.validatorCount);
-        emit ContributionFinalized(projectId, contributionIndex, finalStatus, report.weightedAverage, contribContributor, contribClaimId);
+        emit ContributionFinalized(
+            projectId, contributionIndex, finalStatus, report.weightedAverage, contribContributor, contribClaimId
+        );
     }
 
     /**
@@ -846,7 +852,8 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
         Project storage project = projects[projectId];
         // F-11 fix: Use the snapshotted reward rate from submission time (prevents sandwiching).
         // Falls back to live calculation for contributions submitted before the snapshot was added.
-        uint256 reward = contrib.rewardRateSnapshot > 0 ? contrib.rewardRateSnapshot : _calculateContributorReward(project);
+        uint256 reward =
+            contrib.rewardRateSnapshot > 0 ? contrib.rewardRateSnapshot : _calculateContributorReward(project);
 
         contrib.status = ContributionStatus.Rewarded;
 
@@ -854,7 +861,9 @@ contract SapienCore is ISapienCore, Initializable, AccessControlUpgradeable, Ree
             _rewards.distributeReward(projectId, contrib.contributor, address(project.rewardToken), reward);
         }
 
-        emit ContributionRewarded(projectId, contributionIndex, contrib.contributor, reward, address(project.rewardToken));
+        emit ContributionRewarded(
+            projectId, contributionIndex, contrib.contributor, reward, address(project.rewardToken)
+        );
     }
 
     // ============================================

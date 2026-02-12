@@ -53,10 +53,7 @@ interface ISapienCore is ISharedTypes {
      * @param rewardAmountAfterFee Reward amount remaining after protocol fees
      */
     event ProjectFunded(
-        bytes32 indexed projectId,
-        uint256 indexed rewardAmount,
-        uint256 indexed quantity,
-        uint256 rewardAmountAfterFee
+        bytes32 indexed projectId, uint256 indexed rewardAmount, uint256 indexed quantity, uint256 rewardAmountAfterFee
     );
 
     /**
@@ -91,10 +88,7 @@ interface ISapienCore is ISharedTypes {
      * @param slashedAmount Amount of stake slashed from the contributor
      */
     event ClaimExpired(
-        bytes32 indexed projectId,
-        uint256 indexed claimId,
-        address indexed contributor,
-        uint256 slashedAmount
+        bytes32 indexed projectId, uint256 indexed claimId, address indexed contributor, uint256 slashedAmount
     );
 
     /**
@@ -106,11 +100,7 @@ interface ISapienCore is ISharedTypes {
      * @param deadline Timestamp when the assignment expires
      */
     event IndexAssigned(
-        bytes32 indexed projectId,
-        uint256 indexed claimId,
-        uint256 indexed index,
-        address contributor,
-        uint256 deadline
+        bytes32 indexed projectId, uint256 indexed claimId, uint256 indexed index, address contributor, uint256 deadline
     );
 
     /**
@@ -163,10 +153,7 @@ interface ISapienCore is ISharedTypes {
      * @param amount Amount of reward preserved
      */
     event ContributorRewardPreserved(
-        bytes32 indexed projectId,
-        uint256 indexed contributionIndex,
-        address indexed token,
-        uint256 amount
+        bytes32 indexed projectId, uint256 indexed contributionIndex, address indexed token, uint256 amount
     );
 
     /**

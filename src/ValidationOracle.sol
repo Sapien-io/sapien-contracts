@@ -457,7 +457,9 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
             revert Unauthorized(UNAUTHORIZED_ARRAY_LENGTH_MISMATCH);
         }
         // F-12 fix: Prevent DoS via gas exhaustion from unbounded loops
-        if (contributionIndices.length > MAX_BATCH_SIZE) revert BatchSizeTooLarge(contributionIndices.length, MAX_BATCH_SIZE);
+        if (contributionIndices.length > MAX_BATCH_SIZE) {
+            revert BatchSizeTooLarge(contributionIndices.length, MAX_BATCH_SIZE);
+        }
         uint256 minStake = _getRequiredValidatorStake(projectId);
         for (uint256 i = 0; i < contributionIndices.length; ++i) {
             _commitValidationWithStake(projectId, claimId, contributionIndices[i], minStake, commitHashes[i]);
@@ -483,7 +485,9 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
             revert Unauthorized(UNAUTHORIZED_ARRAY_LENGTH_MISMATCH);
         }
         // F-12 fix: Prevent DoS via gas exhaustion from unbounded loops
-        if (contributionIndices.length > MAX_BATCH_SIZE) revert BatchSizeTooLarge(contributionIndices.length, MAX_BATCH_SIZE);
+        if (contributionIndices.length > MAX_BATCH_SIZE) {
+            revert BatchSizeTooLarge(contributionIndices.length, MAX_BATCH_SIZE);
+        }
         for (uint256 i = 0; i < contributionIndices.length; ++i) {
             _commitValidationWithStake(projectId, claimId, contributionIndices[i], stakeAmounts[i], commitHashes[i]);
         }
@@ -611,7 +615,9 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
             revert Unauthorized(UNAUTHORIZED_ARRAY_LENGTH_MISMATCH);
         }
         // F-12 fix: Prevent DoS via gas exhaustion from unbounded loops
-        if (contributionIndices.length > MAX_BATCH_SIZE) revert BatchSizeTooLarge(contributionIndices.length, MAX_BATCH_SIZE);
+        if (contributionIndices.length > MAX_BATCH_SIZE) {
+            revert BatchSizeTooLarge(contributionIndices.length, MAX_BATCH_SIZE);
+        }
         for (uint256 i = 0; i < contributionIndices.length; ++i) {
             _revealValidation(projectId, contributionIndices[i], scores[i], salts[i]);
         }
@@ -1200,7 +1206,6 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         external
         onlyCoreOrAdmin
     {
-
         if (slashAmount == 0) return;
 
         ValidatorState storage vState = validatorStates[validator];
@@ -1249,7 +1254,13 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @notice Internal helper to get required validator stake for a project
      * @return Required stake amount
      */
-    function _getRequiredValidatorStake(bytes32 /* projectId */) internal view returns (uint256) {
+    function _getRequiredValidatorStake(
+        bytes32 /* projectId */
+    )
+        internal
+        view
+        returns (uint256)
+    {
         uint256 required = trust.roleMinStake(VALIDATOR_ROLE);
         if (required == 0) required = trust.minStakeRequired();
         return required;

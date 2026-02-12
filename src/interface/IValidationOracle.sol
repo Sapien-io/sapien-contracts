@@ -66,7 +66,11 @@ interface IValidationOracle is ISharedTypes {
      * @param stakeAmount Amount staked for this validation
      */
     event ValidationCommitted(
-        bytes32 indexed projectId, uint256 indexed contributionIndex, address indexed validator, bytes32 commitHash, uint256 stakeAmount
+        bytes32 indexed projectId,
+        uint256 indexed contributionIndex,
+        address indexed validator,
+        bytes32 commitHash,
+        uint256 stakeAmount
     );
 
     /**
@@ -78,7 +82,11 @@ interface IValidationOracle is ISharedTypes {
      * @param stakeAmount Amount staked for this validation
      */
     event ValidationRevealed(
-        bytes32 indexed projectId, uint256 indexed contributionIndex, address indexed validator, uint256 score, uint256 stakeAmount
+        bytes32 indexed projectId,
+        uint256 indexed contributionIndex,
+        address indexed validator,
+        uint256 score,
+        uint256 stakeAmount
     );
 
     /**
@@ -120,7 +128,9 @@ interface IValidationOracle is ISharedTypes {
      * @param contributionIndex Index of the contribution
      * @param contributor Address of the contributor
      */
-    event ContributionContributorUpdated(bytes32 indexed projectId, uint256 indexed contributionIndex, address indexed contributor);
+    event ContributionContributorUpdated(
+        bytes32 indexed projectId, uint256 indexed contributionIndex, address indexed contributor
+    );
     /**
      * @notice Emitted when the reveal deadline is updated globally
      * @param newDeadline New global reveal deadline

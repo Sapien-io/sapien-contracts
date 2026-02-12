@@ -36,9 +36,9 @@ contract ValidatorDoubleClaimTest is BaseTest {
             "test-project",
             10 ether, // minStakeToClaim
             10 ether, // minStakeToContribute
-            3,        // numberOfValidations
-            1000,     // validatorRewardBasisPoints (10%)
-            ""        // No required skill
+            3, // numberOfValidations
+            1000, // validatorRewardBasisPoints (10%)
+            "" // No required skill
         );
 
         rewardToken.approve(address(core), 100 ether);
@@ -64,9 +64,9 @@ contract ValidatorDoubleClaimTest is BaseTest {
         vm.stopPrank();
 
         // Check that both claims are for index 0
-        (, , uint256 index1, , , , ) = oracle.validationClaims(PROJECT_ID, v1ClaimId1);
-        (, , uint256 index2, , , , ) = oracle.validationClaims(PROJECT_ID, v1ClaimId2);
-        
+        (,, uint256 index1,,,,) = oracle.validationClaims(PROJECT_ID, v1ClaimId1);
+        (,, uint256 index2,,,,) = oracle.validationClaims(PROJECT_ID, v1ClaimId2);
+
         assertEq(index1, 0, "Claim 1 should be for index 0");
         assertEq(index2, 0, "Claim 2 should be for index 0");
         console.log("Validator1 claimed two slots for the same index (0)");
@@ -76,23 +76,23 @@ contract ValidatorDoubleClaimTest is BaseTest {
         uint256 stake = 100 ether;
         bytes32 salt1 = keccak256("salt1");
         bytes32 commitHash1 = keccak256(abi.encodePacked(uint256(8000), stake, salt1));
-        
+
         // First commit succeeds
         oracle.commitValidation(PROJECT_ID, v1ClaimId1, 0, commitHash1);
-        
+
         // Second commit fails with AlreadyCommitted
         vm.expectRevert(abi.encodeWithSignature("AlreadyCommitted(address)", validator1));
         oracle.commitValidation(PROJECT_ID, v1ClaimId2, 0, commitHash1);
         vm.stopPrank();
-        
+
         console.log("Validator1 could only fulfill one of the two claims");
 
         // 4. Validator 2 claims the last remaining slot
         vm.prank(validator2);
         uint256 v2ClaimId = oracle.claimToValidate(PROJECT_ID);
-        
+
         // Verify it's also for index 0
-        (, , uint256 v2Index, , , , ) = oracle.validationClaims(PROJECT_ID, v2ClaimId);
+        (,, uint256 v2Index,,,,) = oracle.validationClaims(PROJECT_ID, v2ClaimId);
         assertEq(v2Index, 0, "Validator2 claim should be for index 0");
 
         // Validator 2 commits and reveals
@@ -112,7 +112,7 @@ contract ValidatorDoubleClaimTest is BaseTest {
         ISharedTypes.ConsensusReport memory report = oracle.getConsensus(PROJECT_ID, 0);
         assertEq(report.isReady, false, "Consensus should NOT be ready (2/3 validations)");
         assertEq(report.validatorCount, 2, "Should only have 2 validations");
-        
+
         console.log("Consensus blocked because Validator1 hoarded a slot they couldn't fulfill");
     }
 

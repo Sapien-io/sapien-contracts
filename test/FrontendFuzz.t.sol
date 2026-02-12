@@ -131,9 +131,7 @@ contract FrontendFuzzTest is BaseTest {
             uint256 expectedNetReward = contributorEarned - expectedClaimFee;
 
             assertEq(
-                rewardToken.balanceOf(operatorAddr) - operatorBalanceBeforeClaim,
-                expectedClaimFee,
-                "Claim fee mismatch"
+                rewardToken.balanceOf(operatorAddr) - operatorBalanceBeforeClaim, expectedClaimFee, "Claim fee mismatch"
             );
             assertEq(
                 rewardToken.balanceOf(contributor) - contributorBalanceBeforeClaim,

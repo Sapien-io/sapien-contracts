@@ -34,7 +34,11 @@ interface ISapienVault is ISharedTypes {
      * @param projectId Project associated with the slash
      */
     event Slashed(
-        address indexed user, uint256 sharesSlashed, uint256 indexed assetsSlashed, address slasher, bytes32 indexed projectId
+        address indexed user,
+        uint256 sharesSlashed,
+        uint256 indexed assetsSlashed,
+        address slasher,
+        bytes32 indexed projectId
     );
 
     /**

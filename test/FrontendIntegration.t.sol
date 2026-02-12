@@ -21,12 +21,7 @@ import {ISapienCore} from "../src/interface/ISapienCore.sol";
 import {IValidationOracle} from "../src/interface/IValidationOracle.sol";
 
 // Roles and shared types
-import {
-    CONTRIBUTOR_ROLE,
-    VALIDATOR_ROLE,
-    UPDATER_ROLE,
-    SAPIEN_CORE_ROLE
-} from "../src/interface/ISharedTypes.sol";
+import {CONTRIBUTOR_ROLE, VALIDATOR_ROLE, UPDATER_ROLE, SAPIEN_CORE_ROLE} from "../src/interface/ISharedTypes.sol";
 
 // Mock token
 import {MockERC20} from "./mocks/MockERC20.sol";
@@ -540,9 +535,7 @@ contract FrontendIntegrationTest is Test {
         );
         console.log("trust.getTrustScore(validator1, VALIDATOR_ROLE):", trust.getTrustScore(validator1, VALIDATOR_ROLE));
         trust.hasEnoughStakeForRole(contributor, CONTRIBUTOR_ROLE);
-        console.log(
-            "trust.hasEnoughStakeForRole(contributor, CONTRIBUTOR_ROLE): success"
-        );
+        console.log("trust.hasEnoughStakeForRole(contributor, CONTRIBUTOR_ROLE): success");
 
         // ================================================================
         // SECTION 12: EDGE CASE - EXPIRED CONTRIBUTOR CLAIM

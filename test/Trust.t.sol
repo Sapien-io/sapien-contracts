@@ -55,7 +55,9 @@ contract TrustTest is BaseTest {
         vm.startPrank(admin);
         trust.setRoleMinStake(VALIDATOR_ROLE, 2000 ether);
 
-        vm.expectRevert(abi.encodeWithSelector(ISapienTrust.InsufficientStake.selector, VALIDATOR_ROLE, 2000 ether, 1000 ether));
+        vm.expectRevert(
+            abi.encodeWithSelector(ISapienTrust.InsufficientStake.selector, VALIDATOR_ROLE, 2000 ether, 1000 ether)
+        );
         trust.hasEnoughStakeForRole(validator1, VALIDATOR_ROLE);
 
         // Stake more
@@ -268,7 +270,9 @@ contract TrustTest is BaseTest {
         trust.setRoleMinStake(VALIDATOR_ROLE, 2000 ether); // Higher than validator1's stake (1000 ether)
 
         // Should use role-specific stake (2000 ether)
-        vm.expectRevert(abi.encodeWithSelector(ISapienTrust.InsufficientStake.selector, VALIDATOR_ROLE, 2000 ether, 1000 ether));
+        vm.expectRevert(
+            abi.encodeWithSelector(ISapienTrust.InsufficientStake.selector, VALIDATOR_ROLE, 2000 ether, 1000 ether)
+        );
         trust.hasEnoughStakeForRole(validator1, VALIDATOR_ROLE);
 
         // Set role stake to 0, should use global (100 ether)
