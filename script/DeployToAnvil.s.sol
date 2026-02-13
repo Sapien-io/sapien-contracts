@@ -1,25 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Script} from "forge-std/Script.sol";
-import {console} from "forge-std/console.sol";
-import {SapienTrust} from "../src/SapienTrust.sol";
-import {ValidationOracle} from "../src/ValidationOracle.sol";
-import {SapienCore} from "../src/SapienCore.sol";
-import {SapienVault} from "../src/SapienVault.sol";
-import {Rewards} from "../src/Rewards.sol";
-import {LinearStakeConsensus} from "../src/consensus/LinearStakeConsensus.sol";
-import {CappedLinearConsensus} from "../src/consensus/CappedLinearConsensus.sol";
-import {SqrtStakeConsensus} from "../src/consensus/SqrtStakeConsensus.sol";
-import {HybridConsensus} from "../src/consensus/HybridConsensus.sol";
-import {MockERC20} from "../test/mocks/MockERC20.sol";
+import {Script} from "lib/forge-std/src/Script.sol";
+import {console} from "lib/forge-std/src/console.sol";
+import {SapienTrust} from "src/SapienTrust.sol";
+import {ValidationOracle} from "src/ValidationOracle.sol";
+import {SapienCore} from "src/SapienCore.sol";
+import {SapienVault} from "src/SapienVault.sol";
+import {Rewards} from "src/Rewards.sol";
+import {SqrtStakeConsensus} from "src/consensus/SqrtStakeConsensus.sol";
+import {MockERC20} from "test/mocks/MockERC20.sol";
 import {
     UPDATER_ROLE,
     LOCKER_ROLE,
     SLASHER_ROLE,
     PAUSER_ROLE,
     SAPIEN_CORE_ROLE
-} from "../src/interface/ISharedTypes.sol";
+} from "src/interface/ISharedTypes.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 /**
@@ -97,14 +94,11 @@ contract DeployToAnvil is Script {
         core = SapienCore(address(new ERC1967Proxy(coreImpl, coreInitData)));
         console.log("    SapienCore:", address(core));
 
-        // 7. Register Consensus Algorithms
+        // 7. Register Consensus Algorithm
         // Must use admin account for registerAlgorithm (requires DEFAULT_ADMIN_ROLE)
-        console.log("\n[7] Registering consensus algorithms...");
-        oracle.registerAlgorithm("LinearStake", address(new LinearStakeConsensus()));
-        oracle.registerAlgorithm("CappedLinear", address(new CappedLinearConsensus()));
+        console.log("\n[7] Registering consensus algorithm...");
         oracle.registerAlgorithm("SqrtStake", address(new SqrtStakeConsensus()));
-        oracle.registerAlgorithm("Hybrid", address(new HybridConsensus()));
-        console.log("    Algorithms registered");
+        console.log("    Algorithm registered");
 
         // 8. Setup Roles and Permissions
         // All role grants require admin account (DEFAULT_ADMIN_ROLE)

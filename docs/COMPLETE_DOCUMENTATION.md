@@ -1,7 +1,7 @@
 # Sapien PoQ Protocol - Complete Documentation
 
-**Version:** v0.3  
-**Last Updated:** January 22nd.
+**Version:** v0.4  
+**Last Updated:** February 12th, 2026
 
 Welcome to the complete documentation for the **Sapien Proof-of-Quality (PoQ) Protocol**.
 
@@ -91,7 +91,7 @@ To prevent collusion and herding, validators use a two-step process in the `Vali
 3. **Reveal**: After the commit period, validators reveal their actual score and salt. This releases their "In-Flight Stake" back into their capacity pool.
 
 **Phase 4: Consensus Calculation**
-Once enough reveals are gathered (or the deadline passes), the `ValidationOracle` uses a pluggable consensus algorithm (e.g., Hybrid or Sqrt Stake) to calculate a weighted average score and identify outliers. `ConsensusLib` handles the statistical heavy lifting, including standard deviation and tiered slashing calculations.
+Once enough reveals are gathered (or the deadline passes), the `ValidationOracle` uses a pluggable consensus algorithm (e.g., SqrtStakeConsensus) to calculate a weighted average score and identify outliers. `ConsensusLib` handles the statistical heavy lifting, including standard deviation and tiered slashing calculations.
 
 **Phase 5: Finalization & Settlement**
 `SapienCore` finalizes the contribution:
@@ -147,7 +147,7 @@ sequenceDiagram
     Note over O, R: Phase 3: Validation (Commit-Reveal)
     V->>VO: setValidatorCapacity(amount)
     VO->>SV: lockStake(validator, amount)
-    V->>VO: claimToValidate(quantity)
+    V->>VO: claimToValidate(projectId)
     V->>VO: commitValidation(commitHash)
     Note right of VO: Increments in-flight stake
     V->>VO: revealValidation(score, salt)
@@ -218,6 +218,7 @@ Once consensus is reached, `SapienCore` executes the outcome. Success leads to r
 - **`createProject`**: Allows an Originator to initialize a new project with specific parameters:
   - `projectId`: A unique `bytes32` identifier (usually a hash of the project metadata).
   - `rewardToken`: The ERC20 token used for payouts.
+  - `ipfsCid`: The original IPFS CID of the project spec document.
   - `minStakeToClaim`: Minimum stake required for a contributor to claim slots.
   - `minStakeToContribute`: Minimum stake required to contribute (optional/secondary check).
   - `numberOfValidations`: Exact number of validations required per contribution (also determines queue slots, defaults to 3).
@@ -243,23 +244,28 @@ Once consensus is reached, `SapienCore` executes the outcome. Success leads to r
 - **`releaseExpiredClaim`**: Marks a claim as expired if the contributor failed to submit work before the deadline.
   - Unlocks the contributor's stake but applies a slash penalty based on the `minStakeToClaim`.
 
-- **`finalizeContribution`**: The final step in the lifecycle. It:
+- **`finalizeContribution`**: Triggers consensus evaluation and processes the outcome. It:
   1. Requests consensus from the `ValidationOracle` (checks if minimum reveals and deadlines are met).
   2. Updates the contributor's reputation in `SapienTrust` (Success increase or Rejection penalty).
-  3. Distributes rewards via `Rewards` for accepted work.
-  4. Executes slashing via `SapienVault` for outlier validators identified by consensus.
-  5. Re-queues rejected work by releasing the index back to the pool of available slots.
-  6. Unlocks the contributor's stake if the entire claim is processed.
+  3. For accepted work: sets a challenge period during which rewards cannot be claimed, and auto-validates the contributor's skill.
+  4. For rejected work: re-queues the index back to the pool of available slots and resets the contribution state.
+  5. Executes slashing via `SapienVault` for outlier validators identified by consensus.
+  6. Distributes validator rewards (only on acceptance) proportional to consensus algorithm weights.
+  7. Unlocks the contributor's stake if the entire claim is processed.
+
+- **`claimContributionReward`**: After finalization and the challenge period, triggers actual reward distribution to the contributor via the `Rewards` contract.
 
 #### Events
 
 - `ProjectCreated`: Emitted when a new project is registered.
 - `ProjectFunded`: Emitted when a project receives funding.
 - `ProtocolFeeCollected`: Emitted when a protocol fee is collected during project funding.
-- `ProtocolFeeUpdated`: Emitted when the protocol fee basis points are updated.
-- `TreasuryUpdated`: Emitted when the treasury address is updated.
+- `OperatorFeePaid`: Emitted when an operator fee is collected during project funding.
 - `ContributionSubmitted`: Emitted when a contributor submits work.
 - `ContributionFinalized`: Emitted when consensus is reached and rewards/slashing are processed.
+- `ContributionRewarded`: Emitted when a contributor claims their reward after the challenge period.
+- `ConsensusReached`: Emitted with the weighted average score and validator count.
+- `ContributorRewardPreserved`: Emitted on rejection showing the reward amount preserved for the next contributor.
 
 #### Access Control
 
@@ -384,9 +390,10 @@ The `ValidationOracle` is a stateless consensus engine that manages the validati
   - This provides a pool of locked stake that covers multiple "in-flight" validations.
   - Eliminates the need to lock/unlock stake for every individual commit, significantly reducing gas costs for active validators.
 
-- **`claimToValidate`**: Validators express interest in reviewing contributions for a specific project.
+- **`claimToValidate`**: Validators express interest in reviewing a contribution for a specific project. Each call claims a single validation assignment from the pending queue.
   - Requires `VALIDATOR_ROLE` and sufficient available capacity (Locked Stake - In-Flight Stake).
-  - Reserves slots from the `pendingQueue` for a fixed `CLAIM_DURATION` (default 1 hour).
+  - Assigns the next pending contribution from the `pendingQueue` for a fixed `CLAIM_DURATION` (default 1 hour).
+  - Limited to `MAX_ACTIVE_VALIDATOR_CLAIMS_PER_PROJECT` (3) active claims per project.
 
 - **`commitValidation` / `batchCommitValidations`**: Validators submit a `commitHash` which is `keccak256(score, stakeAmount, salt)`.
   - This increases the validator's `inFlightStake`.
@@ -412,7 +419,7 @@ The `ValidationOracle` is a stateless consensus engine that manages the validati
 
 - **`registerAlgorithm`**: (Admin only) Registers a new `IConsensusAlgorithm` implementation.
 
-- **`setProjectAlgorithm`**: Allows an Originator to choose which consensus algorithm (e.g., "Hybrid", "SqrtStake") to use for their project.
+- **`setProjectAlgorithm`**: Allows an Originator to choose which consensus algorithm (e.g., "SqrtStake") to use for their project.
 
 #### Configurable Parameters
 
@@ -474,50 +481,23 @@ Sapien PoQ uses a pluggable consensus architecture. Originators can choose the a
 
 ### Available Algorithms
 
-#### 1. Hybrid Consensus (`HybridConsensus.sol`)
-
-The most sophisticated and recommended algorithm for Sapien.
-
-- **Weighting**: `min(sqrt(stake) × reputation, 30% cap)`
-- **Security Grade**: **A-**
-- **Best For**: High-value projects where long-term quality and Sybil resistance are critical.
-- **Pros**: Perfectly aligns incentives by considering both financial stake and historical quality (PoQ). Prevents "whale" dominance with a hard cap and sublinear (sqrt) scaling.
-
-#### 2. Sqrt Stake Consensus (`SqrtStakeConsensus.sol`)
+#### Sqrt Stake Consensus (`SqrtStakeConsensus.sol`)
 
 Uses a quadratic voting approach to balance power.
 
 - **Weighting**: `sqrt(stake)`
 - **Security Grade**: **A-**
 - **Best For**: Projects seeking maximum validator diversity and fairness.
-- **Pros**: Reduces the influence of large token holders, making it 22% more democratic than linear weighting.
-
-#### 3. Capped Linear Consensus (`CappedLinearConsensus.sol`)
-
-A middle ground between traditional staking and advanced consensus.
-
-- **Weighting**: `min(stake, 30% of total committee stake)`
-- **Security Grade**: **B+**
-- **Best For**: General use cases requiring a simple but secure upgrade from linear weighting.
-- **Pros**: Prevents any single validator from controlling the outcome (whale protection).
-
-#### 4. Linear Stake Consensus (`LinearStakeConsensus.sol`)
-
-The simplest form of consensus.
-
-- **Weighting**: `stake`
-- **Security Grade**: **C+**
-- **Best For**: Low-risk projects or backward compatibility.
-- **Cons**: Vulnerable to "whale" attacks where a single large holder can override the committee.
+- **Pros**: Reduces the influence of large token holders, making it 22% more democratic than linear weighting. Prevents "whale" dominance with sublinear scaling.
 
 ### Comparison Summary
 
-| Metric | Linear | Capped | Sqrt | Hybrid |
-|--------|--------|--------|------|--------|
-| **Whale Resistance** | Low | High | Medium | High |
-| **Sybil Resistance** | High | Medium | Medium | High |
-| **Efficiency (Gas)** | Very High | High | Medium | Medium |
-| **Incentive Alignment** | Low | Medium | High | Very High |
+| Metric | Sqrt Stake |
+|--------|------------|
+| **Whale Resistance** | High |
+| **Sybil Resistance** | High |
+| **Efficiency (Gas)** | High |
+| **Incentive Alignment** | High |
 
 ### How it Works
 
@@ -554,6 +534,7 @@ To create a project, call `SapienCore.createProject()` with the following parame
 
 - `projectId`: A unique `bytes32` hash identifying the project.
 - `rewardToken`: Address of your chosen reward token.
+- `ipfsCid`: The original IPFS CID of the project spec document.
 - `minStakeToClaim`: Minimum SAPIEN stake required for a contributor to claim a slot.
 - `minStakeToContribute`: (Legacy) Minimum stake required to participate.
 - `numberOfValidations`: Exact number of validations required per contribution (also determines queue slots).
@@ -583,8 +564,8 @@ Call `SapienCore.fundProject(projectId, rewardAmount, quantity)`:
 
 By default, projects use the protocol-wide default algorithm. You can choose a specific one for your project:
 
-Call `ValidationOracle.setProjectAlgorithm(projectId, "Hybrid")`.
-- Available options: `"Linear"`, `"Capped"`, `"Sqrt"`, `"Hybrid"`.
+Call `ValidationOracle.setProjectAlgorithm(projectId, "SqrtStake")`.
+- Available options: `"SqrtStake"`.
 
 #### 5. Integrate Your Tools
 
@@ -661,9 +642,10 @@ Call `ValidationOracle.setValidatorCapacity(amount)`.
 
 **Step 2: Claim Task Slots**
 
-Call `ValidationOracle.claimToValidate(projectId, quantity)`.
-- This reserves a `quantity` of tasks from the project's pending queue.
-- You have a limited time (default 1 hour) to submit your commits for these slots.
+Call `ValidationOracle.claimToValidate(projectId)`.
+- Each call claims a single validation assignment from the project's pending queue.
+- You have a limited time (default 1 hour) to submit your commit for this slot.
+- You can have up to 3 active claims per project.
 
 **Step 3: Commit Your Scores**
 
@@ -730,7 +712,7 @@ A Validator Oracle provides a UI for human reviewers or an API for autonomous va
 
 #### Building a Custom Consensus Algorithm
 
-If the existing algorithms (Linear, Sqrt, Hybrid) don't meet your needs, you can implement your own.
+If SqrtStakeConsensus doesn't meet your needs, you can implement your own consensus algorithm.
 
 1. **Implement `IConsensusAlgorithm`**: Create a contract that follows the interface.
 2. **Calculate Consensus**: In the `calculateConsensus` function, implement your logic for weighting and outlier detection.
@@ -739,9 +721,11 @@ If the existing algorithms (Linear, Sqrt, Hybrid) don't meet your needs, you can
 ```solidity
 interface IConsensusAlgorithm {
     function calculateConsensus(ValidationInput[] calldata validations)
-        external view returns (ConsensusResult memory result);
+        external pure returns (ConsensusResult memory result);
     
     function getName() external pure returns (string memory);
+    function getSecurityGrade() external pure returns (string memory);
+    function getDescription() external pure returns (string memory);
 }
 ```
 
@@ -773,7 +757,7 @@ All active participants must lock SAPIEN tokens in the `SapienVault`. This creat
 
 #### 2. Proof of Quality (Reputation)
 
-Reputation is not just a badge; it is a functional component of the consensus engine. In algorithms like **Hybrid Consensus**, your historical accuracy (PoQ score) directly increases your voting power, while a history of outlier behavior reduces it.
+Reputation is not just a badge; it is a functional component of the protocol. Your historical accuracy (PoQ score) and contribution quality affect your standing, while a history of outlier behavior as a validator reduces your reputation.
 
 #### 3. Commit-Reveal
 
@@ -783,18 +767,18 @@ The `ValidationOracle` enforces a commit-reveal process for all judgments. This 
 
 #### 4. Slashing Mechanisms
 
-Slashing is used to penalize three specific types of bad behavior:
-- **Poor Quality (Contributors)**: If work is rejected by consensus, the contributor loses stake proportional to the quality gap.
-- **Outlier Judging (Validators)**: If a validator's score is a statistical outlier, they are slashed to discourage lazy or malicious voting.
-- **Non-Performance**: Failure to fulfill a claim or reveal a commit leads to stake forfeiture.
+Slashing is used to penalize specific types of bad behavior:
+- **Claim Expiration (Contributors)**: If a contributor claims slots but fails to submit work before the deadline, they are slashed for the unfulfilled portion. Rejected contributions are **not** slashed — the index is re-queued for another contributor.
+- **Outlier Judging (Validators)**: If a validator's score is a statistical outlier, they are slashed proportionally based on deviation severity (10% to 100%).
+- **Non-Performance (Validators)**: Failure to commit after claiming a validation slot or failure to reveal after committing leads to stake forfeiture.
 
 ### Whale and Sybil Resistance
 
 #### Whale Protection
 
 Large token holders are prevented from dominating consensus through:
-- **Quadratic Weighting**: `sqrt(stake)` reduces the power of large amounts.
-- **Hard Caps**: No single validator can account for more than 30% of a committee's total weight.
+- **Quadratic Weighting**: `sqrt(stake)` reduces the power of large amounts (22% reduction vs linear weighting).
+- **Weight Capping (Available)**: `ConsensusLib` provides an `applyCap` function that can limit any single validator's weight. Custom consensus algorithms can use this for additional protection.
 
 #### Sybil Resistance
 

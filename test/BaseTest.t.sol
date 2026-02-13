@@ -7,7 +7,7 @@ import {ValidationOracle} from "../src/ValidationOracle.sol";
 import {SapienTrust} from "../src/SapienTrust.sol";
 import {SapienVault} from "../src/SapienVault.sol";
 import {Rewards} from "../src/Rewards.sol";
-import {LinearStakeConsensus} from "../src/consensus/LinearStakeConsensus.sol";
+import {SqrtStakeConsensus} from "../src/consensus/SqrtStakeConsensus.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {
@@ -78,7 +78,7 @@ abstract contract BaseTest is Test, ISharedTypes {
     function _deployOracle() internal {
         address oracleImpl = address(new ValidationOracle());
         bytes memory oracleInitData = abi.encodeWithSelector(
-            ValidationOracle.initialize.selector, address(trust), address(vault), "LinearStake", admin
+            ValidationOracle.initialize.selector, address(trust), address(vault), "SqrtStake", admin
         );
         oracle = ValidationOracle(address(new ERC1967Proxy(oracleImpl, oracleInitData)));
     }
@@ -94,7 +94,7 @@ abstract contract BaseTest is Test, ISharedTypes {
     function _setupRolesAndAlgorithms() internal {
         vm.startPrank(admin);
 
-        oracle.registerAlgorithm("LinearStake", address(new LinearStakeConsensus()));
+        oracle.registerAlgorithm("SqrtStake", address(new SqrtStakeConsensus()));
         rewards.setCore(address(core));
 
         trust.grantRole(UPDATER_ROLE, address(oracle));

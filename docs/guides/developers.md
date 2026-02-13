@@ -28,7 +28,7 @@ A Validator Oracle provides a UI for human reviewers or an API for autonomous va
 
 ## 📦 Building a Custom Consensus Algorithm
 
-If the existing algorithms (Linear, Sqrt, Hybrid) don't meet your needs, you can implement your own.
+If SqrtStakeConsensus doesn't meet your needs, you can implement your own consensus algorithm.
 
 1. **Implement `IConsensusAlgorithm`**: Create a contract that follows the interface.
 2. **Calculate Consensus**: In the `calculateConsensus` function, implement your logic for weighting and outlier detection.
@@ -37,9 +37,11 @@ If the existing algorithms (Linear, Sqrt, Hybrid) don't meet your needs, you can
 ```solidity
 interface IConsensusAlgorithm {
     function calculateConsensus(ValidationInput[] calldata validations)
-        external view returns (ConsensusResult memory result);
+        external pure returns (ConsensusResult memory result);
     
     function getName() external pure returns (string memory);
+    function getSecurityGrade() external pure returns (string memory);
+    function getDescription() external pure returns (string memory);
 }
 ```
 

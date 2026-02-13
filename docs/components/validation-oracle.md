@@ -18,9 +18,10 @@ Before participating, validators must set their "validation capacity" by locking
 - Eliminates the need to lock/unlock stake for every individual commit, significantly reducing gas costs for active validators.
 
 #### `claimToValidate`
-Validators express interest in reviewing contributions for a specific project. 
+Validators express interest in reviewing a contribution for a specific project. Each call claims a single validation assignment from the project's pending queue.
 - Requires `VALIDATOR_ROLE` and sufficient available capacity (Locked Stake - In-Flight Stake).
-- Reserves slots from the `pendingQueue` for a fixed `CLAIM_DURATION` (default 1 hour).
+- Assigns the next pending contribution from the `pendingQueue` for a fixed `CLAIM_DURATION` (default 1 hour).
+- Validators are limited to `MAX_ACTIVE_VALIDATOR_CLAIMS_PER_PROJECT` (3) active claims per project.
 
 #### `commitValidation` / `batchCommitValidations`
 Validators submit a `commitHash` which is `keccak256(score, stakeAmount, salt)`. 
@@ -52,7 +53,7 @@ Called by `SapienCore` to determine if a contribution is ready for finalization.
 (Admin only) Registers a new `IConsensusAlgorithm` implementation.
 
 #### `setProjectAlgorithm`
-Allows an Originator to choose which consensus algorithm (e.g., "Hybrid", "SqrtStake") to use for their project.
+Allows an Originator to choose which consensus algorithm (e.g., "SqrtStake") to use for their project.
 
 ## ⚙️ Configurable Parameters
 
@@ -64,3 +65,6 @@ Allows an Originator to choose which consensus algorithm (e.g., "Hybrid", "SqrtS
 - **Sybil Protection**: The protocol prevents a project's Originator or the contribution's Contributor from validating their own work.
 - **Commit-Reveal**: Prevents "herding" behavior where validators simply copy the scores of others.
 - **Stake Locking**: Validator stake is locked from the moment of commitment until reveal or expiration.
+- **Submission Nonce**: Each re-submission of a contribution increments a nonce, invalidating stale commits from prior rounds (F-05 fix).
+- **Reveal Deadline Snapshot**: The reveal deadline is snapshotted at commit time to prevent retroactive deadline shortening by project owners (M-2 fix).
+- **Variable Stake Commits**: Validators can use `commitValidationWithStake` to "confidence stake" a variable amount, increasing their weight in consensus.

@@ -54,7 +54,7 @@ Dapp operators who facilitate project creation can collect a fee when originator
 
 ### Configuration
 
-- **Maximum:** 2% (200 basis points) - hardcoded as `MAX_OPERATOR_FEE_BPS`
+- **Maximum:** 2% (200 basis points) - hardcoded as `MAX_ORGINATION_OPERATOR_FEE_BPS`
 - **Set by:** Originator when calling `fundProject()`
 - **Recipient:** Specified operator address
 
@@ -97,7 +97,7 @@ Dapp operators can collect a fee when contributors claim their rewards.
 ### Configuration
 
 - **Default Maximum:** 4% (400 basis points)
-- **Absolute Maximum:** 10% (1000 basis points) - hardcoded as `MAX_FEE_BPS_CAP`
+- **Absolute Maximum:** 100% (10000 basis points) - hardcoded as `MAX_FEE_BPS_CAP`
 - **Configurable by:** Admin via `setMaxFeeBps()` on Rewards contract
 - **Set by:** Contributor when calling claim functions
 - **Recipient:** Specified by contributor
@@ -147,7 +147,7 @@ Dapp operators can collect a fee when validators claim their rewards.
 ### Configuration
 
 - **Default Maximum:** 4% (400 basis points)
-- **Absolute Maximum:** 10% (1000 basis points) - hardcoded as `MAX_FEE_BPS_CAP`
+- **Absolute Maximum:** 100% (10000 basis points) - hardcoded as `MAX_FEE_BPS_CAP`
 - **Configurable by:** Admin via `setMaxFeeBps()` on Rewards contract
 - **Set by:** Validator when calling claim functions
 - **Recipient:** Specified by validator
@@ -208,8 +208,9 @@ Validator Pool = Total Rewards × Validator BPS / 10000
 ```
 
 Validator rewards are distributed proportionally based on:
-1. Stake amount committed during validation
-2. Accuracy (validators who matched consensus receive rewards)
+1. Consensus algorithm weights (e.g., `√(stake)` for SqrtStakeConsensus)
+2. Accuracy (only validators who matched consensus — non-outliers — receive rewards)
+3. Validators are **only paid when the contribution is accepted** — no rewards on rejection
 
 **Example:**
 - Project funded with 100 ETH (after fees)
@@ -284,9 +285,9 @@ rewards.setMaxFeeBps(400); // 4% max
 | Constant | Value | Contract |
 |----------|-------|----------|
 | `MAX_PROTOCOL_FEE_BPS` | 300 (3%) | SapienCore |
-| `MAX_OPERATOR_FEE_BPS` | 200 (2%) | SapienCore |
+| `MAX_ORGINATION_OPERATOR_FEE_BPS` | 200 (2%) | SapienCore |
 | `DEFAULT_MAX_FEE_BPS` | 400 (4%) | Rewards |
-| `MAX_FEE_BPS_CAP` | 1000 (10%) | Rewards |
+| `MAX_FEE_BPS_CAP` | 10000 (100%) | Rewards |
 
 ## Events
 

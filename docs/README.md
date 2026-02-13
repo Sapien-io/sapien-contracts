@@ -21,9 +21,8 @@ Detailed documentation of the protocol's core smart contracts:
 - [Rewards](./components/rewards.md): Incentive distribution.
 
 ### ⚖️ [Consensus](./consensus/algorithms.md)
-Explore the different consensus algorithms available:
-- [Algorithms Comparison](./consensus/algorithms.md): Linear, Capped, Sqrt, and Hybrid.
-- [Security Analysis](./consensus/security.md): Resistance to whale attacks and Sybil resistance.
+Explore the consensus algorithm:
+- [Algorithms](./consensus/algorithms.md): SqrtStakeConsensus — square root stake weighting for whale-resistant consensus.
 
 ### 🚀 [Guides](./guides/)
 Step-by-step instructions for different protocol participants:

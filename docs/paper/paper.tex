@@ -90,20 +90,14 @@ The validation process follows a strict state machine:
 
 \subsection{Weighting Algorithms}
 
-Sapien utilizes pluggable consensus modules. The default and most robust algorithm, \textbf{Hybrid Consensus}, combats plutocracy (whale dominance) and Sybil attacks by weighing votes based on both stake and reputation.
+Sapien utilizes \textbf{SqrtStakeConsensus}, which combats plutocracy (whale dominance) by weighing votes based on the square root of stake.
 
 The weight $w_i$ of validator $v_i$ is calculated as:
 \begin{equation}
-    w_i = \sqrt{S_{v_i}} \cdot \text{Rep}_{v_i}
+    w_i = \sqrt{S_{v_i}}
 \end{equation}
 
-Where:
-\begin{itemize}
-    \item $S_{v_i}$ is the staked amount. The square root function $\sqrt{S_{v_i}}$ introduces \textit{quadratic voting} properties, diminishing the marginal influence of additional capital.
-    \item $\text{Rep}_{v_i}$ is the validator's PoQ reputation score.
-\end{itemize}
-
-Other available algorithms include \textit{SqrtStake} ($w_i = \sqrt{S_{v_i}}$) and \textit{CappedLinear} ($w_i = \min(S_{v_i}, \text{Cap})$).
+Where $S_{v_i}$ is the staked amount. The square root function $\sqrt{S_{v_i}}$ introduces \textit{quadratic voting} properties, diminishing the marginal influence of additional capital and reducing whale power by approximately 22\% compared to linear weighting.
 
 \subsection{Outlier Detection and Slashing}
 

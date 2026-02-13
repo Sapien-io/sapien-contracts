@@ -45,7 +45,7 @@ To prevent collusion and herding, validators use a two-step process in the `Vali
 3. **Reveal**: After the commit period, validators reveal their actual score and salt. This releases their "In-Flight Stake" back into their capacity pool.
 
 ### Phase 4: Consensus Calculation
-Once enough reveals are gathered (or the deadline passes), the `ValidationOracle` uses a pluggable consensus algorithm (e.g., Hybrid or Sqrt Stake) to calculate a weighted average score and identify outliers. `ConsensusLib` handles the statistical heavy lifting, including standard deviation and tiered slashing calculations.
+Once enough reveals are gathered (or the deadline passes), the `ValidationOracle` uses a pluggable consensus algorithm (e.g., SqrtStakeConsensus) to calculate a weighted average score and identify outliers. `ConsensusLib` handles the statistical heavy lifting, including standard deviation and tiered slashing calculations.
 
 ### Phase 5: Finalization & Settlement
 `SapienCore` finalizes the contribution:

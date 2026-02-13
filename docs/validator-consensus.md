@@ -10,7 +10,7 @@ The Sapien Protocol uses a **Proof of Quality (PoQ)** consensus mechanism where 
 
 Think of it like peer review, but with economic incentives:
 - **Validators stake tokens** as a commitment to honest evaluation
-- **Good validators earn rewards** proportional to their stake and reputation
+- **Good validators earn rewards** proportional to their consensus weight (e.g., √stake)
 - **Bad validators lose stake** when they deviate significantly from consensus
 
 ## The Three Roles
@@ -73,7 +73,6 @@ This means:
 - **Whale resistance** - Large stakers can't dominate proportionally
 - **Based on quadratic voting research** - Proven to reduce plutocracy by ~22%
 
-> Note: Other algorithms available include CappedLinear (stake × reputation with 30% cap) and Hybrid.
 
 ### 5. Outcome Determination
 
@@ -181,7 +180,7 @@ sequenceDiagram
     Core->>Oracle: getConsensus(projectId, index)
     Oracle->>Algo: calculateConsensus(validations)
     
-    Note over Algo: Weight = Stake × ReputationApply 30% cap per validatorCalculate weighted average
+    Note over Algo: Weight = √(Stake)Calculate weighted average
     
     Algo-->>Oracle: ConsensusResult(avg=82%, outliers=[V3])
     Oracle-->>Core: ConsensusReport
@@ -226,16 +225,13 @@ Square Root: 1000 tokens → 31.6 weight (whale influence reduced)
              100 tokens  → 10.0 weight (small staker has 32% of whale's power)
 ```
 
-### Alternative Algorithms
+### Consensus Algorithm
 
-Other consensus algorithms can be configured per-project:
+The protocol uses square root stake weighting:
 
 | Algorithm | Weight Formula | Use Case |
 |-----------|---------------|----------|
-| **SqrtStake** (default) | √(stake) | General purpose, whale-resistant |
-| **CappedLinear** | min(stake × rep, 30%) | High Sybil resistance, reputation-weighted |
-| **LinearStake** | stake | Simple, direct stake weighting |
-| **Hybrid** | Configurable | Custom per-project needs |
+| **SqrtStake** | √(stake) | General purpose, whale-resistant |
 
 ### Outlier Detection
 
@@ -297,7 +293,7 @@ This section explains the complete economic flow of the protocol, including stak
 
 | Fee Type | Default | Max | Description |
 |----------|---------|-----|-------------|
-| **Protocol Fee** | 1% | 100% | Taken from originator deposits, sent to treasury |
+| **Protocol Fee** | 1% | 3% | Taken from originator deposits, sent to treasury |
 | **Validator Reward Split** | 10% | 25% | Percentage of reward pool allocated to validators |
 | **Contributor Reward** | 90% | 75% | Remaining percentage after validator split |
 
@@ -337,8 +333,8 @@ All participants must stake tokens in the SapienVault to participate:
 │   deposits  ──▶ locks      ──▶  work     ──▶  finalized    ──▶   │
 │   tokens        stake           (locked)      unlocks stake      │
 │                                                                  │
-│                                 If rejected: stake slashed       │
-│                                 If accepted: stake returned      │
+│                                 If rejected: index re-queued     │
+│                                 If accepted: reward claimable    │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
 
@@ -361,24 +357,24 @@ All participants must stake tokens in the SapienVault to participate:
 
 ### Validator Reward Distribution
 
-Rewards are distributed proportionally based on **Stake × Reputation** weight:
+Rewards are distributed proportionally based on the **consensus algorithm weights** (i.e., the same weights used to calculate the weighted average score). For SqrtStakeConsensus, this means `√(stake)`:
 
 ```
-                     Validator's Weight
+                     Validator's √(Stake)
 Validator Reward = ─────────────────────── × Total Validator Pool
-                   Sum of All Weights
+                   Sum of All √(Stakes)
 ```
 
 **Example with 3 validators sharing 99 tokens:**
 
-| Validator | Stake | Reputation | Weight | Share | Reward |
-|-----------|-------|------------|--------|-------|--------|
-| V1 | 100 | 8,000 | 80,000 | 47% | 46.53 tokens |
-| V2 | 100 | 6,000 | 60,000 | 35% | 34.65 tokens |
-| V3 | 50 | 6,000 | 30,000 | 18% | 17.82 tokens |
-| **Total** | | | **170,000** | **100%** | **99 tokens** |
+| Validator | Stake | Weight (√Stake) | Share | Reward |
+|-----------|-------|-----------------|-------|--------|
+| V1 | 1,000 | 31.6 | 49% | 48.5 tokens |
+| V2 | 500 | 22.4 | 35% | 34.4 tokens |
+| V3 | 100 | 10.0 | 16% | 15.3 tokens |
+| **Total** | | **64.0** | **100%** | **99 tokens** |
 
-> Note: The 30% cap applies to weight during consensus calculation, but reward distribution uses uncapped weights.
+> Note: If consensus weights are unavailable, the fallback formula is `stake × reputation / 10000`.
 
 ### Slashing Economics
 
@@ -457,7 +453,7 @@ Validator slashed:                         50.00 tokens → Redistributed
 
 | Behavior | Economic Outcome |
 |----------|-----------------|
-| **Honest validation** | Rewards proportional to stake × reputation |
+| **Honest validation** | Rewards proportional to consensus weight (√stake) |
 | **High confidence (more stake)** | More reward if accurate, more risk if wrong |
 | **Building reputation** | Higher weight over time, more influence |
 | **Outlier scores** | Progressive slashing (10% → 100%) |
@@ -480,8 +476,8 @@ There are **no gas subsidies** — all participants pay their own transaction co
 | Threat | Mitigation |
 |--------|------------|
 | **Validator copies others' scores** | Commit-reveal hides scores until all committed |
-| **Whale controls consensus** | 30% weight cap limits any single validator |
-| **Sybil attack (many fake accounts)** | Weight = stake × reputation (expensive to build) |
+| **Whale controls consensus** | √(stake) weighting reduces whale power sublinearly |
+| **Sybil attack (many fake accounts)** | Minimum stake requirements + reputation system |
 | **Lazy validation (random scores)** | Outliers get slashed proportionally |
 | **Ghost validators (commit but don't reveal)** | Slashed for expired commitments |
 | **Validator collusion** | Standard deviation penalizes coordinated outliers |
@@ -498,9 +494,9 @@ There are **no gas subsidies** — all participants pay their own transaction co
 │  ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────────────┐  │
 │  │ CLAIM    │   │ COMMIT   │   │ REVEAL   │   │ FINALIZE         │  │
 │  │          │   │          │   │          │   │                  │  │
-│  │ 1 hour   │──▶│ Variable │──▶│ 24 hours │──▶│ After min        │  │
+│  │ 1 hour   │──▶│ Variable │──▶│ 3 days   │──▶│ After min        │  │
 │  │ deadline │   │          │   │ deadline │   │ validations      │  │
-│  │          │   │          │   │          │   │ revealed         │  │
+│  │          │   │          │   │ (default)│   │ revealed         │  │
 │  └──────────┘   └──────────┘   └──────────┘   └──────────────────┘  │
 │       │              │              │                │              │
 │       ▼              ▼              ▼                ▼              │

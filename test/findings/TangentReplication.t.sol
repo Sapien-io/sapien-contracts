@@ -4,7 +4,6 @@ pragma solidity ^0.8.30;
 import {BaseTest} from "../BaseTest.t.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {IConsensusAlgorithm} from "../../src/interface/IConsensusAlgorithm.sol";
-import {LinearStakeConsensus} from "../../src/consensus/LinearStakeConsensus.sol";
 import {SqrtStakeConsensus} from "../../src/consensus/SqrtStakeConsensus.sol";
 import {UPDATER_ROLE, VALIDATOR_ROLE, UNAUTHORIZED_SKILL_COOLDOWN} from "../../src/interface/ISharedTypes.sol";
 import {ISharedTypes} from "../../src/interface/ISharedTypes.sol";
@@ -128,13 +127,13 @@ contract TangentReplicationTest is BaseTest {
             validator: whale, score: 10000, stakeAmount: whaleStake, reputation: 5000
         });
 
-        // 5. Calculate consensus using LinearStakeConsensus
-        LinearStakeConsensus consensus = new LinearStakeConsensus();
+        // 5. Calculate consensus using SqrtStakeConsensus
+        SqrtStakeConsensus consensus = new SqrtStakeConsensus();
         IConsensusAlgorithm.ConsensusResult memory result = consensus.calculateConsensus(inputs);
 
-        // 6. Verify result is close to whale's score
-        // (5000*100 + 5000*100 + 10000*10000) / (100 + 100 + 10000) = 1000000 + 100000000 / 10200 = 101000000 / 10200 ≈ 9901
-        assertGe(result.weightedAverage, 9900);
+        // 6. Verify result is whale-weighted but reduced by sqrt weighting
+        // (5000*10 + 5000*10 + 10000*100) / (10 + 10 + 100) = 1100000 / 120 = 9166
+        assertApproxEqAbs(result.weightedAverage, 9166, 10);
         emit log_named_uint("Weighted Average", result.weightedAverage);
     }
 
@@ -160,23 +159,16 @@ contract TangentReplicationTest is BaseTest {
             validator: whale, score: 10000, stakeAmount: whaleStake, reputation: 5000
         });
 
-        // 1. Calculate using LinearStakeConsensus (for comparison)
-        LinearStakeConsensus linear = new LinearStakeConsensus();
-        IConsensusAlgorithm.ConsensusResult memory linearResult = linear.calculateConsensus(inputs);
-
-        // 2. Calculate using SqrtStakeConsensus (the fix)
+        // Calculate using SqrtStakeConsensus
         SqrtStakeConsensus sqrt = new SqrtStakeConsensus();
         IConsensusAlgorithm.ConsensusResult memory sqrtResult = sqrt.calculateConsensus(inputs);
 
-        emit log_named_uint("Linear Weighted Average", linearResult.weightedAverage);
         emit log_named_uint("Sqrt Weighted Average", sqrtResult.weightedAverage);
 
-        // Verify influence is reduced (9166 < 9901)
-        assertLt(sqrtResult.weightedAverage, linearResult.weightedAverage);
         // Expect around 9166
         assertApproxEqAbs(sqrtResult.weightedAverage, 9166, 10);
 
-        emit log("Fix verified: SqrtStakeConsensus reduces whale influence significantly");
+        emit log("SqrtStakeConsensus whale-weighting behavior verified");
     }
 
     /**

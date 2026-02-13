@@ -1,7 +1,7 @@
 # Sapien PoQ Protocol - Contracts and Interfaces Reference
 
-**Version:** v0.3  
-**Last Updated:** January 23rd, 2026
+**Version:** v0.4  
+**Last Updated:** February 12th, 2026
 
 This document provides a comprehensive reference for all smart contracts and interfaces in the Sapien PoQ Protocol, including their NatSpec documentation.
 
@@ -16,10 +16,7 @@ This document provides a comprehensive reference for all smart contracts and int
    - [ValidationOracle](#validationoracle)
    - [Rewards](#rewards)
 2. [Consensus Algorithms](#consensus-algorithms)
-   - [HybridConsensus](#hybridconsensus)
    - [SqrtStakeConsensus](#sqrtstakeconsensus)
-   - [LinearStakeConsensus](#linearstakeconsensus)
-   - [CappedLinearConsensus](#cappedlinearconsensus)
 3. [Interfaces](#interfaces)
    - [ISapienCore](#isapiencore)
    - [ISapienVault](#isapienvault)
@@ -74,6 +71,7 @@ function initialize(
  * @notice Create a new project in the protocol
  * @param projectId Unique identifier for the project
  * @param rewardToken ERC20 token to be used for rewards
+ * @param ipfsCid The original IPFS CID of the project spec document
  * @param minStakeToClaim Minimum stake required for a contributor to claim a slot
  * @param minStakeToContribute Minimum stake required for a contributor to participate (legacy)
  * @param numberOfValidations Exact number of validations required per contribution (also determines queue slots)
@@ -84,6 +82,7 @@ function initialize(
 function createProject(
     bytes32 projectId,
     address rewardToken,
+    string calldata ipfsCid,
     uint256 minStakeToClaim,
     uint256 minStakeToContribute,
     uint256 numberOfValidations,
@@ -344,12 +343,11 @@ function initialize(
 #### `claimToValidate`
 ```solidity
 /**
- * @notice Claim a number of validation slots in a project
+ * @notice Claim a validation slot in a project (assigns next pending contribution from queue)
  * @param projectId Unique identifier for the project
- * @param quantity Number of slots to claim
  * @return claimId Unique identifier for the created validation claim
  */
-function claimToValidate(bytes32 projectId, uint256 quantity) external returns (uint256 claimId)
+function claimToValidate(bytes32 projectId) external returns (uint256 claimId)
 ```
 
 #### `commitValidation`
@@ -392,10 +390,9 @@ function revealValidation(
  * @notice Calculate consensus for a contribution
  * @param projectId Unique identifier for the project
  * @param contributionIndex The index within the project's contribution sequence
- * @param numberOfValidations Number of validations required to reach consensus
  * @return report Final consensus report containing average, count, and slashes
  */
-function getConsensus(bytes32 projectId, uint256 contributionIndex, uint256 numberOfValidations)
+function getConsensus(bytes32 projectId, uint256 contributionIndex)
     external
     view
     returns (ConsensusReport memory report)
@@ -481,8 +478,10 @@ function distributeValidatorReward(bytes32 projectId, address validator, address
  * @notice Claim available rewards for a contributor
  * @param projectId Unique identifier for the project
  * @param token The reward token address
+ * @param feeRecipient Address to receive the optional operator fee (set to address(0) for no fee)
+ * @param feeBps Fee in basis points to deduct for the operator (max governed by maxFeeBps, default 400 = 4%)
  */
-function claimRewards(bytes32 projectId, address token) external
+function claimRewards(bytes32 projectId, address token, address feeRecipient, uint256 feeBps) external
 ```
 
 **Events:**
@@ -498,42 +497,6 @@ function claimRewards(bytes32 projectId, address token) external
 ---
 
 ## Consensus Algorithms
-
-### HybridConsensus
-
-**File:** `src/consensus/HybridConsensus.sol`
-
-**Description:**
-```solidity
-/**
- * @title HybridConsensus
- * @notice Final solution - combines sqrt stake, reputation, and cap
- * @dev Weight = min(sqrt(stake) × reputation, 30% cap)
- * Security Grade: A- (best overall protection)
- */
-```
-
-**Key Functions:**
-
-#### `calculateConsensus`
-```solidity
-/**
- * @notice Calculate consensus from validator inputs
- * @param validations Array of validator inputs
- * @return result Consensus calculation result
- */
-function calculateConsensus(ValidationInput[] calldata validations)
-    external
-    pure
-    returns (ConsensusResult memory result)
-```
-
-**Algorithm Details:**
-- Weight calculation: `min(sqrt(stake) × reputation, 30% cap)`
-- Security Grade: **A-**
-- Best overall protection combining whale resistance, quality incentives, and hard limits
-
----
 
 ### SqrtStakeConsensus
 
@@ -553,48 +516,6 @@ function calculateConsensus(ValidationInput[] calldata validations)
 - Weight calculation: `sqrt(stake)`
 - Security Grade: **A-**
 - Reduces whale power by 22%, proven in quadratic voting research
-
----
-
-### LinearStakeConsensus
-
-**File:** `src/consensus/LinearStakeConsensus.sol`
-
-**Description:**
-```solidity
-/**
- * @title LinearStakeConsensus
- * @notice Current system - linear stake-weighted consensus
- * @dev Weight = stake (vulnerable to whale attacks with >50% stake)
- * Security Grade: C+ (vulnerable to whale manipulation)
- */
-```
-
-**Algorithm Details:**
-- Weight calculation: `stake`
-- Security Grade: **C+**
-- Vulnerable to whale attacks (>50% stake)
-
----
-
-### CappedLinearConsensus
-
-**File:** `src/consensus/CappedLinearConsensus.sol`
-
-**Description:**
-```solidity
-/**
- * @title CappedLinearConsensus
- * @notice Quick fix - linear stake-weighted with 30% cap per validator
- * @dev Weight = min(stake, 30% of total stake)
- * Security Grade: B+ (prevents single whale dominance)
- */
-```
-
-**Algorithm Details:**
-- Weight calculation: `min(stake, 30% of total stake)`
-- Security Grade: **B+**
-- Prevents single whale dominance
 
 ---
 
@@ -794,7 +715,9 @@ struct Contribution {
     uint256 submittedAt;
     uint256 totalValidations;
     uint256 averageScore;
+    uint256 challengeEndsAt;
     ContributionStatus status;
+    uint256 rewardRateSnapshot; // Reward per slot locked at submission time (prevents sandwiching)
 }
 ```
 
@@ -820,6 +743,7 @@ struct ConsensusReport {
     bool isReady;
     address[] validatorsToSlash;
     uint256[] slashAmounts;
+    uint256[] validatorWeights; // Weights from the consensus algorithm
 }
 ```
 

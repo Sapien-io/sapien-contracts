@@ -47,18 +47,20 @@ sequenceDiagram
     Note over SC, VO: Triggered via finalizeContribution()
     SC->>VO: getConsensus(projectId, index)
     VO->>VO: Check consensus ready
-    VO->>VO: Run Consensus Algorithm (weighted by stake & reputation)
+    VO->>VO: Run Consensus Algorithm (e.g. SqrtStake: weight = √stake)
     VO-->>SC: ConsensusReport (avg score, outliers)
 
     SC->>ST: updateReputation(contributor, success/failure)
     
     alt is Accepted (score >= 50%)
-        SC->>R: distributeReward(contributor, amount)
+        SC->>SC: Set challenge period (challengeEndsAt)
         SC->>ST: validateSkill(contributor, skill)
         SC->>SV: unlockStake(contributor, amount) (if fully finalized)
+        Note right of SC: Reward claimable after challenge period via claimContributionReward()
     else is Rejected
         SC->>SC: Re-queue work index (index available for new claim)
         SC->>SC: Preserves contributor reward for next attempt
+        SC->>VO: resetContributionState(projectId, index)
     end
 
     loop For each Outlier
@@ -67,7 +69,7 @@ sequenceDiagram
         SC->>ST: updateReputation(validator, penalty)
     end
 
-    loop For each Accurate Validator
+    loop For each Accurate Validator (only when accepted)
         SC->>R: distributeValidatorReward(validator, amount)
         SC->>ST: updateReputation(validator, success)
     end
@@ -87,9 +89,9 @@ Validators must first set their validation capacity (`setValidatorCapacity`), lo
 2.  **Reveal**: After the commit window, they reveal their score. This mechanism prevents copying ("mirroring") other validators.
 
 ### 4. Finalization
-Once enough validations are received and revealed, `finalizeContribution` is called. The `ValidationOracle` calculates consensus using the project's selected algorithm (e.g., `CappedLinearConsensus`).
--   **Contributors**: Receive rewards if the average score is ≥ 50%. If rejected, the index is re-queued for another contributor.
--   **Validators**: Accurate validators earn rewards proportional to their weighted stake. Outliers (those too far from consensus) are slashed and suffer reputation penalties.
+Once enough validations are received and revealed, `finalizeContribution` is called. The `ValidationOracle` calculates consensus using the project's selected algorithm (e.g., `SqrtStakeConsensus`).
+-   **Contributors**: If accepted (score ≥ 50%), a challenge period begins. After it elapses, the contributor calls `claimContributionReward` to receive their reward. If rejected, the index is re-queued for another contributor.
+-   **Validators**: Accurate validators earn rewards proportional to their consensus algorithm weights (only when the contribution is accepted). Outliers (those too far from consensus) are slashed and suffer reputation penalties regardless of accept/reject.
 
 ## ⚠️ Edge Cases & Timeouts
 

@@ -13,6 +13,7 @@ To create a project, call `SapienCore.createProject()` with the following parame
 
 - `projectId`: A unique `bytes32` hash identifying the project.
 - `rewardToken`: Address of your chosen reward token.
+- `ipfsCid`: The original IPFS CID of the project spec document.
 - `minStakeToClaim`: Minimum SAPIEN stake required for a contributor to claim a slot.
 - `minStakeToContribute`: (Legacy) Minimum stake required to participate.
 - `numberOfValidations`: Exact number of validations required per contribution (also determines queue slots).
@@ -44,8 +45,8 @@ Call `SapienCore.fundProject(projectId, rewardAmount, quantity)`:
 
 By default, projects use the protocol-wide default algorithm. You can choose a specific one for your project:
 
-Call `ValidationOracle.setProjectAlgorithm(projectId, "Hybrid")`.
-- Available options: `"Linear"`, `"Capped"`, `"Sqrt"`, `"Hybrid"`.
+Call `ValidationOracle.setProjectAlgorithm(projectId, "SqrtStake")`.
+- Available options: `"SqrtStake"`.
 
 ## 5. Integrate Your Tools
 

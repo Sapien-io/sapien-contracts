@@ -5,13 +5,13 @@ import {console} from "lib/forge-std/src/console.sol";
 import {BaseTest} from "./BaseTest.t.sol";
 import {IConsensusAlgorithm} from "../src/interface/IConsensusAlgorithm.sol";
 import {IValidationOracle} from "../src/interface/IValidationOracle.sol";
-import {CappedLinearConsensus} from "../src/consensus/CappedLinearConsensus.sol";
+import {SqrtStakeConsensus} from "../src/consensus/SqrtStakeConsensus.sol";
 import {VALIDATOR_ROLE} from "../src/interface/ISharedTypes.sol";
 
 /**
  * @title ReputationBasedConsensusTest
  * @notice Comprehensive tests for the reputation-based consensus improvements:
- *         1. CappedLinear as default algorithm (not Hybrid)
+ *         1. SqrtStake as active algorithm
  *         2. Reputation-weighted validator rewards
  *         3. Project eligibility tiers (minimum validator reputation)
  *         4. Reputation-based slashing curves
@@ -39,16 +39,10 @@ contract ReputationBasedConsensusTest is BaseTest {
         // Create additional test address
         validator4 = makeAddr("validator4");
         _setupUser(validator4, 1000 ether);
-
-        // Register CappedLinear algorithm for testing default behavior
-        vm.startPrank(admin);
-        CappedLinearConsensus capped = new CappedLinearConsensus();
-        oracle.registerAlgorithm("CappedLinear", address(capped));
-        vm.stopPrank();
     }
 
     // ============================================
-    // TEST 1: CappedLinear as Default Algorithm
+    // TEST 1: SqrtStake as Active Algorithm
     // ============================================
 
     function test_ProjectCanUseCappedLinearAlgorithm() public {
@@ -65,19 +59,19 @@ contract ReputationBasedConsensusTest is BaseTest {
             "" // requiredSkill
         );
 
-        // Set the algorithm to CappedLinear
+        // Set the algorithm to SqrtStake
         vm.prank(originator);
-        oracle.setProjectAlgorithm(TEST_PROJECT_ID, "CappedLinear");
+        oracle.setProjectAlgorithm(TEST_PROJECT_ID, "SqrtStake");
 
         // Get the algorithm for this project
         IConsensusAlgorithm algo = oracle.getAlgorithm(TEST_PROJECT_ID);
 
-        // Verify it's CappedLinear
-        assertEq(algo.getName(), "CappedLinear", "Project should use CappedLinear");
+        // Verify it's SqrtStake
+        assertEq(algo.getName(), "SqrtStake", "Project should use SqrtStake");
     }
 
     function test_CappedLinearCapsWhaleInfluence() public {
-        // Create inputs for CappedLinear consensus
+        // Create inputs for SqrtStake consensus
         IConsensusAlgorithm.ValidationInput[] memory inputs = new IConsensusAlgorithm.ValidationInput[](2);
 
         // Whale with 90% of stake
@@ -96,27 +90,18 @@ contract ReputationBasedConsensusTest is BaseTest {
             reputation: 5000
         });
 
-        CappedLinearConsensus capped = new CappedLinearConsensus();
-        IConsensusAlgorithm.ConsensusResult memory result = capped.calculateConsensus(inputs);
+        SqrtStakeConsensus sqrtConsensus = new SqrtStakeConsensus();
+        IConsensusAlgorithm.ConsensusResult memory result = sqrtConsensus.calculateConsensus(inputs);
 
-        // With stake × reputation weighting:
-        // Whale: 900 ether × 5000 / 10000 = 450 ether base weight
-        // Small: 100 ether × 5000 / 10000 = 50 ether base weight
-        // Total = 500 ether
-        // Whale % = 450/500 = 90% > 30% → capped
-        console.log("Weighted average with cap:", result.weightedAverage);
+        // With sqrt weighting:
+        // Whale weight = sqrt(900 ether) = 3e10
+        // Small weight = sqrt(100 ether) = 1e10
+        // Weighted avg = (9000*3 + 3000*1) / 4 = 7500
+        console.log("Weighted average with sqrt:", result.weightedAverage);
         console.log("Whale weight:", result.validatorWeights[0]);
         console.log("Small validator weight:", result.validatorWeights[1]);
 
-        // With iterative capping and 2 validators, both converge toward equal weights.
-        // The key assertion: whale's weight should be significantly reduced from its
-        // uncapped value of 450 ether (90% of total).
-        uint256 totalCappedWeight = result.validatorWeights[0] + result.validatorWeights[1];
-        if (totalCappedWeight > 0) {
-            uint256 whaleBps = (result.validatorWeights[0] * 10000) / totalCappedWeight;
-            // With only 2 validators, iterative capping converges to equal weights (~50/50)
-            assertTrue(whaleBps <= 5100, "Whale should not dominate after iterative capping");
-        }
+        assertEq(result.weightedAverage, 7500, "Sqrt weighting should reduce whale dominance vs linear");
     }
 
     // ============================================
@@ -541,12 +526,6 @@ contract EligibilityTierEdgeCasesTest is BaseTest {
 
     function setUp() public override {
         super.setUp();
-
-        // Register CappedLinear
-        vm.startPrank(admin);
-        CappedLinearConsensus capped = new CappedLinearConsensus();
-        oracle.registerAlgorithm("CappedLinear", address(capped));
-        vm.stopPrank();
     }
 
     function test_CannotSetMinReputationAboveMax() public {

@@ -19,3 +19,5 @@ coverage :; forge coverage --ir-minimum
 lint :; npx solhint "src/**/*.sol" > solhint-report.txt
 
 build :; forge clean && forge build > build-report.txt
+
+verify :; halmos --match-path "test/formal/*.t.sol"

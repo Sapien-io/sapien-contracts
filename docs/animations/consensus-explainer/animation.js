@@ -51,7 +51,7 @@ const CAPTIONS = {
     v2Reveal: "Validator 2 reveals: 80% quality score",
     v3Reveal: "Validator 3 reveals: 30% quality score — significantly different!",
     consensusPhase: "CONSENSUS: The Oracle calculates weighted consensus",
-    calcWeights: "Weights calculated: Stake × Reputation (capped at 30% each)",
+    calcWeights: "Weights calculated: √(Stake) — square root stake weighting",
     calcAverage: "Weighted Average = 82% (higher-rep validators have more influence)",
     identifyOutliers: "Validator 3 identified as OUTLIER (30% vs 82% consensus)",
     outcomePhase: "OUTCOME: Contribution accepted, rewards distributed",

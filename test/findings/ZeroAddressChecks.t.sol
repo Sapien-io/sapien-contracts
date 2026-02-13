@@ -135,7 +135,7 @@ contract ZeroAddressChecksTest is BaseTest {
             ValidationOracle.initialize.selector,
             address(0), // trust - ZERO ADDRESS
             address(vault),
-            "LinearStake",
+            "SqrtStake",
             admin
         );
 
@@ -149,7 +149,7 @@ contract ZeroAddressChecksTest is BaseTest {
             ValidationOracle.initialize.selector,
             address(trust),
             address(0), // vault - ZERO ADDRESS
-            "LinearStake",
+            "SqrtStake",
             admin
         );
 
@@ -163,7 +163,7 @@ contract ZeroAddressChecksTest is BaseTest {
             ValidationOracle.initialize.selector,
             address(trust),
             address(vault),
-            "LinearStake",
+            "SqrtStake",
             address(0) // admin - ZERO ADDRESS
         );
 

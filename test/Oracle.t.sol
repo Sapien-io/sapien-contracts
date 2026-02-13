@@ -76,7 +76,7 @@ contract OracleTest is BaseTest {
 
     function testOracleInitializeReverts() public {
         vm.expectRevert(InvalidInitialization.selector);
-        oracle.initialize(address(trust), address(vault), "LinearStake", admin);
+        oracle.initialize(address(trust), address(vault), "SqrtStake", admin);
     }
 
     function testClaimToValidateEdgeCases() public {
@@ -718,16 +718,16 @@ contract OracleTest is BaseTest {
     function testSetProjectAlgorithmPermissions() public {
         // Only originator or admin can set algorithm
         vm.prank(originator);
-        oracle.setProjectAlgorithm(PROJECT_ID, "LinearStake");
+        oracle.setProjectAlgorithm(PROJECT_ID, "SqrtStake");
 
         // Unauthorized user cannot set
         vm.prank(validator1);
         vm.expectRevert();
-        oracle.setProjectAlgorithm(PROJECT_ID, "LinearStake");
+        oracle.setProjectAlgorithm(PROJECT_ID, "SqrtStake");
 
         // Admin can set
         vm.prank(admin);
-        oracle.setProjectAlgorithm(PROJECT_ID, "LinearStake");
+        oracle.setProjectAlgorithm(PROJECT_ID, "SqrtStake");
     }
 
     function testSetProjectRevealDeadlinePermissions() public {
