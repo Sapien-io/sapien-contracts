@@ -10,13 +10,7 @@ import {SapienVault} from "src/SapienVault.sol";
 import {Rewards} from "src/Rewards.sol";
 import {SqrtStakeConsensus} from "src/consensus/SqrtStakeConsensus.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
-import {
-    UPDATER_ROLE,
-    LOCKER_ROLE,
-    SLASHER_ROLE,
-    PAUSER_ROLE,
-    SAPIEN_CORE_ROLE
-} from "src/interface/ISharedTypes.sol";
+import {UPDATER_ROLE, LOCKER_ROLE, SLASHER_ROLE, PAUSER_ROLE, SAPIEN_CORE_ROLE} from "src/interface/ISharedTypes.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 /**

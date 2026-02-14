@@ -151,7 +151,7 @@ contract ConsensusLibFormalTest {
         uint256 stdDev = calculateStandardDeviation(scores, weights, mean);
 
         uint256 deviation1 = s1 > mean ? s1 - mean : mean - s1;
-        
+
         bool isOutlier = deviation1 > 1500 || (stdDev > 0 && deviation1 > 2 * stdDev);
 
         if (deviation1 <= 1500 && (stdDev == 0 || deviation1 <= 2 * stdDev)) {

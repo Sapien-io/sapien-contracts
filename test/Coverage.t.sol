@@ -440,9 +440,7 @@ contract CoverageTest is BaseTest {
         vm.expectRevert();
         new ERC1967Proxy(
             address(impl),
-            abi.encodeWithSelector(
-                ValidationOracle.initialize.selector, address(0), address(vault), "SqrtStake", admin
-            )
+            abi.encodeWithSelector(ValidationOracle.initialize.selector, address(0), address(vault), "SqrtStake", admin)
         );
     }
 

@@ -13,7 +13,7 @@ contract SapienVaultModel {
     constructor(uint256 _initialAssets) {
         totalAssets = _initialAssets;
         // Simplified mint for testing
-        totalShares = _initialAssets; 
+        totalShares = _initialAssets;
     }
 
     function slash(address user, uint256 sharesToSlash) public {
@@ -36,14 +36,21 @@ contract SapienVaultModel {
 contract VaultFormalTest {
     Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
-    function check_Slash_Redistribution(uint256 initialAssets, uint256 /* slashShares */, address victim) public {
+    function check_Slash_Redistribution(
+        uint256 initialAssets,
+        uint256,
+        /* slashShares */
+        address victim
+    )
+        public
+    {
         vm.assume(initialAssets > 1000);
         vm.assume(victim != address(0));
-        
+
         SapienVaultModel vault = new SapienVaultModel(initialAssets);
         // Give victim some shares
         vault.slash(address(0x1), 0); // initialization side effect
-        
+
         // Manual setup of state for symbolic execution
         // Halmos might not support complex setup in constructor well
         // so I'll just check the logic directly
@@ -64,10 +71,10 @@ contract VaultFormalTest {
     function check_Slashing_Preserves_Assets(uint256 assets, uint256 shares, uint256 slashAmount) public {
         vm.assume(assets > 0 && shares > 0);
         vm.assume(slashAmount > 0 && slashAmount < shares);
-        
+
         uint256 assetsBefore = assets;
         // Slashing logic from SapienVault.sol: only _burn is called
-        uint256 assetsAfter = assets; 
+        uint256 assetsAfter = assets;
 
         if (assetsAfter != assetsBefore) revert("AssetsChanged");
     }
