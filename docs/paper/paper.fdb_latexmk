@@ -1,6 +1,6 @@
 # Fdb version 4
-["pdflatex"] 1770940594.16922 "/Users/chad/Code/sapien/sapien-contracts/docs/paper/paper.tex" "paper.pdf" "paper" 1770940594.8515 0
-  "/Users/chad/Code/sapien/sapien-contracts/docs/paper/paper.tex" 1770940592.94752 9893 da1552e77cf4a0000ffb194af7d81877 ""
+["pdflatex"] 1771083473.02428 "/Users/chad/Code/sapien/sapien-contracts/docs/paper/paper.tex" "paper.pdf" "paper" 1771083473.71052 0
+  "/Users/chad/Code/sapien/sapien-contracts/docs/paper/paper.tex" 1771083472.82767 9887 f51636cdc37254e587c3fcbd3bc20fad ""
   "/usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/cm-super/cm-super-t1.enc" 1136849721 2971 def0b6c1f0b107b3b936def894055589 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc" 1136849721 2900 1537cc8184ad1792082cd229ecc269f4 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
@@ -120,9 +120,9 @@
   "/usr/local/texlive/2025/texmf-var/fonts/map/pdftex/updmap/pdftex.map" 1749807631 5467155 19efa205003f9ecad95fbbaa6ff24da1 ""
   "/usr/local/texlive/2025/texmf-var/web2c/pdftex/pdflatex.fmt" 1741450574 3345740 46b66fdb0378f7bf5921b5eabf1762b8 ""
   "/usr/local/texlive/2025/texmf.cnf" 1741450484 577 418a7058ec8e006d8704f60ecd22c938 ""
-  "paper.aux" 1770940594.75942 1756 9b222a4dfb4f1f728abad5101ce6f2ec "pdflatex"
-  "paper.out" 1770940594.75987 1985 6744ce49991e38928b1edda6e13ea357 "pdflatex"
-  "paper.tex" 1770940592.94752 9893 da1552e77cf4a0000ffb194af7d81877 ""
+  "paper.aux" 1771083473.61899 1756 9b222a4dfb4f1f728abad5101ce6f2ec "pdflatex"
+  "paper.out" 1771083473.61975 1985 6744ce49991e38928b1edda6e13ea357 "pdflatex"
+  "paper.tex" 1771083472.82767 9887 f51636cdc37254e587c3fcbd3bc20fad ""
   (generated)
   "paper.aux"
   "paper.log"
