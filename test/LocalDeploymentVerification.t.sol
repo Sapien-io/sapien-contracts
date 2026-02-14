@@ -8,13 +8,7 @@ import {SapienTrust} from "src/SapienTrust.sol";
 import {SapienVault} from "src/SapienVault.sol";
 import {Rewards} from "src/Rewards.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
-import {
-    LOCKER_ROLE,
-    SLASHER_ROLE,
-    PAUSER_ROLE,
-    UPDATER_ROLE,
-    SAPIEN_CORE_ROLE
-} from "src/interface/ISharedTypes.sol";
+import {LOCKER_ROLE, SLASHER_ROLE, PAUSER_ROLE, UPDATER_ROLE, SAPIEN_CORE_ROLE} from "src/interface/ISharedTypes.sol";
 
 /**
  * @title LocalDeploymentVerification
