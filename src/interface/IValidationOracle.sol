@@ -388,7 +388,7 @@ interface IValidationOracle is ISharedTypes {
 
     /**
      * @notice Register a new consensus algorithm implementation
-     * @param name Name of the algorithm (e.g., "LinearStake", "SqrtStake")
+     * @param name Name of the algorithm (e.g., "SqrtStake")
      * @param implementation Address of the algorithm contract implementing IConsensusAlgorithm
      */
     function registerAlgorithm(string calldata name, address implementation) external;

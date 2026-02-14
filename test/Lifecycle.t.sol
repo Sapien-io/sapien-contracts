@@ -124,7 +124,7 @@ contract LifecycleTest is BaseTest {
 
         // 1.5: Set consensus algorithm (optional - uses default if not set)
         vm.prank(admin);
-        oracle.setProjectAlgorithm(PROJECT_ID, "LinearStake");
+        oracle.setProjectAlgorithm(PROJECT_ID, "SqrtStake");
         console.log("  [1.5] Consensus algorithm set");
 
         console.log("  [OK] Phase 1 Complete: Project Setup\n");

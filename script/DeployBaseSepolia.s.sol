@@ -1,24 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Script} from "forge-std/Script.sol";
-import {console} from "forge-std/console.sol";
-import {SapienTrust} from "../src/SapienTrust.sol";
-import {ValidationOracle} from "../src/ValidationOracle.sol";
-import {SapienCore} from "../src/SapienCore.sol";
-import {SapienVault} from "../src/SapienVault.sol";
-import {Rewards} from "../src/Rewards.sol";
-import {LinearStakeConsensus} from "../src/consensus/LinearStakeConsensus.sol";
-import {CappedLinearConsensus} from "../src/consensus/CappedLinearConsensus.sol";
-import {SqrtStakeConsensus} from "../src/consensus/SqrtStakeConsensus.sol";
-import {HybridConsensus} from "../src/consensus/HybridConsensus.sol";
-import {
-    UPDATER_ROLE,
-    LOCKER_ROLE,
-    SLASHER_ROLE,
-    PAUSER_ROLE,
-    SAPIEN_CORE_ROLE
-} from "../src/interface/ISharedTypes.sol";
+import {Script} from "lib/forge-std/src/Script.sol";
+import {console} from "lib/forge-std/src/console.sol";
+import {SapienTrust} from "src/SapienTrust.sol";
+import {ValidationOracle} from "src/ValidationOracle.sol";
+import {SapienCore} from "src/SapienCore.sol";
+import {SapienVault} from "src/SapienVault.sol";
+import {Rewards} from "src/Rewards.sol";
+import {SqrtStakeConsensus} from "src/consensus/SqrtStakeConsensus.sol";
+import {UPDATER_ROLE, LOCKER_ROLE, SLASHER_ROLE, PAUSER_ROLE, SAPIEN_CORE_ROLE} from "src/interface/ISharedTypes.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 /**
@@ -33,7 +24,6 @@ import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/E
  * Optional environment variables:
  * - MIN_STAKE: Minimum stake amount (default: 100 ether)
  * - DECAY_RATE: Reputation decay rate in basis points (default: 10 = 0.1%)
- * - DEFAULT_ALGORITHM: Default consensus algorithm name (default: "SqrtStake")
  */
 contract DeployBaseSepolia is Script {
     // Contract instances
@@ -48,7 +38,7 @@ contract DeployBaseSepolia is Script {
     address public admin;
     uint256 public minStake;
     uint256 public decayRate;
-    string public defaultAlgorithm;
+    string public constant DEFAULT_ALGORITHM = "SqrtStake";
 
     function run() external {
         console.log("===========================================");
@@ -95,11 +85,9 @@ contract DeployBaseSepolia is Script {
         // Optional: Configuration parameters
         minStake = vm.envOr("MIN_STAKE", uint256(100 ether));
         decayRate = vm.envOr("DECAY_RATE", uint256(10)); // 10 = 0.1%
-        defaultAlgorithm = vm.envOr("DEFAULT_ALGORITHM", string("SqrtStake"));
-
         console.log("Min Stake:", minStake);
         console.log("Decay Rate:", decayRate, "(basis points)");
-        console.log("Default Algorithm:", defaultAlgorithm);
+        console.log("Default Algorithm:", DEFAULT_ALGORITHM);
         console.log("\nDeploying core contracts...");
     }
 
@@ -136,7 +124,7 @@ contract DeployBaseSepolia is Script {
         console.log("\n[4] Deploying ValidationOracle...");
         ValidationOracle oracleImpl = new ValidationOracle();
         bytes memory oracleInitData = abi.encodeWithSelector(
-            ValidationOracle.initialize.selector, address(trust), address(vault), defaultAlgorithm, admin
+            ValidationOracle.initialize.selector, address(trust), address(vault), DEFAULT_ALGORITHM, admin
         );
         oracle = ValidationOracle(address(new ERC1967Proxy(address(oracleImpl), oracleInitData)));
         console.log("    ValidationOracle Proxy:", address(oracle));
@@ -190,19 +178,9 @@ contract DeployBaseSepolia is Script {
      * @notice Register consensus algorithms
      */
     function _registerAlgorithms() internal {
-        console.log("\n[7] Registering consensus algorithms...");
-
-        oracle.registerAlgorithm("LinearStake", address(new LinearStakeConsensus()));
-        console.log("    LinearStake registered");
-
-        oracle.registerAlgorithm("CappedLinear", address(new CappedLinearConsensus()));
-        console.log("    CappedLinear registered");
-
+        console.log("\n[7] Registering consensus algorithm...");
         oracle.registerAlgorithm("SqrtStake", address(new SqrtStakeConsensus()));
         console.log("    SqrtStake registered");
-
-        oracle.registerAlgorithm("Hybrid", address(new HybridConsensus()));
-        console.log("    Hybrid registered");
     }
 
     /**
@@ -233,6 +211,6 @@ contract DeployBaseSepolia is Script {
         console.log("ADMIN_ADDRESS=", admin);
         console.log("MIN_STAKE=", minStake);
         console.log("DECAY_RATE=", decayRate);
-        console.log("DEFAULT_ALGORITHM=", defaultAlgorithm);
+        console.log("DEFAULT_ALGORITHM=", DEFAULT_ALGORITHM);
     }
 }

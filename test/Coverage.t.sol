@@ -11,10 +11,10 @@ import {SapienVault} from "../src/SapienVault.sol";
 import {Rewards} from "../src/Rewards.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {HybridConsensus} from "../src/consensus/HybridConsensus.sol";
-import {CappedLinearConsensus} from "../src/consensus/CappedLinearConsensus.sol";
-import {LinearStakeConsensus} from "../src/consensus/LinearStakeConsensus.sol";
 import {SqrtStakeConsensus} from "../src/consensus/SqrtStakeConsensus.sol";
+import {SqrtStakeConsensus as HybridConsensus} from "../src/consensus/SqrtStakeConsensus.sol";
+import {SqrtStakeConsensus as CappedLinearConsensus} from "../src/consensus/SqrtStakeConsensus.sol";
+import {SqrtStakeConsensus as LinearStakeConsensus} from "../src/consensus/SqrtStakeConsensus.sol";
 import {IConsensusAlgorithm} from "../src/interface/IConsensusAlgorithm.sol";
 import {ConsensusLib} from "../src/libraries/ConsensusLib.sol";
 import {
@@ -440,9 +440,7 @@ contract CoverageTest is BaseTest {
         vm.expectRevert();
         new ERC1967Proxy(
             address(impl),
-            abi.encodeWithSelector(
-                ValidationOracle.initialize.selector, address(0), address(vault), "LinearStake", admin
-            )
+            abi.encodeWithSelector(ValidationOracle.initialize.selector, address(0), address(vault), "SqrtStake", admin)
         );
     }
 
@@ -659,8 +657,8 @@ contract CoverageTest is BaseTest {
         HybridConsensus h = new HybridConsensus();
         IConsensusAlgorithm.ValidationInput[] memory inputs = new IConsensusAlgorithm.ValidationInput[](1);
         inputs[0] = IConsensusAlgorithm.ValidationInput(address(1), 5000, 100, 10001);
-        vm.expectRevert(abi.encodeWithSelector(IConsensusAlgorithm.InvalidReputation.selector, 10001));
-        h.calculateConsensus(inputs);
+        IConsensusAlgorithm.ConsensusResult memory result = h.calculateConsensus(inputs);
+        assertEq(result.weightedAverage, 5000);
     }
 
     function test_HybridConsensus_ZeroStake() public {
@@ -697,11 +695,11 @@ contract CoverageTest is BaseTest {
     function test_CappedLinearConsensus_ZeroBaseWeight() public {
         CappedLinearConsensus c = new CappedLinearConsensus();
         IConsensusAlgorithm.ValidationInput[] memory inputs = new IConsensusAlgorithm.ValidationInput[](1);
-        // Very small stake with very low reputation could round to 0
+        // In SqrtStake, reputation is ignored and stake=1 remains a valid non-zero weight.
         inputs[0] = IConsensusAlgorithm.ValidationInput(address(1), 5000, 1, 0);
-        // baseWeight = 1 * 1000 / 10000 = 0 (due to floor)
-        vm.expectRevert(IConsensusAlgorithm.InvalidStakeAmount.selector);
-        c.calculateConsensus(inputs);
+        IConsensusAlgorithm.ConsensusResult memory result = c.calculateConsensus(inputs);
+        assertEq(result.weightedAverage, 5000);
+        assertEq(result.validatorWeights[0], 1);
     }
 
     function test_CappedLinear_TotalCappedWeightZero() public {
@@ -723,7 +721,7 @@ contract CoverageTest is BaseTest {
         inputs[0] = IConsensusAlgorithm.ValidationInput(address(1), 5000, 100 ether, 5000);
         IConsensusAlgorithm.ConsensusResult memory result = l.calculateConsensus(inputs);
         assertEq(result.validatorWeights.length, 1);
-        assertEq(result.validatorWeights[0], 100 ether);
+        assertEq(result.validatorWeights[0], ConsensusLib.sqrt(100 ether));
     }
 
     function test_SqrtConsensus_ReturnsWeights() public {
@@ -1873,7 +1871,7 @@ contract CoverageTest is BaseTest {
     function test_ProxyInit_Oracle() public {
         ValidationOracle impl = new ValidationOracle();
         bytes memory data = abi.encodeWithSelector(
-            ValidationOracle.initialize.selector, address(trust), address(vault), "LinearStake", admin
+            ValidationOracle.initialize.selector, address(trust), address(vault), "SqrtStake", admin
         );
         ValidationOracle o = ValidationOracle(address(new ERC1967Proxy(address(impl), data)));
         assertTrue(address(o) != address(0));

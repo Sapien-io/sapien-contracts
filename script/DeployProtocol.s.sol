@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Script} from "forge-std/Script.sol";
-import {console} from "forge-std/console.sol";
-import {SapienTrust} from "../src/SapienTrust.sol";
-import {ValidationOracle} from "../src/ValidationOracle.sol";
-import {SapienCore} from "../src/SapienCore.sol";
-import {SapienVault} from "../src/SapienVault.sol";
-import {LinearStakeConsensus} from "../src/consensus/LinearStakeConsensus.sol";
-import {CappedLinearConsensus} from "../src/consensus/CappedLinearConsensus.sol";
-import {SqrtStakeConsensus} from "../src/consensus/SqrtStakeConsensus.sol";
-import {HybridConsensus} from "../src/consensus/HybridConsensus.sol";
-import {UPDATER_ROLE, LOCKER_ROLE} from "../src/interface/ISharedTypes.sol";
+import {Script} from "lib/forge-std/src/Script.sol";
+import {console} from "lib/forge-std/src/console.sol";
+import {SapienTrust} from "src/SapienTrust.sol";
+import {ValidationOracle} from "src/ValidationOracle.sol";
+import {SapienCore} from "src/SapienCore.sol";
+import {SapienVault} from "src/SapienVault.sol";
+import {SqrtStakeConsensus} from "src/consensus/SqrtStakeConsensus.sol";
+import {UPDATER_ROLE, LOCKER_ROLE} from "src/interface/ISharedTypes.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 /**
@@ -64,12 +61,9 @@ contract DeployProtocol is Script {
         core = SapienCore(address(new ERC1967Proxy(address(coreImpl), coreInit)));
         console.log("SapienCore deployed at:", address(core));
 
-        // 4. Register Algorithms in Oracle
-        console.log("Registering Algorithms...");
-        oracle.registerAlgorithm("LinearStake", address(new LinearStakeConsensus()));
-        oracle.registerAlgorithm("CappedLinear", address(new CappedLinearConsensus()));
+        // 4. Register Algorithm in Oracle
+        console.log("Registering Algorithm...");
         oracle.registerAlgorithm("SqrtStake", address(new SqrtStakeConsensus()));
-        oracle.registerAlgorithm("Hybrid", address(new HybridConsensus()));
 
         // 5. Setup Permissions
         console.log("Setting up permissions...");

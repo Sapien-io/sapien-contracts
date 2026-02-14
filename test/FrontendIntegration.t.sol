@@ -14,7 +14,7 @@ import {ValidationOracle} from "../src/ValidationOracle.sol";
 import {Rewards} from "../src/Rewards.sol";
 
 // Consensus algorithms
-import {LinearStakeConsensus} from "../src/consensus/LinearStakeConsensus.sol";
+import {SqrtStakeConsensus} from "../src/consensus/SqrtStakeConsensus.sol";
 
 // Interfaces
 import {ISapienCore} from "../src/interface/ISapienCore.sol";
@@ -89,15 +89,15 @@ contract FrontendIntegrationTest is Test {
         console.log("Rewards deployed at:", address(rewards));
 
         // Deploy consensus algorithm first (needed for oracle init)
-        LinearStakeConsensus linearConsensus = new LinearStakeConsensus();
-        console.log("LinearStakeConsensus deployed at:", address(linearConsensus));
+        SqrtStakeConsensus sqrtConsensus = new SqrtStakeConsensus();
+        console.log("SqrtStakeConsensus deployed at:", address(sqrtConsensus));
 
         // Deploy ValidationOracle
         // Parameters: trust, vault, defaultAlgorithmName, admin
         ValidationOracle oracleImpl = new ValidationOracle();
         ERC1967Proxy oracleProxy = new ERC1967Proxy(
             address(oracleImpl),
-            abi.encodeCall(ValidationOracle.initialize, (address(trust), address(vault), "linear", admin))
+            abi.encodeCall(ValidationOracle.initialize, (address(trust), address(vault), "SqrtStake", admin))
         );
         ValidationOracle oracle = ValidationOracle(address(oracleProxy));
         console.log("ValidationOracle deployed at:", address(oracle));
@@ -128,8 +128,8 @@ contract FrontendIntegrationTest is Test {
         console.log("Rewards: setCore() - linked core contract");
 
         // 2.2 Register consensus algorithm (default was set in initialize)
-        oracle.registerAlgorithm("linear", address(linearConsensus));
-        console.log("Oracle: registerAlgorithm('linear') - registered consensus algorithm");
+        oracle.registerAlgorithm("SqrtStake", address(sqrtConsensus));
+        console.log("Oracle: registerAlgorithm('SqrtStake') - registered consensus algorithm");
 
         // 2.4 Grant required roles for inter-contract communication
         trust.grantRole(UPDATER_ROLE, address(oracle));

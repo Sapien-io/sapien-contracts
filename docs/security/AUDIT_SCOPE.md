@@ -46,10 +46,7 @@ Sapien Proof-of-Quality (PoQ) Protocol is an open protocol for verifiable, conse
 | 4 | `SapienVault` | `src/SapienVault.sol` | 329 | 167 | Medium |
 | 5 | `SapienTrust` | `src/SapienTrust.sol` | 323 | 137 | Low-Medium |
 | 6 | `ConsensusLib` | `src/libraries/ConsensusLib.sol` | 279 | 148 | Medium |
-| 7 | `HybridConsensus` | `src/consensus/HybridConsensus.sol` | 96 | 64 | Medium |
-| 8 | `CappedLinearConsensus` | `src/consensus/CappedLinearConsensus.sol` | 141 | 71 | Medium |
-| 9 | `LinearStakeConsensus` | `src/consensus/LinearStakeConsensus.sol` | 70 | 39 | Low |
-| 10 | `SqrtStakeConsensus` | `src/consensus/SqrtStakeConsensus.sol` | 64 | 39 | Low |
+| 7 | `SqrtStakeConsensus` | `src/consensus/SqrtStakeConsensus.sol` | 64 | 39 | Low |
 
 **Interfaces (define structs, events, errors — auditor should review for completeness):**
 
@@ -89,9 +86,6 @@ SapienCore (central coordinator)
     ├── SapienVault (stake operations)
     ├── Rewards (reward distribution)
     └── Consensus Algorithms (pluggable, registered on Oracle)
-            ├── HybridConsensus (default)
-            ├── CappedLinearConsensus
-            ├── LinearStakeConsensus
             └── SqrtStakeConsensus
 ```
 
@@ -160,18 +154,9 @@ Reputation and identity management:
 
 **Security surface:** No reentrancy guard (no external calls beyond reads), role-based updates, timestamp-based decay calculations.
 
-#### Consensus Algorithms (213 nSLOC combined) — MEDIUM COMPLEXITY
+#### Consensus Algorithms — MEDIUM COMPLEXITY
 
-Four pluggable consensus implementations sharing a common library:
-
-| Algorithm | Weight Formula | Cap | Security Grade |
-|-----------|---------------|-----|----------------|
-| **HybridConsensus** | `min(sqrt(stake) × reputation, 30% cap)` | 30% | A- |
-| **CappedLinearConsensus** | `min(stake × reputation, cap)` | Configurable | B+ |
-| **LinearStakeConsensus** | `stake × reputation` | None | C+ |
-| **SqrtStakeConsensus** | `sqrt(stake) × reputation` | None | B |
-
-All algorithms use `ConsensusLib` for shared calculations:
+**SqrtStakeConsensus** uses square root stake weighting (`weight = sqrt(stake)`). It uses `ConsensusLib` for shared calculations:
 - Weighted average computation
 - Standard deviation calculation
 - Outlier identification (>1.5 σ deviation → slash)
@@ -323,7 +308,7 @@ The repository includes extensive documentation in `docs/`:
 
 - **Architecture Overview** — System design, participant roles, contract hierarchy
 - **Component Docs** — Per-contract detailed documentation
-- **Consensus Algorithms** — Mathematical specifications for all four algorithms
+- **Consensus Algorithms** — Mathematical specifications for SqrtStakeConsensus
 - **Participant Guides** — Step-by-step flows for originators, contributors, validators
 - **Security Overview** — Known threat model and mitigations
 - **White Paper** — Available at `notes/paper/whitepaper.pdf`

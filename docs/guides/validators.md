@@ -17,9 +17,10 @@ Call `ValidationOracle.setValidatorCapacity(amount)`.
 - You only need to do this once (or when you want to change your commitment level).
 
 ### Step 2: Claim Task Slots
-Call `ValidationOracle.claimToValidate(projectId, quantity)`.
-- This reserves a `quantity` of tasks from the project's pending queue.
-- You have a limited time (default 1 hour) to submit your commits for these slots.
+Call `ValidationOracle.claimToValidate(projectId)`.
+- Each call claims a single validation assignment from the project's pending queue.
+- You have a limited time (default 1 hour) to submit your commit for this slot.
+- You can have up to 3 active claims per project.
 
 ### Step 3: Commit Your Scores
 Review the work via the validator interface and decide on a score (0-10000).

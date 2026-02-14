@@ -8,7 +8,7 @@ The Sapien PoQ protocol is built on the principle of **Economic Security**. We u
 All active participants must lock SAPIEN tokens in the `SapienVault`. This creates a tangible cost for malicious behavior and ensures that participants are economically aligned with the protocol's success.
 
 ### 2. Proof of Quality (Reputation)
-Reputation is not just a badge; it is a functional component of the consensus engine. In algorithms like **Hybrid Consensus**, your historical accuracy (PoQ score) directly increases your voting power, while a history of outlier behavior reduces it.
+Reputation is not just a badge; it is a functional component of the protocol. Your historical accuracy (PoQ score) and contribution quality affect your standing, while a history of outlier behavior as a validator reduces your reputation.
 
 ### 3. Commit-Reveal
 The `ValidationOracle` enforces a commit-reveal process for all judgments. This prevents:
@@ -16,17 +16,17 @@ The `ValidationOracle` enforces a commit-reveal process for all judgments. This 
 - **Copy-Pasting**: Lazy validators mirroring the work of others without actually reviewing the task.
 
 ### 4. Slashing Mechanisms
-Slashing is used to penalize three specific types of bad behavior:
-- **Poor Quality (Contributors)**: If work is rejected by consensus, the contributor loses stake proportional to the quality gap.
-- **Outlier Judging (Validators)**: If a validator's score is a statistical outlier, they are slashed to discourage lazy or malicious voting.
-- **Non-Performance**: Failure to fulfill a claim or reveal a commit leads to stake forfeiture.
+Slashing is used to penalize specific types of bad behavior:
+- **Claim Expiration (Contributors)**: If a contributor claims slots but fails to submit work before the deadline, they are slashed for the unfulfilled portion. Rejected contributions are **not** slashed — the index is re-queued for another contributor.
+- **Outlier Judging (Validators)**: If a validator's score is a statistical outlier, they are slashed proportionally based on deviation severity (10% to 100%).
+- **Non-Performance (Validators)**: Failure to commit after claiming a validation slot or failure to reveal after committing leads to stake forfeiture.
 
 ## 🐳 Whale and Sybil Resistance
 
 ### Whale Protection
 Large token holders are prevented from dominating consensus through:
-- **Quadratic Weighting**: `sqrt(stake)` reduces the power of large amounts.
-- **Hard Caps**: No single validator can account for more than 30% of a committee's total weight.
+- **Quadratic Weighting**: `sqrt(stake)` reduces the power of large amounts (22% reduction in whale power vs linear weighting).
+- **Weight Capping (Available)**: `ConsensusLib` provides an `applyCap` function that can limit any single validator's weight as a percentage of the total. Custom consensus algorithms can use this for additional protection.
 
 ### Sybil Resistance
 Attacking the protocol with multiple small accounts is mitigated by:

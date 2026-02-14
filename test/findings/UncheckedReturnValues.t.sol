@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 import {BaseTest} from "../BaseTest.t.sol";
 import {console} from "lib/forge-std/src/console.sol";
 import {ORIGINATOR_ROLE, CONTRIBUTOR_ROLE, VALIDATOR_ROLE} from "../../src/interface/ISharedTypes.sol";
-import {LinearStakeConsensus} from "../../src/consensus/LinearStakeConsensus.sol";
+import {SqrtStakeConsensus} from "../../src/consensus/SqrtStakeConsensus.sol";
 
 /**
  * @title UncheckedReturnValuesTest
@@ -161,7 +161,7 @@ contract UncheckedReturnValuesTest is BaseTest {
 
         // Valid call should succeed
         vm.startPrank(admin);
-        oracle.registerAlgorithm("TestAlgo", address(new LinearStakeConsensus()));
+        oracle.registerAlgorithm("TestAlgo", address(new SqrtStakeConsensus()));
         vm.stopPrank();
     }
 

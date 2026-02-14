@@ -29,10 +29,10 @@ These functions can only be called by the `SapienCore` contract:
 ### User Functions
 
 #### `claimRewards` / `claimAllRewards`
-Allows a contributor to withdraw their earned rewards. `claimAllRewards` is a batch function that handles multiple projects in a single transaction, saving gas for active contributors.
+Allows a contributor to withdraw their earned rewards. Both functions accept optional `feeRecipient` and `feeBps` parameters to enable dapp operators to collect a fee on claims (max governed by `maxFeeBps`, default 4%). `claimAllRewards` is a batch function that handles multiple projects in a single transaction, saving gas for active contributors.
 
 #### `claimValidatorRewards` / `claimAllValidatorRewards`
-Allows a validator to withdraw their earnings. Similarly, `claimAllValidatorRewards` allows for batch claiming across multiple projects.
+Allows a validator to withdraw their earnings with the same optional fee parameters. `claimAllValidatorRewards` allows for batch claiming across multiple projects.
 
 ## 📊 View Functions
 

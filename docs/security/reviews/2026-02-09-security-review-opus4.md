@@ -253,11 +253,9 @@ Or use a two-step ownership transfer pattern with a timelock.
 
 ---
 
-### [INFORMATIONAL] I-2: HybridConsensus Missing Reputation Floor
+### [INFORMATIONAL] I-2: ~~HybridConsensus Missing Reputation Floor~~ (N/A — Removed)
 
-**Location**: `HybridConsensus.sol:66`
-
-`HybridConsensus._calculateInitialWeights` computes `repWeight = (sqrtStake * reputation) / 10000` without applying `ConsensusLib.MIN_REPUTATION_FLOOR`. For very small stakes, this can round to zero weight. While `SapienTrust` enforces `MIN_REPUTATION = 500`, the consensus algorithm doesn't validate this, unlike `CappedLinearConsensus` which uses `calculateBaseWeight` with a floor.
+*HybridConsensus and CappedLinearConsensus have been removed from the protocol. SqrtStakeConsensus uses sqrt(stake) weighting only.*
 
 ---
 
@@ -300,10 +298,7 @@ The validation queue creates `numberOfValidations` entries per contribution inde
 - [x] `SapienVault.sol` — ERC-4626 staking, locking, slashing, transfer restrictions
 - [x] `SapienTrust.sol` — Reputation decay, skill validation, role-based stake checks
 - [x] `Rewards.sol` — Reward allocation, distribution, claiming, operator fees
-- [x] `ConsensusLib.sol` — Weighted average, std dev, outlier detection, weight capping, sqrt
-- [x] `CappedLinearConsensus.sol` — Stake × reputation with 30% cap
-- [x] `HybridConsensus.sol` — sqrt(stake) × reputation with 30% cap
-- [x] `LinearStakeConsensus.sol` — Linear stake weighting
+- [x] `ConsensusLib.sol` — Weighted average, std dev, outlier detection, sqrt
 - [x] `SqrtStakeConsensus.sol` — Square root stake weighting
 - [x] All 7 interface files (`ISharedTypes`, `ISapienCore`, `ISapienTrust`, `ISapienVault`, `IRewards`, `IValidationOracle`, `IConsensusAlgorithm`)
 
