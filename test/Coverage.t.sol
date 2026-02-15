@@ -26,6 +26,7 @@ import {
     PAUSER_ROLE,
     UPDATER_ROLE,
     SAPIEN_CORE_ROLE,
+    UNAUTHORIZED_SKILL_COOLDOWN,
     ISharedTypes
 } from "../src/interface/ISharedTypes.sol";
 import {IValidationOracle} from "../src/interface/IValidationOracle.sol";
@@ -388,6 +389,40 @@ contract CoverageTest is BaseTest {
         trust.setReputationDecay(10001);
     }
 
+    // SapienTrust: setupProtocolRoles and ProtocolRolesAlreadyConfigured
+    function test_TrustSetupProtocolRoles() public {
+        vm.prank(admin);
+        trust.setupProtocolRoles(address(core), address(oracle));
+
+        vm.prank(admin);
+        vm.expectRevert(ISapienTrust.ProtocolRolesAlreadyConfigured.selector);
+        trust.setupProtocolRoles(address(core), address(oracle));
+    }
+
+    function test_TrustSetupProtocolRoles_ZeroAddress() public {
+        vm.prank(admin);
+        vm.expectRevert(ISapienTrust.InvalidAddress.selector);
+        trust.setupProtocolRoles(address(0), address(oracle));
+
+        vm.prank(admin);
+        vm.expectRevert(ISapienTrust.InvalidAddress.selector);
+        trust.setupProtocolRoles(address(core), address(0));
+    }
+
+    // SapienTrust: validateSkill cooldown (UNAUTHORIZED_SKILL_COOLDOWN)
+    function test_TrustValidateSkill_CooldownRevert() public {
+        vm.prank(admin);
+        trust.grantRole(UPDATER_ROLE, admin);
+
+        vm.prank(admin);
+        trust.validateSkill(contributor, "Solidity");
+
+        // Try again within cooldown (1 day)
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(ISharedTypes.Unauthorized.selector, UNAUTHORIZED_SKILL_COOLDOWN));
+        trust.validateSkill(contributor, "Solidity");
+    }
+
     // ============================================
     // SapienVault: constructor, pause/unpause, transferFrom
     // ============================================
@@ -615,6 +650,69 @@ contract CoverageTest is BaseTest {
     }
 
     // ============================================
+    // ValidationOracle: reveal revert paths
+    // ============================================
+
+    function test_OracleReveal_InvalidCommitHash() public {
+        _setupProjectAndContribution();
+
+        uint256 score = 8000;
+        uint256 stake = 100 ether;
+        bytes32 salt = keccak256(abi.encodePacked("correct"));
+        bytes32 commitHash = keccak256(abi.encodePacked(score, stake, salt));
+
+        vm.prank(validator1);
+        uint256 claimId = oracle.claimToValidate(PID);
+        vm.prank(validator1);
+        oracle.commitValidationWithStake(PID, claimId, 0, stake, commitHash);
+
+        // Reveal with wrong score (hash won't match)
+        vm.warp(block.timestamp + 2 hours);
+        vm.prank(validator1);
+        vm.expectRevert(IValidationOracle.InvalidCommitHash.selector);
+        oracle.revealValidation(PID, 0, 7000, salt);
+    }
+
+    function test_OracleReveal_ScoreOver10000() public {
+        _setupProjectAndContribution();
+
+        uint256 score = 10001;
+        uint256 stake = 100 ether;
+        bytes32 salt = keccak256(abi.encodePacked("salt"));
+        bytes32 commitHash = keccak256(abi.encodePacked(score, stake, salt));
+
+        vm.prank(validator1);
+        uint256 claimId = oracle.claimToValidate(PID);
+        vm.prank(validator1);
+        oracle.commitValidationWithStake(PID, claimId, 0, stake, commitHash);
+
+        vm.warp(block.timestamp + 2 hours);
+        vm.prank(validator1);
+        vm.expectRevert(abi.encodeWithSelector(IConsensusAlgorithm.InvalidScore.selector, score));
+        oracle.revealValidation(PID, 0, score, salt);
+    }
+
+    function test_OracleReveal_DeadlinePassed() public {
+        _setupProjectAndContribution();
+
+        uint256 score = 8000;
+        uint256 stake = 100 ether;
+        bytes32 salt = keccak256(abi.encodePacked("salt"));
+        bytes32 commitHash = keccak256(abi.encodePacked(score, stake, salt));
+
+        vm.prank(validator1);
+        uint256 claimId = oracle.claimToValidate(PID);
+        vm.prank(validator1);
+        oracle.commitValidationWithStake(PID, claimId, 0, stake, commitHash);
+
+        // Warp past reveal deadline (default 3 days)
+        vm.warp(block.timestamp + 4 days);
+        vm.prank(validator1);
+        vm.expectRevert();
+        oracle.revealValidation(PID, 0, score, salt);
+    }
+
+    // ============================================
     // ValidationOracle: reveal fallback for legacy commits (line 570-573)
     // ============================================
 
@@ -795,6 +893,46 @@ contract CoverageTest is BaseTest {
         weights[2] = 0;
         uint256[] memory result = libHarness.applyCap(weights, 3000);
         assertEq(result[0], 0);
+    }
+
+    // ConsensusLib: calculateSlashAmount - all sigma brackets (sigmaMultiple = deviation*100/stdDev)
+    function test_ConsensusLib_SlashAmount_AllSigmaBrackets() public view {
+        uint256 stake = 100 ether;
+        uint256 stdDev = 100;
+        // sigmaMultiple > 499 -> 100% slash (500*100/100=500)
+        assertEq(libHarness.calculateSlashAmount(stake, 500, stdDev), 100 ether);
+        // sigmaMultiple 400-499 -> 75% slash (450*100/100=450)
+        assertEq(libHarness.calculateSlashAmount(stake, 450, stdDev), 75 ether);
+        // sigmaMultiple 300-399 -> 50% slash (350*100/100=350)
+        assertEq(libHarness.calculateSlashAmount(stake, 350, stdDev), 50 ether);
+        // sigmaMultiple 200-299 -> 25% slash (250*100/100=250)
+        assertEq(libHarness.calculateSlashAmount(stake, 250, stdDev), 25 ether);
+        // sigmaMultiple 150-199 -> 10% slash (160*100/100=160)
+        assertEq(libHarness.calculateSlashAmount(stake, 160, stdDev), 10 ether);
+        // sigmaMultiple <= 149 -> 0 slash (100*100/100=100)
+        assertEq(libHarness.calculateSlashAmount(stake, 100, stdDev), 0);
+    }
+
+    // ConsensusLib: applyCap with maxAllowed=0 branch (maxBps=0 -> weights clamped to 1)
+    function test_ConsensusLib_ApplyCap_MaxAllowedZero() public view {
+        uint256[] memory weights = new uint256[](2);
+        weights[0] = 100;
+        weights[1] = 200;
+        uint256[] memory result = libHarness.applyCap(weights, 0);
+        assertEq(result[0], 1);
+        assertEq(result[1], 1);
+    }
+
+    // ConsensusLib: applyCap multiple iterations
+    function test_ConsensusLib_ApplyCap_MultipleIterations() public view {
+        // 3 validators: one whale at 90%, cap at 50%. First iter clamps whale to 50%, total changes,
+        // second validator may now exceed cap
+        uint256[] memory weights = new uint256[](3);
+        weights[0] = 900; // 90%
+        weights[1] = 50;
+        weights[2] = 50;
+        uint256[] memory result = libHarness.applyCap(weights, 5000); // 50% cap
+        assertTrue(result[0] <= 500); // should be capped
     }
 
     // Test effective stdDev branches: deviation > 5000 with eff < 600

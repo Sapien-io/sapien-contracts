@@ -34,18 +34,14 @@ import {
  *      Hierarchy: Oracle -> Trust -> Vault. No dependency on SapienCore.
  */
 contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgradeable, ReentrancyGuardUpgradeable {
-    // ============================================
-    // STATE VARIABLES
-    // ============================================
 
-    /// @notice The SapienTrust contract for reputation and role checks
-    ISapienTrust public trust;
-
-    /// @notice The SapienVault contract for staking operations
-    ISapienVault public vault;
-
-    /// @notice Global default reveal deadline in seconds (time validators have to reveal after commit)
-    uint256 public revealDeadline;
+    function _getValidationOracleStorage() private pure returns (ValidationOracleStorage storage $) {
+        bytes32 slot =
+            keccak256(abi.encode(uint256(keccak256("sapien.storage.ValidationOracle")) - 1)) & ~bytes32(uint256(0xff));
+        assembly {
+            $.slot := slot
+        }
+    }
 
     /// @notice Duration for validation claim deadline (1 hour)
     uint256 public constant CLAIM_DURATION = 1 hours;
@@ -60,55 +56,6 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
     /// @notice Maximum active validation claims per validator per project (F-10 fix)
     /// @dev Prevents a single validator from monopolizing the validation queue
     uint256 public constant MAX_ACTIVE_VALIDATOR_CLAIMS_PER_PROJECT = 3;
-
-    // Algorithm Registry
-    /// @notice Mapping from algorithm name hash to algorithm implementation address
-    /// @dev algorithmNameHash => implementation address
-    mapping(bytes32 => address) public algorithms;
-
-    /// @notice Default algorithm identifier used when project doesn't specify one
-    bytes32 public defaultAlgorithm;
-
-    // Consolidated State Mappings
-    /// @notice Project-specific settings and configuration
-    /// @dev projectId => ProjectSettings struct
-    mapping(bytes32 => ProjectSettings) public projectSettings;
-
-    /// @notice Contribution state tracking
-    /// @dev projectId => contributionIndex => ContributionState struct
-    mapping(bytes32 => mapping(uint256 => ContributionState)) public contributionStates;
-
-    /// @notice Validator state including capacity and in-flight stake
-    /// @dev validator => ValidatorState struct
-    mapping(address => ValidatorState) public validatorStates;
-
-    /// @notice Assignment state for validators assigned to contributions
-    /// @dev projectId => contributionIndex => validator => AssignmentState struct
-    mapping(bytes32 => mapping(uint256 => mapping(address => AssignmentState))) private assignments;
-
-    /// @notice Queue of pending validation slots (FIFO)
-    /// @dev projectId => queueIndex => contributionIndex
-    mapping(bytes32 => mapping(uint256 => uint256)) public pendingQueue;
-
-    // Validation Storage (kept separate as they are the core data)
-    /// @notice Validation claims by validators
-    /// @dev projectId => claimId => ValidationClaim struct
-    mapping(bytes32 => mapping(uint256 => ValidationClaim)) public validationClaims;
-
-    /// @notice Validation commits (internal - use getValidationCommits() to access)
-    /// @dev projectId => contributionIndex => ValidationCommit[] array
-    mapping(bytes32 => mapping(uint256 => ValidationCommit[])) internal validationCommits;
-
-    /// @notice Revealed validations for contributions
-    /// @dev projectId => contributionIndex => Validation[] array
-    mapping(bytes32 => mapping(uint256 => Validation[])) public validations;
-
-    /// @notice Active validation claim count per validator per project (F-10 fix)
-    /// @dev projectId => validator => activeClaimCount
-    mapping(bytes32 => mapping(address => uint256)) internal validatorActiveClaimsPerProject;
-
-    // Storage gap for future upgrades (14 own slots + 36 gap = 50)
-    uint256[36] private __gap;
 
     // ============================================
     // MODIFIERS
@@ -148,11 +95,11 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         __ReentrancyGuard_init();
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
 
-        trust = ISapienTrust(_trust);
-        vault = ISapienVault(_vault);
-
-        defaultAlgorithm = keccak256(abi.encodePacked(_defaultAlgorithmName));
-        revealDeadline = 3 days; // Default to 3 days
+        ValidationOracleStorage storage $ = _getValidationOracleStorage();
+        $.trust = ISapienTrust(_trust);
+        $.vault = ISapienVault(_vault);
+        $.defaultAlgorithm = keccak256(abi.encodePacked(_defaultAlgorithmName));
+        $.revealDeadline = 3 days; // Default to 3 days
     }
 
     // ============================================
@@ -170,7 +117,8 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         external
         onlyCoreOrAdmin
     {
-        ContributionState storage cState = contributionStates[projectId][contributionIndex];
+        ValidationOracleStorage storage $ = _getValidationOracleStorage();
+        ContributionState storage cState = $.contributionStates[projectId][contributionIndex];
 
         // F-05/F-08 fix: Increment nonce to invalidate stale commits/validations from previous
         // submission cycles. This replaces expensive array deletions with O(1) nonce-based filtering.
@@ -178,11 +126,11 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         cState.submittedAt = submittedAt;
         cState.activeClaimCount = 0;
 
-        uint256 numValidations = projectSettings[projectId].numberOfValidations;
+        uint256 numValidations = $.projectSettings[projectId].numberOfValidations;
         if (numValidations == 0) numValidations = 3; // Default fallback
-        ProjectSettings storage settings = projectSettings[projectId];
+        ProjectSettings storage settings = $.projectSettings[projectId];
         for (uint256 i = 0; i < numValidations; ++i) {
-            pendingQueue[projectId][settings.queueTail] = contributionIndex;
+            $.pendingQueue[projectId][settings.queueTail] = contributionIndex;
             ++settings.queueTail;
         }
     }
@@ -195,10 +143,11 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @return claimId Unique identifier for the created validation claim
      */
     function claimToValidate(bytes32 projectId) external returns (uint256 claimId) {
-        trust.hasEnoughStakeForRole(msg.sender, VALIDATOR_ROLE);
+        ValidationOracleStorage storage $ = _getValidationOracleStorage();
+        $.trust.hasEnoughStakeForRole(msg.sender, VALIDATOR_ROLE);
 
         uint256 requiredStake = _getRequiredValidatorStake(projectId);
-        ValidatorState storage vState = validatorStates[msg.sender];
+        ValidatorState storage vState = $.validatorStates[msg.sender];
 
         // Calculate available capacity (accounting for in-flight stake)
         uint256 availableCapacity = vState.capacity > vState.inFlightStake ? vState.capacity - vState.inFlightStake : 0;
@@ -209,24 +158,24 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         }
 
         // Check for required skill
-        ProjectSettings storage settings = projectSettings[projectId];
+        ProjectSettings storage settings = $.projectSettings[projectId];
         string memory requiredSkill = settings.requiredSkill;
         if (bytes(requiredSkill).length > 0) {
-            if (!trust.hasValidatedSkill(msg.sender, requiredSkill)) {
+            if (!$.trust.hasValidatedSkill(msg.sender, requiredSkill)) {
                 revert MissingRequiredSkill(msg.sender, requiredSkill);
             }
         }
 
         // Check for minimum reputation requirement (eligibility tier)
         if (settings.minValidatorReputation > 0) {
-            uint256 validatorRep = trust.getTrustScore(msg.sender, VALIDATOR_ROLE);
+            uint256 validatorRep = $.trust.getTrustScore(msg.sender, VALIDATOR_ROLE);
             if (validatorRep < settings.minValidatorReputation) {
                 revert InsufficientValidatorReputation(msg.sender, settings.minValidatorReputation, validatorRep);
             }
         }
 
         // F-10 fix: Enforce per-validator claim limit to prevent queue monopolization
-        if (validatorActiveClaimsPerProject[projectId][msg.sender] >= MAX_ACTIVE_VALIDATOR_CLAIMS_PER_PROJECT) {
+        if ($.validatorActiveClaimsPerProject[projectId][msg.sender] >= MAX_ACTIVE_VALIDATOR_CLAIMS_PER_PROJECT) {
             revert MaxValidatorClaimsPerProjectExceeded(msg.sender, projectId, MAX_ACTIVE_VALIDATOR_CLAIMS_PER_PROJECT);
         }
 
@@ -235,7 +184,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         if (available == 0) revert AllValidationsClaimed(projectId);
 
         // F-10: Increment active claim count
-        ++validatorActiveClaimsPerProject[projectId][msg.sender];
+        ++$.validatorActiveClaimsPerProject[projectId][msg.sender];
 
         claimId = settings.nextValidationClaimId;
         ++settings.nextValidationClaimId;
@@ -245,10 +194,10 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         uint256 quantity = 1;
 
         // Assign single index from queue
-        uint256 index = pendingQueue[projectId][settings.queueHead];
+        uint256 index = $.pendingQueue[projectId][settings.queueHead];
         ++settings.queueHead;
 
-        validationClaims[projectId][claimId] = ValidationClaim({
+        _getValidationOracleStorage().validationClaims[projectId][claimId] = ValidationClaim({
             validator: msg.sender,
             quantity: quantity,
             contributionIndex: index, // Fix: Store the contribution index
@@ -258,7 +207,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
             status: ClaimStatus.Active
         });
 
-        AssignmentState storage assignment = assignments[projectId][index][msg.sender];
+        AssignmentState storage assignment = _getValidationOracleStorage().assignments[projectId][index][msg.sender];
         assignment.deadline = deadline;
         assignment.hasCommitted = false;
         assignment.committedStake = 0;
@@ -273,9 +222,9 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @param amount The total amount of SAPIEN to lock for validation capacity
      */
     function setValidatorCapacity(uint256 amount) external nonReentrant {
-        trust.hasEnoughStakeForRole(msg.sender, VALIDATOR_ROLE);
+        _getValidationOracleStorage().trust.hasEnoughStakeForRole(msg.sender, VALIDATOR_ROLE);
 
-        ValidatorState storage vState = validatorStates[msg.sender];
+        ValidatorState storage vState = _getValidationOracleStorage().validatorStates[msg.sender];
         uint256 currentCapacity = vState.capacity;
         if (amount == currentCapacity) revert CapacityUnchanged(currentCapacity);
 
@@ -286,14 +235,14 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         if (amount > currentCapacity) {
             uint256 diff = amount - currentCapacity;
             // Check that validator has enough available stake to lock
-            uint256 availableStake = vault.getAvailableStake(msg.sender);
+            uint256 availableStake = _getValidationOracleStorage().vault.getAvailableStake(msg.sender);
             if (diff > availableStake) revert Unauthorized(UNAUTHORIZED_INSUFFICIENT_AVAILABLE_STAKE);
-            vault.lockStake(msg.sender, diff, "increase_capacity");
+            _getValidationOracleStorage().vault.lockStake(msg.sender, diff, "increase_capacity");
         } else {
             // Check if reducing capacity below in-flight stake
             if (amount < vState.inFlightStake) revert Unauthorized(UNAUTHORIZED_CANNOT_REDUCE_BELOW_INFLIGHT);
             uint256 diff = currentCapacity - amount;
-            vault.unlockStake(msg.sender, diff, "decrease_capacity");
+            _getValidationOracleStorage().vault.unlockStake(msg.sender, diff, "decrease_capacity");
         }
         emit ValidatorCapacityUpdated(msg.sender, currentCapacity, amount);
     }
@@ -304,7 +253,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @return count Number of pending validation slots
      */
     function getPendingValidationCount(bytes32 projectId) external view returns (uint256) {
-        ProjectSettings storage settings = projectSettings[projectId];
+        ProjectSettings storage settings = _getValidationOracleStorage().projectSettings[projectId];
         return settings.queueTail - settings.queueHead;
     }
 
@@ -314,7 +263,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @return available The amount of capacity available for new validations
      */
     function getAvailableCapacity(address validator) external view returns (uint256) {
-        ValidatorState storage vState = validatorStates[validator];
+        ValidatorState storage vState = _getValidationOracleStorage().validatorStates[validator];
         uint256 capacity = vState.capacity;
         uint256 inFlight = vState.inFlightStake;
         return capacity > inFlight ? capacity - inFlight : 0;
@@ -332,7 +281,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         view
         returns (bool)
     {
-        uint256 deadline = assignments[projectId][contributionIndex][validator].deadline;
+        uint256 deadline = _getValidationOracleStorage().assignments[projectId][contributionIndex][validator].deadline;
         return deadline > 0 && block.timestamp <= deadline;
     }
 
@@ -355,7 +304,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @param claimId Unique identifier for the claim
      */
     function cancelExpiredValidationClaim(bytes32 projectId, uint256 claimId) external nonReentrant {
-        ValidationClaim storage claim = validationClaims[projectId][claimId];
+        ValidationClaim storage claim = _getValidationOracleStorage().validationClaims[projectId][claimId];
         if (claim.status != ClaimStatus.Active) revert NoClaimAvailable();
 
         if (block.timestamp <= claim.deadline && msg.sender != claim.validator) {
@@ -369,15 +318,15 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         claim.status = ClaimStatus.Expired;
 
         // F-10: Release claim slot on expiry
-        if (validatorActiveClaimsPerProject[projectId][claim.validator] > 0) {
-            --validatorActiveClaimsPerProject[projectId][claim.validator];
+        if (_getValidationOracleStorage().validatorActiveClaimsPerProject[projectId][claim.validator] > 0) {
+            --_getValidationOracleStorage().validatorActiveClaimsPerProject[projectId][claim.validator];
         }
 
         if (uncommittedCount > 0) {
             uint256 stakePerValidation = _getRequiredValidatorStake(projectId);
             uint256 totalSlashAmount = uncommittedCount * stakePerValidation;
 
-            ValidatorState storage vState = validatorStates[claim.validator];
+            ValidatorState storage vState = _getValidationOracleStorage().validatorStates[claim.validator];
 
             // CEI Pattern: Effects (state changes) before Interactions (external calls)
             // Reduce capacity by the slashed amount
@@ -388,16 +337,16 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
             }
 
             // Re-queue the contribution index (Liveness Fix)
-            ProjectSettings storage settings = projectSettings[projectId];
-            pendingQueue[projectId][settings.queueTail] = claim.contributionIndex;
+            ProjectSettings storage settings = _getValidationOracleStorage().projectSettings[projectId];
+            _getValidationOracleStorage().pendingQueue[projectId][settings.queueTail] = claim.contributionIndex;
             ++settings.queueTail;
 
             // Interactions (external calls) after state changes
             // Slash from vault (stake is already locked)
-            vault.slash(claim.validator, totalSlashAmount, projectId);
+            _getValidationOracleStorage().vault.slash(claim.validator, totalSlashAmount, projectId);
 
             // Update reputation for not fulfilling obligations
-            trust.updateReputation(claim.validator, VALIDATOR_ROLE, false, 0);
+            _getValidationOracleStorage().trust.updateReputation(claim.validator, VALIDATOR_ROLE, false, 0);
 
             emit ValidatorSlashedForExpiredClaim(projectId, claimId, claim.validator, totalSlashAmount);
         }
@@ -516,25 +465,26 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         uint256 stakeAmount,
         bytes32 commitHash
     ) internal {
-        ValidationClaim storage claim = validationClaims[projectId][claimId];
+        ValidationClaim storage claim = _getValidationOracleStorage().validationClaims[projectId][claimId];
         if (claim.validator != msg.sender) revert Unauthorized(UNAUTHORIZED_NOT_CLAIM_OWNER);
         if (claim.status != ClaimStatus.Active) revert ClaimNotActive(claimId);
         if (block.timestamp > claim.deadline) revert ClaimAlreadyExpired(claimId, claim.deadline);
 
         // Verify assignment
-        AssignmentState storage assignment = assignments[projectId][contributionIndex][msg.sender];
+        AssignmentState storage assignment =
+            _getValidationOracleStorage().assignments[projectId][contributionIndex][msg.sender];
         if (assignment.deadline == 0) revert Unauthorized(UNAUTHORIZED_NO_ASSIGNMENT);
         if (block.timestamp > assignment.deadline) {
             revert ClaimAlreadyExpired(claimId, assignment.deadline);
         }
 
         // 1. Verify Validator Role & Stake
-        trust.hasEnoughStakeForRole(msg.sender, VALIDATOR_ROLE);
+        _getValidationOracleStorage().trust.hasEnoughStakeForRole(msg.sender, VALIDATOR_ROLE);
 
         // Sybil Protection: Originator and Contributor cannot validate
-        ProjectSettings storage settings = projectSettings[projectId];
+        ProjectSettings storage settings = _getValidationOracleStorage().projectSettings[projectId];
         if (msg.sender == settings.originator) revert Unauthorized(UNAUTHORIZED_ORIGINATOR_CANNOT_VALIDATE);
-        if (msg.sender == contributionStates[projectId][contributionIndex].contributor) {
+        if (msg.sender == _getValidationOracleStorage().contributionStates[projectId][contributionIndex].contributor) {
             revert Unauthorized(UNAUTHORIZED_CONTRIBUTOR_CANNOT_VALIDATE);
         }
 
@@ -548,7 +498,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         }
 
         // 4. Check Capacity - validator must have enough available capacity for this stake
-        ValidatorState storage vState = validatorStates[msg.sender];
+        ValidatorState storage vState = _getValidationOracleStorage().validatorStates[msg.sender];
         uint256 availableCapacity = vState.capacity > vState.inFlightStake ? vState.capacity - vState.inFlightStake : 0;
         if (stakeAmount > availableCapacity) {
             revert StakeExceedsCapacity(stakeAmount, availableCapacity);
@@ -558,29 +508,32 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         assignment.hasCommitted = true;
         assignment.committedStake = stakeAmount;
         vState.inFlightStake += stakeAmount;
-        ++contributionStates[projectId][contributionIndex].activeClaimCount;
+        ++_getValidationOracleStorage().contributionStates[projectId][contributionIndex].activeClaimCount;
         ++claim.committedCount;
 
         if (claim.committedCount == claim.quantity) {
             claim.status = ClaimStatus.Fulfilled;
             // F-10: Release claim slot when fulfilled (validator has committed all assigned work)
-            if (validatorActiveClaimsPerProject[projectId][claim.validator] > 0) {
-                --validatorActiveClaimsPerProject[projectId][claim.validator];
+            if (_getValidationOracleStorage().validatorActiveClaimsPerProject[projectId][claim.validator] > 0) {
+                --_getValidationOracleStorage().validatorActiveClaimsPerProject[projectId][claim.validator];
             }
         }
 
         // Snapshot the reveal deadline at commit time to prevent retroactive shortening (M-2 fix)
         uint256 deadlineSnapshot = settings.revealDeadline;
-        if (deadlineSnapshot == 0) deadlineSnapshot = revealDeadline;
+        if (deadlineSnapshot == 0) deadlineSnapshot = _getValidationOracleStorage().revealDeadline;
 
-        validationCommits[projectId][contributionIndex].push(
+        _getValidationOracleStorage()
+        .validationCommits[projectId][contributionIndex].push(
             ValidationCommit({
                 validator: msg.sender,
                 commitHash: commitHash,
                 committedAt: uint64(block.timestamp),
                 revealDeadlineSnapshot: uint64(deadlineSnapshot),
                 revealed: false,
-                nonce: uint64(contributionStates[projectId][contributionIndex].submissionNonce) // F-05: tie commit to submission version
+                nonce: uint64(
+                    _getValidationOracleStorage().contributionStates[projectId][contributionIndex].submissionNonce
+                ) // F-05: tie commit to submission version
             })
         );
 
@@ -638,8 +591,10 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @param salt Salt used in commit
      */
     function _revealValidation(bytes32 projectId, uint256 contributionIndex, uint256 score, bytes32 salt) internal {
-        ValidationCommit[] storage commits = validationCommits[projectId][contributionIndex];
-        uint256 currentNonce = contributionStates[projectId][contributionIndex].submissionNonce;
+        ValidationCommit[] storage commits =
+            _getValidationOracleStorage().validationCommits[projectId][contributionIndex];
+        uint256 currentNonce =
+            _getValidationOracleStorage().contributionStates[projectId][contributionIndex].submissionNonce;
 
         // Find validator's commit (F-05: only match commits from current submission nonce)
         uint256 commitIndex = type(uint256).max;
@@ -659,15 +614,16 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         uint256 deadline = commit.revealDeadlineSnapshot;
         // Fallback for legacy commits that may not have a snapshot
         if (deadline == 0) {
-            ProjectSettings storage settings = projectSettings[projectId];
+            ProjectSettings storage settings = _getValidationOracleStorage().projectSettings[projectId];
             deadline = settings.revealDeadline;
-            if (deadline == 0) deadline = revealDeadline;
+            if (deadline == 0) deadline = _getValidationOracleStorage().revealDeadline;
         }
         if (block.timestamp > commit.committedAt + deadline) {
             revert RevealDeadlinePassed(deadline, block.timestamp - commit.committedAt);
         }
 
-        AssignmentState storage assignment = assignments[projectId][contributionIndex][msg.sender];
+        AssignmentState storage assignment =
+            _getValidationOracleStorage().assignments[projectId][contributionIndex][msg.sender];
         uint256 stakeAmount = assignment.committedStake;
 
         // 2. Verify Commit Hash
@@ -679,7 +635,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         if (score > 10000) revert IConsensusAlgorithm.InvalidScore(score);
 
         // 4. Release in-flight stake (capacity remains locked, but this validation is no longer "in flight")
-        ValidatorState storage vState = validatorStates[msg.sender];
+        ValidatorState storage vState = _getValidationOracleStorage().validatorStates[msg.sender];
         if (vState.inFlightStake < stakeAmount) {
             revert InvalidStakeAmount(); // Underflow protection
         }
@@ -687,7 +643,8 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
 
         // 5. Record Validation
         commit.revealed = true;
-        validations[projectId][contributionIndex].push(
+        _getValidationOracleStorage()
+        .validations[projectId][contributionIndex].push(
             Validation({
                 projectId: projectId,
                 validator: msg.sender,
@@ -718,10 +675,10 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         view
         returns (ConsensusReport memory report)
     {
-        uint256 submittedAt = contributionStates[projectId][contributionIndex].submittedAt;
+        uint256 submittedAt = _getValidationOracleStorage().contributionStates[projectId][contributionIndex].submittedAt;
         if (submittedAt == 0) return report;
 
-        uint256 numberOfValidations = projectSettings[projectId].numberOfValidations;
+        uint256 numberOfValidations = _getValidationOracleStorage().projectSettings[projectId].numberOfValidations;
         (bool ready, uint256 validCount) =
             _checkConsensusReady(projectId, contributionIndex, numberOfValidations, submittedAt);
         if (!ready) {
@@ -803,11 +760,13 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         address[] memory outliers,
         uint256[] memory outlierAmounts
     ) internal view returns (address[] memory toSlash, uint256[] memory slashAmounts) {
-        ValidationCommit[] storage commits = validationCommits[projectId][contributionIndex];
-        ProjectSettings storage settings = projectSettings[projectId];
+        ValidationCommit[] storage commits =
+            _getValidationOracleStorage().validationCommits[projectId][contributionIndex];
+        ProjectSettings storage settings = _getValidationOracleStorage().projectSettings[projectId];
         uint256 deadline = settings.revealDeadline;
-        if (deadline == 0) deadline = revealDeadline;
-        uint256 currentNonce = contributionStates[projectId][contributionIndex].submissionNonce;
+        if (deadline == 0) deadline = _getValidationOracleStorage().revealDeadline;
+        uint256 currentNonce =
+            _getValidationOracleStorage().contributionStates[projectId][contributionIndex].submissionNonce;
 
         // Count expired (F-05: only current-nonce commits)
         uint256 expiredCount = 0;
@@ -833,7 +792,9 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         for (uint256 i = 0; i < commits.length; ++i) {
             if (_isCommitExpired(commits[i], submittedAt, deadline, currentNonce)) {
                 toSlash[idx] = commits[i].validator;
-                slashAmounts[idx] = assignments[projectId][contributionIndex][commits[i].validator].committedStake;
+                slashAmounts[idx] =
+                _getValidationOracleStorage()
+                .assignments[projectId][contributionIndex][commits[i].validator].committedStake;
                 ++idx;
             }
         }
@@ -854,7 +815,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         uint256 numberOfValidations,
         uint256 submittedAt
     ) internal view returns (bool, uint256) {
-        Validation[] storage allVals = validations[projectId][contributionIndex];
+        Validation[] storage allVals = _getValidationOracleStorage().validations[projectId][contributionIndex];
 
         // F-05: Validations are inherently filtered by submittedAt (stale reveals from old nonces
         // have submittedAt < current submittedAt). Nonce filtering is enforced at commit/reveal time.
@@ -887,7 +848,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         uint256 submittedAt,
         uint256 validCount
     ) internal view returns (IConsensusAlgorithm.ValidationInput[] memory) {
-        Validation[] storage allVals = validations[projectId][contributionIndex];
+        Validation[] storage allVals = _getValidationOracleStorage().validations[projectId][contributionIndex];
         IConsensusAlgorithm.ValidationInput[] memory inputs = new IConsensusAlgorithm.ValidationInput[](validCount);
         uint256 inputIdx = 0;
         for (uint256 i = 0; i < allVals.length; ++i) {
@@ -896,7 +857,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
                     validator: allVals[i].validator,
                     score: allVals[i].score,
                     stakeAmount: allVals[i].stakeAmount,
-                    reputation: trust.getTrustScore(allVals[i].validator, VALIDATOR_ROLE)
+                    reputation: _getValidationOracleStorage().trust.getTrustScore(allVals[i].validator, VALIDATOR_ROLE)
                 });
                 ++inputIdx;
             }
@@ -911,7 +872,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @return Array of revealed validation structs
      */
     function getValidations(bytes32 projectId, uint256 contributionIndex) external view returns (Validation[] memory) {
-        return validations[projectId][contributionIndex];
+        return _getValidationOracleStorage().validations[projectId][contributionIndex];
     }
 
     /**
@@ -925,7 +886,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         view
         returns (ValidationCommit[] memory)
     {
-        return validationCommits[projectId][contributionIndex];
+        return _getValidationOracleStorage().validationCommits[projectId][contributionIndex];
     }
 
     /**
@@ -935,7 +896,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @return ValidationClaim struct
      */
     function getValidationClaim(bytes32 projectId, uint256 claimId) external view returns (ValidationClaim memory) {
-        return validationClaims[projectId][claimId];
+        return _getValidationOracleStorage().validationClaims[projectId][claimId];
     }
 
     /**
@@ -944,10 +905,10 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @return IConsensusAlgorithm implementation
      */
     function getAlgorithm(bytes32 projectId) public view returns (IConsensusAlgorithm) {
-        bytes32 algoName = projectSettings[projectId].algorithm;
-        if (algoName == bytes32(0)) algoName = defaultAlgorithm;
+        bytes32 algoName = _getValidationOracleStorage().projectSettings[projectId].algorithm;
+        if (algoName == bytes32(0)) algoName = _getValidationOracleStorage().defaultAlgorithm;
 
-        address impl = algorithms[algoName];
+        address impl = _getValidationOracleStorage().algorithms[algoName];
         if (impl == address(0)) revert InvalidAddress();
 
         return IConsensusAlgorithm(impl);
@@ -973,7 +934,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         if (originator == address(0)) revert InvalidAddress();
         if (numberOfValidations == 0) revert InvalidNumberOfValidations(numberOfValidations);
 
-        ProjectSettings storage settings = projectSettings[projectId];
+        ProjectSettings storage settings = _getValidationOracleStorage().projectSettings[projectId];
         settings.numberOfValidations = numberOfValidations;
         settings.requiredSkill = requiredSkill;
         settings.originator = originator;
@@ -988,7 +949,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      */
     function registerAlgorithm(string calldata name, address implementation) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (implementation == address(0)) revert InvalidAddress();
-        algorithms[keccak256(abi.encodePacked(name))] = implementation;
+        _getValidationOracleStorage().algorithms[keccak256(abi.encodePacked(name))] = implementation;
         emit AlgorithmRegistered(name, implementation);
     }
 
@@ -998,7 +959,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @param algorithmName Name of the algorithm to use
      */
     function setProjectAlgorithm(bytes32 projectId, string calldata algorithmName) external {
-        ProjectSettings storage settings = projectSettings[projectId];
+        ProjectSettings storage settings = _getValidationOracleStorage().projectSettings[projectId];
         if (settings.originator == address(0)) revert ProjectNotRegistered(projectId);
         if (msg.sender != settings.originator && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
             revert Unauthorized(UNAUTHORIZED_NOT_PROJECT_ORIGINATOR);
@@ -1015,8 +976,10 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      */
     function setProjectNumberOfValidations(bytes32 projectId, uint256 numberOfValidations) external onlyCoreOrAdmin {
         if (numberOfValidations == 0) revert InvalidNumberOfValidations(numberOfValidations);
-        if (projectSettings[projectId].originator == address(0)) revert ProjectNotRegistered(projectId);
-        projectSettings[projectId].numberOfValidations = numberOfValidations;
+        if (_getValidationOracleStorage().projectSettings[projectId].originator == address(0)) {
+            revert ProjectNotRegistered(projectId);
+        }
+        _getValidationOracleStorage().projectSettings[projectId].numberOfValidations = numberOfValidations;
         _emitProjectStateChange(projectId);
     }
 
@@ -1026,8 +989,10 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @param requiredSkill Name of the required skill
      */
     function setProjectRequiredSkill(bytes32 projectId, string calldata requiredSkill) external onlyCoreOrAdmin {
-        if (projectSettings[projectId].originator == address(0)) revert ProjectNotRegistered(projectId);
-        projectSettings[projectId].requiredSkill = requiredSkill;
+        if (_getValidationOracleStorage().projectSettings[projectId].originator == address(0)) {
+            revert ProjectNotRegistered(projectId);
+        }
+        _getValidationOracleStorage().projectSettings[projectId].requiredSkill = requiredSkill;
         _emitProjectStateChange(projectId);
     }
 
@@ -1037,7 +1002,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @param deadline Reveal deadline in seconds
      */
     function setProjectRevealDeadline(bytes32 projectId, uint256 deadline) external {
-        ProjectSettings storage settings = projectSettings[projectId];
+        ProjectSettings storage settings = _getValidationOracleStorage().projectSettings[projectId];
         if (settings.originator == address(0)) revert ProjectNotRegistered(projectId);
         if (msg.sender != settings.originator && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
             revert Unauthorized(UNAUTHORIZED_NOT_PROJECT_ORIGINATOR);
@@ -1050,8 +1015,10 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
 
     function setProjectOriginator(bytes32 projectId, address originator) external onlyCoreOrAdmin {
         if (originator == address(0)) revert InvalidAddress();
-        if (projectSettings[projectId].originator == address(0)) revert ProjectNotRegistered(projectId);
-        projectSettings[projectId].originator = originator;
+        if (_getValidationOracleStorage().projectSettings[projectId].originator == address(0)) {
+            revert ProjectNotRegistered(projectId);
+        }
+        _getValidationOracleStorage().projectSettings[projectId].originator = originator;
         _emitProjectStateChange(projectId);
     }
 
@@ -1063,7 +1030,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @param minReputation Minimum reputation score (0-10000, where 5000 is default, 0 = no requirement)
      */
     function setProjectMinValidatorReputation(bytes32 projectId, uint256 minReputation) external {
-        ProjectSettings storage settings = projectSettings[projectId];
+        ProjectSettings storage settings = _getValidationOracleStorage().projectSettings[projectId];
         if (settings.originator == address(0)) revert ProjectNotRegistered(projectId);
         if (msg.sender != settings.originator && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
             revert Unauthorized(UNAUTHORIZED_NOT_PROJECT_ORIGINATOR);
@@ -1084,7 +1051,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         onlyCoreOrAdmin
     {
         if (contributor == address(0)) revert InvalidAddress();
-        contributionStates[projectId][contributionIndex].contributor = contributor;
+        _getValidationOracleStorage().contributionStates[projectId][contributionIndex].contributor = contributor;
         emit ContributionContributorUpdated(projectId, contributionIndex, contributor);
     }
 
@@ -1098,9 +1065,11 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         external
         nonReentrant
     {
-        ValidationCommit[] storage commits = validationCommits[projectId][contributionIndex];
-        ProjectSettings storage settings = projectSettings[projectId];
-        uint256 currentNonce = contributionStates[projectId][contributionIndex].submissionNonce;
+        ValidationCommit[] storage commits =
+            _getValidationOracleStorage().validationCommits[projectId][contributionIndex];
+        ProjectSettings storage settings = _getValidationOracleStorage().projectSettings[projectId];
+        uint256 currentNonce =
+            _getValidationOracleStorage().contributionStates[projectId][contributionIndex].submissionNonce;
 
         for (uint256 i = 0; i < commits.length; ++i) {
             // F-05: Only process commits from the current submission nonce
@@ -1110,15 +1079,16 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
                 uint256 deadline = commits[i].revealDeadlineSnapshot;
                 if (deadline == 0) {
                     deadline = settings.revealDeadline;
-                    if (deadline == 0) deadline = revealDeadline;
+                    if (deadline == 0) deadline = _getValidationOracleStorage().revealDeadline;
                 }
 
                 if (block.timestamp > commits[i].committedAt + deadline) {
-                    AssignmentState storage assignment = assignments[projectId][contributionIndex][validator];
+                    AssignmentState storage assignment =
+                        _getValidationOracleStorage().assignments[projectId][contributionIndex][validator];
                     uint256 stake = assignment.committedStake;
 
                     // Release in-flight stake tracking
-                    ValidatorState storage vState = validatorStates[validator];
+                    ValidatorState storage vState = _getValidationOracleStorage().validatorStates[validator];
                     if (vState.inFlightStake < stake) {
                         revert InvalidStakeAmount(); // Underflow protection
                     }
@@ -1135,20 +1105,24 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
                     commits[i].revealed = true;
 
                     // Decrement active claim count BEFORE external calls (CEI pattern)
-                    if (contributionStates[projectId][contributionIndex].activeClaimCount > 0) {
-                        --contributionStates[projectId][contributionIndex].activeClaimCount;
+                    if (
+                        _getValidationOracleStorage().contributionStates[projectId][contributionIndex].activeClaimCount
+                            > 0
+                    ) {
+                        --_getValidationOracleStorage()
+                        .contributionStates[projectId][contributionIndex].activeClaimCount;
                     }
 
                     // Re-queue the contribution index (Liveness Fix)
-                    pendingQueue[projectId][settings.queueTail] = contributionIndex;
+                    _getValidationOracleStorage().pendingQueue[projectId][settings.queueTail] = contributionIndex;
                     ++settings.queueTail;
 
                     // External calls after all state changes (CEI pattern)
                     // Slash from the validator's capacity (stake is already locked in vault)
-                    vault.slash(validator, stake, projectId);
+                    _getValidationOracleStorage().vault.slash(validator, stake, projectId);
 
                     // Update reputation for not fulfilling obligations (consistent with cancelExpiredValidationClaim)
-                    trust.updateReputation(validator, VALIDATOR_ROLE, false, 0);
+                    _getValidationOracleStorage().trust.updateReputation(validator, VALIDATOR_ROLE, false, 0);
 
                     emit ExpiredCommitmentCancelled(projectId, contributionIndex, validator, stake);
                     return;
@@ -1165,14 +1139,17 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @param contributionIndex The index within the project's contribution sequence
      */
     function resetContributionState(bytes32 projectId, uint256 contributionIndex) external onlyCoreOrAdmin {
-        ContributionState storage cState = contributionStates[projectId][contributionIndex];
+        ContributionState storage cState =
+            _getValidationOracleStorage().contributionStates[projectId][contributionIndex];
         uint256 currentNonce = cState.submissionNonce;
 
         // F-05/F-08 fix: Only clear assignments for current-nonce commits (avoids iterating stale data)
-        ValidationCommit[] storage commits = validationCommits[projectId][contributionIndex];
+        ValidationCommit[] storage commits =
+            _getValidationOracleStorage().validationCommits[projectId][contributionIndex];
         for (uint256 i = 0; i < commits.length; ++i) {
             if (commits[i].nonce == currentNonce) {
-                assignments[projectId][contributionIndex][commits[i].validator].hasCommitted = false;
+                _getValidationOracleStorage()
+                .assignments[projectId][contributionIndex][commits[i].validator].hasCommitted = false;
             }
         }
 
@@ -1192,7 +1169,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      */
     function setRevealDeadline(uint256 _newDeadline) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_newDeadline < MIN_REVEAL_DEADLINE) revert InvalidDeadline();
-        revealDeadline = _newDeadline;
+        _getValidationOracleStorage().revealDeadline = _newDeadline;
         emit RevealDeadlineUpdated(_newDeadline);
     }
 
@@ -1208,11 +1185,12 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
     {
         if (slashAmount == 0) return;
 
-        ValidatorState storage vState = validatorStates[validator];
+        ValidatorState storage vState = _getValidationOracleStorage().validatorStates[validator];
 
         // If they had an unrevealed commit for this index, it was just slashed
         // We must reduce inFlightStake
-        ValidationCommit[] storage commits = validationCommits[projectId][contributionIndex];
+        ValidationCommit[] storage commits =
+            _getValidationOracleStorage().validationCommits[projectId][contributionIndex];
         for (uint256 i = 0; i < commits.length; ++i) {
             if (commits[i].validator == validator && !commits[i].revealed) {
                 commits[i].revealed = true; // Mark as processed
@@ -1231,7 +1209,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         }
 
         // Sync capacity with vault's actual locked stake (vault may have adjusted lockedStake after slash)
-        uint256 vaultLockedStake = vault.getLockedStake(validator);
+        uint256 vaultLockedStake = _getValidationOracleStorage().vault.getLockedStake(validator);
         if (vState.capacity > vaultLockedStake) {
             vState.capacity = vaultLockedStake;
         }
@@ -1261,8 +1239,8 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
         view
         returns (uint256)
     {
-        uint256 required = trust.roleMinStake(VALIDATOR_ROLE);
-        if (required == 0) required = trust.minStakeRequired();
+        uint256 required = _getValidationOracleStorage().trust.roleMinStake(VALIDATOR_ROLE);
+        if (required == 0) required = _getValidationOracleStorage().trust.minStakeRequired();
         return required;
     }
 
@@ -1275,7 +1253,7 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
      * @param projectId Unique identifier for the project
      */
     function _emitProjectStateChange(bytes32 projectId) internal {
-        ProjectSettings storage settings = projectSettings[projectId];
+        ProjectSettings storage settings = _getValidationOracleStorage().projectSettings[projectId];
         emit ProjectStateChange(
             projectId,
             settings.algorithm,
@@ -1288,5 +1266,171 @@ contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgr
             settings.queueTail,
             settings.minValidatorReputation
         );
+    }
+
+    // ============================================
+    // VIEW GETTERS (match IValidationOracle interface)
+    // ============================================
+
+    /**
+     * @notice Get the trust contract instance
+     * @return The ISapienTrust contract
+     */
+    function trust() external view returns (ISapienTrust) {
+        return _getValidationOracleStorage().trust;
+    }
+
+    /**
+     * @notice Get the vault contract instance
+     * @return The ISapienVault contract
+     */
+    function vault() external view returns (ISapienVault) {
+        return _getValidationOracleStorage().vault;
+    }
+
+    /**
+     * @notice Get the default reveal deadline
+     * @return The reveal deadline in seconds
+     */
+    function revealDeadline() external view returns (uint256) {
+        return _getValidationOracleStorage().revealDeadline;
+    }
+
+    /**
+     * @notice Get the default algorithm name hash
+     * @return The keccak256 hash of the default algorithm name
+     */
+    function defaultAlgorithm() external view returns (bytes32) {
+        return _getValidationOracleStorage().defaultAlgorithm;
+    }
+
+    /**
+     * @notice Get the address of a registered algorithm
+     * @param algoName The keccak256 hash of the algorithm name
+     * @return The address of the algorithm contract
+     */
+    function algorithms(bytes32 algoName) external view returns (address) {
+        return _getValidationOracleStorage().algorithms[algoName];
+    }
+
+    /**
+     * @notice Get project-specific settings
+     * @param projectId The project identifier
+     * @return algorithm The algorithm name hash
+     * @return numberOfValidations Required validations per contribution
+     * @return projectRevealDeadline Custom reveal deadline
+     * @return requiredSkill Skill name required for validators
+     * @return originator Project creator address
+     * @return nextValidationClaimId ID for next validation claim
+     * @return queueHead Current head of validation queue
+     * @return queueTail Current tail of validation queue
+     * @return minValidatorReputation Minimum reputation required to validate
+     */
+    function projectSettings(bytes32 projectId)
+        external
+        view
+        returns (
+            bytes32 algorithm,
+            uint256 numberOfValidations,
+            uint256 projectRevealDeadline,
+            string memory requiredSkill,
+            address originator,
+            uint256 nextValidationClaimId,
+            uint256 queueHead,
+            uint256 queueTail,
+            uint256 minValidatorReputation
+        )
+    {
+        ProjectSettings storage s = _getValidationOracleStorage().projectSettings[projectId];
+        return (
+            s.algorithm,
+            s.numberOfValidations,
+            s.revealDeadline,
+            s.requiredSkill,
+            s.originator,
+            s.nextValidationClaimId,
+            s.queueHead,
+            s.queueTail,
+            s.minValidatorReputation
+        );
+    }
+
+    /**
+     * @notice Get the state of a contribution
+     * @param projectId The project identifier
+     * @param contributionIndex The index of the contribution
+     * @return submittedAt Timestamp of submission
+     * @return contributor Address of the contributor
+     * @return activeClaimCount Number of active validation claims
+     * @return submissionNonce Current submission nonce
+     */
+    function contributionStates(bytes32 projectId, uint256 contributionIndex)
+        external
+        view
+        returns (uint256 submittedAt, address contributor, uint256 activeClaimCount, uint256 submissionNonce)
+    {
+        ContributionState storage cs = _getValidationOracleStorage().contributionStates[projectId][contributionIndex];
+        return (cs.submittedAt, cs.contributor, cs.activeClaimCount, cs.submissionNonce);
+    }
+
+    /**
+     * @notice Get the state of a validator
+     * @param validator The validator address
+     * @return capacity Total validation capacity
+     * @return inFlightStake Currently active stake in validations
+     */
+    function validatorStates(address validator) external view returns (uint256 capacity, uint256 inFlightStake) {
+        ValidatorState storage vs = _getValidationOracleStorage().validatorStates[validator];
+        return (vs.capacity, vs.inFlightStake);
+    }
+
+    /**
+     * @notice Get an entry from the pending validation queue
+     * @param projectId The project identifier
+     * @param queueIndex The index in the queue
+     * @return The contribution index at that queue position
+     */
+    function pendingQueue(bytes32 projectId, uint256 queueIndex) external view returns (uint256) {
+        return _getValidationOracleStorage().pendingQueue[projectId][queueIndex];
+    }
+
+    /**
+     * @notice Get a validation claim's details
+     * @param projectId The project identifier
+     * @param claimId The claim identifier
+     * @return validator Address of the validator
+     * @return quantity Number of slots claimed
+     * @return contributionIndex Index being validated
+     * @return claimedAt Timestamp of claim
+     * @return deadline Expiry timestamp
+     * @return committedCount Number of slots committed
+     * @return status Current status of the claim
+     */
+    function validationClaims(bytes32 projectId, uint256 claimId)
+        external
+        view
+        returns (
+            address validator,
+            uint256 quantity,
+            uint256 contributionIndex,
+            uint256 claimedAt,
+            uint256 deadline,
+            uint256 committedCount,
+            ClaimStatus status
+        )
+    {
+        ValidationClaim storage vc = _getValidationOracleStorage().validationClaims[projectId][claimId];
+        return
+            (vc.validator, vc.quantity, vc.contributionIndex, vc.claimedAt, vc.deadline, vc.committedCount, vc.status);
+    }
+
+    /**
+     * @notice Get all revealed validations for a contribution
+     * @param projectId The project identifier
+     * @param contributionIndex The index of the contribution
+     * @return Array of revealed validation records
+     */
+    function validations(bytes32 projectId, uint256 contributionIndex) external view returns (Validation[] memory) {
+        return _getValidationOracleStorage().validations[projectId][contributionIndex];
     }
 }

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {ISharedTypes} from "./ISharedTypes.sol";
+import {ISharedTypes} from "src/interface/ISharedTypes.sol";
+import {ISapienVault} from "src/interface/ISapienVault.sol";
 
 /**
  * @title ISapienTrust
@@ -11,6 +12,7 @@ import {ISharedTypes} from "./ISharedTypes.sol";
  *      Identity is implicit: anyone with sufficient stake can participate.
  */
 interface ISapienTrust is ISharedTypes {
+        
     // ============================================
     // EVENTS
     // ============================================

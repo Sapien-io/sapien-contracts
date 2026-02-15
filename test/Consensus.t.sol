@@ -34,10 +34,8 @@ contract ConsensusTest is Test {
 
     function testConsensusMetadata() public view {
         assertEq(sqrt.getName(), "SqrtStake");
-
+        assertEq(sqrt.getSecurityGrade(), "A-");
         assertTrue(bytes(sqrt.getDescription()).length > 0);
-
-        assertTrue(bytes(sqrt.getSecurityGrade()).length > 0);
     }
 
     function testSqrtConsensusReverts() public {

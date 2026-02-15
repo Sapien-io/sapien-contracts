@@ -36,16 +36,27 @@ contract SapienVault is
     ReentrancyGuardUpgradeable
 {
     using SafeERC20 for IERC20;
-
-    /// @notice Amount of stake locked for each user (prevents withdrawal/transfer)
-    /// @dev user => locked amount in assets
-    mapping(address => uint256) public lockedStake;
-
-    // Storage gap for future upgrades (49 slots reserved)
-    // forge-lint: disable-next-line(mixed-case-variable)
-    // __gap follows OpenZeppelin upgradeable contract pattern
-    uint256[49] private __gap;
-
+    
+    
+    /// @notice ERC-7201 storage struct for the SapienVault contract.
+    /// @custom:storage-location erc7201:sapien.storage.SapienVault
+    struct SapienVaultStorage {
+        /// @notice Amount of stake locked for each user (prevents withdrawal/transfer)
+        /// @dev user => locked amount in assets
+        mapping(address => uint256) lockedStake;
+    }
+    /**
+     * @notice Get the storage pointer for the SapienVault contract
+     * @return $ The storage pointer
+     */
+    function _getSapienVaultStorage() private pure returns (SapienVaultStorage storage $) {
+        bytes32 slot =
+            keccak256(abi.encode(uint256(keccak256("sapien.storage.SapienVault")) - 1)) & ~bytes32(uint256(0xff));
+        assembly {
+            $.slot := slot
+        }
+    }
+    
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -102,13 +113,13 @@ contract SapienVault is
         if (amount == 0) revert ZeroAmount();
 
         uint256 currentStake = convertToAssets(balanceOf(user));
-        uint256 availableStake = currentStake - lockedStake[user];
+        uint256 availableStake = currentStake - _getSapienVaultStorage().lockedStake[user];
 
         if (amount > availableStake) {
             revert InsufficientUnlockedStake(user, amount, availableStake);
         }
 
-        lockedStake[user] += amount;
+        _getSapienVaultStorage().lockedStake[user] += amount;
         emit StakeLocked(user, amount, msg.sender, reason);
     }
 
@@ -122,11 +133,11 @@ contract SapienVault is
     function unlockStake(address user, uint256 amount, string calldata reason) external onlyRole(LOCKER_ROLE) {
         if (amount == 0) revert ZeroAmount();
 
-        if (lockedStake[user] < amount) {
-            revert InsufficientLockedStake(user, amount, lockedStake[user]);
+        if (_getSapienVaultStorage().lockedStake[user] < amount) {
+            revert InsufficientLockedStake(user, amount, _getSapienVaultStorage().lockedStake[user]);
         }
 
-        lockedStake[user] -= amount;
+        _getSapienVaultStorage().lockedStake[user] -= amount;
         emit StakeUnlocked(user, amount, msg.sender, reason);
     }
 
@@ -137,7 +148,9 @@ contract SapienVault is
      */
     function getAvailableStake(address user) external view returns (uint256) {
         uint256 totalStake = convertToAssets(balanceOf(user));
-        return totalStake > lockedStake[user] ? totalStake - lockedStake[user] : 0;
+        return totalStake > _getSapienVaultStorage().lockedStake[user]
+            ? totalStake - _getSapienVaultStorage().lockedStake[user]
+            : 0;
     }
 
     /**
@@ -146,7 +159,7 @@ contract SapienVault is
      * @return The locked stake amount
      */
     function getLockedStake(address user) external view returns (uint256) {
-        return lockedStake[user];
+        return _getSapienVaultStorage().lockedStake[user];
     }
 
     // ============================================
@@ -204,8 +217,8 @@ contract SapienVault is
 
         // Adjust locked stake if it exceeds new balance after slashing
         uint256 newBalance = convertToAssets(balanceOf(user));
-        if (lockedStake[user] > newBalance) {
-            lockedStake[user] = newBalance;
+        if (_getSapienVaultStorage().lockedStake[user] > newBalance) {
+            _getSapienVaultStorage().lockedStake[user] = newBalance;
         }
 
         emit Slashed(user, sharesToSlash, actualAssetsSlashed, msg.sender, projectId);
@@ -223,7 +236,9 @@ contract SapienVault is
      */
     function _checkUnlockedStake(address user, uint256 amount) internal view {
         uint256 totalStake = convertToAssets(balanceOf(user));
-        uint256 availableStake = totalStake > lockedStake[user] ? totalStake - lockedStake[user] : 0;
+        uint256 availableStake = totalStake > _getSapienVaultStorage().lockedStake[user]
+            ? totalStake - _getSapienVaultStorage().lockedStake[user]
+            : 0;
 
         if (amount > availableStake) {
             revert InsufficientUnlockedStake(user, amount, availableStake);

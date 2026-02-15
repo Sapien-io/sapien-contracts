@@ -24,48 +24,33 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
     using SafeERC20 for IERC20;
 
     // ============================================
-    // STATE VARIABLES
+    // STATE VARIABLES (ERC-7201 namespaced storage)
     // ============================================
 
-    /// @notice The SapienCore contract that has permission to distribute rewards
-    address public core;
+    /// @custom:storage-location erc7201:sapien.storage.Rewards
+    struct RewardsStorage {
+        address core;
+        mapping(bytes32 => mapping(address => uint256)) projectRewards;
+        mapping(address => mapping(bytes32 => mapping(address => uint256))) contributorRewards;
+        mapping(address => mapping(bytes32 => mapping(address => uint256))) rewardsClaimed;
+        mapping(address => mapping(bytes32 => mapping(address => uint256))) validatorRewards;
+        mapping(address => mapping(bytes32 => mapping(address => uint256))) validatorRewardsClaimed;
+        mapping(address => uint256) totalAllocated;
+        uint256 maxFeeBps;
+    }
 
-    /// @notice Track total rewards allocated per project
-    /// projectId => token => amount
-    mapping(bytes32 => mapping(address => uint256)) public projectRewards;
-
-    /// @notice Track rewards earned by each contributor per project
-    /// contributor => projectId => token => amount
-    mapping(address => mapping(bytes32 => mapping(address => uint256))) public contributorRewards;
-
-    /// @notice Track total rewards claimed by contributor per project
-    /// contributor => projectId => token => amount
-    mapping(address => mapping(bytes32 => mapping(address => uint256))) public rewardsClaimed;
-
-    /// @notice Track rewards earned by each validator per project
-    /// validator => projectId => token => amount
-    mapping(address => mapping(bytes32 => mapping(address => uint256))) public validatorRewards;
-
-    /// @notice Track total rewards claimed by validator per project
-    /// validator => projectId => token => amount
-    mapping(address => mapping(bytes32 => mapping(address => uint256))) public validatorRewardsClaimed;
-
-    /// @notice Track total allocated rewards (promised to projects/users)
-    mapping(address => uint256) public totalAllocated;
-
-    /// @notice Maximum allowed operator fee in basis points (admin-configurable)
-    uint256 public maxFeeBps;
+    function _getRewardsStorage() private pure returns (RewardsStorage storage $) {
+        bytes32 slot = keccak256(abi.encode(uint256(keccak256("sapien.storage.Rewards")) - 1)) & ~bytes32(uint256(0xff));
+        assembly {
+            $.slot := slot
+        }
+    }
 
     /// @notice Default max operator fee (4% = 400 bps)
     uint256 public constant DEFAULT_MAX_FEE_BPS = 400;
 
     /// @notice Hard cap for maximum fee (100% = 10000 bps, for safety validation)
     uint256 public constant MAX_FEE_BPS_CAP = 10000;
-
-    // Storage gap for future upgrades
-    // forge-lint: disable-next-line(mixed-case-variable)
-    // __gap follows OpenZeppelin upgradeable contract pattern
-    uint256[42] private __gap;
 
     // ============================================
     // MODIFIERS
@@ -77,7 +62,7 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
     }
 
     function _onlyCore() internal view {
-        if (msg.sender != core) {
+        if (msg.sender != _getRewardsStorage().core) {
             revert OnlyCore();
         }
     }
@@ -105,7 +90,7 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
         _grantRole(DEFAULT_ADMIN_ROLE, _defaultAdmin);
 
         // Set default max operator fee to 4%
-        maxFeeBps = DEFAULT_MAX_FEE_BPS;
+        _getRewardsStorage().maxFeeBps = DEFAULT_MAX_FEE_BPS;
     }
 
     /**
@@ -118,10 +103,11 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
         }
         // Opus 4.6 L-5 fix: Enforce one-time-set to prevent compromised admin
         // from redirecting core to a malicious contract that drains project rewards.
-        if (core != address(0)) {
+        RewardsStorage storage $ = _getRewardsStorage();
+        if ($.core != address(0)) {
             revert CoreAlreadySet();
         }
-        core = _core;
+        $.core = _core;
         emit CoreAddressUpdated(_core);
     }
 
@@ -133,7 +119,7 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
         if (_maxFeeBps > MAX_FEE_BPS_CAP) {
             revert InvalidFeeBps();
         }
-        maxFeeBps = _maxFeeBps;
+        _getRewardsStorage().maxFeeBps = _maxFeeBps;
         emit MaxFeeBpsUpdated(_maxFeeBps);
     }
 
@@ -173,7 +159,7 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
         if (amount == 0) revert InvalidAmount();
 
         uint256 balance = IERC20(token).balanceOf(address(this));
-        uint256 allocated = totalAllocated[token];
+        uint256 allocated = _getRewardsStorage().totalAllocated[token];
         uint256 available = balance > allocated ? balance - allocated : 0;
 
         if (amount > available) revert InsufficientProjectRewards(bytes32(0), token, amount, available);
@@ -192,7 +178,7 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
         if (to == address(0)) revert InvalidAddress();
 
         uint256 balance = IERC20(token).balanceOf(address(this));
-        uint256 allocated = totalAllocated[token];
+        uint256 allocated = _getRewardsStorage().totalAllocated[token];
         uint256 dust = balance > allocated ? balance - allocated : 0;
 
         if (dust == 0) revert InvalidAmount();
@@ -214,8 +200,9 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
     function allocateRewards(bytes32 projectId, address token, uint256 amount) external onlyCore whenNotPaused {
         if (amount == 0) revert InvalidAmount();
         if (token == address(0)) revert InvalidAddress();
-        projectRewards[projectId][token] += amount;
-        totalAllocated[token] += amount;
+        RewardsStorage storage $ = _getRewardsStorage();
+        $.projectRewards[projectId][token] += amount;
+        $.totalAllocated[token] += amount;
         emit RewardsAllocated(projectId, token, amount);
     }
 
@@ -267,16 +254,17 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
             revert InvalidAmount();
         }
 
-        uint256 available = projectRewards[projectId][token];
+        RewardsStorage storage $ = _getRewardsStorage();
+        uint256 available = $.projectRewards[projectId][token];
         if (available < amount) {
             revert InsufficientProjectRewards(projectId, token, amount, available);
         }
 
-        projectRewards[projectId][token] -= amount;
+        $.projectRewards[projectId][token] -= amount;
         if (isValidator) {
-            validatorRewards[user][projectId][token] += amount;
+            $.validatorRewards[user][projectId][token] += amount;
         } else {
-            contributorRewards[user][projectId][token] += amount;
+            $.contributorRewards[user][projectId][token] += amount;
         }
 
         emit RewardsDistributed(projectId, user, token, amount);
@@ -289,8 +277,9 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
      * @param feeBps The fee in basis points
      */
     function _validateFeeParams(address feeRecipient, uint256 feeBps) internal view {
-        if (feeBps > maxFeeBps) {
-            revert FeeBpsTooHigh(feeBps, maxFeeBps);
+        uint256 maxBps = _getRewardsStorage().maxFeeBps;
+        if (feeBps > maxBps) {
+            revert FeeBpsTooHigh(feeBps, maxBps);
         }
         if (feeBps > 0 && feeRecipient == address(0)) {
             revert InvalidFeeRecipient();
@@ -342,16 +331,17 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
         // Validate fee parameters
         _validateFeeParams(feeRecipient, feeBps);
 
+        RewardsStorage storage $ = _getRewardsStorage();
         uint256 availableRewards =
-            contributorRewards[msg.sender][projectId][token] - rewardsClaimed[msg.sender][projectId][token];
+            $.contributorRewards[msg.sender][projectId][token] - $.rewardsClaimed[msg.sender][projectId][token];
 
         if (availableRewards == 0) {
             revert NoRewardsToClaim();
         }
 
         // Update state BEFORE transfers (CEI pattern)
-        rewardsClaimed[msg.sender][projectId][token] += availableRewards;
-        totalAllocated[token] -= availableRewards;
+        $.rewardsClaimed[msg.sender][projectId][token] += availableRewards;
+        $.totalAllocated[token] -= availableRewards;
 
         // Transfer with optional fee
         _transferWithFee(token, msg.sender, availableRewards, feeRecipient, feeBps);
@@ -376,15 +366,16 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
 
         uint256 totalRewards = 0;
 
+        RewardsStorage storage $ = _getRewardsStorage();
         for (uint256 i = 0; i < projectIds.length; ++i) {
             bytes32 projectId = projectIds[i];
             uint256 availableRewards =
-                contributorRewards[msg.sender][projectId][token] - rewardsClaimed[msg.sender][projectId][token];
+                $.contributorRewards[msg.sender][projectId][token] - $.rewardsClaimed[msg.sender][projectId][token];
 
             if (availableRewards > 0) {
-                rewardsClaimed[msg.sender][projectId][token] += availableRewards;
+                $.rewardsClaimed[msg.sender][projectId][token] += availableRewards;
                 totalRewards += availableRewards;
-                totalAllocated[token] -= availableRewards;
+                $.totalAllocated[token] -= availableRewards;
                 emit RewardsClaimed(msg.sender, projectId, token, availableRewards);
             }
         }
@@ -416,16 +407,17 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
         // Validate fee parameters
         _validateFeeParams(feeRecipient, feeBps);
 
+        RewardsStorage storage $ = _getRewardsStorage();
         uint256 availableRewards =
-            validatorRewards[msg.sender][projectId][token] - validatorRewardsClaimed[msg.sender][projectId][token];
+            $.validatorRewards[msg.sender][projectId][token] - $.validatorRewardsClaimed[msg.sender][projectId][token];
 
         if (availableRewards == 0) {
             revert NoRewardsToClaim();
         }
 
         // Update state BEFORE transfers (CEI pattern)
-        validatorRewardsClaimed[msg.sender][projectId][token] += availableRewards;
-        totalAllocated[token] -= availableRewards;
+        $.validatorRewardsClaimed[msg.sender][projectId][token] += availableRewards;
+        $.totalAllocated[token] -= availableRewards;
 
         // Transfer with optional fee
         _transferWithFee(token, msg.sender, availableRewards, feeRecipient, feeBps);
@@ -451,15 +443,16 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
 
         uint256 totalRewards = 0;
 
+        RewardsStorage storage $ = _getRewardsStorage();
         for (uint256 i = 0; i < projectIds.length; ++i) {
             bytes32 projectId = projectIds[i];
-            uint256 availableRewards =
-                validatorRewards[msg.sender][projectId][token] - validatorRewardsClaimed[msg.sender][projectId][token];
+            uint256 availableRewards = $.validatorRewards[msg.sender][projectId][token]
+                - $.validatorRewardsClaimed[msg.sender][projectId][token];
 
             if (availableRewards > 0) {
-                validatorRewardsClaimed[msg.sender][projectId][token] += availableRewards;
+                $.validatorRewardsClaimed[msg.sender][projectId][token] += availableRewards;
                 totalRewards += availableRewards;
-                totalAllocated[token] -= availableRewards;
+                $.totalAllocated[token] -= availableRewards;
                 emit RewardsClaimed(msg.sender, projectId, token, availableRewards);
             }
         }
@@ -488,7 +481,8 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
         view
         returns (uint256)
     {
-        return contributorRewards[contributor][projectId][token] - rewardsClaimed[contributor][projectId][token];
+        RewardsStorage storage $ = _getRewardsStorage();
+        return $.contributorRewards[contributor][projectId][token] - $.rewardsClaimed[contributor][projectId][token];
     }
 
     /**
@@ -503,7 +497,7 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
         view
         returns (uint256)
     {
-        return contributorRewards[contributor][projectId][token];
+        return _getRewardsStorage().contributorRewards[contributor][projectId][token];
     }
 
     /**
@@ -518,7 +512,8 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
         view
         returns (uint256)
     {
-        return validatorRewards[validator][projectId][token] - validatorRewardsClaimed[validator][projectId][token];
+        RewardsStorage storage $ = _getRewardsStorage();
+        return $.validatorRewards[validator][projectId][token] - $.validatorRewardsClaimed[validator][projectId][token];
     }
 
     /**
@@ -533,7 +528,7 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
         view
         returns (uint256)
     {
-        return validatorRewards[validator][projectId][token];
+        return _getRewardsStorage().validatorRewards[validator][projectId][token];
     }
 
     /**
@@ -543,6 +538,93 @@ contract Rewards is IRewards, Initializable, AccessControlUpgradeable, PausableU
      * @return The amount of remaining project rewards
      */
     function getRemainingProjectRewards(bytes32 projectId, address token) external view returns (uint256) {
-        return projectRewards[projectId][token];
+        return _getRewardsStorage().projectRewards[projectId][token];
+    }
+
+    // ============================================
+    // PUBLIC GETTERS (match IRewards interface)
+    // ============================================
+
+    /**
+     * @notice Get the SapienCore address
+     * @return The address of the SapienCore contract
+     */
+    function core() external view returns (address) {
+        return _getRewardsStorage().core;
+    }
+
+    /**
+     * @notice Get the maximum allowed operator fee in basis points
+     * @return The maximum fee in basis points
+     */
+    function maxFeeBps() external view returns (uint256) {
+        return _getRewardsStorage().maxFeeBps;
+    }
+
+    /**
+     * @notice Get rewards allocated to a project for a specific token
+     * @param projectId The project identifier (hashed CID)
+     * @param token The reward token address
+     * @return The amount of rewards allocated to the project
+     */
+    function projectRewards(bytes32 projectId, address token) external view returns (uint256) {
+        return _getRewardsStorage().projectRewards[projectId][token];
+    }
+
+    /**
+     * @notice Get total rewards earned by a contributor for a specific project and token
+     * @param contributor The contributor address
+     * @param projectId The project identifier (hashed CID)
+     * @param token The reward token address
+     * @return The total amount of rewards earned
+     */
+    function contributorRewards(address contributor, bytes32 projectId, address token) external view returns (uint256) {
+        return _getRewardsStorage().contributorRewards[contributor][projectId][token];
+    }
+
+    /**
+     * @notice Get rewards claimed by a contributor for a specific project and token
+     * @param contributor The contributor address
+     * @param projectId The project identifier (hashed CID)
+     * @param token The reward token address
+     * @return The amount of rewards claimed
+     */
+    function rewardsClaimed(address contributor, bytes32 projectId, address token) external view returns (uint256) {
+        return _getRewardsStorage().rewardsClaimed[contributor][projectId][token];
+    }
+
+    /**
+     * @notice Get total rewards earned by a validator for a specific project and token
+     * @param validator The validator address
+     * @param projectId The project identifier (hashed CID)
+     * @param token The reward token address
+     * @return The total amount of validator rewards earned
+     */
+    function validatorRewards(address validator, bytes32 projectId, address token) external view returns (uint256) {
+        return _getRewardsStorage().validatorRewards[validator][projectId][token];
+    }
+
+    /**
+     * @notice Get validator rewards claimed for a specific project and token
+     * @param validator The validator address
+     * @param projectId The project identifier (hashed CID)
+     * @param token The reward token address
+     * @return The amount of validator rewards claimed
+     */
+    function validatorRewardsClaimed(address validator, bytes32 projectId, address token)
+        external
+        view
+        returns (uint256)
+    {
+        return _getRewardsStorage().validatorRewardsClaimed[validator][projectId][token];
+    }
+
+    /**
+     * @notice Get total rewards allocated for a specific token across all projects
+     * @param token The reward token address
+     * @return The total amount allocated
+     */
+    function totalAllocated(address token) external view returns (uint256) {
+        return _getRewardsStorage().totalAllocated[token];
     }
 }
