@@ -36,8 +36,7 @@ contract SapienVault is
     ReentrancyGuardUpgradeable
 {
     using SafeERC20 for IERC20;
-    
-    
+
     /// @notice ERC-7201 storage struct for the SapienVault contract.
     /// @custom:storage-location erc7201:sapien.storage.SapienVault
     struct SapienVaultStorage {
@@ -45,6 +44,7 @@ contract SapienVault is
         /// @dev user => locked amount in assets
         mapping(address => uint256) lockedStake;
     }
+
     /**
      * @notice Get the storage pointer for the SapienVault contract
      * @return $ The storage pointer
@@ -56,7 +56,7 @@ contract SapienVault is
             $.slot := slot
         }
     }
-    
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();

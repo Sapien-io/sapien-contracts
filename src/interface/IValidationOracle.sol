@@ -13,8 +13,7 @@ import {ISapienVault} from "./ISapienVault.sol";
  * @dev Manages the commit-reveal process and consensus calculations
  */
 interface IValidationOracle is ISharedTypes {
-
-        // ============================================
+    // ============================================
     // STATE VARIABLES (ERC-7201 namespaced storage)
     // ============================================
 

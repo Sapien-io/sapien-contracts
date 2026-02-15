@@ -17,7 +17,6 @@ import {IRewards} from "src/interface/IRewards.sol";
  * @dev Combines Project management and Contribution lifecycle
  */
 interface ISapienCore is ISharedTypes {
-
     // ============================================
     // EVENTS
     // ============================================
@@ -431,7 +430,6 @@ interface ISapienCore is ISharedTypes {
      */
     function claimContributionReward(bytes32 projectId, uint256 contributionIndex) external;
 
-
     // ============================================
     // RELEASE AND RECLAIM FUNCTIONS
     // ============================================
@@ -448,7 +446,7 @@ interface ISapienCore is ISharedTypes {
      * @param projectId Unique identifier for the project
      * @param indices The indices within the project's contribution sequence to reclaim
      */
-    function reclaimExpiredIndices(bytes32 projectId, uint256[] calldata indices) external;    
+    function reclaimExpiredIndices(bytes32 projectId, uint256[] calldata indices) external;
 
     // ============================================
     // GETTER FUNCTIONS

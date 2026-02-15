@@ -11,7 +11,6 @@ import {ISharedTypes} from "./ISharedTypes.sol";
  * @dev Defines additional slashing and locking functionality beyond ERC-4626 standard
  */
 interface ISapienVault is ISharedTypes {
-
     // ============================================
     // CUSTOM ERRORS
     // ============================================

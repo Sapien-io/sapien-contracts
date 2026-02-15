@@ -34,7 +34,6 @@ import {
  *      Hierarchy: Oracle -> Trust -> Vault. No dependency on SapienCore.
  */
 contract ValidationOracle is IValidationOracle, Initializable, AccessControlUpgradeable, ReentrancyGuardUpgradeable {
-
     function _getValidationOracleStorage() private pure returns (ValidationOracleStorage storage $) {
         bytes32 slot =
             keccak256(abi.encode(uint256(keccak256("sapien.storage.ValidationOracle")) - 1)) & ~bytes32(uint256(0xff));

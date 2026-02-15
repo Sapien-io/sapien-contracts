@@ -12,7 +12,6 @@ import {ISapienVault} from "src/interface/ISapienVault.sol";
  *      Identity is implicit: anyone with sufficient stake can participate.
  */
 interface ISapienTrust is ISharedTypes {
-        
     // ============================================
     // EVENTS
     // ============================================
