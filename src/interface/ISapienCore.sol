@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {ISharedTypes} from "./ISharedTypes.sol";
+import {ISharedTypes} from "src/interface/ISharedTypes.sol";
+import {ISapienVault} from "src/interface/ISapienVault.sol";
+import {IRewards} from "src/interface/IRewards.sol";
 
 /**
  * @title ISapienCore
@@ -381,20 +383,6 @@ interface ISapienCore is ISharedTypes {
     function claimToContribute(bytes32 projectId, uint256 quantity) external returns (uint256 claimId);
 
     /**
-     * @notice Release a claim that has passed its deadline
-     * @param projectId Unique identifier for the project
-     * @param claimId Unique identifier for the claim
-     */
-    function releaseExpiredClaim(bytes32 projectId, uint256 claimId) external;
-
-    /**
-     * @notice Reclaim contribution slots that were claimed but not submitted by the deadline
-     * @param projectId Unique identifier for the project
-     * @param indices The indices within the project's contribution sequence to reclaim
-     */
-    function reclaimExpiredIndices(bytes32 projectId, uint256[] calldata indices) external;
-
-    /**
      * @notice Submit a contribution for a specific slot in a claim
      * @param projectId Unique identifier for the project
      * @param claimId Unique identifier for the claim
@@ -441,6 +429,24 @@ interface ISapienCore is ISharedTypes {
      * @param contributionIndex Index of the contribution
      */
     function claimContributionReward(bytes32 projectId, uint256 contributionIndex) external;
+
+    // ============================================
+    // RELEASE AND RECLAIM FUNCTIONS
+    // ============================================
+
+    /**
+     * @notice Release a claim that has passed its deadline
+     * @param projectId Unique identifier for the project
+     * @param claimId Unique identifier for the claim
+     */
+    function releaseExpiredClaim(bytes32 projectId, uint256 claimId) external;
+
+    /**
+     * @notice Reclaim contribution slots that were claimed but not submitted by the deadline
+     * @param projectId Unique identifier for the project
+     * @param indices The indices within the project's contribution sequence to reclaim
+     */
+    function reclaimExpiredIndices(bytes32 projectId, uint256[] calldata indices) external;
 
     // ============================================
     // GETTER FUNCTIONS

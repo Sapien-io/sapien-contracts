@@ -5,6 +5,9 @@ out/
 # Ignores development broadcast logs
 !/broadcast
 /broadcast/*/31337/
+
+# Generated deployment addresses (regenerated each run)
+deployments/
 /broadcast/**/dry-run/
 
 # Dotenv file
@@ -40,3 +43,5 @@ docs/pipeline/
 test-report.txt 
 build-report.txt
 solhint-report.txt
+
+anvil.log

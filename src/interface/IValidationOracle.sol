@@ -3,6 +3,8 @@ pragma solidity ^0.8.30;
 
 import {ISharedTypes} from "./ISharedTypes.sol";
 import {IConsensusAlgorithm} from "./IConsensusAlgorithm.sol";
+import {ISapienTrust} from "./ISapienTrust.sol";
+import {ISapienVault} from "./ISapienVault.sol";
 
 /**
  * @title IValidationOracle
@@ -11,6 +13,28 @@ import {IConsensusAlgorithm} from "./IConsensusAlgorithm.sol";
  * @dev Manages the commit-reveal process and consensus calculations
  */
 interface IValidationOracle is ISharedTypes {
+    // ============================================
+    // STATE VARIABLES (ERC-7201 namespaced storage)
+    // ============================================
+
+    /// @custom:storage-location erc7201:sapien.storage.ValidationOracle
+    struct ValidationOracleStorage {
+        ISapienTrust trust;
+        ISapienVault vault;
+        uint256 revealDeadline;
+        mapping(bytes32 => address) algorithms;
+        bytes32 defaultAlgorithm;
+        mapping(bytes32 => ProjectSettings) projectSettings;
+        mapping(bytes32 => mapping(uint256 => ContributionState)) contributionStates;
+        mapping(address => ValidatorState) validatorStates;
+        mapping(bytes32 => mapping(uint256 => mapping(address => AssignmentState))) assignments;
+        mapping(bytes32 => mapping(uint256 => uint256)) pendingQueue;
+        mapping(bytes32 => mapping(uint256 => ValidationClaim)) validationClaims;
+        mapping(bytes32 => mapping(uint256 => ValidationCommit[])) validationCommits;
+        mapping(bytes32 => mapping(uint256 => Validation[])) validations;
+        mapping(bytes32 => mapping(address => uint256)) validatorActiveClaimsPerProject;
+    }
+
     // Structs for State Grouping
     struct ProjectSettings {
         bytes32 algorithm;
@@ -28,7 +52,7 @@ interface IValidationOracle is ISharedTypes {
         uint256 submittedAt;
         address contributor;
         uint256 activeClaimCount;
-        uint256 submissionNonce; // F-05: Incremented on each re-queue to invalidate stale commits
+        uint256 submissionNonce;
     }
 
     struct ValidatorState {
@@ -487,6 +511,10 @@ interface IValidationOracle is ISharedTypes {
         external
         view
         returns (ValidationCommit[] memory);
+
+    // ============================================
+    // SLASHING FUNCTIONS
+    // ============================================
 
     /**
      * @notice Handle slashing of a validator after consensus (called by SapienCore)

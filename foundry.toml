@@ -1,7 +1,11 @@
 [profile.default]
 src = "src"
 out = "out"
+test = "test"
 libs = ["lib"]
+# Exclude local deployment verification (requires Anvil at localhost:8545)
+no_match_path = "script/verify/**"
+fs_permissions = [{ access = "read", path = "deployments/" }]
 optimizer = true
 optimizer_runs = 20000
 via_ir = true

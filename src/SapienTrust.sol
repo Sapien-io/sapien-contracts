@@ -41,56 +41,61 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
     uint256 public constant REJECTION_DECREASE = 50; // -0.5%
 
     // ============================================
-    // STATE VARIABLES
+    // STATE VARIABLES (ERC-7201 namespaced storage)
     // ============================================
 
-    /// @notice The SapienVault contract for staking operations
-    ISapienVault public vault;
+    /// @notice ERC-7201 storage struct for the SapienTrust contract.
+    /// @custom:storage-location erc7201:sapien.storage.SapienTrust
+    struct SapienTrustStorage {
+        /// @notice Reference to the SapienVault contract.
+        ISapienVault vault;
 
-    /// @notice Global minimum stake required to participate in the protocol
-    uint256 public minStakeRequired;
+        /// @notice Global minimum stake required for participation.
+        uint256 minStakeRequired;
 
-    /// @notice Minimum stake required for specific roles
-    /// @dev role => minimum stake amount
-    mapping(bytes32 => uint256) public roleMinStake;
+        /// @notice Minimum stake required per role.
+        mapping(bytes32 => uint256) roleMinStake;
 
-    /// @notice Reputation decay rate per day in basis points (e.g., 10 = 0.1%)
-    uint256 public reputationDecayPerDay; // in basis points (e.g., 10 = 0.1%)
+        /// @notice Reputation decay per day in basis points (10000 = 100%).
+        uint256 reputationDecayPerDay;
 
-    /// @notice User reputation data by role (private - use getTrustScore() to access)
-    /// @dev user => role => UserReputation struct
-    mapping(address => mapping(bytes32 => UserReputation)) private userReputations;
+        /// @notice Mapping of user address and role to reputation information.
+        mapping(address => mapping(bytes32 => UserReputation)) userReputations;
 
-    /// @notice User skill validation data (private - use hasValidatedSkill() to access)
-    /// @dev user => skill => SkillInfo struct
-    mapping(address => mapping(string => SkillInfo)) private userSkills;
+        /// @notice Mapping of user address and skill name to SkillInfo.
+        mapping(address => mapping(string => SkillInfo)) userSkills;
 
-    /// @notice Timestamp of last skill validation for each user
-    /// @dev user => timestamp
-    mapping(address => uint256) public lastSkillValidatedAt;
+        /// @notice Mapping of user address to the last timestamp their skill was validated.
+        mapping(address => uint256) lastSkillValidatedAt;
 
-    /// @notice Daily reputation gain accumulator for each user
-    /// @dev user => accumulated gain in basis points
-    mapping(address => uint256) public dailyReputationGain;
+        /// @notice Mapping of user address to daily accumulated reputation gain.
+        mapping(address => uint256) dailyReputationGain;
 
-    /// @notice Last day when reputation gain was updated for each user
-    /// @dev user => day (block.timestamp / 1 days)
-    mapping(address => uint256) public lastGainUpdateDay;
+        /// @notice Mapping of user address to the day their daily gain was last updated.
+        mapping(address => uint256) lastGainUpdateDay;
+
+        /// @notice True if protocol roles have been configured, false otherwise.
+        bool protocolRolesConfigured;
+    }
+
+    /**
+     * @notice Retrieves the storage pointer for the SapienTrust contract using ERC-7201 slot calculation.
+     * @dev Uses a unique storage slot derived from the contract name for upgradeable storage layout safety.
+     * @return $ Storage pointer to the SapienTrustStorage struct.
+     */
+    function _getSapienTrustStorage() private pure returns (SapienTrustStorage storage $) {
+        bytes32 slot =
+            keccak256(abi.encode(uint256(keccak256("sapien.storage.SapienTrust")) - 1)) & ~bytes32(uint256(0xff));
+        assembly {
+            $.slot := slot
+        }
+    }
 
     /// @notice Maximum daily reputation gain (1%)
     uint256 public constant MAX_DAILY_GAIN = 100; // 1%
 
     /// @notice Cooldown period between skill validations (1 day)
     uint256 public constant SKILL_VALIDATION_COOLDOWN = 1 days;
-
-    /// @notice Whether protocol roles (UPDATER_ROLE) have been configured (F-03 fix)
-    /// @dev Prevents accidental re-configuration after initial setup
-    bool public protocolRolesConfigured;
-
-    // Storage gap for future upgrades (10 own slots + 40 gap = 50)
-    // forge-lint: disable-next-line(mixed-case-variable)
-    // __gap follows OpenZeppelin upgradeable contract pattern
-    uint256[40] private __gap;
 
     // ============================================
     // INITIALIZER
@@ -115,9 +120,10 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
 
-        vault = ISapienVault(_vault);
-        minStakeRequired = _minStake;
-        reputationDecayPerDay = _decayRate;
+        SapienTrustStorage storage $ = _getSapienTrustStorage();
+        $.vault = ISapienVault(_vault);
+        $.minStakeRequired = _minStake;
+        $.reputationDecayPerDay = _decayRate;
     }
 
     // ============================================
@@ -131,9 +137,9 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
      * @param role The role to check eligibility for.
      */
     function hasEnoughStakeForRole(address user, bytes32 role) public view {
-        uint256 required = roleMinStake[role];
-        if (required == 0) return;
-        if (required == 0) required = minStakeRequired;
+        SapienTrustStorage storage $ = _getSapienTrustStorage();
+        uint256 required = $.roleMinStake[role];
+        if (required == 0) required = $.minStakeRequired;
 
         uint256 actual = _getUserStake(user);
         if (actual < required) {
@@ -148,7 +154,7 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
      * @return True if the skill is validated for the user
      */
     function hasValidatedSkill(address user, string calldata skill) external view returns (bool) {
-        return userSkills[user][skill].validated;
+        return _getSapienTrustStorage().userSkills[user][skill].validated;
     }
 
     /**
@@ -158,15 +164,18 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
      * @param skill Name of the skill to validate
      */
     function validateSkill(address user, string calldata skill) external onlyRole(UPDATER_ROLE) {
-        if (lastSkillValidatedAt[user] != 0 && block.timestamp < lastSkillValidatedAt[user] + SKILL_VALIDATION_COOLDOWN)
-        {
+        SapienTrustStorage storage $ = _getSapienTrustStorage();
+        if (
+            $.lastSkillValidatedAt[user] != 0
+                && block.timestamp < $.lastSkillValidatedAt[user] + SKILL_VALIDATION_COOLDOWN
+        ) {
             revert Unauthorized(UNAUTHORIZED_SKILL_COOLDOWN);
         }
 
-        userSkills[user][skill].validated = true;
-        ++userSkills[user][skill].completionCount;
-        lastSkillValidatedAt[user] = block.timestamp;
-        emit SkillValidated(user, skill, userSkills[user][skill].completionCount);
+        $.userSkills[user][skill].validated = true;
+        ++$.userSkills[user][skill].completionCount;
+        $.lastSkillValidatedAt[user] = block.timestamp;
+        emit SkillValidated(user, skill, $.userSkills[user][skill].completionCount);
     }
 
     // ============================================
@@ -181,7 +190,7 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
      * @return Reputation score (0-10000, where 5000 is default)
      */
     function getTrustScore(address user, bytes32 role) public view returns (uint256) {
-        UserReputation memory rep = userReputations[user][role];
+        UserReputation memory rep = _getSapienTrustStorage().userReputations[user][role];
         if (rep.lastUpdated == 0) return DEFAULT_REPUTATION;
 
         return _applyDecay(rep.score, rep.lastUpdated);
@@ -199,7 +208,8 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
         external
         onlyRole(UPDATER_ROLE)
     {
-        UserReputation storage rep = userReputations[user][role];
+        SapienTrustStorage storage $ = _getSapienTrustStorage();
+        UserReputation storage rep = $.userReputations[user][role];
 
         // 1. Initialize if needed
         if (rep.lastUpdated == 0) {
@@ -223,14 +233,15 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
 
             // Apply daily gain limit
             uint256 currentDay = block.timestamp / 1 days;
-            if (currentDay > lastGainUpdateDay[user]) {
-                dailyReputationGain[user] = bonus;
-                lastGainUpdateDay[user] = currentDay;
+            if (currentDay > $.lastGainUpdateDay[user]) {
+                $.dailyReputationGain[user] = bonus;
+                $.lastGainUpdateDay[user] = currentDay;
             } else {
-                if (dailyReputationGain[user] + bonus > MAX_DAILY_GAIN) {
-                    bonus = MAX_DAILY_GAIN > dailyReputationGain[user] ? MAX_DAILY_GAIN - dailyReputationGain[user] : 0;
+                if ($.dailyReputationGain[user] + bonus > MAX_DAILY_GAIN) {
+                    bonus =
+                        MAX_DAILY_GAIN > $.dailyReputationGain[user] ? MAX_DAILY_GAIN - $.dailyReputationGain[user] : 0;
                 }
-                dailyReputationGain[user] += bonus;
+                $.dailyReputationGain[user] += bonus;
             }
 
             rep.score = _min(rep.score + bonus, MAX_REPUTATION);
@@ -253,8 +264,9 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
      * @return True if user meets global minimum requirement
      */
     function hasRequiredStake(address user) public view returns (bool) {
-        if (minStakeRequired == 0) return true;
-        return _getUserStake(user) >= minStakeRequired;
+        uint256 minStake = _getSapienTrustStorage().minStakeRequired;
+        if (minStake == 0) return true;
+        return _getUserStake(user) >= minStake;
     }
 
     /**
@@ -264,9 +276,9 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
      * @return Amount of assets staked by the user
      */
     function _getUserStake(address user) internal view returns (uint256) {
-        // Vault is ERC4626
-        uint256 userShares = IERC20(address(vault)).balanceOf(user);
-        return IERC4626(address(vault)).convertToAssets(userShares);
+        ISapienVault v = _getSapienTrustStorage().vault;
+        uint256 userShares = IERC20(address(v)).balanceOf(user);
+        return IERC4626(address(v)).convertToAssets(userShares);
     }
 
     // ============================================
@@ -281,7 +293,8 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
      * @return Reputation score after applying decay
      */
     function _applyDecay(uint256 currentScore, uint256 lastUpdate) internal view returns (uint256) {
-        if (reputationDecayPerDay == 0 || lastUpdate == 0) return currentScore;
+        uint256 decayRate = _getSapienTrustStorage().reputationDecayPerDay;
+        if (decayRate == 0 || lastUpdate == 0) return currentScore;
 
         uint256 timePassed = block.timestamp - lastUpdate;
         if (timePassed < 1 days) return currentScore;
@@ -289,10 +302,10 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
         // Linear approximation of decay: score * (1 - (decayRate * time) / (10000 * 1 days))
         // If timePassed is large enough that decay >= 100%, return MIN_REPUTATION
         // Check: (timePassed * reputationDecayPerDay) >= (10000 * 1 days)
-        if (timePassed * reputationDecayPerDay >= 10000 * 1 days) return MIN_REPUTATION;
+        if (timePassed * decayRate >= 10000 * 1 days) return MIN_REPUTATION;
 
         // Multiply before divide to avoid precision loss
-        uint256 totalDecay = (currentScore * reputationDecayPerDay * timePassed) / (10000 * 1 days);
+        uint256 totalDecay = (currentScore * decayRate * timePassed) / (10000 * 1 days);
 
         if (totalDecay >= currentScore - MIN_REPUTATION) return MIN_REPUTATION;
         return currentScore - totalDecay;
@@ -330,7 +343,7 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
      */
     function setReputationDecay(uint256 _decayRate) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_decayRate > 10000) revert DecayRateOutOfRange(_decayRate, 10000);
-        reputationDecayPerDay = _decayRate;
+        _getSapienTrustStorage().reputationDecayPerDay = _decayRate;
         emit ReputationDecayUpdated(_decayRate);
     }
 
@@ -339,7 +352,7 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
      * @param _minStake New minimum stake amount
      */
     function setMinStakeRequired(uint256 _minStake) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        minStakeRequired = _minStake;
+        _getSapienTrustStorage().minStakeRequired = _minStake;
         emit MinStakeRequiredUpdated(_minStake);
     }
 
@@ -349,7 +362,7 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
      * @param _minStake New minimum stake amount
      */
     function setRoleMinStake(bytes32 role, uint256 _minStake) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        roleMinStake[role] = _minStake;
+        _getSapienTrustStorage().roleMinStake[role] = _minStake;
         emit RoleMinStakeUpdated(role, _minStake);
     }
 
@@ -361,13 +374,34 @@ contract SapienTrust is ISapienTrust, Initializable, AccessControlUpgradeable {
      * @param _oracle Address of the ValidationOracle contract
      */
     function setupProtocolRoles(address _core, address _oracle) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (protocolRolesConfigured) revert ProtocolRolesAlreadyConfigured();
+        SapienTrustStorage storage $ = _getSapienTrustStorage();
+        if ($.protocolRolesConfigured) revert ProtocolRolesAlreadyConfigured();
         if (_core == address(0) || _oracle == address(0)) revert InvalidAddress();
 
         _grantRole(UPDATER_ROLE, _core);
         _grantRole(UPDATER_ROLE, _oracle);
-        protocolRolesConfigured = true;
+        $.protocolRolesConfigured = true;
 
         emit ProtocolRolesConfigured(_core, _oracle);
+    }
+
+    // ============================================
+    // VIEW GETTERS (match ISapienTrust interface)
+    // ============================================
+
+    function vault() external view returns (ISapienVault) {
+        return _getSapienTrustStorage().vault;
+    }
+
+    function minStakeRequired() external view returns (uint256) {
+        return _getSapienTrustStorage().minStakeRequired;
+    }
+
+    function reputationDecayPerDay() external view returns (uint256) {
+        return _getSapienTrustStorage().reputationDecayPerDay;
+    }
+
+    function roleMinStake(bytes32 role) external view returns (uint256) {
+        return _getSapienTrustStorage().roleMinStake[role];
     }
 }

@@ -13,6 +13,8 @@ deploy-sepolia :;
 deploy-local :;
 	@./script/deploy-local.sh
 
+verify-local :; forge test --match-contract LocalDeploymentVerification --fork-url http://localhost:8545
+
 coverage :; forge coverage --ir-minimum
 
 

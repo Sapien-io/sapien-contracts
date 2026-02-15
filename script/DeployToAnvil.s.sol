@@ -15,7 +15,17 @@ import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/E
 
 /**
  * @title DeployToAnvil
- * @notice Deployment script for local Anvil instance - deploys all contracts and sets up test environment
+ * @notice Deployment script for local Anvil instance - deploys full protocol and sets up test environment
+ *
+ * Deploys: MockERC20 (stake + reward), SapienVault, Rewards, SapienTrust, ValidationOracle, SapienCore,
+ * SqrtStakeConsensus, plus roles, token minting, and vault deposits for test accounts.
+ *
+ * Usage:
+ *   forge script script/DeployToAnvil.s.sol:DeployToAnvil --rpc-url http://localhost:8545 --broadcast --unlocked
+ *
+ * Optional env vars (match DeployBaseSepolia):
+ *   MIN_STAKE  - Minimum stake amount (default: 100 ether)
+ *   DECAY_RATE - Reputation decay in basis points (default: 10 = 0.1%)
  */
 contract DeployToAnvil is Script {
     // Contract instances
@@ -35,8 +45,17 @@ contract DeployToAnvil is Script {
     address public validator2 = 0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65;
     address public validator3 = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;
 
+    // Configurable via env (optional)
+    uint256 public minStake = 100 ether;
+    uint256 public decayRate = 10; // 0.1% in basis points
+
     function run() external {
-        console.log("=== Deploying Sapien Protocol to Anvil ===\n");
+        minStake = vm.envOr("MIN_STAKE", uint256(100 ether));
+        decayRate = vm.envOr("DECAY_RATE", uint256(10));
+
+        console.log("=== Deploying Sapien Protocol to Anvil ===");
+        console.log("Min Stake:", minStake);
+        console.log("Decay Rate:", decayRate, "bps\n");
 
         // Start broadcast with admin account for all admin operations
         vm.startBroadcast(admin);
@@ -66,7 +85,7 @@ contract DeployToAnvil is Script {
         console.log("\n[4] Deploying SapienTrust...");
         address trustImpl = address(new SapienTrust());
         bytes memory trustInitData =
-            abi.encodeWithSelector(SapienTrust.initialize.selector, address(vault), 100 ether, 10, admin);
+            abi.encodeWithSelector(SapienTrust.initialize.selector, address(vault), minStake, decayRate, admin);
         trust = SapienTrust(address(new ERC1967Proxy(trustImpl, trustInitData)));
         console.log("    SapienTrust:", address(trust));
 
@@ -181,5 +200,14 @@ contract DeployToAnvil is Script {
         console.log("Validator1:        ", validator1);
         console.log("Validator2:        ", validator2);
         console.log("Validator3:        ", validator3);
+
+        console.log("\n=== ENV VARS (for scripts) ===");
+        console.log("SAPIEN_CORE_ADDRESS=", address(core));
+        console.log("VALIDATION_ORACLE_ADDRESS=", address(oracle));
+        console.log("SAPIEN_TRUST_ADDRESS=", address(trust));
+        console.log("SAPIEN_VAULT_ADDRESS=", address(vault));
+        console.log("REWARDS_ADDRESS=", address(rewards));
+        console.log("STAKING_TOKEN_ADDRESS=", address(stakeToken));
+        console.log("REWARD_TOKEN_ADDRESS=", address(rewardToken));
     }
 }

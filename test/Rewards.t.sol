@@ -263,5 +263,88 @@ contract RewardsTest is BaseTest {
         vm.expectRevert(InvalidInitialization.selector);
         rewards.initialize(admin);
     }
+
+    // ============================================
+    // sweepDust (Phase 1 - Coverage plan)
+    // ============================================
+
+    function testSweepDust() public {
+        // Create dust: balance > allocated (e.g. from rounding in reward calculations)
+        rewardToken.mint(address(rewards), 150 ether);
+        vm.prank(address(core));
+        rewards.allocateRewards(PROJECT_ID, address(rewardToken), 100 ether);
+        // balance=150, allocated=100, dust=50
+        address recipient = makeAddr("dustRecipient");
+
+        vm.prank(admin);
+        rewards.sweepDust(address(rewardToken), recipient);
+
+        assertEq(rewardToken.balanceOf(recipient), 50 ether);
+    }
+
+    function testSweepDust_RevertsWhenZeroAddress() public {
+        vm.prank(admin);
+        vm.expectRevert(IRewards.InvalidAddress.selector);
+        rewards.sweepDust(address(rewardToken), address(0));
+    }
+
+    function testSweepDust_RevertsWhenNoDust() public {
+        vm.startPrank(address(core));
+        rewards.allocateRewards(PROJECT_ID, address(rewardToken), 100 ether);
+        vm.stopPrank();
+        rewardToken.mint(address(rewards), 100 ether);
+        // balance=100, allocated=100, dust=0
+
+        vm.prank(admin);
+        vm.expectRevert(IRewards.InvalidAmount.selector);
+        rewards.sweepDust(address(rewardToken), makeAddr("recipient"));
+    }
+
+    function testEmergencyWithdraw_InsufficientAvailable() public {
+        vm.startPrank(address(core));
+        rewards.allocateRewards(PROJECT_ID, address(rewardToken), 100 ether);
+        vm.stopPrank();
+        rewardToken.mint(address(rewards), 100 ether);
+        // balance=100, allocated=100 -> available=0
+
+        vm.prank(admin);
+        rewards.pause();
+
+        vm.prank(admin);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IRewards.InsufficientProjectRewards.selector, bytes32(0), address(rewardToken), 1 ether, 0
+            )
+        );
+        rewards.emergencyWithdraw(address(rewardToken), makeAddr("recipient"), 1 ether);
+
+        vm.prank(admin);
+        rewards.unpause();
+    }
+
+    function testSetMaxFeeBps_InvalidFeeBps() public {
+        vm.prank(admin);
+        vm.expectRevert(IRewards.InvalidFeeBps.selector);
+        rewards.setMaxFeeBps(10001); // > MAX_FEE_BPS_CAP (10000)
+    }
+
+    function testRewardsViewFunctions_AllGetters() public {
+        rewardToken.mint(address(rewards), 100 ether);
+
+        vm.startPrank(address(core));
+        rewards.allocateRewards(PROJECT_ID, address(rewardToken), 100 ether);
+        rewards.distributeReward(PROJECT_ID, contributor, address(rewardToken), 30 ether);
+        rewards.distributeValidatorReward(PROJECT_ID, validator1, address(rewardToken), 20 ether);
+        vm.stopPrank();
+
+        assertEq(rewards.core(), address(core));
+        assertEq(rewards.maxFeeBps(), 400);
+        assertEq(rewards.projectRewards(PROJECT_ID, address(rewardToken)), 50 ether);
+        assertEq(rewards.contributorRewards(contributor, PROJECT_ID, address(rewardToken)), 30 ether);
+        assertEq(rewards.rewardsClaimed(contributor, PROJECT_ID, address(rewardToken)), 0);
+        assertEq(rewards.validatorRewards(validator1, PROJECT_ID, address(rewardToken)), 20 ether);
+        assertEq(rewards.validatorRewardsClaimed(validator1, PROJECT_ID, address(rewardToken)), 0);
+        assertEq(rewards.totalAllocated(address(rewardToken)), 100 ether);
+    }
 }
 
