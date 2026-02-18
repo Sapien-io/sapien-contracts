@@ -68,12 +68,15 @@ struct EngineStorage {
     mapping(bytes32 => address) originationAdapter;
     mapping(uint256 => address) contributionAdapter;
 
-    // ── Disputes ─────────────────────────────────────────────
-    mapping(bytes32 => mapping(uint256 => Dispute)) disputes;
+    // ── Disputes (keyed by nonce to prevent cross-nonce poisoning — SEC-C-01) ──
+    mapping(bytes32 => mapping(uint256 => mapping(uint256 => Dispute))) disputes;
 
     // ── Originator Accountability ────────────────────────────
     mapping(bytes32 => uint256) originatorLockedStake;
     mapping(bytes32 => OriginatorReport) originatorReports;
+
+    // ── Pipeline Tracking (SEC-H-01) ─────────────────────────
+    mapping(bytes32 => uint256) pendingContributions; // projectId => in-flight contribution count
 
     // ── Claim Protection ──────────────────────────────────────
     uint64 minClaimAmount; // minimum amount required to claim rewards

@@ -136,16 +136,22 @@ library ContributionLib {
 
         bytes32 projectId = claim.projectId;
 
+        // SEC-M-03: reject contributions to cancelled/completed projects
+        Project storage proj = $.projects[projectId];
+        if (proj.status != ProjectStatus.Active && proj.status != ProjectStatus.Funded) {
+            revert IQualityEngine.ProjectNotActive();
+        }
+
         // Verify index belongs to this claim
         IndexState storage idx = $.indexStates[projectId][index];
         if (idx.claimId != uint64(claimId)) revert IQualityEngine.IndexNotInClaim();
         if (idx.status != SubmissionStatus.Reserved) revert IQualityEngine.IndexNotReserved();
 
         // Snapshot reward rate: totalRewards / totalQuantity
-        Project storage proj = $.projects[projectId];
         uint256 rewardRate = proj.totalRewards / proj.totalQuantity;
 
-        // Store contribution
+        // Store contribution — SEC-C-01: explicitly reset ALL fields to prevent stale state
+        // from a previous nonce poisoning the recycled index
         Contribution storage contrib = $.contributions[projectId][index];
         contrib.contributor = msg.sender;
         contrib.submissionHash = submissionHash;
@@ -153,9 +159,15 @@ library ContributionLib {
         contrib.submittedAt = uint64(block.timestamp);
         contrib.status = ContributionStatus.Pending;
         contrib.claimId = uint64(claimId);
+        contrib.challengeEndsAt = 0;
+        contrib.rewardReleased = false;
+        contrib.consensusNonce = 0;
 
         // Update index state (no report reset needed — RISK-006: reports keyed by nonce)
         idx.status = SubmissionStatus.Submitted;
+
+        // SEC-H-01: track in-flight contributions
+        $.pendingContributions[projectId]++;
 
         // Increment submitted count
         claim.submittedCount++;

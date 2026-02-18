@@ -36,6 +36,29 @@ library FinalizationLib {
     /// @notice Settle a validator's outcome for a consensus round.
     /// @param nonce The submission nonce the validator participated in (RISK-006)
     function settleValidator(bytes32 projectId, uint256 index, uint256 nonce) public {
+        _settleValidatorFor(projectId, index, nonce, msg.sender);
+    }
+
+    /// @notice Permissionless force-settle after FORCE_SETTLE_DELAY (SEC-H-02).
+    function forceSettleValidator(bytes32 projectId, uint256 index, uint256 nonce, address validator) public {
+        EngineStorage storage $ = _getStorage();
+        ConsensusReport storage report = $.consensusReports[projectId][index][nonce];
+        if (!report.computed) revert IQualityEngine.ConsensusNotReady(0, 1);
+
+        // Enforce timeout: must wait FORCE_SETTLE_DELAY after the consensus report's nonce was computed.
+        // We use the contribution's challengeEndsAt as a proxy for when consensus was computed,
+        // but for safety we check the commit timestamp of the validator instead.
+        ValidatorCommit storage vc = $.validatorCommits[projectId][index][nonce][validator];
+        if (vc.revealedAt == 0) revert IQualityEngine.NotCommitted();
+        if (block.timestamp <= uint256(vc.revealedAt) + C.FORCE_SETTLE_DELAY) {
+            revert IQualityEngine.ForceSettleTooEarly();
+        }
+
+        _settleValidatorFor(projectId, index, nonce, validator);
+    }
+
+    /// @dev Shared settlement logic for both self-settle and force-settle.
+    function _settleValidatorFor(bytes32 projectId, uint256 index, uint256 nonce, address validator) internal {
         EngineStorage storage $ = _getStorage();
 
         ConsensusReport storage report = $.consensusReports[projectId][index][nonce];
@@ -43,7 +66,7 @@ library FinalizationLib {
 
         uint128 committedStake;
         {
-            ValidatorCommit storage vc = $.validatorCommits[projectId][index][nonce][msg.sender];
+            ValidatorCommit storage vc = $.validatorCommits[projectId][index][nonce][validator];
 
             if (vc.settled) revert IQualityEngine.AlreadySettled();
             if (vc.revealedAt == 0) revert IQualityEngine.NotCommitted();
@@ -53,25 +76,25 @@ library FinalizationLib {
         }
 
         Project storage proj = $.projects[projectId];
-        ValidatorConsensusResult storage vcr = $.validatorConsensus[projectId][index][nonce][msg.sender];
+        ValidatorConsensusResult storage vcr = $.validatorConsensus[projectId][index][nonce][validator];
         bool outlier = vcr.isOutlier;
 
         if (outlier) {
             uint256 slashAmt = uint256(vcr.slashAmount);
             if (slashAmt > 0 && committedStake > 0) {
                 uint256 actualSlash = slashAmt > committedStake ? committedStake : slashAmt;
-                $.vault.slashValidator(msg.sender, actualSlash);
+                $.vault.slashValidator(validator, actualSlash);
                 uint256 remaining = committedStake - actualSlash;
                 if (remaining > 0) {
-                    $.vault.releaseCommit(msg.sender, remaining);
+                    $.vault.releaseCommit(validator, remaining);
                 }
             } else if (committedStake > 0) {
-                $.vault.releaseCommit(msg.sender, committedStake);
+                $.vault.releaseCommit(validator, committedStake);
             }
-            ReputationLib.update(msg.sender, C.VALIDATOR_ROLE_KEY, false, 0);
+            ReputationLib.update(validator, C.VALIDATOR_ROLE_KEY, false, 0);
         } else {
             if (committedStake > 0) {
-                $.vault.releaseCommit(msg.sender, committedStake);
+                $.vault.releaseCommit(validator, committedStake);
             }
 
             Contribution storage contrib = $.contributions[projectId][index];
@@ -83,14 +106,14 @@ library FinalizationLib {
                     uint256 reward = (proj.totalRewards * uint256(proj.validatorRewardBps) * weight)
                         / (C.BPS * proj.totalQuantity * totalAccWeight);
 
-                    $.pendingRewards[msg.sender][proj.rewardToken] += reward;
+                    $.pendingRewards[validator][proj.rewardToken] += reward;
                     $.projectEscrow[projectId][proj.rewardToken] -= reward;
                 }
             }
-            ReputationLib.update(msg.sender, C.VALIDATOR_ROLE_KEY, true, 0);
+            ReputationLib.update(validator, C.VALIDATOR_ROLE_KEY, true, 0);
         }
 
-        emit IQualityEngine.ValidatorSettled(projectId, index, msg.sender, outlier);
+        emit IQualityEngine.ValidatorSettled(projectId, index, validator, outlier);
     }
 
     /// @notice Release a contributor's reward after the challenge period.
@@ -102,7 +125,9 @@ library FinalizationLib {
         if (block.timestamp < contrib.challengeEndsAt) revert IQualityEngine.ChallengeNotElapsed();
         if (contrib.rewardReleased) revert IQualityEngine.RewardAlreadyReleased();
 
-        Dispute storage dispute = $.disputes[projectId][index];
+        // SEC-C-01: look up dispute at the current contribution's nonce
+        uint256 nonce = contrib.consensusNonce;
+        Dispute storage dispute = $.disputes[projectId][index][nonce];
         if (dispute.status == DisputeStatus.Open) revert IQualityEngine.DisputeInProgress();
         if (dispute.status == DisputeStatus.Upheld) revert IQualityEngine.DisputeInProgress();
 
@@ -125,6 +150,9 @@ library FinalizationLib {
         $.pendingRewards[contrib.contributor][token] += reward;
         $.projectEscrow[projectId][token] -= contributorShare;
 
+        // SEC-H-01: decrement pending contributions counter
+        $.pendingContributions[projectId]--;
+
         emit IQualityEngine.ContributorRewardReleased(projectId, index, contrib.contributor, reward);
     }
 
@@ -134,12 +162,10 @@ library FinalizationLib {
         uint256 amount = $.pendingRewards[msg.sender][token];
         if (amount == 0) revert IQualityEngine.NoRewardToClaim();
 
-        // Check minimum claim amount
         if ($.minClaimAmount > 0 && amount < $.minClaimAmount) {
             revert IQualityEngine.ClaimAmountTooSmall(amount, $.minClaimAmount);
         }
 
-        // Check claim cooldown
         if ($.claimCooldown > 0) {
             uint64 lastClaim = $.lastClaimTime[msg.sender];
             if (lastClaim > 0 && block.timestamp < lastClaim + $.claimCooldown) {
@@ -186,6 +212,9 @@ library FinalizationLib {
         if (proj.status != ProjectStatus.Active && proj.status != ProjectStatus.Funded) {
             revert IQualityEngine.ProjectNotActive();
         }
+
+        // SEC-H-01: prevent completion while contributions are in the pipeline
+        if ($.pendingContributions[projectId] > 0) revert IQualityEngine.ProjectHasActivePipeline();
 
         proj.status = ProjectStatus.Completed;
         proj.completedAt = uint64(block.timestamp);

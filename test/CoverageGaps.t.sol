@@ -612,7 +612,11 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
     }
 
     function test_completeProject_active() public {
-        _claimAndSubmit(contributor1, projId, 1);
+        (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
+
+        // SEC-H-01: finalize contribution before completing project
+        _validateBelowThreshold(projId, indices[0]);
+        engine.computeConsensus(projId, indices[0]);
 
         vm.prank(originator);
         engine.completeProject(projId);
@@ -636,8 +640,10 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
         uint256 lockedBefore = engine.getOriginatorLockedStake(pid2);
         assertGt(lockedBefore, 0);
 
-        // Make project active
-        _claimAndSubmit(contributor1, pid2, 1);
+        // Make project active and finalize the contribution
+        (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid2, 1);
+        _validateBelowThreshold(pid2, indices[0]);
+        engine.computeConsensus(pid2, indices[0]);
 
         vm.prank(originator);
         engine.completeProject(pid2);
@@ -866,8 +872,10 @@ contract QEProjectValidationTest is QECoverageBase {
         bytes32 pid = keccak256("fws");
         _setupProject(pid, FUND_AMOUNT, QUANTITY);
 
-        // Make project Active
-        _claimAndSubmit(contributor1, pid, 1);
+        // Make project Active and finalize contribution
+        (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
+        _validateBelowThreshold(pid, indices[0]);
+        engine.computeConsensus(pid, indices[0]);
 
         // Complete the project
         vm.prank(originator);
@@ -1583,7 +1591,9 @@ contract QEOriginatorReportBranchTest is QECoverageBase {
     function test_revert_reportOriginator_wrongStatus() public {
         bytes32 pid = keccak256("cov-report-status");
         _setupProject(pid, FUND_AMOUNT, QUANTITY);
-        _claimAndSubmit(contributor1, pid, 1);
+        (, uint256[] memory idxs) = _claimAndSubmit(contributor1, pid, 1);
+        _validateBelowThreshold(pid, idxs[0]);
+        engine.computeConsensus(pid, idxs[0]);
 
         vm.prank(originator);
         engine.completeProject(pid);

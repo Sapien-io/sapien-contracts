@@ -93,10 +93,8 @@ library ValidationLib {
             if (stakeAmount < minStake) revert IQualityEngine.InsufficientStake(minStake, stakeAmount);
         }
 
-        // Lock stake from validator capacity to in-flight
-        if (stakeAmount > 0) {
-            $.vault.commitStake(msg.sender, stakeAmount);
-        }
+        // SEC-L-02: stakeAmount > 0 guaranteed by the InsufficientStake check above
+        $.vault.commitStake(msg.sender, stakeAmount);
 
         // Store commit (single struct write replaces 5 separate mapping writes)
         vc.commitHash = commitHash;
@@ -121,6 +119,11 @@ library ValidationLib {
 
         // Verify not already revealed
         if (vc.revealedAt != 0) revert IQualityEngine.AlreadyRevealed();
+
+        // SEC-M-04: enforce reveal deadline
+        if (block.timestamp > uint256(vc.commitTimestamp) + C.COMMIT_DEADLINE + C.REVEAL_DEADLINE) {
+            revert IQualityEngine.RevealWindowClosed();
+        }
 
         // Verify commit hash: keccak256(abi.encodePacked(score, salt))
         bytes32 expectedHash;
@@ -210,6 +213,9 @@ library ValidationLib {
             contrib.status = ContributionStatus.Rejected;
             contrib.challengeEndsAt = uint64(block.timestamp + C.CHALLENGE_PERIOD);
             $.indexStates[projectId][index].status = SubmissionStatus.Empty;
+
+            // SEC-H-01: decrement pending contributions counter
+            $.pendingContributions[projectId]--;
 
             // Increment nonce to invalidate stale data
             $.submissionNonce[projectId][index]++;

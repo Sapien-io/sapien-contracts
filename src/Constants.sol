@@ -28,6 +28,7 @@ library Constants {
     uint256 public constant MAX_ORIGINATOR_REPORT_BOND_BPS = 1000; // 10% of project totalRewards
     uint256 public constant MAX_DECAY_RATE_BPS = 500; // 5% max reputation decay per day (L-03)
     uint256 public constant PROJECT_COMPLETION_DELAY = 30 days; // grace period before escrow refund (M-03)
+    uint256 public constant FORCE_SETTLE_DELAY = 30 days; // time after consensus before permissionless force-settle (SEC-H-02)
 
     // Reputation constants
     uint256 public constant DEFAULT_REPUTATION = 5000;

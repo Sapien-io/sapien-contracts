@@ -54,16 +54,11 @@ contract StakeVault is ERC4626Upgradeable, AccessControlUpgradeable, PausableUpg
 
     /// @notice Verify ERC-7201 storage location derivation
     function verifyStorageLocation() external pure returns (bool) {
-        bytes32 expected;
-        assembly {
-            // Compute keccak256("sapien.storage.StakeVault")
-            let namespaceHash := keccak256("sapien.storage.StakeVault", 30)
-            // Compute keccak256(abi.encode(uint256(namespaceHash) - 1))
-            mstore(0x00, sub(namespaceHash, 1))
-            expected := keccak256(0x00, 32)
-            // Apply & ~bytes32(uint256(0xff))
-            expected := and(expected, not(0xff))
-        }
+        // SEC-M-06: Use Solidity-level keccak256 instead of inline assembly
+        // to avoid incorrect string length issues (was 30 instead of 25)
+        bytes32 namespaceHash = keccak256("sapien.storage.StakeVault");
+        bytes32 derived = keccak256(abi.encode(uint256(namespaceHash) - 1));
+        bytes32 expected = derived & ~bytes32(uint256(0xff));
         return expected == bytes32(uint256(0x0745d816f844b8d3ebe69904ebcd305a06dedec42070def1e397b29c2e74a900));
     }
 
@@ -223,10 +218,20 @@ contract StakeVault is ERC4626Upgradeable, AccessControlUpgradeable, PausableUpg
     /// @dev Override maxRedeem to limit withdrawals to unlocked balance.
     ///      OZ's maxWithdraw calls maxRedeem, so we only need to override maxRedeem.
     function maxRedeem(address owner) public view override returns (uint256) {
+        if (paused()) return 0; // SEC-M-01: block redemptions when paused
         uint256 avail = availableBalance(owner);
         uint256 availShares = convertToShares(avail);
         uint256 parentMax = super.maxRedeem(owner); // balanceOf(owner)
         return availShares < parentMax ? availShares : parentMax;
+    }
+
+    // SEC-M-01: Block ERC4626 deposits/mints when paused
+    function maxDeposit(address) public view override returns (uint256) {
+        return paused() ? 0 : type(uint256).max;
+    }
+
+    function maxMint(address) public view override returns (uint256) {
+        return paused() ? 0 : type(uint256).max;
     }
 
     // ── Transfer guard ─────────────────────────────────────

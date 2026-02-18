@@ -32,6 +32,10 @@ library OriginationLib {
         if ($.projects[projectId].originator != address(0)) {
             revert IQualityEngine.InvalidProjectConfig("project already exists");
         }
+        // SEC-L-01: reject mismatched originator instead of silently overwriting
+        if (config.originator != address(0) && config.originator != msg.sender) {
+            revert IQualityEngine.InvalidProjectConfig("originator must be msg.sender or zero");
+        }
         if (config.rewardToken == address(0)) revert IQualityEngine.ZeroAddress();
         if (config.consensusThreshold == 0 || config.consensusThreshold > uint16(C.BPS)) {
             revert IQualityEngine.InvalidProjectConfig("consensusThreshold out of range");

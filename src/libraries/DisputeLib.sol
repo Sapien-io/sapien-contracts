@@ -34,6 +34,9 @@ library DisputeLib {
 
     /// @notice Open a dispute on a consensus outcome during the challenge period.
     function openDispute(bytes32 projectId, uint256 index, bytes32 evidenceHash) public {
+        // SEC-L-03: Require non-empty evidence hash
+        if (evidenceHash == bytes32(0)) revert IQualityEngine.InvalidEvidenceHash();
+
         EngineStorage storage $ = _getStorage();
         Contribution storage contrib = $.contributions[projectId][index];
 
@@ -45,8 +48,14 @@ library DisputeLib {
         if (contrib.challengeEndsAt == 0) revert IQualityEngine.ConsensusNotComputed();
         if (block.timestamp > contrib.challengeEndsAt) revert IQualityEngine.DisputeWindowClosed();
 
-        Dispute storage dispute = $.disputes[projectId][index];
+        // SEC-C-01: disputes keyed by nonce to prevent cross-nonce poisoning
+        Dispute storage dispute = $.disputes[projectId][index][nonce];
+
+        // SEC-H-03: only one dispute per (projectId, index, nonce) — block reopening
         if (dispute.status == DisputeStatus.Open) revert IQualityEngine.DisputeAlreadyOpen();
+        if (dispute.status == DisputeStatus.Rejected || dispute.status == DisputeStatus.Upheld) {
+            revert IQualityEngine.DisputeAlreadyClosed();
+        }
 
         if (contrib.status == ContributionStatus.Accepted && contrib.contributor == msg.sender) {
             revert IQualityEngine.CannotDisputeOwnContribution();
@@ -70,9 +79,9 @@ library DisputeLib {
     }
 
     /// @notice Execute the "upheld" path for a dispute (used by both resolve and escalate).
-    function upholdDispute(bytes32 projectId, uint256 index) public {
+    function upholdDispute(bytes32 projectId, uint256 index, uint256 nonce) public {
         EngineStorage storage $ = _getStorage();
-        Dispute storage dispute = $.disputes[projectId][index];
+        Dispute storage dispute = $.disputes[projectId][index][nonce];
         Contribution storage contrib = $.contributions[projectId][index];
         Project storage proj = $.projects[projectId];
         address rewardToken = proj.rewardToken;
@@ -89,7 +98,11 @@ library DisputeLib {
             }
             ReputationLib.update(contrib.contributor, C.CONTRIBUTOR_ROLE_KEY, false, 0);
         } else if (contrib.status == ContributionStatus.Rejected) {
-            uint256 compensation = contrib.rewardRate;
+            // SEC-H-04: Cap total payout to rewardRate (contributor + challenger share a single budget)
+            uint256 maxPayout = contrib.rewardRate;
+            uint256 challengerReward = (maxPayout * C.DISPUTE_CHALLENGER_REWARD_BPS) / C.BPS;
+            uint256 compensation = maxPayout - challengerReward;
+
             if (compensation > 0 && $.projectEscrow[projectId][rewardToken] >= compensation) {
                 $.pendingRewards[contrib.contributor][rewardToken] += compensation;
                 $.projectEscrow[projectId][rewardToken] -= compensation;
@@ -97,7 +110,6 @@ library DisputeLib {
             }
             ReputationLib.update(contrib.contributor, C.CONTRIBUTOR_ROLE_KEY, true, 0);
 
-            uint256 challengerReward = (contrib.rewardRate * C.DISPUTE_CHALLENGER_REWARD_BPS) / C.BPS;
             if (challengerReward > 0 && $.projectEscrow[projectId][rewardToken] >= challengerReward) {
                 $.pendingRewards[dispute.challenger][rewardToken] += challengerReward;
                 $.projectEscrow[projectId][rewardToken] -= challengerReward;
@@ -106,9 +118,9 @@ library DisputeLib {
     }
 
     /// @notice Execute the "rejected" path for a dispute.
-    function rejectDispute(bytes32 projectId, uint256 index) public {
+    function rejectDispute(bytes32 projectId, uint256 index, uint256 nonce) public {
         EngineStorage storage $ = _getStorage();
-        Dispute storage dispute = $.disputes[projectId][index];
+        Dispute storage dispute = $.disputes[projectId][index][nonce];
         Contribution storage contrib = $.contributions[projectId][index];
 
         dispute.status = DisputeStatus.Rejected;
@@ -126,6 +138,9 @@ library DisputeLib {
 
     /// @notice Report an originator for misconduct.
     function reportOriginator(bytes32 projectId, bytes32 evidenceHash) public {
+        // SEC-L-03: Require non-empty evidence hash
+        if (evidenceHash == bytes32(0)) revert IQualityEngine.InvalidEvidenceHash();
+
         EngineStorage storage $ = _getStorage();
         Project storage proj = $.projects[projectId];
 

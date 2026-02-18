@@ -74,6 +74,14 @@ contract QualityEngine is
         __AccessControl_init();
         __Pausable_init();
 
+        // SEC-C-02: manually initialize ReentrancyGuard storage in the proxy.
+        // OZ v5 ReentrancyGuard uses namespaced storage but only initializes via constructor
+        // (which runs on the implementation, not the proxy). Set _status = NOT_ENTERED (1).
+        bytes32 reentrancySlot = _reentrancyGuardStorageSlot();
+        assembly {
+            sstore(reentrancySlot, 1)
+        }
+
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(C.OPERATOR_ROLE, admin_);
 
@@ -97,7 +105,7 @@ contract QualityEngine is
     }
 
     // ════════════════════════════════════════════════════════════════════
-    // Project Management
+    // Origintation
     // ════════════════════════════════════════════════════════════════════
 
     /// @inheritdoc IQualityEngine
@@ -115,7 +123,7 @@ contract QualityEngine is
     }
 
     // ════════════════════════════════════════════════════════════════════
-    // Claim & Contribute
+    // Contribution
     // ════════════════════════════════════════════════════════════════════
 
     /// @inheritdoc IQualityEngine
@@ -139,7 +147,7 @@ contract QualityEngine is
     }
 
     // ════════════════════════════════════════════════════════════════════
-    // Validation (Commit-Reveal)
+    // Validation
     // ════════════════════════════════════════════════════════════════════
 
     /// @inheritdoc IQualityEngine
@@ -152,6 +160,8 @@ contract QualityEngine is
     function reduceValidatorCapacity(uint256 amount) external whenNotPaused {
         ValidationLib.reduceValidatorCapacity(amount);
     }
+
+    // TODO: claimToContribute?
 
     /// @inheritdoc IQualityEngine
     function commitValidation(bytes32 projectId, uint256 index, bytes32 commitHash, uint128 stakeAmount)
@@ -187,6 +197,15 @@ contract QualityEngine is
     /// @inheritdoc IQualityEngine
     function settleValidator(bytes32 projectId, uint256 index, uint256 nonce) external whenNotPaused nonReentrant {
         FinalizationLib.settleValidator(projectId, index, nonce);
+    }
+
+    /// @inheritdoc IQualityEngine
+    function forceSettleValidator(bytes32 projectId, uint256 index, uint256 nonce, address validator)
+        external
+        whenNotPaused
+        nonReentrant
+    {
+        FinalizationLib.forceSettleValidator(projectId, index, nonce, validator);
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -232,14 +251,16 @@ contract QualityEngine is
         whenNotPaused
         nonReentrant
     {
-        if (_getStorage().disputes[projectId][index].status != DisputeStatus.Open) {
+        EngineStorage storage $ = _getStorage();
+        uint256 nonce = $.contributions[projectId][index].consensusNonce;
+        if ($.disputes[projectId][index][nonce].status != DisputeStatus.Open) {
             revert DisputeNotOpen();
         }
 
         if (upheld) {
-            DisputeLib.upholdDispute(projectId, index);
+            DisputeLib.upholdDispute(projectId, index, nonce);
         } else {
-            DisputeLib.rejectDispute(projectId, index);
+            DisputeLib.rejectDispute(projectId, index, nonce);
         }
 
         emit DisputeResolved(projectId, index, upheld);
@@ -248,18 +269,20 @@ contract QualityEngine is
     /// @notice Escalate an unresolved dispute after the resolution deadline.
     function escalateDispute(bytes32 projectId, uint256 index) external whenNotPaused nonReentrant {
         EngineStorage storage $ = _getStorage();
-        Dispute storage dispute = $.disputes[projectId][index];
+        uint256 nonce = $.contributions[projectId][index].consensusNonce;
+        Dispute storage dispute = $.disputes[projectId][index][nonce];
         if (dispute.status != DisputeStatus.Open) revert DisputeNotOpen();
 
         if (block.timestamp <= dispute.openedAt + C.DISPUTE_RESOLUTION_DEADLINE) {
             revert DisputeResolutionNotExpired();
         }
 
-        DisputeLib.upholdDispute(projectId, index);
+        DisputeLib.upholdDispute(projectId, index, nonce);
 
         emit DisputeEscalated(projectId, index);
     }
 
+    // TODO: Do we need this? Can this be handled by the dispute system?
     // ════════════════════════════════════════════════════════════════════
     // Originator Accountability
     // ════════════════════════════════════════════════════════════════════
@@ -380,11 +403,23 @@ contract QualityEngine is
     function setConsensusAlgorithm(address algorithm) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (algorithm == address(0)) revert ZeroAddress();
         _getStorage().consensusAlgorithm = algorithm;
+        emit ConsensusAlgorithmUpdated(algorithm);
     }
 
     function setTreasury(address treasury_) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (treasury_ == address(0)) revert ZeroAddress();
         _getStorage().treasury = treasury_;
+        emit TreasuryUpdated(treasury_);
+    }
+
+    function setMinClaimAmount(uint64 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _getStorage().minClaimAmount = amount;
+        emit MinClaimAmountUpdated(amount);
+    }
+
+    function setClaimCooldown(uint64 cooldown) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _getStorage().claimCooldown = cooldown;
+        emit ClaimCooldownUpdated(cooldown);
     }
 
     function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -504,7 +539,9 @@ contract QualityEngine is
 
     /// @inheritdoc IQualityEngine
     function getDispute(bytes32 projectId, uint256 index) external view returns (Dispute memory) {
-        return _getStorage().disputes[projectId][index];
+        EngineStorage storage $ = _getStorage();
+        uint256 nonce = $.contributions[projectId][index].consensusNonce;
+        return $.disputes[projectId][index][nonce];
     }
 
     /// @inheritdoc IQualityEngine

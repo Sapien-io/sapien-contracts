@@ -55,9 +55,13 @@ interface IQualityEngine {
     error ValidationNotClaimed();
     error InvalidCommitHash();
     error ProjectNotCompleted();
+    error ProjectHasActivePipeline();
+    error ForceSettleTooEarly();
+    error InvalidEvidenceHash();
 
     // Dispute errors
     error DisputeAlreadyOpen();
+    error DisputeAlreadyClosed();
     error DisputeNotOpen();
     error DisputeWindowClosed();
     error DisputeInProgress();
@@ -135,6 +139,10 @@ interface IQualityEngine {
     event MaxDecayRateBpsExceeded(uint256 provided, uint256 max);
     event ProjectCompleted(bytes32 indexed projectId);
     event EscrowRefunded(bytes32 indexed projectId, uint256 amount);
+    event ConsensusAlgorithmUpdated(address indexed newAlgorithm);
+    event TreasuryUpdated(address indexed newTreasury);
+    event MinClaimAmountUpdated(uint64 newAmount);
+    event ClaimCooldownUpdated(uint64 newCooldown);
 
     // ── Project Management ─────────────────────────────────────────────
     function createProject(bytes32 projectId, Project calldata config) external;
@@ -156,6 +164,7 @@ interface IQualityEngine {
     // ── Finalization ───────────────────────────────────────────────────
     function computeConsensus(bytes32 projectId, uint256 index) external;
     function settleValidator(bytes32 projectId, uint256 index, uint256 nonce) external;
+    function forceSettleValidator(bytes32 projectId, uint256 index, uint256 nonce, address validator) external;
     function releaseContributorReward(bytes32 projectId, uint256 index) external;
     function claimReward(address token) external;
 
