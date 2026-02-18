@@ -1,0 +1,98 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.30;
+
+import {Constants as C} from "src/Constants.sol";
+import {IQualityEngine} from "src/interfaces/IQualityEngine.sol";
+import {EngineStorage, Reputation} from "src/Types.sol";
+
+/// @title ReputationLib
+/// @notice Deployed library for reputation system operations.
+/// @dev Called via DELEGATECALL from QualityEngine; operates on the caller's ERC-7201 storage.
+library ReputationLib {
+    // keccak256(abi.encode(uint256(keccak256("sapien.storage.QualityEngine")) - 1)) & ~bytes32(uint256(0xff))
+    function _getStorage() private pure returns (EngineStorage storage $) {
+        assembly {
+            $.slot := 0x93ae96f70dc96ca851a79b6bf630e034298e11be62b3174b3a3408302fc00900
+        }
+    }
+
+    /// @notice Get reputation score with lazy decay applied
+    function getScore(address user, bytes32 role) public view returns (uint256) {
+        return getScoreCached(user, role, uint256(_getStorage().decayRateBps));
+    }
+
+    /// @notice Get reputation score with pre-cached decayRateBps (avoids redundant SLOAD in loops)
+    function getScoreCached(address user, bytes32 role, uint256 cachedDecayBps) public view returns (uint256) {
+        Reputation storage rep = _getStorage().reputation[user][role];
+        if (rep.lastUpdated == 0) return C.DEFAULT_REPUTATION;
+
+        uint256 score = uint256(rep.score);
+
+        if (cachedDecayBps > 0) {
+            uint256 daysSinceUpdate = (block.timestamp - uint256(rep.lastUpdated)) / 1 days;
+            if (daysSinceUpdate > 0) {
+                uint256 decayAmount = (score * cachedDecayBps * daysSinceUpdate) / C.BPS;
+                score = score > decayAmount + C.MIN_REPUTATION ? score - decayAmount : C.MIN_REPUTATION;
+            }
+        }
+
+        return score;
+    }
+
+    /// @notice Update reputation after an action (success or failure with optional bonus)
+    function update(address user, bytes32 role, bool success, uint256 bonus) public {
+        EngineStorage storage $ = _getStorage();
+        Reputation storage rep = $.reputation[user][role];
+
+        if (rep.lastUpdated == 0) {
+            rep.score = uint64(C.DEFAULT_REPUTATION);
+            rep.lastUpdated = uint64(block.timestamp);
+        }
+
+        uint256 currentScore = uint256(rep.score);
+        uint256 oldScore = currentScore;
+
+        if ($.decayRateBps > 0) {
+            uint256 daysSinceUpdate = (block.timestamp - uint256(rep.lastUpdated)) / 1 days;
+            if (daysSinceUpdate > 0) {
+                uint256 decayAmount = (currentScore * $.decayRateBps * daysSinceUpdate) / C.BPS;
+                currentScore =
+                    currentScore > decayAmount + C.MIN_REPUTATION ? currentScore - decayAmount : C.MIN_REPUTATION;
+            }
+        }
+
+        rep.totalActions++;
+
+        if (success) {
+            rep.successfulActions++;
+
+            uint256 today = block.timestamp / 1 days;
+            if (uint256(rep.dailyGainDate) != today) {
+                rep.dailyGain = 0;
+                rep.dailyGainDate = uint32(today);
+            }
+
+            uint256 gain = C.SUCCESS_INCREASE + bonus;
+            uint256 remainingCap =
+                C.MAX_DAILY_GAIN > uint256(rep.dailyGain) ? C.MAX_DAILY_GAIN - uint256(rep.dailyGain) : 0;
+            if (gain > remainingCap) {
+                gain = remainingCap;
+            }
+
+            if (gain > 0) {
+                currentScore = currentScore + gain > C.MAX_REPUTATION ? C.MAX_REPUTATION : currentScore + gain;
+                rep.dailyGain += uint16(gain);
+            }
+        } else {
+            uint256 penalty = C.REJECTION_DECREASE;
+            currentScore = currentScore > penalty + C.MIN_REPUTATION ? currentScore - penalty : C.MIN_REPUTATION;
+        }
+
+        rep.score = uint64(currentScore);
+        rep.lastUpdated = uint64(block.timestamp);
+
+        if (currentScore != oldScore) {
+            emit IQualityEngine.ReputationUpdated(user, role, oldScore, currentScore);
+        }
+    }
+}

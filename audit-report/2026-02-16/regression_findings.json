@@ -1,0 +1,194 @@
+{
+  "metadata": {
+    "analysis_date": "2026-02-16",
+    "protocol_version": "v0.5",
+    "analysis_type": "regression_diff",
+    "baseline_commit": "HEAD (no branch)",
+    "scope": [
+      "src/QualityEngine.sol",
+      "src/StakeVault.sol",
+      "src/libraries/FinalizationLib.sol",
+      "src/libraries/ValidationLib.sol",
+      "src/Types.sol"
+    ]
+  },
+  "behavior_changes": [
+    {
+      "id": "REG-001",
+      "title": "Validator settlement blocked on contribution rejection",
+      "severity": "CRITICAL",
+      "impact": "Permanent stake lock on routine protocol operation",
+      "description": "settleValidator requires report.computed=true, but computeConsensus sets computed=true only on acceptance. Rejections leave validators with permanently locked stake.",
+      "evidence": [
+        {"file": "src/libraries/FinalizationLib.sol", "line": 43, "code": "if (!report.computed) revert IQualityEngine.ConsensusNotReady(0, 1);"},
+        {"file": "src/libraries/ValidationLib.sol", "line": 189, "code": "report.computed = true; // Only on acceptance"},
+        {"file": "src/libraries/ValidationLib.sol", "line": 206, "code": "// Rejected — report.computed stays false"}
+      ],
+      "regression_type": "behavior_change",
+      "previous_behavior": "Validators could always settle after consensus computation",
+      "new_behavior": "Validators permanently locked on rejection",
+      "attack_vector": "Contribute low-quality work to trigger rejection, validators lose stake",
+      "economic_impact": "Validators exit system, consensus quality degrades",
+      "fix_status": "OPEN",
+      "fix_priority": "RELEASE_BLOCKER"
+    },
+    {
+      "id": "REG-002",
+      "title": "Escrow underflow in validator settlement",
+      "severity": "HIGH",
+      "impact": "Protocol insolvency and settlement failures",
+      "description": "settleValidator deducts validator rewards without checking escrow sufficiency. Multiple disputes can deplete escrow before settlements.",
+      "evidence": [
+        {"file": "src/libraries/FinalizationLib.sol", "line": 89, "code": "$.projectEscrow[projectId][proj.rewardToken] -= reward;"},
+        {"file": "src/libraries/DisputeLib.sol", "line": 981, "code": "$.projectEscrow[projectId][token] -= challengerReward; // Has guard"}
+      ],
+      "regression_type": "removed_check",
+      "previous_behavior": "Escrow sufficiency checked before deductions",
+      "new_behavior": "No underflow protection in validator settlements",
+      "attack_vector": "Multiple disputes deplete escrow, validator settlements revert",
+      "economic_impact": "Validators lose access to earned rewards",
+      "fix_status": "OPEN",
+      "fix_priority": "RELEASE_BLOCKER"
+    }
+  ],
+  "removed_checks": [
+    {
+      "id": "REG-003",
+      "title": "Share transfer locks bypassed",
+      "severity": "CRITICAL",
+      "impact": "All economic security negated",
+      "description": "StakeVault inherits ERC4626 but doesn't override _update(), allowing share transfers that bypass contributor/validator locks.",
+      "evidence": [
+        {"file": "src/StakeVault.sol", "line": 17, "code": "contract StakeVault is ERC4626Upgradeable, ..."},
+        {"file": "src/StakeVault.sol", "lines": "200-205", "code": "_burnShares reverts if user transferred shares away"}
+      ],
+      "regression_type": "removed_check",
+      "previous_behavior": "Share transfers blocked if they would violate locks",
+      "new_behavior": "Free share transfers bypass all lock mechanisms",
+      "attack_vector": "Transfer shares to fresh address, redeem full balance, leave locked account with no shares",
+      "economic_impact": "Slashing permanently bricked, all stake operations fail",
+      "fix_status": "OPEN",
+      "fix_priority": "RELEASE_BLOCKER"
+    },
+    {
+      "id": "REG-004",
+      "title": "Zero hash commit bypass",
+      "severity": "CRITICAL",
+      "impact": "Permanent contribution DoS",
+      "description": "bytes32(0) commit hash bypasses duplicate prevention, allowing infinite zero-stake commits that block validation.",
+      "evidence": [
+        {"file": "src/libraries/ValidationLib.sol", "line": 75, "code": "if (commitHash == bytes32(0)) revert IQualityEngine.InvalidCommitHash();"},
+        {"file": "src/libraries/ValidationLib.sol", "line": 78, "code": "if (vc.commitHash != bytes32(0)) revert IQualityEngine.AlreadyCommitted();"}
+      ],
+      "regression_type": "removed_check",
+      "previous_behavior": "Zero hash properly rejected as invalid commit",
+      "new_behavior": "Zero hash bypasses duplicate check",
+      "attack_vector": "Commit with bytes32(0), repeat to fill slots, block legitimate validation",
+      "economic_impact": "Contributions permanently stuck, protocol unusable",
+      "fix_status": "OPEN",
+      "fix_priority": "RELEASE_BLOCKER"
+    }
+  ],
+  "new_externals": [
+    {
+      "id": "REG-005",
+      "title": "Pluggable consensus algorithm",
+      "severity": "MEDIUM",
+      "impact": "Potential consensus manipulation",
+      "description": "ConsensusAlgorithm address stored but ConsensusLib.calculate() called directly. Pluggable feature exists in storage but not implemented.",
+      "evidence": [
+        {"file": "src/Types.sol", "line": 17, "code": "address consensusAlgorithm;"},
+        {"file": "src/libraries/ValidationLib.sol", "line": 262, "code": "return ConsensusLib.calculate(inputs);"}
+      ],
+      "regression_type": "incomplete_feature",
+      "risk": "Dead code creates confusion, potential for incorrect implementation if enabled",
+      "fix_status": "OPEN",
+      "fix_priority": "LOW"
+    },
+    {
+      "id": "REG-006",
+      "title": "Validation adapter fees",
+      "severity": "LOW",
+      "impact": "Phantom escrow balance",
+      "description": "validationFeeBps configured but validationAdapter mapping never populated. Fee logic exists but cannot be charged.",
+      "evidence": [
+        {"file": "src/Types.sol", "line": 13, "code": "uint16 validationFeeBps;"},
+        {"file": "src/libraries/FinalizationLib.sol", "lines": "79-93", "code": "No validation adapter fee deduction"}
+      ],
+      "regression_type": "incomplete_feature",
+      "risk": "Escrow accounting inconsistency when feature enabled",
+      "fix_status": "OPEN",
+      "fix_priority": "MEDIUM"
+    }
+  ],
+  "consensus_risks": [
+    {
+      "id": "REG-007",
+      "title": "Consensus settlement not nonce-keyed",
+      "severity": "HIGH",
+      "impact": "Validators locked out of re-validation",
+      "description": "ValidatorConsensusResult keyed by (projectId, index, validator) not by nonce. Rejected contributions cannot be resubmitted at same index.",
+      "evidence": [
+        {"file": "src/Types.sol", "line": 57, "code": "mapping(bytes32 => mapping(uint256 => mapping(address => ValidatorConsensusResult))) validatorConsensus;"},
+        {"file": "src/libraries/ValidationLib.sol", "line": 213, "code": "$.submissionNonce[projectId][index]++; // On rejection"}
+      ],
+      "regression_type": "storage_collision",
+      "risk": "Validators cannot participate in resubmissions at same index",
+      "fix_status": "OPEN",
+      "fix_priority": "HIGH"
+    }
+  ],
+  "economic_security_gaps": [
+    {
+      "id": "REG-008",
+      "title": "Zero minimum validation stake",
+      "severity": "HIGH",
+      "impact": "Free consensus manipulation",
+      "description": "Zero-stake validations allowed, undermining economic security model. ConsensusLib gives weight=1 to zero-stake validators.",
+      "evidence": [
+        {"file": "src/libraries/ValidationLib.sol", "line": 93, "code": "if (stakeAmount < minStake) revert IQualityEngine.InsufficientStake(minStake, stakeAmount);"},
+        {"file": "src/libraries/ConsensusLib.sol", "line": 44, "code": "weight = stakeAmount > 0 ? stakeAmount : 1;"}
+      ],
+      "regression_type": "insufficient_validation",
+      "risk": "Risk-free Sybil attacks on consensus",
+      "fix_status": "OPEN",
+      "fix_priority": "HIGH"
+    },
+    {
+      "id": "REG-009",
+      "title": "No validator capacity unlock path",
+      "severity": "HIGH",
+      "impact": "Permanent validator stake lock",
+      "description": "setValidatorCapacity only locks stake. No function to reduce validator commitment.",
+      "evidence": [
+        {"file": "src/libraries/ValidationLib.sol", "line": 40, "code": "function setValidatorCapacity(uint256 amount) public"},
+        {"file": "src/StakeVault.sol", "line": 123, "code": "function unlockValidatorCapacity(address user, uint256 amount) external onlyRole(ENGINE_ROLE)"}
+      ],
+      "regression_type": "missing_functionality",
+      "risk": "Validators cannot reduce commitment or exit",
+      "fix_status": "OPEN",
+      "fix_priority": "HIGH"
+    }
+  ],
+  "summary": {
+    "total_regressions": 9,
+    "critical_count": 3,
+    "high_count": 4,
+    "medium_count": 1,
+    "low_count": 1,
+    "release_blockers": 3,
+    "behavior_changes": 2,
+    "removed_checks": 2,
+    "new_externals": 2,
+    "consensus_risks": 1,
+    "economic_security_gaps": 2
+  },
+  "risk_assessment": {
+    "overall_risk": "CRITICAL",
+    "deployment_risk": "HIGH - Multiple release blockers prevent safe deployment",
+    "economic_security": "BROKEN - Share transfers bypass all locks, zero-stake validations allowed",
+    "consensus_integrity": "VULNERABLE - Multiple paths to consensus manipulation",
+    "fund_safety": "AT_RISK - Escrow underflows and permanent locks",
+    "recommendation": "DO NOT DEPLOY - Address all CRITICAL and HIGH severity regressions first"
+  }
+}

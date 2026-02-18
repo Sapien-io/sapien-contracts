@@ -1,0 +1,324 @@
+{
+  "metadata": {
+    "analysis_date": "2026-02-16",
+    "protocol_version": "v0.5",
+    "analysis_type": "static_security_audit",
+    "analyst": "A3-Static-Security-Auditor",
+    "scope": [
+      "src/QualityEngine.sol",
+      "src/StakeVault.sol",
+      "src/libraries/*.sol",
+      "src/Types.sol",
+      "src/Constants.sol"
+    ]
+  },
+  "findings": [
+    {
+      "id": "STATIC-001",
+      "title": "ERC4626 Share Transfer Bypass of Stake Locks",
+      "cwe": "CWE-284: Improper Access Control",
+      "severity": "CRITICAL",
+      "category": "Access Control",
+      "description": "StakeVault inherits ERC4626 but fails to override _update(), allowing users to transfer shares while bypassing contributor and validator stake locks. This completely negates the economic security model.",
+      "evidence_locations": [
+        {
+          "file": "src/StakeVault.sol",
+          "line": 17,
+          "code": "contract StakeVault is ERC4626Upgradeable, AccessControlUpgradeable, PausableUpgradeable, UUPSUpgradeable, IStakeVault"
+        },
+        {
+          "file": "src/StakeVault.sol",
+          "lines": "230-237",
+          "code": "function _update(address from, address to, uint256 value) internal override {\n    if (from != address(0) && to != address(0)) {\n        StakeAccount storage acct = _getStakeVaultStorage().accounts[from];\n        uint256 totalLocked = acct.contributorLock + acct.validatorCapacity + acct.inFlight;\n        uint256 lockedShares = convertToShares(totalLocked);\n        if (balanceOf(from) - value < lockedShares) revert TransferExceedsUnlockedShares();\n    }\n    super._update(from, to, value);\n}"
+        }
+      ],
+      "exploit_sketch": "1. User stakes tokens and sets validator capacity (locks stake)\n2. User transfers ERC4626 shares to a new address via transfer()\n3. New address redeems shares for underlying tokens\n4. Original account still shows locked stake but has no assets\n5. Slashing operations fail, all stake operations break",
+      "impact": "Complete bypass of staking mechanism, permanent loss of slashing capability",
+      "mitigation": "Override _update() to prevent all share transfers when sender has locked balances"
+    },
+    {
+      "id": "STATIC-002",
+      "title": "Missing ENGINE_ROLE Grant to QualityEngine",
+      "cwe": "CWE-284: Improper Access Control",
+      "severity": "CRITICAL",
+      "category": "Access Control",
+      "description": "StakeVault functions require ENGINE_ROLE, but QualityEngine.initialize() never grants this role to itself. Vault operations will revert, breaking core staking functionality.",
+      "evidence_locations": [
+        {
+          "file": "src/StakeVault.sol",
+          "line": 27,
+          "code": "bytes32 public constant ENGINE_ROLE = keccak256(\"ENGINE_ROLE\");"
+        },
+        {
+          "file": "src/StakeVault.sol",
+          "lines": "87-94",
+          "code": "function lockContributor(address user, uint256 amount) external onlyRole(ENGINE_ROLE) {\n    if (amount == 0) revert ZeroAmount();\n    uint256 avail = availableBalance(user);\n    if (avail < amount) revert InsufficientAvailableBalance(amount, avail);\n    _getStakeVaultStorage().accounts[user].contributorLock += amount;\n    emit ContributorLocked(user, amount);\n}"
+        },
+        {
+          "file": "src/QualityEngine.sol",
+          "lines": 74-79,
+          "code": "__AccessControl_init();\n__Pausable_init();\n_grantRole(DEFAULT_ADMIN_ROLE, admin_);\n_grantRole(C.OPERATOR_ROLE, admin_);"
+        }
+      ],
+      "exploit_sketch": "Deploy contracts → Attempt to claimToContribute → vault.lockContributor() reverts with AccessControl error → All staking operations fail",
+      "impact": "Protocol completely non-functional, no staking possible",
+      "mitigation": "Grant ENGINE_ROLE to QualityEngine address during initialization"
+    },
+    {
+      "id": "STATIC-003",
+      "title": "Validator Settlement Blocked on Contribution Rejection",
+      "cwe": "CWE-665: Improper Initialization",
+      "severity": "CRITICAL",
+      "category": "State Manipulation",
+      "description": "computeConsensus sets report.computed=true only on contribution acceptance, but settleValidator requires computed=true. Rejected contributions leave validators with permanently locked stake.",
+      "evidence_locations": [
+        {
+          "file": "src/libraries/FinalizationLib.sol",
+          "line": 43,
+          "code": "if (!report.computed) revert IQualityEngine.ConsensusNotReady(0, 1);"
+        },
+        {
+          "file": "src/libraries/ValidationLib.sol",
+          "line": 189,
+          "code": "report.computed = true; // Only on acceptance"
+        },
+        {
+          "file": "src/libraries/ValidationLib.sol",
+          "line": 206,
+          "code": "// Rejected — report.computed stays false"
+        }
+      ],
+      "exploit_sketch": "1. Submit low-quality contribution\n2. Validators commit and reveal scores\n3. Consensus computes rejection, increments nonce\n4. Validators attempt to settle → revert because computed=false\n5. Validator stake permanently locked",
+      "impact": "Validators lose stake on routine rejections, economic security degrades",
+      "mitigation": "Set computed=true regardless of acceptance/rejection outcome"
+    },
+    {
+      "id": "STATIC-004",
+      "title": "Zero-Stake Validation Bypass",
+      "cwe": "CWE-284: Improper Access Control",
+      "severity": "HIGH",
+      "category": "Access Control",
+      "description": "Zero-stake validations allowed despite minimum stake enforcement. ConsensusLib gives weight=1 to zero-stake validators, enabling Sybil attacks.",
+      "evidence_locations": [
+        {
+          "file": "src/libraries/ValidationLib.sol",
+          "line": 93,
+          "code": "if (stakeAmount < minStake) revert IQualityEngine.InsufficientStake(minStake, stakeAmount);"
+        },
+        {
+          "file": "src/libraries/ConsensusLib.sol",
+          "line": 49,
+          "code": "uint256 w = sqrtStake * effectiveRep; if (w == 0) w = 1;"
+        }
+      ],
+      "exploit_sketch": "1. Create multiple accounts with zero stake\n2. Commit zero-stake validations with arbitrary scores\n3. Reveal to manipulate consensus outcome\n4. Consensus weights zero-stake validators equally to legitimate ones",
+      "impact": "Free consensus manipulation, undermines validation economics",
+      "mitigation": "Enforce minimum stake > 0 and reject zero-stake validations"
+    },
+    {
+      "id": "STATIC-005",
+      "title": "Escrow Underflow in Validator Settlement",
+      "cwe": "CWE-682: Incorrect Calculation",
+      "severity": "HIGH",
+      "category": "Arithmetic",
+      "description": "settleValidator deducts validator rewards without checking escrow sufficiency. Multiple settlements can deplete escrow before individual claims.",
+      "evidence_locations": [
+        {
+          "file": "src/libraries/FinalizationLib.sol",
+          "line": 89,
+          "code": "$.projectEscrow[projectId][proj.rewardToken] -= reward;"
+        },
+        {
+          "file": "src/libraries/DisputeLib.sol",
+          "line": 87,
+          "code": "if (challengerReward > 0 && $.projectEscrow[projectId][rewardToken] >= challengerReward)"
+        }
+      ],
+      "exploit_sketch": "1. Multiple validators settle simultaneously\n2. Each settlement deducts from escrow without coordination\n3. Later settlements hit zero balance, revert\n4. Validators cannot claim earned rewards",
+      "impact": "Validator rewards lost, protocol insolvency",
+      "mitigation": "Check escrow sufficiency before reward deduction or use coordinated settlement"
+    },
+    {
+      "id": "STATIC-006",
+      "title": "Consensus Storage Collision on Resubmission",
+      "cwe": "CWE-349: Acceptance of Extraneous Untrusted Data With Trusted Data",
+      "severity": "HIGH",
+      "category": "State Manipulation",
+      "description": "validatorConsensus mapping keyed by (projectId, index, validator) not by nonce. Resubmitted contributions at same index collide with previous consensus results.",
+      "evidence_locations": [
+        {
+          "file": "src/Types.sol",
+          "line": 57,
+          "code": "mapping(bytes32 => mapping(uint256 => mapping(address => ValidatorConsensusResult))) validatorConsensus;"
+        },
+        {
+          "file": "src/libraries/ValidationLib.sol",
+          "line": 213,
+          "code": "$.submissionNonce[projectId][index]++; // On rejection"
+        }
+      ],
+      "exploit_sketch": "1. Submit contribution at index 0, gets rejected\n2. Index 0 gets resubmitted with new nonce\n3. Same validators participate in new round\n4. Old ValidatorConsensusResult data interferes with new settlement",
+      "impact": "Validators cannot settle on resubmissions, stake locked",
+      "mitigation": "Key validatorConsensus by nonce: (projectId, index, nonce, validator)"
+    },
+    {
+      "id": "STATIC-007",
+      "title": "Arithmetic Overflow in Consensus Calculation",
+      "cwe": "CWE-190: Integer Overflow or Wraparound",
+      "severity": "HIGH",
+      "category": "Arithmetic",
+      "description": "ConsensusLib.calculate() performs score * weight * PRECISION multiplication without overflow checks. Large stake amounts can cause uint256 overflow.",
+      "evidence_locations": [
+        {
+          "file": "src/libraries/ConsensusLib.sol",
+          "line": 53,
+          "code": "weightedSum += uint256(inp.score) * w * PRECISION;"
+        },
+        {
+          "file": "src/libraries/ConsensusLib.sol",
+          "line": 15,
+          "code": "uint256 internal constant PRECISION = 1e18;"
+        }
+      ],
+      "exploit_sketch": "1. Validator with extremely large stake amount participates\n2. w = sqrt(large_stake) * reputation becomes very large\n3. score * w * PRECISION overflows uint256\n4. Consensus calculation reverts or produces incorrect results",
+      "impact": "Consensus computation fails, contributions stuck",
+      "mitigation": "Use SafeMath or check for overflow in multiplications"
+    },
+    {
+      "id": "STATIC-008",
+      "title": "Malicious Adapter Token Transfer Manipulation",
+      "cwe": "CWE-20: Improper Input Validation",
+      "severity": "MEDIUM",
+      "category": "External Calls",
+      "description": "Adapter contracts can implement arbitrary logic in transferFrom calls. Malicious adapters could selectively fail or manipulate transfers.",
+      "evidence_locations": [
+        {
+          "file": "src/libraries/OriginationLib.sol",
+          "line": 96,
+          "code": "IERC20(token).safeTransferFrom(msg.sender, address(this), amount);"
+        },
+        {
+          "file": "src/surface.json",
+          "lines": "697-701",
+          "code": "\"adapters\": {\n  \"types\": [\"origination\", \"contribution\"],\n  \"trust_level\": \"medium\",\n  \"calls\": [\"transferFrom(user, contract, amount)\"],\n  \"description\": \"Adapter contracts for handling token transfers and fee collection\"\n}"
+        }
+      ],
+      "exploit_sketch": "1. Deploy malicious adapter that checks msg.sender\n2. Adapter succeeds for legitimate users but fails for specific targets\n3. Use adapter in fundProject to prevent targeted users from funding\n4. Selective censorship of project funding",
+      "impact": "Censorship of users, project funding manipulation",
+      "mitigation": "Validate adapter contracts or remove adapter abstraction"
+    },
+    {
+      "id": "STATIC-009",
+      "title": "Hardcoded Consensus Algorithm Bypass",
+      "cwe": "CWE-710: Improper Adherence to Coding Standards",
+      "severity": "MEDIUM",
+      "category": "External Calls",
+      "description": "Consensus algorithm address stored but ConsensusLib.calculate() called directly. Pluggable consensus feature exists but is unused.",
+      "evidence_locations": [
+        {
+          "file": "src/Types.sol",
+          "line": 17,
+          "code": "address consensusAlgorithm;"
+        },
+        {
+          "file": "src/libraries/ValidationLib.sol",
+          "line": 262,
+          "code": "return ConsensusLib.calculate(inputs);"
+        }
+      ],
+      "exploit_sketch": "Future upgrade attempts to use pluggable consensus fail because code path calls ConsensusLib directly",
+      "impact": "Inconsistent consensus behavior, upgrade failures",
+      "mitigation": "Use stored consensusAlgorithm address for calculations"
+    },
+    {
+      "id": "STATIC-010",
+      "title": "Fee-on-Transfer Token Accounting Errors",
+      "cwe": "CWE-682: Incorrect Calculation",
+      "severity": "MEDIUM",
+      "category": "External Calls",
+      "description": "fundProject handles fee-on-transfer tokens but other token operations may not account for actual received amounts.",
+      "evidence_locations": [
+        {
+          "file": "src/libraries/OriginationLib.sol",
+          "lines": "94-104",
+          "code": "uint256 balBefore = IERC20(token).balanceOf(address(this));\nIERC20(token).safeTransferFrom(msg.sender, address(this), amount);\nuint256 received = IERC20(token).balanceOf(address(this)) - balBefore;"
+        },
+        {
+          "file": "src/libraries/FinalizationLib.sol",
+          "line": 140,
+          "code": "IERC20(token).safeTransfer(msg.sender, amount);"
+        }
+      ],
+      "exploit_sketch": "1. Use fee-on-transfer reward token\n2. claimReward transfers expected amount but token deducts fee\n3. User receives less than expected, accounting inconsistent",
+      "impact": "User receives less than earned rewards",
+      "mitigation": "Measure actual transferred amounts in all token operations"
+    },
+    {
+      "id": "STATIC-011",
+      "title": "Validator Capacity Lock Without Unlock Path",
+      "cwe": "CWE-400: Uncontrolled Resource Consumption",
+      "severity": "MEDIUM",
+      "category": "State Manipulation",
+      "description": "setValidatorCapacity locks stake but reduceValidatorCapacity only reduces committed capacity, not total capacity. No way to fully unlock validator stake.",
+      "evidence_locations": [
+        {
+          "file": "src/libraries/ValidationLib.sol",
+          "line": 41,
+          "code": "function setValidatorCapacity(uint256 amount) public { $.vault.lockValidatorCapacity(msg.sender, amount); }"
+        },
+        {
+          "file": "src/libraries/ValidationLib.sol",
+          "line": 45,
+          "code": "function reduceValidatorCapacity(uint256 amount) public { $.vault.unlockValidatorCapacity(msg.sender, amount); }"
+        }
+      ],
+      "exploit_sketch": "1. Validator sets capacity for validation\n2. After participating, wants to unlock all stake\n3. reduceValidatorCapacity only unlocks from capacity pool\n4. Stake remains locked permanently",
+      "impact": "Validators cannot exit or reduce commitment",
+      "mitigation": "Add function to fully unlock validator capacity"
+    },
+    {
+      "id": "STATIC-012",
+      "title": "Reputation Manipulation via Zero Hash Bypass",
+      "cwe": "CWE-20: Improper Input Validation",
+      "severity": "MEDIUM",
+      "category": "State Manipulation",
+      "description": "bytes32(0) commit hash bypasses duplicate prevention, allowing infinite zero-hash commits that manipulate reputation decay.",
+      "evidence_locations": [
+        {
+          "file": "src/libraries/ValidationLib.sol",
+          "line": 75,
+          "code": "if (commitHash == bytes32(0)) revert IQualityEngine.InvalidCommitHash();"
+        },
+        {
+          "file": "src/libraries/ValidationLib.sol",
+          "line": 78,
+          "code": "if (vc.commitHash != bytes32(0)) revert IQualityEngine.AlreadyCommitted();"
+        }
+      ],
+      "exploit_sketch": "1. Commit with bytes32(0) hash (now blocked)\n2. System allows multiple commits with same hash\n3. Spam commits to waste gas and manipulate timing\n4. Reputation system affected by repeated operations",
+      "impact": "Gas griefing, timing manipulation",
+      "mitigation": "Maintain zero hash rejection for consistency"
+    }
+  ],
+  "summary": {
+    "total_findings": 12,
+    "critical_count": 3,
+    "high_count": 5,
+    "medium_count": 4,
+    "low_count": 0,
+    "categories": {
+      "Access Control": 3,
+      "State Manipulation": 4,
+      "Arithmetic": 2,
+      "External Calls": 3
+    },
+    "risk_assessment": {
+      "overall_risk": "CRITICAL",
+      "deployment_risk": "HIGH - Multiple critical issues prevent proper functioning",
+      "economic_security": "BROKEN - Share transfers bypass locks, stake operations fail",
+      "consensus_integrity": "VULNERABLE - Multiple manipulation vectors",
+      "fund_safety": "AT_RISK - Escrow underflows, settlement failures",
+      "recommendation": "DO NOT DEPLOY - Address all CRITICAL and HIGH severity findings first"
+    }
+  }
+}

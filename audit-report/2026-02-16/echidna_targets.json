@@ -1,0 +1,369 @@
+{
+  "description": "Echidna fuzz testing targets for Sapien PoQ v0.5 protocol invariants",
+  "echidna_config": {
+    "testLimit": 50000,
+    "shrinkLimit": 10000,
+    "seqLen": 100,
+    "contractAddr": "0x00a329c0648769A73afAc7F9381E08FB43dBEA72",
+    "deployer": "0x00a329c0648769A73afAc7F9381E08FB43dBEA72",
+    "sender": ["0x10000", "0x20000", "0x30000"],
+    "cryticArgs": ["--loop", "10"],
+    "solcArgs": "--optimize --optimize-runs=200"
+  },
+  "invariant_targets": [
+    {
+      "name": "asset_conservation_invariant",
+      "description": "ERC20 tokens are conserved across escrow, pending rewards, and claimed amounts",
+      "function": "assetConservationInvariant()",
+      "severity": "critical",
+      "properties": [
+        "Total funded tokens equal sum of escrow + pending + claimed + fees",
+        "No token creation or destruction",
+        "Escrow balance covers all outstanding rewards"
+      ],
+      "counterexamples_to_find": [
+        "fee-on-transfer token issues",
+        "precision loss in reward calculations",
+        "double-spending in reward distribution"
+      ]
+    },
+    {
+      "name": "stake_accounting_invariant",
+      "description": "User stake is properly accounted across all states",
+      "function": "stakeAccountingInvariant()",
+      "severity": "critical",
+      "properties": [
+        "totalStaked = available + contributorLock + validatorCapacity + inFlight",
+        "No stake creation or destruction",
+        "Stake movements follow valid state transitions"
+      ],
+      "counterexamples_to_find": [
+        "rounding errors in stake calculations",
+        "overflow/underflow in stake operations",
+        "inconsistent state updates"
+      ]
+    },
+    {
+      "name": "escrow_integrity_invariant",
+      "description": "Project escrow covers all distributed and pending rewards",
+      "function": "escrowIntegrityInvariant()",
+      "severity": "critical",
+      "properties": [
+        "escrow >= sum of all distributed rewards",
+        "escrow >= sum of all pending reward claims",
+        "refunds return unused escrow to originator"
+      ],
+      "counterexamples_to_find": [
+        "escrow insolvency",
+        "premature reward distribution",
+        "incorrect fee calculations"
+      ]
+    },
+    {
+      "name": "reputation_bounds_invariant",
+      "description": "Reputation scores stay within defined bounds",
+      "function": "reputationBoundsInvariant()",
+      "severity": "high",
+      "properties": [
+        "MIN_REPUTATION <= reputation <= MAX_REPUTATION",
+        "reputation changes are bounded",
+        "decay is applied correctly"
+      ],
+      "counterexamples_to_find": [
+        "reputation overflow/underflow",
+        "incorrect reputation updates",
+        "decay calculation errors"
+      ]
+    },
+    {
+      "name": "state_machine_invariant",
+      "description": "Protocol state machines follow valid transitions",
+      "function": "stateMachineInvariant()",
+      "severity": "high",
+      "properties": [
+        "Project states: CREATED -> FUNDED -> ACTIVE -> COMPLETED",
+        "Index states follow contribution -> validation -> consensus -> settlement flow",
+        "Invalid state transitions are prevented"
+      ],
+      "counterexamples_to_find": [
+        "invalid state transitions",
+        "state corruption",
+        "race conditions in state updates"
+      ]
+    },
+    {
+      "name": "temporal_safety_invariant",
+      "description": "Time-sensitive operations respect deadlines and windows",
+      "function": "temporalSafetyInvariant()",
+      "severity": "high",
+      "properties": [
+        "expired claims are properly handled",
+        "validation windows are respected",
+        "challenge periods prevent premature settlement"
+      ],
+      "counterexamples_to_find": [
+        "deadline bypass",
+        "premature operations",
+        "time manipulation attacks"
+      ]
+    },
+    {
+      "name": "consensus_correctness_invariant",
+      "description": "Consensus algorithm produces valid results",
+      "function": "consensusCorrectnessInvariant()",
+      "severity": "critical",
+      "properties": [
+        "minimum validator participation",
+        "valid score ranges",
+        "proper outlier detection"
+      ],
+      "counterexamples_to_find": [
+        "consensus with insufficient participation",
+        "invalid consensus results",
+        "consensus algorithm failures"
+      ]
+    }
+  ],
+  "fuzzing_sequences": [
+    {
+      "name": "project_lifecycle_sequence",
+      "description": "Complete project lifecycle from creation to completion",
+      "sequence": [
+        "createProject",
+        "fundProject",
+        "claimToContribute",
+        "contribute",
+        "commitValidation",
+        "revealValidation",
+        "computeConsensus",
+        "settleValidator",
+        "releaseContributorReward",
+        "claimReward",
+        "completeProject",
+        "refundEscrow"
+      ],
+      "invariant_checks": ["asset_conservation_invariant", "escrow_integrity_invariant"]
+    },
+    {
+      "name": "dispute_resolution_sequence",
+      "description": "Dispute lifecycle with resolution",
+      "sequence": [
+        "createProject",
+        "fundProject",
+        "claimToContribute",
+        "contribute",
+        "commitValidation",
+        "revealValidation",
+        "computeConsensus",
+        "openDispute",
+        "resolveDispute"
+      ],
+      "invariant_checks": ["asset_conservation_invariant", "temporal_safety_invariant"]
+    },
+    {
+      "name": "validation_commit_reveal_sequence",
+      "description": "Commit-reveal validation process",
+      "sequence": [
+        "setValidatorCapacity",
+        "commitValidation",
+        "revealValidation",
+        "computeConsensus"
+      ],
+      "invariant_checks": ["stake_accounting_invariant", "consensus_correctness_invariant"]
+    },
+    {
+      "name": "expiry_and_cleanup_sequence",
+      "description": "Claim expiry and cleanup processes",
+      "sequence": [
+        "claimToContribute",
+        "wait_for_expiry",
+        "expireClaim",
+        "cancelExpiredCommitment"
+      ],
+      "invariant_checks": ["stake_accounting_invariant", "temporal_safety_invariant"]
+    }
+  ],
+  "edge_case_generators": [
+    {
+      "name": "zero_amount_operations",
+      "description": "Operations with zero amounts",
+      "test_cases": [
+        "fundProject with amount = 0",
+        "claimToContribute with quantity = 0",
+        "setValidatorCapacity with amount = 0",
+        "commitValidation with stakeAmount = 0"
+      ]
+    },
+    {
+      "name": "maximum_value_operations",
+      "description": "Operations with maximum possible values",
+      "test_cases": [
+        "fundProject with maximum uint256",
+        "claimToContribute with maximum quantity",
+        "setValidatorCapacity with maximum stake",
+        "commitValidation with maximum stake amount"
+      ]
+    },
+    {
+      "name": "insufficient_balance_operations",
+      "description": "Operations attempting to use more than available balance",
+      "test_cases": [
+        "fundProject with insufficient token balance",
+        "claimToContribute with insufficient stake",
+        "commitValidation with insufficient capacity",
+        "claimReward with insufficient pending balance"
+      ]
+    },
+    {
+      "name": "duplicate_operations",
+      "description": "Attempting duplicate operations",
+      "test_cases": [
+        "createProject with existing projectId",
+        "fundProject on already funded project",
+        "contribute to already contributed index",
+        "commitValidation twice for same validation"
+      ]
+    },
+    {
+      "name": "out_of_bounds_operations",
+      "description": "Operations with invalid indices or parameters",
+      "test_cases": [
+        "contribute with index >= project.quantity",
+        "claimToContribute with invalid indices array",
+        "commitValidation with non-existent projectId",
+        "revealValidation with wrong salt"
+      ]
+    },
+    {
+      "name": "timing_edge_cases",
+      "description": "Operations at timing boundaries",
+      "test_cases": [
+        "contribute exactly at deadline",
+        "revealValidation exactly at window end",
+        "releaseContributorReward exactly after challenge period",
+        "expireClaim exactly after expiry time"
+      ]
+    },
+    {
+      "name": "reentrancy_attempts",
+      "description": "Attempting reentrancy attacks",
+      "test_cases": [
+        "fundProject calling back into contract",
+        "claimReward with reentrant token",
+        "settleValidator during consensus computation",
+        "releaseContributorReward during dispute resolution"
+      ]
+    },
+    {
+      "name": "access_control_violations",
+      "description": "Attempting unauthorized operations",
+      "test_cases": [
+        "non-admin calling setProtocolFee",
+        "non-operator calling resolveDispute",
+        "non-originator calling completeProject",
+        "validator settling before consensus"
+      ]
+    }
+  ],
+  "property_violation_targets": [
+    {
+      "name": "access_control_properties",
+      "description": "Role-based access control violations",
+      "properties": [
+        "only admin can call admin functions",
+        "only operator can resolve disputes",
+        "only originator can complete project",
+        "only claim owner can contribute"
+      ]
+    },
+    {
+      "name": "asset_movement_properties",
+      "description": "Incorrect asset movements",
+      "properties": [
+        "fundProject credits correct escrow amount",
+        "releaseContributorReward debits correct amount",
+        "claimReward transfers correct amount",
+        "slashing burns correct stake amount"
+      ]
+    },
+    {
+      "name": "state_transition_properties",
+      "description": "Invalid state transitions",
+      "properties": [
+        "project states follow valid sequence",
+        "index states follow contribution flow",
+        "stake states follow valid transitions",
+        "consensus computed before settlement"
+      ]
+    },
+    {
+      "name": "temporal_properties",
+      "description": "Timing constraint violations",
+      "properties": [
+        "deadlines are respected",
+        "windows are properly sequenced",
+        "challenge periods prevent premature actions",
+        "expiry times trigger correct cleanup"
+      ]
+    },
+    {
+      "name": "consensus_properties",
+      "description": "Consensus algorithm violations",
+      "properties": [
+        "minimum participation required",
+        "valid score ranges produced",
+        "proper outlier detection",
+        "correct weighted calculations"
+      ]
+    }
+  ],
+  "fuzzing_campaigns": [
+    {
+      "name": "core_invariant_campaign",
+      "description": "Comprehensive testing of core protocol invariants",
+      "duration": "24h",
+      "targets": ["asset_conservation_invariant", "stake_accounting_invariant", "escrow_integrity_invariant"],
+      "sequences": ["project_lifecycle_sequence", "dispute_resolution_sequence"],
+      "edge_cases": ["zero_amount_operations", "insufficient_balance_operations", "duplicate_operations"]
+    },
+    {
+      "name": "temporal_safety_campaign",
+      "description": "Testing time-sensitive operations and deadlines",
+      "duration": "12h",
+      "targets": ["temporal_safety_invariant", "state_machine_invariant"],
+      "sequences": ["expiry_and_cleanup_sequence", "validation_commit_reveal_sequence"],
+      "edge_cases": ["timing_edge_cases", "out_of_bounds_operations"]
+    },
+    {
+      "name": "consensus_correctness_campaign",
+      "description": "Testing consensus algorithm implementation",
+      "duration": "8h",
+      "targets": ["consensus_correctness_invariant"],
+      "sequences": ["validation_commit_reveal_sequence"],
+      "edge_cases": ["maximum_value_operations", "access_control_violations"]
+    },
+    {
+      "name": "economic_attack_campaign",
+      "description": "Testing economic attack vectors and incentives",
+      "duration": "16h",
+      "targets": ["asset_conservation_invariant", "stake_accounting_invariant"],
+      "sequences": ["dispute_resolution_sequence"],
+      "edge_cases": ["reentrancy_attempts", "insufficient_balance_operations"]
+    }
+  ],
+  "success_criteria": {
+    "invariant_violations": 0,
+    "property_violations": 0,
+    "reverts_without_reason": 0,
+    "gas_usage_anomalies": "investigate",
+    "state_corruption": 0,
+    "asset_loss": 0
+  },
+  "reporting": {
+    "generate_coverage_report": true,
+    "track_unique_sequences": true,
+    "log_property_violations": true,
+    "export_counterexamples": true,
+    "performance_metrics": true
+  }
+}

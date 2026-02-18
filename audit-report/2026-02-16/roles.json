@@ -1,0 +1,207 @@
+{
+  "description": "Roles, modifiers, and access control analysis for Sapien PoQ v0.5 protocol",
+  "roles": {
+    "DEFAULT_ADMIN_ROLE": {
+      "description": "Super administrator role with full control over protocol parameters",
+      "granted_to": ["deployer (initially)"],
+      "capabilities": [
+        "setProtocolFee", "setOriginationFee", "setContributionFee", "setValidationFee",
+        "setDecayRate", "setDisputeBondBps", "setOriginatorStakeRequirement",
+        "setOriginatorReportBondBps", "setMinValidationStake", "setConsensusAlgorithm",
+        "setTreasury", "pause", "unpause", "grantRole", "revokeRole"
+      ],
+      "contract": "QualityEngine",
+      "inherited_from": "AccessControlUpgradeable"
+    },
+    "OPERATOR_ROLE": {
+      "description": "Operational role for resolving disputes and reports",
+      "granted_to": ["deployer (initially)"],
+      "capabilities": [
+        "resolveDispute", "resolveOriginatorReport"
+      ],
+      "contract": "QualityEngine",
+      "trust_level": "high",
+      "responsibilities": [
+        "Review off-chain evidence for disputes",
+        "Make final decisions on consensus challenges",
+        "Resolve originator misconduct reports"
+      ]
+    },
+    "ENGINE_ROLE": {
+      "description": "Role granted to QualityEngine contract for StakeVault operations",
+      "granted_to": ["QualityEngine contract"],
+      "capabilities": [
+        "lockContributor", "unlockContributor", "slashContributor",
+        "lockValidatorCapacity", "unlockValidatorCapacity",
+        "commitStake", "releaseCommit", "slashValidator",
+        "slashAndUnlockContributor"
+      ],
+      "contract": "StakeVault",
+      "trust_level": "critical",
+      "description": "Allows QualityEngine to manipulate user stakes according to protocol rules"
+    }
+  },
+  "modifiers": {
+    "onlyRole(bytes32 role)": {
+      "description": "Restricts function access to addresses with specific role",
+      "implementation": "AccessControlUpgradeable",
+      "functions_using": [
+        "setProtocolFee", "setOriginationFee", "setContributionFee", "setValidationFee",
+        "setDecayRate", "setDisputeBondBps", "setOriginatorStakeRequirement",
+        "setOriginatorReportBondBps", "setMinValidationStake", "setConsensusAlgorithm",
+        "setTreasury", "pause", "unpause", "resolveDispute", "resolveOriginatorReport"
+      ],
+      "access_pattern": "role-based access control"
+    },
+    "whenNotPaused": {
+      "description": "Prevents function execution when contract is paused",
+      "implementation": "PausableUpgradeable",
+      "functions_using": [
+        "createProject", "fundProject", "claimToContribute", "contribute", "expireClaim",
+        "setValidatorCapacity", "reduceValidatorCapacity", "commitValidation", "revealValidation",
+        "computeConsensus", "settleValidator", "releaseContributorReward", "claimReward",
+        "cancelExpiredCommitment", "openDispute", "resolveDispute", "escalateDispute",
+        "reportOriginator", "resolveOriginatorReport", "escalateOriginatorReport",
+        "completeProject", "refundEscrow"
+      ],
+      "emergency_control": "admin can pause/unpause"
+    },
+    "nonReentrant": {
+      "description": "Prevents reentrant calls to protect against reentrancy attacks",
+      "implementation": "ReentrancyGuard",
+      "functions_using": [
+        "fundProject", "claimToContribute", "expireClaim", "commitValidation", "revealValidation",
+        "computeConsensus", "settleValidator", "releaseContributorReward", "claimReward",
+        "cancelExpiredCommitment", "openDispute", "resolveDispute", "escalateDispute",
+        "reportOriginator", "resolveOriginatorReport", "escalateOriginatorReport",
+        "completeProject", "refundEscrow"
+      ],
+      "protection_level": "critical functions with external calls or state changes"
+    },
+    "initializer": {
+      "description": "Ensures initialization function can only be called once",
+      "implementation": "OpenZeppelin upgradeable pattern",
+      "functions_using": ["initialize (QualityEngine)", "initialize (StakeVault)"],
+      "access_pattern": "one-time setup"
+    }
+  },
+  "access_patterns": {
+    "public_gated_functions": {
+      "description": "Public functions with additional access controls beyond modifiers",
+      "patterns": {
+        "reputation_gates": {
+          "functions": ["commitValidation"],
+          "condition": "proj.minValidatorReputation > 0 && rep >= proj.minValidatorReputation",
+          "role_key": "VALIDATOR_ROLE_KEY or proj.requiredSkill",
+          "description": "Validators must have sufficient reputation to participate"
+        },
+        "stake_requirements": {
+          "functions": ["claimToContribute", "commitValidation"],
+          "condition": "sufficient available stake in StakeVault",
+          "description": "Users must have unlocked stake to participate"
+        },
+        "timing_constraints": {
+          "functions": ["contribute", "expireClaim", "revealValidation", "openDispute"],
+          "condition": "within deadline windows (CLAIM_DEADLINE, REVEAL_DEADLINE, etc.)",
+          "description": "Time-sensitive operations with expiration"
+        },
+        "state_checks": {
+          "functions": ["fundProject", "claimToContribute", "reportOriginator"],
+          "condition": "project in correct status (Funded, Active)",
+          "description": "Functions only available in specific project states"
+        },
+        "ownership_checks": {
+          "functions": ["contribute", "expireClaim"],
+          "condition": "msg.sender == claim.claimant",
+          "description": "Functions restricted to claim owners"
+        },
+        "commitment_checks": {
+          "functions": ["revealValidation"],
+          "condition": "user has valid commit hash for the nonce",
+          "description": "Reveal requires prior valid commit"
+        },
+        "permissionless_operations": {
+          "functions": ["computeConsensus", "settleValidator", "releaseContributorReward", "cancelExpiredCommitment"],
+          "condition": "no access control, anyone can call",
+          "description": "Public goods functions for protocol operation"
+        }
+      }
+    },
+    "economic_access_controls": {
+      "description": "Access controls based on economic commitments",
+      "patterns": {
+        "bond_requirements": {
+          "functions": ["openDispute", "reportOriginator"],
+          "condition": "sufficient stake to lock as bond",
+          "description": "Economic skin in the game for challengers"
+        },
+        "stake_slashing": {
+          "functions": ["expireClaim", "settleValidator", "resolveDispute"],
+          "condition": "protocol can slash staked funds",
+          "description": "Punitive measures for protocol violations"
+        }
+      }
+    }
+  },
+  "privilege_escalation_risks": {
+    "role_granting": {
+      "description": "DEFAULT_ADMIN_ROLE can grant/revoke all roles",
+      "risk": "single point of compromise",
+      "mitigation": "multi-sig admin, timelocks for critical changes"
+    },
+    "operator_discretion": {
+      "description": "OPERATOR_ROLE has final say in disputes",
+      "risk": "subjective decision making",
+      "mitigation": "escalation mechanisms, evidence requirements, reputation penalties"
+    },
+    "engine_trust": {
+      "description": "ENGINE_ROLE controls all stake operations",
+      "risk": "QualityEngine compromise affects all user funds",
+      "mitigation": "immutable business logic, comprehensive testing, upgrade controls"
+    }
+  },
+  "reputation_system": {
+    "description": "Dynamic reputation gating for protocol participation",
+    "roles": {
+      "ORIGINATOR_ROLE_KEY": {
+        "description": "Reputation for project originators",
+        "updated_by": ["upholdOriginatorReport (penalty)", "rejectOriginatorReport (potential penalty)"],
+        "affects": ["project credibility", "future project funding"]
+      },
+      "CONTRIBUTOR_ROLE_KEY": {
+        "description": "Reputation for contribution quality",
+        "updated_by": ["consensus outcomes", "expireClaim penalties", "dispute resolutions"],
+        "affects": ["future contribution acceptance", "reward rates"]
+      },
+      "VALIDATOR_ROLE_KEY": {
+        "description": "Reputation for validation accuracy",
+        "updated_by": ["consensus outlier detection", "slashing events"],
+        "affects": ["validation opportunities", "stake requirements"]
+      }
+    },
+    "decay_mechanism": {
+      "description": "Reputation decays over time to encourage continuous participation",
+      "rate": "decayRateBps per day (configurable by admin)",
+      "purpose": "prevent reputation inflation, encourage active participation"
+    },
+    "access_control": {
+      "validation_gate": "commitValidation requires minValidatorReputation",
+      "skill_specific": "can require specific skill reputation for projects",
+      "floor_protection": "MIN_REPUTATION_FLOOR prevents complete exclusion"
+    }
+  },
+  "emergency_controls": {
+    "pause_mechanism": {
+      "description": "Admin can pause all non-admin functions",
+      "functions_affected": "all public functions with whenNotPaused modifier",
+      "recovery": "unpause function available to admin",
+      "use_case": "emergency shutdown, critical bug fixes"
+    },
+    "upgrade_mechanism": {
+      "description": "UUPS upgradeable contracts",
+      "access_control": "onlyRole(DEFAULT_ADMIN_ROLE)",
+      "contracts": ["QualityEngine", "StakeVault"],
+      "risk": "upgradeable code can change behavior"
+    }
+  }
+}

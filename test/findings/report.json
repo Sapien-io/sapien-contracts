@@ -1,0 +1,241 @@
+{
+    "metadata": {
+      "branch": "v0.5-dev",
+      "commit": "66b1d81",
+      "date": "2026-02-15",
+      "pipeline": "docs/skills/pipeline.md",
+      "scope": [
+        "src/QualityEngine.sol",
+        "src/StakeVault.sol",
+        "src/libraries/ConsensusLib.sol",
+        "src/Types.sol",
+        "src/interfaces/IQualityEngine.sol",
+        "src/interfaces/IStakeVault.sol",
+        "src/interfaces/IConsensusAlgorithm.sol"
+      ]
+    },
+    "summary": {
+      "gate_status": "FAIL",
+      "total_findings": 22,
+      "critical": 3,
+      "high": 5,
+      "medium": 6,
+      "low": 8,
+      "informational": 5
+    },
+    "findings": [
+      {
+        "id": "C-01",
+        "title": "ERC-7201 storage location hashes unverified",
+        "severity": "CRITICAL",
+        "likelihood": "HIGH",
+        "impact": "Protocol bricked on upgrade — all state lost",
+        "component": "QualityEngine, StakeVault",
+        "evidence": [
+          {"file": "QualityEngine.sol", "lineStart": 173, "lineEnd": 174, "note": "ENGINE_STORAGE_LOCATION constant"},
+          {"file": "StakeVault.sol", "lineStart": 48, "lineEnd": 49, "note": "STAKE_VAULT_STORAGE_LOCATION constant"}
+        ],
+        "exploit_sketch": [
+          "Protocol deployed with incorrect hash",
+          "State accumulates at wrong slot",
+          "Future upgrade corrects the hash",
+          "All state reads return zero — protocol bricked"
+        ],
+        "recommended_fix": "Add Foundry test verifying constants match keccak256 derivation formula. Fix if incorrect.",
+        "status": "OPEN"
+      },
+      {
+        "id": "C-02",
+        "title": "Vault share transfers bypass all lock mechanisms",
+        "severity": "CRITICAL",
+        "likelihood": "HIGH",
+        "impact": "All economic security negated; slashing permanently bricked",
+        "component": "StakeVault",
+        "evidence": [
+          {"file": "StakeVault.sol", "lineStart": 17, "lineEnd": 17, "note": "Missing _update override — shares freely transferable"},
+          {"file": "StakeVault.sol", "lineStart": 200, "lineEnd": 205, "note": "_burnShares reverts if user transferred shares away"}
+        ],
+        "exploit_sketch": [
+          "User locks stake (contributor lock, validator capacity, or in-flight)",
+          "User transfers vault shares to fresh address via ERC20.transfer()",
+          "Fresh address has zero locks — can redeem full balance",
+          "Original address has locks but no shares — slashing reverts",
+          "All consensus settlements, dispute resolutions, and claim expiries that touch this user are permanently bricked"
+        ],
+        "recommended_fix": "Override _update() to prevent transfers that leave sender shares below their locked amount.",
+        "status": "OPEN"
+      },
+      {
+        "id": "C-03",
+        "title": "bytes32(0) commit hash bypasses duplicate-commit check — DoS vector",
+        "severity": "CRITICAL",
+        "likelihood": "HIGH",
+        "impact": "Permanent contribution DoS at zero cost",
+        "component": "QualityEngine",
+        "evidence": [
+          {"file": "QualityEngine.sol", "lineStart": 521, "lineEnd": 521, "note": "Guard: commitHashes != bytes32(0) — bypassed when commitHash IS bytes32(0)"}
+        ],
+        "exploit_sketch": [
+          "Attacker calls commitValidation with commitHash=bytes32(0) and stakeAmount=0",
+          "Guard doesn't trigger (bytes32(0) != bytes32(0) is false)",
+          "Repeat N times to fill all numberOfValidations slots",
+          "bytes32(0) can never match a valid reveal hash",
+          "Contribution permanently stuck — cancelExpiredCommitment doesn't fix it (H-01)"
+        ],
+        "recommended_fix": "Add: if (commitHash == bytes32(0)) revert InvalidCommitHash();",
+        "status": "OPEN"
+      },
+      {
+        "id": "H-01",
+        "title": "Missing validationClaimCount decrement in cancelExpiredCommitment",
+        "severity": "HIGH",
+        "likelihood": "HIGH",
+        "impact": "Contributions permanently stuck after validator timeout",
+        "component": "QualityEngine",
+        "evidence": [
+          {"file": "QualityEngine.sol", "lineStart": 819, "lineEnd": 851, "note": "Clears commit data but does not decrement validationClaimCount"}
+        ],
+        "recommended_fix": "Add: $.validationClaimCount[projectId][index][nonce]--;",
+        "status": "OPEN"
+      },
+      {
+        "id": "H-02",
+        "title": "Escrow insolvency — validator rewards are additive, not carved from contributor share",
+        "severity": "HIGH",
+        "likelihood": "HIGH",
+        "impact": "Protocol cannot pay all rewards; last claimants get nothing",
+        "component": "QualityEngine",
+        "evidence": [
+          {"file": "QualityEngine.sol", "lineStart": 741, "lineEnd": 754, "note": "settleValidator: reward from totalRewards pool"},
+          {"file": "QualityEngine.sol", "lineStart": 785, "lineEnd": 797, "note": "releaseContributorReward: also from totalRewards pool"},
+          {"note": "With validatorRewardBps=2500: total obligations = 125% of escrow"}
+        ],
+        "recommended_fix": "Either carve validator rewards from contributor share (contributor gets rewardRate*(BPS-validatorBps)/BPS) or increase escrow funding requirement.",
+        "status": "OPEN"
+      },
+      {
+        "id": "H-03",
+        "title": "consensusSettled not keyed by nonce — validators cannot re-settle after rejection",
+        "severity": "HIGH",
+        "likelihood": "MEDIUM",
+        "impact": "Validators locked out of re-validations on same index",
+        "component": "QualityEngine",
+        "evidence": [
+          {"file": "QualityEngine.sol", "lineStart": 133, "lineEnd": 133, "note": "consensusSettled keyed by (projectId, index, validator) without nonce"},
+          {"file": "QualityEngine.sol", "lineStart": 695, "lineEnd": 701, "note": "settleValidator checks settled and sets it permanently"}
+        ],
+        "recommended_fix": "Key consensusSettled by (projectId, index, nonce, validator).",
+        "status": "OPEN"
+      },
+      {
+        "id": "H-04",
+        "title": "No unlock path for validator capacity",
+        "severity": "HIGH",
+        "likelihood": "HIGH",
+        "impact": "Validator stake permanently trapped — cannot withdraw or reduce commitment",
+        "component": "QualityEngine",
+        "evidence": [
+          {"file": "QualityEngine.sol", "lineStart": 490, "lineEnd": 493, "note": "setValidatorCapacity only locks, never unlocks"},
+          {"file": "StakeVault.sol", "lineStart": 123, "lineEnd": 130, "note": "unlockValidatorCapacity exists but requires ENGINE_ROLE — never called by Engine"}
+        ],
+        "recommended_fix": "Add reduceValidatorCapacity(uint256 amount) function that calls vault.unlockValidatorCapacity.",
+        "status": "OPEN"
+      },
+      {
+        "id": "H-05",
+        "title": "Zero-stake validators — free option attack",
+        "severity": "HIGH",
+        "likelihood": "HIGH",
+        "impact": "Risk-free consensus manipulation; undermines economic security model",
+        "component": "QualityEngine, ConsensusLib",
+        "evidence": [
+          {"file": "QualityEngine.sol", "lineStart": 530, "lineEnd": 532, "note": "stakeAmount=0 is allowed"},
+          {"file": "ConsensusLib.sol", "lineStart": 44, "lineEnd": 46, "note": "Zero-stake gets weight=1, can still earn rewards with zero slash risk"}
+        ],
+        "recommended_fix": "Enforce minimum stake per validation. Add minValidationStake to Project config or as a global parameter.",
+        "status": "OPEN"
+      },
+      {
+        "id": "M-01",
+        "title": "Validator adapter fee not deducted from projectEscrow",
+        "severity": "MEDIUM",
+        "likelihood": "LOW",
+        "impact": "Phantom escrow balance — insolvency when feature is enabled",
+        "component": "QualityEngine",
+        "evidence": [
+          {"file": "QualityEngine.sol", "lineStart": 745, "lineEnd": 754, "note": "Fee credited to adapter pendingRewards but escrow only decremented by post-fee amount"}
+        ],
+        "recommended_fix": "Deduct full pre-fee reward from escrow: $.projectEscrow -= originalReward.",
+        "status": "OPEN"
+      },
+      {
+        "id": "M-02",
+        "title": "Fee-on-transfer tokens break fundProject accounting",
+        "severity": "MEDIUM",
+        "likelihood": "MEDIUM",
+        "impact": "Escrow overstated — last claimants cannot withdraw",
+        "component": "QualityEngine",
+        "evidence": [
+          {"file": "QualityEngine.sol", "lineStart": 280, "lineEnd": 300, "note": "Credits escrow based on amount, not actual received"}
+        ],
+        "recommended_fix": "Measure actual received: balance_after - balance_before.",
+        "status": "OPEN"
+      },
+      {
+        "id": "M-03",
+        "title": "No project completion or escrow refund mechanism",
+        "severity": "MEDIUM",
+        "likelihood": "HIGH",
+        "impact": "Remaining escrow and originator stake permanently locked",
+        "component": "QualityEngine",
+        "evidence": [
+          {"file": "Types.sol", "lineStart": 12, "lineEnd": 12, "note": "ProjectStatus.Completed defined but never set"}
+        ],
+        "recommended_fix": "Add completeProject() function.",
+        "status": "OPEN"
+      },
+      {
+        "id": "M-04",
+        "title": "Dispute resolution escrow underflow — no guard on challenger reward deduction",
+        "severity": "MEDIUM",
+        "likelihood": "MEDIUM",
+        "impact": "Disputes permanently stuck in Open status",
+        "component": "QualityEngine",
+        "evidence": [
+          {"file": "QualityEngine.sol", "lineStart": 934, "lineEnd": 938, "note": "Deducts from escrow without >= check (upheld acceptance)"},
+          {"file": "QualityEngine.sol", "lineStart": 999, "lineEnd": 1004, "note": "Same pattern in escalateDispute"}
+        ],
+        "recommended_fix": "Add underflow guard: if (challengerReward > 0 && escrow >= challengerReward).",
+        "status": "OPEN"
+      },
+      {
+        "id": "M-05",
+        "title": "No timelock on admin upgrades or parameter changes",
+        "severity": "MEDIUM",
+        "likelihood": "MEDIUM",
+        "impact": "Instant rug via admin key compromise",
+        "component": "QualityEngine, StakeVault",
+        "evidence": [
+          {"file": "QualityEngine.sol", "lineStart": 1463, "lineEnd": 1463, "note": "_authorizeUpgrade with no timelock"},
+          {"file": "StakeVault.sol", "lineStart": 219, "lineEnd": 219, "note": "Same pattern"}
+        ],
+        "recommended_fix": "Deploy behind TimelockController. 48h minimum on upgrades, 24h on parameter changes.",
+        "status": "OPEN"
+      },
+      {
+        "id": "M-06",
+        "title": "validationAdapter mapping never populated — dead feature",
+        "severity": "MEDIUM",
+        "likelihood": "LOW",
+        "impact": "Validation adapter fees can never be charged",
+        "component": "QualityEngine",
+        "evidence": [
+          {"file": "QualityEngine.sol", "lineStart": 147, "lineEnd": 147, "note": "Declared in storage"},
+          {"file": "QualityEngine.sol", "lineStart": 745, "lineEnd": 745, "note": "Read in settleValidator but never written"}
+        ],
+        "recommended_fix": "Add adapter parameter to commitValidation, or remove dead code.",
+        "status": "OPEN"
+      }
+    ]
+  }
+  

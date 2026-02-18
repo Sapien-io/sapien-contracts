@@ -1,0 +1,792 @@
+{
+  "description": "Attack surface mapping for Sapien PoQ v0.5 protocol - external entry points, trust boundaries, and external dependencies",
+  "contracts": {
+    "QualityEngine": {
+      "address": "DEPLOYED_ADDRESS",
+      "proxy_type": "ERC1967",
+      "implementation": "QualityEngine.sol",
+      "entry_points": {
+        "public_functions": [
+          {
+            "name": "initialize",
+            "visibility": "external",
+            "parameters": [
+              {"name": "admin_", "type": "address"},
+              {"name": "vault_", "type": "address"},
+              {"name": "treasury_", "type": "address"},
+              {"name": "consensusAlgorithm_", "type": "address"}
+            ],
+            "modifiers": ["initializer"],
+            "access_control": "constructor-like (only once)",
+            "external_calls": [],
+            "description": "Initialize the proxy contract with admin, vault, treasury, and consensus algorithm"
+          },
+          {
+            "name": "createProject",
+            "visibility": "external",
+            "parameters": [
+              {"name": "projectId", "type": "bytes32"},
+              {"name": "config", "type": "Project"}
+            ],
+            "modifiers": ["whenNotPaused"],
+            "access_control": "public",
+            "external_calls": [],
+            "description": "Create a new project with specified configuration"
+          },
+          {
+            "name": "fundProject",
+            "visibility": "external",
+            "parameters": [
+              {"name": "projectId", "type": "bytes32"},
+              {"name": "amount", "type": "uint256"},
+              {"name": "quantity", "type": "uint256"},
+              {"name": "adapter", "type": "address"}
+            ],
+            "modifiers": ["whenNotPaused", "nonReentrant"],
+            "access_control": "public",
+            "external_calls": [
+              {
+                "target": "adapter",
+                "function": "transferFrom(msg.sender, address(this), amount)",
+                "type": "ERC20.transferFrom",
+                "description": "Transfer reward tokens from originator to contract escrow"
+              }
+            ],
+            "asset_flows": ["ERC20 tokens to projectEscrow"],
+            "description": "Fund a project with reward tokens via adapter"
+          },
+          {
+            "name": "claimToContribute",
+            "visibility": "external",
+            "parameters": [
+              {"name": "projectId", "type": "bytes32"},
+              {"name": "quantity", "type": "uint256"},
+              {"name": "adapter", "type": "address"}
+            ],
+            "modifiers": ["whenNotPaused", "nonReentrant"],
+            "access_control": "public",
+            "returns": ["uint256 claimId", "uint256[] indices"],
+            "external_calls": [
+              {
+                "target": "StakeVault",
+                "function": "lockContributor(msg.sender, stakeAmount)",
+                "type": "internal",
+                "description": "Lock contributor stake for the claimed indices"
+              }
+            ],
+            "asset_flows": ["contributor stake locked"],
+            "description": "Claim indices for contribution and lock stake"
+          },
+          {
+            "name": "contribute",
+            "visibility": "external",
+            "parameters": [
+              {"name": "claimId", "type": "uint256"},
+              {"name": "index", "type": "uint256"},
+              {"name": "submissionHash", "type": "bytes32"}
+            ],
+            "modifiers": ["whenNotPaused"],
+            "access_control": "public",
+            "external_calls": [],
+            "description": "Submit a contribution for a claimed index"
+          },
+          {
+            "name": "expireClaim",
+            "visibility": "external",
+            "parameters": [
+              {"name": "claimId", "type": "uint256"},
+              {"name": "indices", "type": "uint256[]"}
+            ],
+            "modifiers": ["whenNotPaused", "nonReentrant"],
+            "access_control": "public",
+            "external_calls": [
+              {
+                "target": "StakeVault",
+                "function": "slashAndUnlockContributor",
+                "type": "internal",
+                "description": "Slash incomplete contributions and unlock remaining stake"
+              }
+            ],
+            "asset_flows": ["contributor stake slashed/unlocked"],
+            "description": "Expire overdue claim and penalize contributor"
+          },
+          {
+            "name": "setValidatorCapacity",
+            "visibility": "external",
+            "parameters": [{"name": "amount", "type": "uint256"}],
+            "modifiers": ["whenNotPaused"],
+            "access_control": "public",
+            "external_calls": [
+              {
+                "target": "StakeVault",
+                "function": "lockValidatorCapacity(msg.sender, amount)",
+                "type": "internal",
+                "description": "Lock stake for validator capacity"
+              }
+            ],
+            "asset_flows": ["validator stake locked"],
+            "description": "Set validator capacity by locking stake"
+          },
+          {
+            "name": "reduceValidatorCapacity",
+            "visibility": "external",
+            "parameters": [{"name": "amount", "type": "uint256"}],
+            "modifiers": ["whenNotPaused"],
+            "access_control": "public",
+            "external_calls": [
+              {
+                "target": "StakeVault",
+                "function": "unlockValidatorCapacity(msg.sender, amount)",
+                "type": "internal",
+                "description": "Unlock validator capacity stake"
+              }
+            ],
+            "asset_flows": ["validator stake unlocked"],
+            "description": "Reduce validator capacity and unlock stake"
+          },
+          {
+            "name": "commitValidation",
+            "visibility": "external",
+            "parameters": [
+              {"name": "projectId", "type": "bytes32"},
+              {"name": "index", "type": "uint256"},
+              {"name": "commitHash", "type": "bytes32"},
+              {"name": "stakeAmount", "type": "uint128"}
+            ],
+            "modifiers": ["whenNotPaused", "nonReentrant"],
+            "access_control": "public (reputation-gated)",
+            "external_calls": [
+              {
+                "target": "StakeVault",
+                "function": "commitStake(msg.sender, stakeAmount)",
+                "type": "internal",
+                "description": "Move validator stake from capacity to in-flight"
+              }
+            ],
+            "asset_flows": ["validator stake committed"],
+            "description": "Commit to validate a contribution"
+          },
+          {
+            "name": "revealValidation",
+            "visibility": "external",
+            "parameters": [
+              {"name": "projectId", "type": "bytes32"},
+              {"name": "index", "type": "uint256"},
+              {"name": "score", "type": "uint16"},
+              {"name": "salt", "type": "bytes32"}
+            ],
+            "modifiers": ["whenNotPaused", "nonReentrant"],
+            "access_control": "public (committed validators only)",
+            "external_calls": [],
+            "description": "Reveal committed validation score"
+          },
+          {
+            "name": "computeConsensus",
+            "visibility": "external",
+            "parameters": [
+              {"name": "projectId", "type": "bytes32"},
+              {"name": "index", "type": "uint256"}
+            ],
+            "modifiers": ["whenNotPaused", "nonReentrant"],
+            "access_control": "public (permissionless)",
+            "external_calls": [
+              {
+                "target": "consensusAlgorithm",
+                "function": "calculate(inputs)",
+                "type": "staticcall",
+                "description": "Compute consensus using external algorithm"
+              },
+              {
+                "target": "StakeVault",
+                "function": "unlockContributor/slashContributor",
+                "type": "internal",
+                "description": "Settle contributor stake based on consensus outcome"
+              }
+            ],
+            "asset_flows": ["contributor stake unlocked/slashed"],
+            "description": "Compute consensus from revealed validations"
+          },
+          {
+            "name": "settleValidator",
+            "visibility": "external",
+            "parameters": [
+              {"name": "projectId", "type": "bytes32"},
+              {"name": "index", "type": "uint256"}
+            ],
+            "modifiers": ["whenNotPaused", "nonReentrant"],
+            "access_control": "public (permissionless)",
+            "external_calls": [
+              {
+                "target": "StakeVault",
+                "function": "releaseCommit/slashValidator",
+                "type": "internal",
+                "description": "Release or slash validator stake based on consensus"
+              }
+            ],
+            "asset_flows": ["validator stake released/slashed"],
+            "description": "Settle validator stakes after consensus"
+          },
+          {
+            "name": "releaseContributorReward",
+            "visibility": "external",
+            "parameters": [
+              {"name": "projectId", "type": "bytes32"},
+              {"name": "index", "type": "uint256"}
+            ],
+            "modifiers": ["whenNotPaused", "nonReentrant"],
+            "access_control": "public (permissionless)",
+            "external_calls": [],
+            "asset_flows": ["reward tokens from escrow to pendingRewards"],
+            "description": "Release contributor reward from project escrow"
+          },
+          {
+            "name": "claimReward",
+            "visibility": "external",
+            "parameters": [{"name": "token", "type": "address"}],
+            "modifiers": ["whenNotPaused", "nonReentrant"],
+            "access_control": "public",
+            "external_calls": [
+              {
+                "target": "token",
+                "function": "transfer(msg.sender, amount)",
+                "type": "ERC20.transfer",
+                "description": "Transfer claimed rewards to user"
+              }
+            ],
+            "asset_flows": ["ERC20 tokens to user wallet"],
+            "description": "Claim accumulated reward tokens"
+          },
+          {
+            "name": "cancelExpiredCommitment",
+            "visibility": "external",
+            "parameters": [
+              {"name": "projectId", "type": "bytes32"},
+              {"name": "index", "type": "uint256"},
+              {"name": "validator", "type": "address"}
+            ],
+            "modifiers": ["whenNotPaused", "nonReentrant"],
+            "access_control": "public (permissionless)",
+            "external_calls": [
+              {
+                "target": "StakeVault",
+                "function": "slashValidator",
+                "type": "internal",
+                "description": "Slash ghost validator stake"
+              }
+            ],
+            "asset_flows": ["validator stake slashed"],
+            "description": "Cancel expired validation commitment and slash validator"
+          },
+          {
+            "name": "openDispute",
+            "visibility": "external",
+            "parameters": [
+              {"name": "projectId", "type": "bytes32"},
+              {"name": "index", "type": "uint256"},
+              {"name": "evidenceHash", "type": "bytes32"}
+            ],
+            "modifiers": ["whenNotPaused", "nonReentrant"],
+            "access_control": "public",
+            "external_calls": [
+              {
+                "target": "StakeVault",
+                "function": "lockContributor(msg.sender, bondAmount)",
+                "type": "internal",
+                "description": "Lock dispute bond"
+              }
+            ],
+            "asset_flows": ["dispute bond locked"],
+            "description": "Open dispute on consensus outcome"
+          },
+          {
+            "name": "resolveDispute",
+            "visibility": "external",
+            "parameters": [
+              {"name": "projectId", "type": "bytes32"},
+              {"name": "index", "type": "uint256"},
+              {"name": "upheld", "type": "bool"}
+            ],
+            "modifiers": ["onlyRole(OPERATOR_ROLE)", "whenNotPaused", "nonReentrant"],
+            "access_control": "operator only",
+            "external_calls": [
+              {
+                "target": "StakeVault",
+                "function": "unlockContributor/slashContributor",
+                "type": "internal",
+                "description": "Settle dispute bond and potentially redistribute escrow"
+              }
+            ],
+            "asset_flows": ["dispute bond settled", "escrow redistributed"],
+            "description": "Resolve dispute with operator decision"
+          },
+          {
+            "name": "escalateDispute",
+            "visibility": "external",
+            "parameters": [
+              {"name": "projectId", "type": "bytes32"},
+              {"name": "index", "type": "uint256"}
+            ],
+            "modifiers": ["whenNotPaused", "nonReentrant"],
+            "access_control": "public",
+            "external_calls": [
+              {
+                "target": "StakeVault",
+                "function": "unlockContributor",
+                "type": "internal",
+                "description": "Return dispute bond to challenger"
+              }
+            ],
+            "asset_flows": ["dispute bond returned"],
+            "description": "Escalate unresolved dispute (uphold automatically)"
+          },
+          {
+            "name": "reportOriginator",
+            "visibility": "external",
+            "parameters": [
+              {"name": "projectId", "type": "bytes32"},
+              {"name": "evidenceHash", "type": "bytes32"}
+            ],
+            "modifiers": ["whenNotPaused", "nonReentrant"],
+            "access_control": "public",
+            "external_calls": [
+              {
+                "target": "StakeVault",
+                "function": "lockContributor(msg.sender, bondAmount)",
+                "type": "internal",
+                "description": "Lock originator report bond"
+              }
+            ],
+            "asset_flows": ["report bond locked"],
+            "description": "Report originator for misconduct"
+          },
+          {
+            "name": "resolveOriginatorReport",
+            "visibility": "external",
+            "parameters": [
+              {"name": "projectId", "type": "bytes32"},
+              {"name": "upheld", "type": "bool"}
+            ],
+            "modifiers": ["onlyRole(OPERATOR_ROLE)", "whenNotPaused", "nonReentrant"],
+            "access_control": "operator only",
+            "external_calls": [
+              {
+                "target": "StakeVault",
+                "function": "unlockContributor/slashContributor",
+                "type": "internal",
+                "description": "Settle report bond and potentially slash originator stake"
+              }
+            ],
+            "asset_flows": ["report bond settled", "originator stake slashed"],
+            "description": "Resolve originator misconduct report"
+          },
+          {
+            "name": "escalateOriginatorReport",
+            "visibility": "external",
+            "parameters": [{"name": "projectId", "type": "bytes32"}],
+            "modifiers": ["whenNotPaused", "nonReentrant"],
+            "access_control": "public",
+            "external_calls": [
+              {
+                "target": "StakeVault",
+                "function": "unlockContributor",
+                "type": "internal",
+                "description": "Return report bond to reporter"
+              }
+            ],
+            "asset_flows": ["report bond returned"],
+            "description": "Escalate unresolved originator report"
+          },
+          {
+            "name": "completeProject",
+            "visibility": "external",
+            "parameters": [{"name": "projectId", "type": "bytes32"}],
+            "modifiers": ["whenNotPaused", "nonReentrant"],
+            "access_control": "public (originator only)",
+            "external_calls": [],
+            "description": "Complete a project and enable escrow refunds"
+          },
+          {
+            "name": "refundEscrow",
+            "visibility": "external",
+            "parameters": [{"name": "projectId", "type": "bytes32"}],
+            "modifiers": ["whenNotPaused", "nonReentrant"],
+            "access_control": "public",
+            "external_calls": [
+              {
+                "target": "project.rewardToken",
+                "function": "transfer(originator, remainingAmount)",
+                "type": "ERC20.transfer",
+                "description": "Refund unused escrow to originator"
+              }
+            ],
+            "asset_flows": ["ERC20 tokens to originator"],
+            "description": "Refund unused project escrow to originator"
+          }
+        ],
+        "admin_functions": [
+          {
+            "name": "setProtocolFee",
+            "visibility": "external",
+            "parameters": [{"name": "bps", "type": "uint256"}],
+            "modifiers": ["onlyRole(DEFAULT_ADMIN_ROLE)"],
+            "access_control": "admin only",
+            "description": "Set protocol fee basis points"
+          },
+          {
+            "name": "setOriginationFee",
+            "visibility": "external",
+            "parameters": [{"name": "bps", "type": "uint256"}],
+            "modifiers": ["onlyRole(DEFAULT_ADMIN_ROLE)"],
+            "access_control": "admin only",
+            "description": "Set origination adapter fee"
+          },
+          {
+            "name": "setContributionFee",
+            "visibility": "external",
+            "parameters": [{"name": "bps", "type": "uint256"}],
+            "modifiers": ["onlyRole(DEFAULT_ADMIN_ROLE)"],
+            "access_control": "admin only",
+            "description": "Set contribution adapter fee"
+          },
+          {
+            "name": "setValidationFee",
+            "visibility": "external",
+            "parameters": [{"name": "bps", "type": "uint256"}],
+            "modifiers": ["onlyRole(DEFAULT_ADMIN_ROLE)"],
+            "access_control": "admin only",
+            "description": "Set validation adapter fee"
+          },
+          {
+            "name": "setDecayRate",
+            "visibility": "external",
+            "parameters": [{"name": "bps", "type": "uint256"}],
+            "modifiers": ["onlyRole(DEFAULT_ADMIN_ROLE)"],
+            "access_control": "admin only",
+            "description": "Set reputation decay rate"
+          },
+          {
+            "name": "setDisputeBondBps",
+            "visibility": "external",
+            "parameters": [{"name": "bps", "type": "uint256"}],
+            "modifiers": ["onlyRole(DEFAULT_ADMIN_ROLE)"],
+            "access_control": "admin only",
+            "description": "Set dispute bond percentage"
+          },
+          {
+            "name": "setOriginatorStakeRequirement",
+            "visibility": "external",
+            "parameters": [{"name": "amount", "type": "uint256"}],
+            "modifiers": ["onlyRole(DEFAULT_ADMIN_ROLE)"],
+            "access_control": "admin only",
+            "description": "Set originator stake requirement"
+          },
+          {
+            "name": "setOriginatorReportBondBps",
+            "visibility": "external",
+            "parameters": [{"name": "bps", "type": "uint256"}],
+            "modifiers": ["onlyRole(DEFAULT_ADMIN_ROLE)"],
+            "access_control": "admin only",
+            "description": "Set originator report bond percentage"
+          },
+          {
+            "name": "setMinValidationStake",
+            "visibility": "external",
+            "parameters": [{"name": "amount", "type": "uint256"}],
+            "modifiers": ["onlyRole(DEFAULT_ADMIN_ROLE)"],
+            "access_control": "admin only",
+            "description": "Set minimum validation stake"
+          },
+          {
+            "name": "setConsensusAlgorithm",
+            "visibility": "external",
+            "parameters": [{"name": "algorithm", "type": "address"}],
+            "modifiers": ["onlyRole(DEFAULT_ADMIN_ROLE)"],
+            "access_control": "admin only",
+            "description": "Set consensus algorithm contract"
+          },
+          {
+            "name": "setTreasury",
+            "visibility": "external",
+            "parameters": [{"name": "treasury_", "type": "address"}],
+            "modifiers": ["onlyRole(DEFAULT_ADMIN_ROLE)"],
+            "access_control": "admin only",
+            "description": "Set treasury address"
+          },
+          {
+            "name": "pause",
+            "visibility": "external",
+            "parameters": [],
+            "modifiers": ["onlyRole(DEFAULT_ADMIN_ROLE)"],
+            "access_control": "admin only",
+            "description": "Pause the contract"
+          },
+          {
+            "name": "unpause",
+            "visibility": "external",
+            "parameters": [],
+            "modifiers": ["onlyRole(DEFAULT_ADMIN_ROLE)"],
+            "access_control": "admin only",
+            "description": "Unpause the contract"
+          }
+        ],
+        "view_functions": [
+          "getProject", "getClaim", "getIndexState", "getContribution", "getReputation",
+          "getPendingRewards", "getAdapterFees", "getOriginationAdapter", "getContributionAdapter",
+          "getSubmissionNonce", "getConsensusReport", "isValidatorOutlier", "isValidatorSettled",
+          "vault", "treasury", "getProjectEscrow", "getDispute", "getOriginatorReport",
+          "getOriginatorLockedStake", "getDisputeConfig", "getRevealCount"
+        ]
+      }
+    },
+    "StakeVault": {
+      "address": "DEPLOYED_ADDRESS",
+      "proxy_type": "ERC1967",
+      "implementation": "StakeVault.sol",
+      "entry_points": {
+        "public_functions": [
+          {
+            "name": "initialize",
+            "visibility": "external",
+            "parameters": [
+              {"name": "asset_", "type": "IERC20"},
+              {"name": "admin_", "type": "address"}
+            ],
+            "modifiers": ["initializer"],
+            "access_control": "constructor-like",
+            "external_calls": [],
+            "description": "Initialize vault with staking token and admin"
+          }
+        ],
+        "role_restricted_functions": [
+          {
+            "name": "lockContributor",
+            "visibility": "external",
+            "parameters": [
+              {"name": "user", "type": "address"},
+              {"name": "amount", "type": "uint256"}
+            ],
+            "modifiers": ["onlyRole(ENGINE_ROLE)"],
+            "access_control": "engine only",
+            "external_calls": [],
+            "asset_flows": ["stake locked from available to contributorLock"],
+            "description": "Lock user stake for contributor role"
+          },
+          {
+            "name": "unlockContributor",
+            "visibility": "external",
+            "parameters": [
+              {"name": "user", "type": "address"},
+              {"name": "amount", "type": "uint256"}
+            ],
+            "modifiers": ["onlyRole(ENGINE_ROLE)"],
+            "access_control": "engine only",
+            "external_calls": [],
+            "asset_flows": ["stake unlocked from contributorLock to available"],
+            "description": "Unlock contributor stake"
+          },
+          {
+            "name": "slashContributor",
+            "visibility": "external",
+            "parameters": [
+              {"name": "user", "type": "address"},
+              {"name": "amount", "type": "uint256"}
+            ],
+            "modifiers": ["onlyRole(ENGINE_ROLE)"],
+            "access_control": "engine only",
+            "external_calls": [],
+            "asset_flows": ["stake burned from contributorLock"],
+            "description": "Slash contributor stake (burn shares)"
+          },
+          {
+            "name": "lockValidatorCapacity",
+            "visibility": "external",
+            "parameters": [
+              {"name": "user", "type": "address"},
+              {"name": "amount", "type": "uint256"}
+            ],
+            "modifiers": ["onlyRole(ENGINE_ROLE)"],
+            "access_control": "engine only",
+            "external_calls": [],
+            "asset_flows": ["stake locked from available to validatorCapacity"],
+            "description": "Lock stake for validator capacity"
+          },
+          {
+            "name": "unlockValidatorCapacity",
+            "visibility": "external",
+            "parameters": [
+              {"name": "user", "type": "address"},
+              {"name": "amount", "type": "uint256"}
+            ],
+            "modifiers": ["onlyRole(ENGINE_ROLE)"],
+            "access_control": "engine only",
+            "external_calls": [],
+            "asset_flows": ["stake unlocked from validatorCapacity to available"],
+            "description": "Unlock validator capacity stake"
+          },
+          {
+            "name": "commitStake",
+            "visibility": "external",
+            "parameters": [
+              {"name": "user", "type": "address"},
+              {"name": "amount", "type": "uint256"}
+            ],
+            "modifiers": ["onlyRole(ENGINE_ROLE)"],
+            "access_control": "engine only",
+            "external_calls": [],
+            "asset_flows": ["stake moved from validatorCapacity to inFlight"],
+            "description": "Move validator stake to in-flight status"
+          },
+          {
+            "name": "releaseCommit",
+            "visibility": "external",
+            "parameters": [
+              {"name": "user", "type": "address"},
+              {"name": "amount", "type": "uint256"}
+            ],
+            "modifiers": ["onlyRole(ENGINE_ROLE)"],
+            "access_control": "engine only",
+            "external_calls": [],
+            "asset_flows": ["stake moved from inFlight to validatorCapacity"],
+            "description": "Release committed stake back to capacity"
+          },
+          {
+            "name": "slashValidator",
+            "visibility": "external",
+            "parameters": [
+              {"name": "user", "type": "address"},
+              {"name": "amount", "type": "uint256"}
+            ],
+            "modifiers": ["onlyRole(ENGINE_ROLE)"],
+            "access_control": "engine only",
+            "external_calls": [],
+            "asset_flows": ["stake burned from inFlight"],
+            "description": "Slash validator stake (burn shares)"
+          },
+          {
+            "name": "slashAndUnlockContributor",
+            "visibility": "external",
+            "parameters": [
+              {"name": "user", "type": "address"},
+              {"name": "slashAmount", "type": "uint256"},
+              {"name": "unlockAmount", "type": "uint256"}
+            ],
+            "modifiers": ["onlyRole(ENGINE_ROLE)"],
+            "access_control": "engine only",
+            "external_calls": [],
+            "asset_flows": ["partial slash and unlock of contributor stake"],
+            "description": "Combined slash and unlock operation"
+          }
+        ],
+        "inherited_functions": [
+          "deposit", "mint", "withdraw", "redeem", "transfer", "transferFrom",
+          "balanceOf", "totalSupply", "allowance", "approve"
+        ],
+        "view_functions": [
+          "getStakeAccount", "availableBalance", "totalStaked", "maxRedeem"
+        ]
+      }
+    }
+  },
+  "external_dependencies": {
+    "consensus_algorithm": {
+      "interface": "IConsensusAlgorithm",
+      "trust_level": "high",
+      "calls": ["calculate(ValidationInput[])"],
+      "description": "Pluggable consensus algorithm for computing weighted averages and outlier detection"
+    },
+    "adapters": {
+      "types": ["origination", "contribution"],
+      "trust_level": "medium",
+      "calls": ["transferFrom(user, contract, amount)"],
+      "description": "Adapter contracts for handling token transfers and fee collection"
+    },
+    "erc20_tokens": {
+      "trust_level": "low",
+      "calls": ["transfer(recipient, amount)", "transferFrom(sender, recipient, amount)"],
+      "description": "Standard ERC20 token contracts for reward tokens"
+    }
+  },
+  "trust_boundaries": {
+    "admin_boundary": {
+      "description": "Administrative functions requiring DEFAULT_ADMIN_ROLE",
+      "functions": [
+        "setProtocolFee", "setOriginationFee", "setContributionFee", "setValidationFee",
+        "setDecayRate", "setDisputeBondBps", "setOriginatorStakeRequirement",
+        "setOriginatorReportBondBps", "setMinValidationStake", "setConsensusAlgorithm",
+        "setTreasury", "pause", "unpause"
+      ],
+      "access_pattern": "role-based access control"
+    },
+    "operator_boundary": {
+      "description": "Operator functions requiring OPERATOR_ROLE",
+      "functions": ["resolveDispute", "resolveOriginatorReport"],
+      "access_pattern": "role-based access control"
+    },
+    "engine_boundary": {
+      "description": "StakeVault functions restricted to QualityEngine",
+      "functions": [
+        "lockContributor", "unlockContributor", "slashContributor", "lockValidatorCapacity",
+        "unlockValidatorCapacity", "commitStake", "releaseCommit", "slashValidator",
+        "slashAndUnlockContributor"
+      ],
+      "access_pattern": "ENGINE_ROLE access control"
+    },
+    "public_boundary": {
+      "description": "Public functions accessible to all users",
+      "functions": [
+        "createProject", "fundProject", "claimToContribute", "contribute", "expireClaim",
+        "setValidatorCapacity", "reduceValidatorCapacity", "commitValidation", "revealValidation",
+        "computeConsensus", "settleValidator", "releaseContributorReward", "claimReward",
+        "cancelExpiredCommitment", "openDispute", "escalateDispute", "reportOriginator",
+        "escalateOriginatorReport", "completeProject", "refundEscrow"
+      ],
+      "access_pattern": "public with various gating conditions"
+    }
+  },
+  "asset_flows": {
+    "erc20_transfers": {
+      "inbound": [
+        "fundProject: originator → contract escrow",
+        "claimReward: pendingRewards → user wallet",
+        "refundEscrow: escrow → originator"
+      ],
+      "internal": [
+        "releaseContributorReward: escrow → pendingRewards",
+        "dispute settlement: escrow redistribution",
+        "adapter fees: collected to treasury"
+      ]
+    },
+    "stake_movements": {
+      "contributor_stake": [
+        "claimToContribute: available → locked",
+        "consensus accepted: locked → unlocked",
+        "consensus rejected: locked → slashed",
+        "expireClaim: partial slash + unlock"
+      ],
+      "validator_stake": [
+        "setValidatorCapacity: available → capacity",
+        "commitValidation: capacity → inFlight",
+        "settleValidator: inFlight → capacity or slashed",
+        "cancelExpiredCommitment: inFlight → slashed"
+      ]
+    }
+  },
+  "attack_surface_highlights": {
+    "permissionless_functions": [
+      "computeConsensus", "settleValidator", "releaseContributorReward",
+      "cancelExpiredCommitment", "escalateDispute", "escalateOriginatorReport"
+    ],
+    "economic_incentives": [
+      "dispute mechanisms", "validator slashing", "contributor rewards",
+      "reputation system", "bond requirements"
+    ],
+    "external_calls": [
+      "consensus algorithm staticcall", "adapter transferFrom calls",
+      "ERC20 token transfers", "arbitrary adapter contracts"
+    ],
+    "time_sensitive_operations": [
+      "claim deadlines", "commit/reveal windows", "dispute periods",
+      "challenge windows", "escalation timeouts"
+    ]
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "oracle_assumptions": {
+    "consensus_algorithm_trust": "ConsensusLib produces correct weighted averages, standard deviations, and outlier detection",
+    "commit_reveal_integrity": "Commit-reveal scheme prevents herding; server delegation respects passkey-only boundaries",
+    "stake_weighting_correctness": "sqrt(stake) weighting calculation produces fair consensus outcomes",
+    "minimum_validators_enforced": "numberOfValidations >= 2 prevents single-validator control",
+    "nonce_isolation": "Each submission nonce maintains clean validation state"
+  },
+  "admin_assumptions": {
+    "admin_role_trust": "DEFAULT_ADMIN_ROLE holders (deployer) act benevolently",
+    "operator_role_trust": "OPERATOR_ROLE resolves disputes fairly within time bounds",
+    "treasury_control": "Treasury address is controlled by trusted parties",
+    "fee_parameters_reasonable": "Protocol, origination, contribution, validation fees stay within MAX_ADAPTER_FEE_BPS (5%)",
+    "decay_rate_bounded": "Reputation decay rate stays within MAX_DECAY_RATE_BPS",
+    "consensus_algorithm_safe": "Pluggable consensus algorithms don't introduce vulnerabilities",
+    "no_timelock_bypass": "Admin cannot bypass timelock on critical operations"
+  },
+  "trust_boundaries": {
+    "erc4337_infrastructure": "EntryPoint, Bundler, and Paymaster operate correctly and don't censor",
+    "smart_account_security": "Coinbase Smart Wallet provides secure delegation and recovery",
+    "session_key_scoping": "Server session keys cannot access commitValidation/revealValidation",
+    "bundler_honesty": "Bundler doesn't inspect or modify signed UserOperations",
+    "paymaster_sponsorship": "Paymaster correctly sponsors gas and enforces rate limits",
+    "erc20_token_behavior": "Reward tokens are not fee-on-transfer or rebasing",
+    "blockchain_liveness": "Ethereum remains live for deadline-dependent operations"
+  },
+  "economic_assumptions": {
+    "token_value_sufficient": "SAPIEN token value deters economic attacks",
+    "stake_requirements_effective": "Minimum stake amounts prevent Sybil and griefing attacks",
+    "slashing_deters_misbehavior": "Slash amounts exceed attack profits",
+    "reputation_converges": "Reputation system effectively signals participant quality",
+    "dispute_bonds_deter_frivolous": "Dispute bond requirements prevent spam",
+    "adapter_fees_compensate": "Fee structure covers development and operational costs"
+  },
+  "technical_assumptions": {
+    "erc4626_vault_security": "StakeVault correctly implements ERC-4626 with lock restrictions",
+    "erc7201_storage_safety": "Storage slot calculations prevent collisions",
+    "delegatecall_library_safety": "ConsensusLib delegatecall operates on correct storage",
+    "phase_separation_safety": "Phased finalization prevents single-transaction failures",
+    "index_allocation_soundness": "Index assignment prevents race conditions and duplicates",
+    "deadline_mechanics_work": "All timeout-based operations (claims, commits, challenges) function correctly"
+  },
+  "participant_assumptions": {
+    "originator_accountability": "Originators post legitimate tasks and maintain data availability",
+    "contributor_quality": "Contributors submit work meeting project requirements",
+    "validator_honesty": "Validators score submissions based on quality, not collusion",
+    "adapter_value_addition": "Adapters provide genuine value and earn fees legitimately",
+    "dispute_challengers_bona_fide": "Dispute filers have legitimate grievances",
+    "keeper_availability": "Permissionless keepers (server + users) process expirations and computations"
+  }
+}

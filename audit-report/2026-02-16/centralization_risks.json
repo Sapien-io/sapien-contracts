@@ -1,0 +1,252 @@
+{
+  "description": "Centralization risks analysis for Sapien PoQ v0.5 protocol - single points of failure, privilege concentration, and trust assumptions",
+  "last_updated": "2026-02-16",
+  "overall_risk_level": "CRITICAL",
+  "deployment_blocker": true,
+  "centralization_risks": {
+    "administrative_centralization": {
+      "single_admin_control": {
+        "description": "DEFAULT_ADMIN_ROLE holds unlimited power over protocol parameters, emergency controls, and upgrades",
+        "severity": "CRITICAL",
+        "affected_assets": ["all_project_escrows", "all_user_stakes", "accumulated_fees", "protocol_governance"],
+        "impact_description": "Complete rug pull possible via parameter changes, pause abuse, or malicious upgrades. Single key compromise = total protocol failure.",
+        "current_mitigations": ["none"],
+        "recommended_mitigations": [
+          "Implement multi-sig admin with 3-5 signers",
+          "Add timelocks (24-72 hours) for critical parameter changes",
+          "Separate emergency controls from parameter controls",
+          "Require community approval for upgrades"
+        ],
+        "timeline": "immediate",
+        "exploit_probability": "high",
+        "blast_radius": "complete_protocol"
+      },
+      "role_management_monopoly": {
+        "description": "DEFAULT_ADMIN_ROLE can grant/revoke all roles including creating single points of failure",
+        "severity": "CRITICAL",
+        "affected_assets": ["operator_privileges", "engine_trust", "access_control_system"],
+        "impact_description": "Admin can revoke legitimate operators, grant roles to malicious actors, or centralize all power",
+        "current_mitigations": ["role-based access control framework exists"],
+        "recommended_mitigations": [
+          "Immutable role grants for critical functions",
+          "Multi-sig requirements for role changes",
+          "Time-delayed role revocation",
+          "Community oversight for role assignments"
+        ],
+        "timeline": "immediate",
+        "exploit_probability": "medium",
+        "blast_radius": "governance_failure"
+      },
+      "upgrade_authority_monopoly": {
+        "description": "UUPS upgrade mechanism controlled solely by DEFAULT_ADMIN_ROLE",
+        "severity": "HIGH",
+        "affected_assets": ["contract_logic", "business_rules", "security_properties"],
+        "impact_description": "Malicious upgrades can introduce backdoors, change economics, or steal funds",
+        "current_mitigations": ["OpenZeppelin UUPS pattern", "access control"],
+        "recommended_mitigations": [
+          "Multi-sig upgrade approvals",
+          "Upgrade timelocks with emergency pause",
+          "Immutable core logic separation",
+          "Community veto mechanisms for upgrades"
+        ],
+        "timeline": "immediate",
+        "exploit_probability": "medium",
+        "blast_radius": "contract_compromise"
+      }
+    },
+    "operational_centralization": {
+      "operator_discretion_monopoly": {
+        "description": "OPERATOR_ROLE makes subjective decisions on disputes and originator reports with no appeals",
+        "severity": "HIGH",
+        "affected_assets": ["project_escrows", "originator_stakes", "dispute_outcomes"],
+        "impact_description": "Corrupt operators can steal escrows via fraudulent resolutions or protect malicious originators",
+        "current_mitigations": ["auto-escalation after timeout", "bond requirements"],
+        "recommended_mitigations": [
+          "Implement jury systems for high-value disputes",
+          "Add evidence standards and review periods",
+          "Operator reputation and slashing penalties",
+          "Appeal mechanisms to community arbitration"
+        ],
+        "timeline": "medium",
+        "exploit_probability": "high",
+        "blast_radius": "individual_projects"
+      },
+      "keeper_dependency_centralization": {
+        "description": "Permissionless functions depend on keepers for execution (consensus, settlement, expiration)",
+        "severity": "MEDIUM",
+        "affected_assets": ["validator_settlements", "contributor_rewards", "protocol_liveness"],
+        "impact_description": "Censored keepers can prevent settlements, lock validator stakes, delay rewards",
+        "current_mitigations": ["permissionless design", "anyone can call"],
+        "recommended_mitigations": [
+          "Implement fallback keeper incentives",
+          "Add user-triggered settlement options",
+          "Multi-keeper redundancy requirements",
+          "Economic penalties for censorship"
+        ],
+        "timeline": "medium",
+        "exploit_probability": "medium",
+        "blast_radius": "settlement_delays"
+      },
+      "consensus_algorithm_centralization": {
+        "description": "Consensus algorithm centrally controlled despite pluggable architecture",
+        "severity": "MEDIUM",
+        "affected_assets": ["consensus_outcomes", "reward_distributions", "validation_economics"],
+        "impact_description": "Malicious consensus algorithm can manipulate all project outcomes",
+        "current_mitigations": ["staticcall isolation", "admin-controlled"],
+        "recommended_mitigations": [
+          "Algorithm allowlist with community approval",
+          "Security audits for new algorithms",
+          "Fallback consensus mechanisms",
+          "Algorithm upgrade timelocks"
+        ],
+        "timeline": "medium",
+        "exploit_probability": "low",
+        "blast_radius": "consensus_manipulation"
+      }
+    },
+    "technical_centralization": {
+      "engine_contract_trust_monopoly": {
+        "description": "QualityEngine contract controls all stake operations via ENGINE_ROLE",
+        "severity": "CRITICAL",
+        "affected_assets": ["all_user_stakes", "staking_system", "economic_security"],
+        "impact_description": "Contract compromise allows arbitrary slashing/unlocking of all user funds",
+        "current_mitigations": ["access controls", "nonReentrant guards"],
+        "recommended_mitigations": [
+          "Formal verification of stake logic",
+          "Multi-contract stake management",
+          "Emergency stake unlock mechanisms",
+          "Stake insurance mechanisms"
+        ],
+        "timeline": "immediate",
+        "exploit_probability": "high",
+        "blast_radius": "all_user_funds"
+      },
+      "erc4626_implementation_centralization": {
+        "description": "Single StakeVault contract holds all staked assets with known bypass vulnerabilities",
+        "severity": "CRITICAL",
+        "affected_assets": ["staked_sapien_tokens", "stake_locking_mechanism"],
+        "impact_description": "STATIC-001 allows complete bypass of stake locks, destroying economic security",
+        "current_mitigations": ["none - vulnerability exists"],
+        "recommended_mitigations": [
+          "Fix ERC4626 _update override immediately",
+          "Comprehensive security audit",
+          "Add stake lock validation checks",
+          "Emergency withdrawal mechanisms"
+        ],
+        "timeline": "immediate",
+        "exploit_probability": "high",
+        "blast_radius": "economic_security"
+      },
+      "adapter_ecosystem_centralization": {
+        "description": "Token adapters can implement arbitrary logic in transferFrom calls",
+        "severity": "MEDIUM",
+        "affected_assets": ["project_funding", "reward_claims"],
+        "impact_description": "Malicious adapters can censor users or manipulate token transfers",
+        "current_mitigations": ["none"],
+        "recommended_mitigations": [
+          "Adapter allowlist with security reviews",
+          "Transfer validation and balance checks",
+          "Fee limits and transparency requirements",
+          "Alternative adapter mechanisms"
+        ],
+        "timeline": "medium",
+        "exploit_probability": "medium",
+        "blast_radius": "user_censorship"
+      }
+    },
+    "economic_centralization": {
+      "treasury_control_centralization": {
+        "description": "Treasury address centrally controlled, can be changed to attacker wallet",
+        "severity": "HIGH",
+        "affected_assets": ["protocol_fees", "adapter_fees", "accumulated_revenue"],
+        "impact_description": "Admin can redirect all future fee collection to malicious address",
+        "current_mitigations": ["none"],
+        "recommended_mitigations": [
+          "Immutable treasury address",
+          "Multi-sig treasury control",
+          "Fee distribution contracts",
+          "Community treasury oversight"
+        ],
+        "timeline": "immediate",
+        "exploit_probability": "medium",
+        "blast_radius": "protocol_revenue"
+      },
+      "parameter_control_centralization": {
+        "description": "All economic parameters (fees, bonds, requirements) controlled by single admin",
+        "severity": "HIGH",
+        "affected_assets": ["fee_structure", "bond_requirements", "stake_parameters"],
+        "impact_description": "Admin can set infinite fees, zero bonds, or manipulate economics to extract value",
+        "current_mitigations": ["MAX_ADAPTER_FEE_BPS limits"],
+        "recommended_mitigations": [
+          "Parameter update timelocks",
+          "Economic bounds checking",
+          "Community parameter proposals",
+          "Circuit breakers for extreme values"
+        ],
+        "timeline": "immediate",
+        "exploit_probability": "medium",
+        "blast_radius": "economic_manipulation"
+      },
+      "emergency_pause_centralization": {
+        "description": "Protocol-wide pause controlled by single admin with no user recourse",
+        "severity": "HIGH",
+        "affected_assets": ["user_operations", "fund_access", "protocol_liveness"],
+        "impact_description": "Admin can pause indefinitely, effectively rugging all users without withdrawal options",
+        "current_mitigations": ["unpause function exists"],
+        "recommended_mitigations": [
+          "Emergency withdrawal windows during pause",
+          "Multi-sig pause requirements",
+          "Time-limited pause durations",
+          "Community pause override mechanisms"
+        ],
+        "timeline": "immediate",
+        "exploit_probability": "high",
+        "blast_radius": "user_fund_lock"
+      }
+    }
+  },
+  "risk_summary": {
+    "critical_risks": 5,
+    "high_risks": 6,
+    "medium_risks": 4,
+    "total_risks": 15,
+    "blockers_count": 8,
+    "immediate_action_required": 9,
+    "protocol_deployable": false,
+    "recommended_actions": [
+      "Address all CRITICAL severity risks before deployment",
+      "Implement multi-sig controls for DEFAULT_ADMIN_ROLE",
+      "Fix known vulnerabilities (STATIC-001 through STATIC-005)",
+      "Add emergency user withdrawal mechanisms",
+      "Implement timelocks on critical operations",
+      "Create operator accountability mechanisms",
+      "Add community oversight for upgrades and parameters"
+    ]
+  },
+  "trust_assumption_violations": {
+    "admin_benevolence": {
+      "assumption": "DEFAULT_ADMIN_ROLE holders act benevolently",
+      "violation_probability": "high",
+      "current_controls": "none",
+      "recommended_controls": ["multi-sig", "timelocks", "community oversight"]
+    },
+    "operator_fairness": {
+      "assumption": "OPERATOR_ROLE resolves disputes fairly within time bounds",
+      "violation_probability": "high",
+      "current_controls": ["auto-escalation"],
+      "recommended_controls": ["jury systems", "evidence standards", "reputation penalties"]
+    },
+    "contract_correctness": {
+      "assumption": "QualityEngine and StakeVault operate correctly",
+      "violation_probability": "critical",
+      "current_controls": ["access controls"],
+      "recommended_controls": ["formal verification", "comprehensive audit", "bug bounties"]
+    },
+    "infrastructure_trust": {
+      "assumption": "ERC4337 stack operates correctly and doesn't censor",
+      "violation_probability": "medium",
+      "current_controls": ["none"],
+      "recommended_controls": ["infrastructure diversity", "fallback mechanisms"]
+    }
+  }
+}
