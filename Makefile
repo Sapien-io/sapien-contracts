@@ -28,3 +28,9 @@ coverage :; forge coverage --ir-minimum
 lint     :; forge lint src/
 
 build    :; forge build
+
+
+
+clean-modules :; git submodule update --init --recursive \
+	&& git submodule foreach --recursive git clean -fd \
+	&& git submodule foreach --recursive git checkout .

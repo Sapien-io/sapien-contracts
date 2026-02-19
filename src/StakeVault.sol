@@ -56,6 +56,7 @@ contract StakeVault is ERC4626Upgradeable, AccessControlUpgradeable, PausableUpg
     function verifyStorageLocation() external pure returns (bool) {
         // SEC-M-06: Use Solidity-level keccak256 instead of inline assembly
         // to avoid incorrect string length issues (was 30 instead of 25)
+        // solhint-disable-next-line solidity-formatting
         bytes32 namespaceHash = keccak256("sapien.storage.StakeVault");
         bytes32 derived = keccak256(abi.encode(uint256(namespaceHash) - 1));
         bytes32 expected = derived & ~bytes32(uint256(0xff));
