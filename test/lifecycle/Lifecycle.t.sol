@@ -2,17 +2,15 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "test/BaseTest.sol";
-import {QualityEngine} from "src/QualityEngine.sol";
-import {IQualityEngine} from "src/interfaces/IQualityEngine.sol";
-import {StakeVault} from "src/StakeVault.sol";
+import {SapienCore} from "src/SapienCore.sol";
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
+import {SapienVault} from "src/SapienVault.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
 import {
     Project,
     ProjectStatus,
     Claim,
     ClaimStatus,
-    IndexState,
-    SubmissionStatus,
     Contribution,
     ContributionStatus,
     ConsensusReport,
@@ -50,7 +48,7 @@ contract LifecycleBase is BaseTest {
     }
 
     /// @dev Ensure an address has enough available (unlocked) tokens in the vault
-    function _ensureStake(address user, uint256 needed) internal {
+    function _ensureStake(address user, uint256 needed) internal override {
         uint256 available = vault.availableBalance(user);
         if (available < needed) {
             uint256 deficit = needed - available + 1e18;
@@ -92,7 +90,7 @@ contract LifecycleBase is BaseTest {
     function _setupProject(bytes32 projectId, uint256 fundAmount, uint256 qty) internal {
         token.mint(originator, fundAmount);
         vm.startPrank(originator);
-        engine.createProject(projectId, _defaultConfig());
+        engine.createProject(projectId, "", _defaultConfig());
         token.approve(address(engine), fundAmount);
         engine.fundProject(projectId, fundAmount, qty, adapter);
         vm.stopPrank();
@@ -104,7 +102,7 @@ contract LifecycleBase is BaseTest {
     {
         token.mint(originator, fundAmount);
         vm.startPrank(originator);
-        engine.createProject(projectId, config);
+        engine.createProject(projectId, "", config);
         token.approve(address(engine), fundAmount);
         engine.fundProject(projectId, fundAmount, qty, adapter);
         vm.stopPrank();
@@ -120,7 +118,7 @@ contract LifecycleBase is BaseTest {
         (claimId, indices) = engine.claimToContribute(projectId, qty, adapter);
         for (uint256 i; i < indices.length; ++i) {
             bytes32 hash = keccak256(abi.encodePacked("submission", projectId, indices[i]));
-            engine.contribute(claimId, indices[i], hash);
+            engine.contribute(claimId, indices[i], hash, "");
         }
         vm.stopPrank();
     }
@@ -133,8 +131,13 @@ contract LifecycleBase is BaseTest {
         _ensureStake(val, uint256(stakeAmt) * 2);
 
         vm.startPrank(val);
-        engine.setValidatorCapacity(stakeAmt);
-        engine.commitValidation(projectId, index, commitHash, stakeAmt);
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(projectId, _indices);
+        }
+        engine.lockValidatorCapacity(stakeAmt);
+        engine.commitValidation(projectId, index, commitHash, stakeAmt, address(0));
         engine.revealValidation(projectId, index, score, salt);
         vm.stopPrank();
     }
@@ -383,8 +386,8 @@ contract LifecycleRejectionTest is LifecycleBase {
         (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(projId, qty, adapter);
 
         // Submit only 2 of 4
-        engine.contribute(claimId, indices[0], keccak256("data0"));
-        engine.contribute(claimId, indices[1], keccak256("data1"));
+        engine.contribute(claimId, indices[0], keccak256("data0"), "");
+        engine.contribute(claimId, indices[1], keccak256("data1"), "");
         vm.stopPrank();
 
         uint256 slotsBeforeExpire = engine.getProject(projId).availableSlots;
@@ -429,7 +432,7 @@ contract LifecycleRejectionTest is LifecycleBase {
         vm.prank(contributor1);
         (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(projId, 1, adapter);
 
-        vm.expectRevert(IQualityEngine.ClaimDeadlineNotPassed.selector);
+        vm.expectRevert(ISapienCore.ClaimDeadlineNotPassed.selector);
         engine.expireClaim(claimId, indices);
     }
 
@@ -486,7 +489,7 @@ contract LifecycleDisputeTest is LifecycleBase {
         // Challenger opens dispute within challenge period
         _ensureStake(challenger, contrib.rewardRate);
         vm.prank(challenger);
-        engine.openDispute(projId, index, keccak256("evidence-hash"));
+        engine.openDispute(projId, index, keccak256("evidence-hash"), "evidenceCid");
 
         Dispute memory d = engine.getDispute(projId, index);
         assertEq(uint256(d.status), uint256(DisputeStatus.Open));
@@ -508,7 +511,7 @@ contract LifecycleDisputeTest is LifecycleBase {
 
         // Contributor reward release is blocked
         vm.warp(block.timestamp + 10 days);
-        vm.expectRevert(IQualityEngine.DisputeInProgress.selector);
+        vm.expectRevert(ISapienCore.DisputeInProgress.selector);
         engine.releaseContributorReward(projId, index);
     }
 
@@ -520,7 +523,7 @@ contract LifecycleDisputeTest is LifecycleBase {
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
-        engine.openDispute(projId, index, keccak256("bad-evidence"));
+        engine.openDispute(projId, index, keccak256("bad-evidence"), "evidenceCid");
 
         uint256 challengerSharesBefore = vault.balanceOf(challenger);
 
@@ -554,7 +557,7 @@ contract LifecycleDisputeTest is LifecycleBase {
         // Contributor opens dispute on their own rejection
         _ensureStake(contributor1, STAKE_AMOUNT);
         vm.prank(contributor1);
-        engine.openDispute(projId, index, keccak256("unfair-rejection"));
+        engine.openDispute(projId, index, keccak256("unfair-rejection"), "evidenceCid");
 
         // Operator upholds — contributor was wrongly rejected
         vm.prank(admin);
@@ -575,10 +578,10 @@ contract LifecycleDisputeTest is LifecycleBase {
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
-        engine.openDispute(projId, index, keccak256("evidence"));
+        engine.openDispute(projId, index, keccak256("evidence"), "evidenceCid");
 
         // Cannot escalate before deadline
-        vm.expectRevert(IQualityEngine.DisputeResolutionNotExpired.selector);
+        vm.expectRevert(ISapienCore.DisputeResolutionNotExpired.selector);
         engine.escalateDispute(projId, index);
 
         // Warp past resolution deadline (7 days)
@@ -606,8 +609,8 @@ contract LifecycleDisputeTest is LifecycleBase {
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
-        vm.expectRevert(IQualityEngine.DisputeWindowClosed.selector);
-        engine.openDispute(projId, index, keccak256("too-late"));
+        vm.expectRevert(ISapienCore.DisputeWindowClosed.selector);
+        engine.openDispute(projId, index, keccak256("too-late"), "evidenceCid");
     }
 
     /// @notice Cannot open duplicate dispute
@@ -618,10 +621,10 @@ contract LifecycleDisputeTest is LifecycleBase {
 
         _ensureStake(challenger, STAKE_AMOUNT * 2);
         vm.startPrank(challenger);
-        engine.openDispute(projId, index, keccak256("evidence1"));
+        engine.openDispute(projId, index, keccak256("evidence1"), "evidenceCid");
 
-        vm.expectRevert(IQualityEngine.DisputeAlreadyOpen.selector);
-        engine.openDispute(projId, index, keccak256("evidence2"));
+        vm.expectRevert(ISapienCore.DisputeAlreadyOpen.selector);
+        engine.openDispute(projId, index, keccak256("evidence2"), "evidenceCid");
         vm.stopPrank();
     }
 
@@ -633,8 +636,8 @@ contract LifecycleDisputeTest is LifecycleBase {
 
         _ensureStake(contributor1, STAKE_AMOUNT * 2);
         vm.prank(contributor1);
-        vm.expectRevert(IQualityEngine.CannotDisputeOwnContribution.selector);
-        engine.openDispute(projId, index, keccak256("self-dispute"));
+        vm.expectRevert(ISapienCore.CannotDisputeOwnContribution.selector);
+        engine.openDispute(projId, index, keccak256("self-dispute"), "evidenceCid");
     }
 }
 
@@ -680,7 +683,7 @@ contract LifecycleOriginatorReportTest is LifecycleBase {
         // New claims blocked while report is open
         _ensureStake(contributor2, STAKE_AMOUNT * 3);
         vm.prank(contributor2);
-        vm.expectRevert(IQualityEngine.DisputeInProgress.selector);
+        vm.expectRevert(ISapienCore.DisputeInProgress.selector);
         engine.claimToContribute(projId, 1, adapter);
 
         // Operator upholds
@@ -736,7 +739,7 @@ contract LifecycleOriginatorReportTest is LifecycleBase {
         engine.reportOriginator(projId, keccak256("evidence"));
 
         // Cannot escalate before deadline
-        vm.expectRevert(IQualityEngine.DisputeResolutionNotExpired.selector);
+        vm.expectRevert(ISapienCore.DisputeResolutionNotExpired.selector);
         engine.escalateOriginatorReport(projId);
 
         // Warp past resolution deadline
@@ -755,7 +758,7 @@ contract LifecycleOriginatorReportTest is LifecycleBase {
 
         _ensureStake(originator, STAKE_AMOUNT);
         vm.prank(originator);
-        vm.expectRevert(IQualityEngine.NotProjectOriginator.selector);
+        vm.expectRevert(ISapienCore.NotProjectOriginator.selector);
         engine.reportOriginator(projId, keccak256("self-report"));
     }
 
@@ -767,7 +770,7 @@ contract LifecycleOriginatorReportTest is LifecycleBase {
         vm.startPrank(reporter);
         engine.reportOriginator(projId, keccak256("first-report"));
 
-        vm.expectRevert(IQualityEngine.OriginatorReportAlreadyOpen.selector);
+        vm.expectRevert(ISapienCore.OriginatorReportAlreadyOpen.selector);
         engine.reportOriginator(projId, keccak256("second-report"));
         vm.stopPrank();
     }
@@ -798,8 +801,13 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
         bytes32 commitHash = keccak256(abi.encodePacked(uint16(8000), salt));
 
         vm.startPrank(validator1);
-        engine.setValidatorCapacity(stakeAmt);
-        engine.commitValidation(projId, index, commitHash, stakeAmt);
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(projId, _indices);
+        }
+        engine.lockValidatorCapacity(stakeAmt);
+        engine.commitValidation(projId, index, commitHash, stakeAmt, address(0));
         vm.stopPrank();
 
         uint256 sharesBefore = vault.balanceOf(validator1);
@@ -825,11 +833,16 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
         bytes32 commitHash = keccak256(abi.encodePacked(uint16(8000), salt));
 
         vm.startPrank(validator1);
-        engine.setValidatorCapacity(stakeAmt);
-        engine.commitValidation(projId, index, commitHash, stakeAmt);
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(projId, _indices);
+        }
+        engine.lockValidatorCapacity(stakeAmt);
+        engine.commitValidation(projId, index, commitHash, stakeAmt, address(0));
         vm.stopPrank();
 
-        vm.expectRevert(IQualityEngine.ClaimDeadlineNotPassed.selector);
+        vm.expectRevert(ISapienCore.ClaimDeadlineNotPassed.selector);
         engine.cancelExpiredCommitment(projId, index, validator1);
     }
 
@@ -844,7 +857,7 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
         vm.startPrank(validator1);
         engine.settleValidator(projId, index, nonce);
 
-        vm.expectRevert(IQualityEngine.AlreadySettled.selector);
+        vm.expectRevert(ISapienCore.AlreadySettled.selector);
         engine.settleValidator(projId, index, nonce);
         vm.stopPrank();
     }
@@ -858,7 +871,7 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
         vm.warp(block.timestamp + 2 days);
         engine.releaseContributorReward(projId, index);
 
-        vm.expectRevert(IQualityEngine.RewardAlreadyReleased.selector);
+        vm.expectRevert(ISapienCore.RewardAlreadyReleased.selector);
         engine.releaseContributorReward(projId, index);
     }
 
@@ -868,14 +881,14 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
         uint256 index = indices[0];
         _fullAcceptanceFlow(projId, index);
 
-        vm.expectRevert(IQualityEngine.ChallengeNotElapsed.selector);
+        vm.expectRevert(ISapienCore.ChallengeNotElapsed.selector);
         engine.releaseContributorReward(projId, index);
     }
 
     /// @notice Cannot claim reward with zero pending
     function test_revert_claimZeroReward() public {
         vm.prank(contributor1);
-        vm.expectRevert(IQualityEngine.NoRewardToClaim.selector);
+        vm.expectRevert(ISapienCore.NoRewardToClaim.selector);
         engine.claimReward(address(token));
     }
 
@@ -883,7 +896,7 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
     function test_revert_originatorContributes() public {
         _ensureStake(originator, STAKE_AMOUNT * 3);
         vm.prank(originator);
-        vm.expectRevert(IQualityEngine.OriginatorCannotContribute.selector);
+        vm.expectRevert(ISapienCore.OriginatorCannotContribute.selector);
         engine.claimToContribute(projId, 1, adapter);
     }
 
@@ -892,14 +905,16 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
         uint256 index = indices[0];
 
-        bytes32 commitHash = keccak256(abi.encodePacked(uint16(8000), bytes32("salt")));
-
         _ensureStake(contributor1, VALIDATOR_STAKE * 2);
         vm.startPrank(contributor1);
-        engine.setValidatorCapacity(VALIDATOR_STAKE);
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
 
-        vm.expectRevert(IQualityEngine.CannotValidateOwnContribution.selector);
-        engine.commitValidation(projId, index, commitHash, uint128(VALIDATOR_STAKE));
+        vm.expectRevert(ISapienCore.CannotValidateOwnContribution.selector);
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(projId, _indices);
+        }
         vm.stopPrank();
     }
 
@@ -911,7 +926,7 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
         _validate(validator1, projId, index, 8000, uint128(VALIDATOR_STAKE));
         _validate(validator2, projId, index, 8500, uint128(VALIDATOR_STAKE));
 
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.ConsensusNotReady.selector, 2, 3));
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.ConsensusNotReady.selector, 2, 3));
         engine.computeConsensus(projId, index);
     }
 
@@ -922,7 +937,7 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
         _validateAboveThreshold(projId, index);
         engine.computeConsensus(projId, index);
 
-        vm.expectRevert(IQualityEngine.ConsensusAlreadyComputed.selector);
+        vm.expectRevert(ISapienCore.ConsensusAlreadyComputed.selector);
         engine.computeConsensus(projId, index);
     }
 
@@ -937,10 +952,15 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
 
         _ensureStake(validator1, VALIDATOR_STAKE * 2);
         vm.startPrank(validator1);
-        engine.setValidatorCapacity(VALIDATOR_STAKE);
-        engine.commitValidation(projId, index, commitHash, uint128(VALIDATOR_STAKE));
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(projId, _indices);
+        }
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        engine.commitValidation(projId, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
 
-        vm.expectRevert(IQualityEngine.InvalidReveal.selector);
+        vm.expectRevert(ISapienCore.InvalidReveal.selector);
         engine.revealValidation(projId, index, 5000, salt); // wrong score
         vm.stopPrank();
     }
@@ -954,11 +974,16 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
 
         _ensureStake(validator1, VALIDATOR_STAKE * 4);
         vm.startPrank(validator1);
-        engine.setValidatorCapacity(VALIDATOR_STAKE * 2);
-        engine.commitValidation(projId, index, commitHash, uint128(VALIDATOR_STAKE));
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(projId, _indices);
+        }
+        engine.lockValidatorCapacity(VALIDATOR_STAKE * 2);
+        engine.commitValidation(projId, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
 
-        vm.expectRevert(IQualityEngine.AlreadyCommitted.selector);
-        engine.commitValidation(projId, index, commitHash, uint128(VALIDATOR_STAKE));
+        vm.expectRevert(ISapienCore.AlreadyCommitted.selector);
+        engine.commitValidation(projId, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
         vm.stopPrank();
     }
 
@@ -969,21 +994,21 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
 
         vm.prank(originator);
         vm.expectRevert();
-        engine.createProject(_pid("paused"), _defaultConfig());
+        engine.createProject(_pid("paused"), "", _defaultConfig());
 
         vm.prank(admin);
         engine.unpause();
 
         // Operations work again
         vm.prank(originator);
-        engine.createProject(_pid("unpaused"), _defaultConfig());
+        engine.createProject(_pid("unpaused"), "", _defaultConfig());
     }
 
     /// @notice Cannot claim more slots than available
     function test_revert_claimExceedsAvailableSlots() public {
         _ensureStake(contributor1, STAKE_AMOUNT * 100);
         vm.prank(contributor1);
-        vm.expectRevert(IQualityEngine.NoSlotsAvailable.selector);
+        vm.expectRevert(ISapienCore.NoSlotsAvailable.selector);
         engine.claimToContribute(projId, QUANTITY + 1, adapter);
     }
 
@@ -1001,20 +1026,20 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
         // Contributor2 tries to contribute to claimId1's index through claimId2
         // (indices are different, so this should fail with IndexNotInClaim)
         vm.prank(contributor2);
-        vm.expectRevert(IQualityEngine.NotClaimOwner.selector);
-        engine.contribute(claimId1, indices2[0], keccak256("data"));
+        vm.expectRevert(ISapienCore.NotClaimOwner.selector);
+        engine.contribute(claimId1, indices2[0], keccak256("data"), "");
     }
 
     /// @notice Cannot fund project if not the originator
     function test_revert_fundProjectNotOriginator() public {
         bytes32 pid2 = _pid("not-originator");
         vm.prank(originator);
-        engine.createProject(pid2, _defaultConfig());
+        engine.createProject(pid2, "", _defaultConfig());
 
         token.mint(contributor1, FUND_AMOUNT);
         vm.startPrank(contributor1);
         token.approve(address(engine), FUND_AMOUNT);
-        vm.expectRevert(IQualityEngine.NotProjectOriginator.selector);
+        vm.expectRevert(ISapienCore.NotProjectOriginator.selector);
         engine.fundProject(pid2, FUND_AMOUNT, 5, adapter);
         vm.stopPrank();
     }
@@ -1220,7 +1245,7 @@ contract LifecycleOutlierTest is LifecycleBase {
         vm.startPrank(originator);
         Project memory config = _defaultConfig();
         config.numberOfValidations = 5;
-        engine.createProject(projId, config);
+        engine.createProject(projId, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(projId, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -1409,7 +1434,7 @@ contract LifecycleMultiActorTest is LifecycleBase {
         // Challenger disputes the acceptance
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
-        engine.openDispute(projId, index2, keccak256("evidence"));
+        engine.openDispute(projId, index2, keccak256("evidence"), "evidenceCid");
 
         // Operator upholds dispute
         vm.prank(admin);
@@ -1417,7 +1442,7 @@ contract LifecycleMultiActorTest is LifecycleBase {
 
         // Contributor2's reward is blocked
         vm.warp(block.timestamp + 10 days);
-        vm.expectRevert(IQualityEngine.DisputeInProgress.selector);
+        vm.expectRevert(ISapienCore.DisputeInProgress.selector);
         engine.releaseContributorReward(projId, index2);
 
         // Challenger gets reward
@@ -1464,8 +1489,8 @@ contract LifecycleMultiActorTest is LifecycleBase {
         (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(projId, 4, adapter);
 
         // Submit only first 2
-        engine.contribute(claimId, indices[0], keccak256("data0"));
-        engine.contribute(claimId, indices[1], keccak256("data1"));
+        engine.contribute(claimId, indices[0], keccak256("data0"), "");
+        engine.contribute(claimId, indices[1], keccak256("data1"), "");
         vm.stopPrank();
 
         uint256 slotsAfterClaim = engine.getProject(projId).availableSlots;
@@ -1501,7 +1526,7 @@ contract LifecycleMultiActorTest is LifecycleBase {
 
         token.mint(originator, FUND_AMOUNT);
         vm.startPrank(originator);
-        engine.createProject(pid2, config);
+        engine.createProject(pid2, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid2, FUND_AMOUNT, 5, adapter);
         vm.stopPrank();
@@ -1509,17 +1534,16 @@ contract LifecycleMultiActorTest is LifecycleBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid2, 1);
         uint256 index = indices[0];
 
-        // Validator with default reputation (5000) cannot validate
-        bytes32 salt = keccak256(abi.encodePacked("salt", validator1, pid2, index, uint16(8000)));
-        uint256 nonce = engine.getSubmissionNonce(pid2, index);
-        bytes32 commitHash = keccak256(abi.encodePacked(pid2, index, nonce, validator1, uint16(8000), salt));
-
         _ensureStake(validator1, VALIDATOR_STAKE * 2);
         vm.startPrank(validator1);
-        engine.setValidatorCapacity(VALIDATOR_STAKE);
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
 
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.InsufficientReputation.selector, 6000, 5000));
-        engine.commitValidation(pid2, index, commitHash, uint128(VALIDATOR_STAKE));
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.InsufficientReputation.selector, 6000, 5000));
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(pid2, _indices);
+        }
         vm.stopPrank();
     }
 
@@ -1553,8 +1577,8 @@ contract LifecycleMultiActorTest is LifecycleBase {
     /// @notice Creating duplicate project reverts
     function test_revert_duplicateProject() public {
         vm.prank(originator);
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.InvalidProjectConfig.selector, "project already exists"));
-        engine.createProject(projId, _defaultConfig());
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "project already exists"));
+        engine.createProject(projId, "", _defaultConfig());
     }
 }
 
@@ -1594,16 +1618,16 @@ contract LifecycleAdminTest is LifecycleBase {
     function test_revert_feeLimits() public {
         vm.startPrank(admin);
 
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.AdapterFeeTooHigh.selector, 1500, 1000));
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.AdapterFeeTooHigh.selector, 1500, 1000));
         engine.setProtocolFee(1500);
 
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.AdapterFeeTooHigh.selector, 600, 500));
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.AdapterFeeTooHigh.selector, 600, 500));
         engine.setOriginationFee(600);
 
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.AdapterFeeTooHigh.selector, 600, 500));
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.AdapterFeeTooHigh.selector, 600, 500));
         engine.setContributionFee(600);
 
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.AdapterFeeTooHigh.selector, 600, 500));
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.AdapterFeeTooHigh.selector, 600, 500));
         engine.setValidationFee(600);
 
         vm.stopPrank();
@@ -1640,7 +1664,7 @@ contract LifecycleAdminTest is LifecycleBase {
     /// @notice Zero-address treasury rejected
     function test_revert_zeroTreasury() public {
         vm.prank(admin);
-        vm.expectRevert(IQualityEngine.ZeroAddress.selector);
+        vm.expectRevert(ISapienCore.ZeroAddress.selector);
         engine.setTreasury(address(0));
     }
 }

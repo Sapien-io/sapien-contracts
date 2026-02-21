@@ -4,22 +4,22 @@ pragma solidity ^0.8.30;
 import {Test} from "forge-std/Test.sol";
 import {console2} from "forge-std/console2.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {QualityEngine} from "../../src/QualityEngine.sol";
-import {StakeVault} from "../../src/StakeVault.sol";
+import {SapienCore} from "../../src/SapienCore.sol";
+import {SapienVault} from "../../src/SapienVault.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {Project, ProjectStatus, Contribution, ContributionStatus, Reputation, StakeAccount} from "src/Types.sol";
 import {Constants as C} from "src/Constants.sol";
-import {QualityEngineHandler} from "./handlers/QualityEngineHandler.sol";
+import {SapienCoreHandler} from "./handlers/SapienCoreHandler.sol";
 
-/// @title QualityEngineInvariantTest
-/// @notice Invariant tests for the QualityEngine protocol
+/// @title SapienCoreInvariantTest
+/// @notice Invariant tests for the SapienCore protocol
 /// @dev Tests solvency, reputation bounds, slot accounting, and token conservation
-///      across the full protocol lifecycle driven by the QualityEngineHandler.
-contract QualityEngineInvariantTest is Test {
-    QualityEngine public engine;
-    StakeVault public vault;
+///      across the full protocol lifecycle driven by the SapienCoreHandler.
+contract SapienCoreInvariantTest is Test {
+    SapienCore public engine;
+    SapienVault public vault;
     MockERC20 public token;
-    QualityEngineHandler public handler;
+    SapienCoreHandler public handler;
 
     address public admin = makeAddr("admin");
     address public treasury = makeAddr("treasury");
@@ -34,18 +34,17 @@ contract QualityEngineInvariantTest is Test {
         // Deploy token
         token = new MockERC20("Sapien Token", "SPN");
 
-        // Deploy StakeVault behind proxy
-        StakeVault vaultImpl = new StakeVault();
-        bytes memory vaultInit = abi.encodeCall(StakeVault.initialize, (token, admin));
-        vault = StakeVault(address(new ERC1967Proxy(address(vaultImpl), vaultInit)));
+        // Deploy SapienVault behind proxy
+        SapienVault vaultImpl = new SapienVault();
+        bytes memory vaultInit = abi.encodeCall(SapienVault.initialize, (token, admin));
+        vault = SapienVault(address(new ERC1967Proxy(address(vaultImpl), vaultInit)));
 
-        // Deploy QualityEngine behind proxy
-        QualityEngine engineImpl = new QualityEngine();
-        bytes memory engineInit =
-            abi.encodeCall(QualityEngine.initialize, (admin, address(vault), treasury, address(0)));
-        engine = QualityEngine(address(new ERC1967Proxy(address(engineImpl), engineInit)));
+        // Deploy SapienCore behind proxy
+        SapienCore engineImpl = new SapienCore();
+        bytes memory engineInit = abi.encodeCall(SapienCore.initialize, (admin, address(vault), treasury));
+        engine = SapienCore(address(new ERC1967Proxy(address(engineImpl), engineInit)));
 
-        // Grant ENGINE_ROLE to QualityEngine on the vault
+        // Grant ENGINE_ROLE to SapienCore on the vault
         vm.startPrank(admin);
         vault.grantRole(vault.ENGINE_ROLE(), address(engine));
         vm.stopPrank();
@@ -71,7 +70,7 @@ contract QualityEngineInvariantTest is Test {
         }
 
         // Deploy handler
-        handler = new QualityEngineHandler(engine, vault, token, originator, contributorAddrs, validatorAddrs, adapter);
+        handler = new SapienCoreHandler(engine, vault, token, originator, contributorAddrs, validatorAddrs, adapter);
 
         // Set handler as the only target
         targetContract(address(handler));
@@ -177,7 +176,7 @@ contract QualityEngineInvariantTest is Test {
 
     // ════════════════════════════════════════════════════════════════════
     // Invariant 5: Vault lock solvency (cross-contract)
-    // Even through the QualityEngine flow, vault lock solvency must hold
+    // Even through the SapienCore flow, vault lock solvency must hold
     // for all participants.
     // ════════════════════════════════════════════════════════════════════
 
@@ -314,7 +313,7 @@ contract QualityEngineInvariantTest is Test {
     // ════════════════════════════════════════════════════════════════════
 
     function invariant_callSummary() public view {
-        console2.log("--- QualityEngine Handler Call Summary ---");
+        console2.log("--- SapienCore Handler Call Summary ---");
         console2.log("  createProject:       ", handler.calls_createProject());
         console2.log("  fundProject:         ", handler.calls_fundProject());
         console2.log("  claimToContribute:   ", handler.calls_claimToContribute());

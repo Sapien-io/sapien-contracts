@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 import {BaseTest} from "test/BaseTest.sol";
 import {ContributionStatus} from "src/Types.sol";
 import {Constants as C} from "src/Constants.sol";
-import {IQualityEngine} from "src/interfaces/IQualityEngine.sol";
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 
 /// @title SEC-H-01 FIX VERIFICATION: completeProject blocked while pipeline active
 /// @notice Verifies that completeProject reverts with ProjectHasActivePipeline when
@@ -18,7 +18,7 @@ contract SEC_H_01_PrematureCompletion is BaseTest {
 
         // FIX VERIFIED: completeProject reverts because pendingContributions > 0
         vm.prank(originator);
-        vm.expectRevert(IQualityEngine.ProjectHasActivePipeline.selector);
+        vm.expectRevert(ISapienCore.ProjectHasActivePipeline.selector);
         engine.completeProject(projectId);
     }
 
@@ -35,7 +35,7 @@ contract SEC_H_01_PrematureCompletion is BaseTest {
         engine.computeConsensus(projectId, idx);
 
         // Wait for challenge period and release contributor reward
-        vm.warp(block.timestamp + C.CHALLENGE_PERIOD + 1);
+        vm.warp(block.timestamp + C.DEFAULT_CHALLENGE_PERIOD + 1);
         engine.releaseContributorReward(projectId, idx);
 
         // Now pendingContributions is 0, so completion succeeds
@@ -75,7 +75,7 @@ contract SEC_H_01_PrematureCompletion is BaseTest {
         _commitAndReveal(validator3, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
         engine.computeConsensus(projectId, idx);
 
-        vm.warp(block.timestamp + C.CHALLENGE_PERIOD + 1);
+        vm.warp(block.timestamp + C.DEFAULT_CHALLENGE_PERIOD + 1);
         engine.releaseContributorReward(projectId, idx);
 
         // Settle validators before completion

@@ -16,10 +16,19 @@ library Constants {
     uint256 public constant MAX_VALIDATOR_REWARD_BPS = 2500; // 25%
     uint256 public constant BPS = 10_000;
 
-    uint256 public constant CHALLENGE_PERIOD = 1 days;
-    uint256 public constant CLAIM_DEADLINE = 7 days;
-    uint256 public constant COMMIT_DEADLINE = 3 days;
-    uint256 public constant REVEAL_DEADLINE = 2 days;
+    uint256 public constant DEFAULT_CHALLENGE_PERIOD = 1 days;
+    uint256 public constant DEFAULT_CLAIM_DEADLINE = 1 days;
+    uint256 public constant DEFAULT_COMMIT_DEADLINE = 1 days;
+    uint256 public constant DEFAULT_REVEAL_DEADLINE = 1 days;
+    uint256 public constant DEFAULT_FORCE_SETTLE_DELAY = 3 days;
+
+    uint256 public constant MAX_CHALLENGE_PERIOD = 30 days;
+    uint256 public constant MAX_CLAIM_DEADLINE = 30 days;
+    uint256 public constant MAX_COMMIT_DEADLINE = 30 days;
+    uint256 public constant MAX_REVEAL_DEADLINE = 30 days;
+    uint256 public constant MAX_FORCE_SETTLE_DELAY = 90 days;
+
+    uint256 public constant VALIDATION_CLAIM_DEADLINE = 1 hours;
 
     // Dispute constants
     uint256 public constant DISPUTE_RESOLUTION_DEADLINE = 7 days;
@@ -28,7 +37,7 @@ library Constants {
     uint256 public constant MAX_ORIGINATOR_REPORT_BOND_BPS = 1000; // 10% of project totalRewards
     uint256 public constant MAX_DECAY_RATE_BPS = 500; // 5% max reputation decay per day (L-03)
     uint256 public constant PROJECT_COMPLETION_DELAY = 30 days; // grace period before escrow refund (M-03)
-    uint256 public constant FORCE_SETTLE_DELAY = 30 days; // time after consensus before permissionless force-settle (SEC-H-02)
+    // FORCE_SETTLE_DELAY moved to DEFAULT_FORCE_SETTLE_DELAY above
 
     // Reputation constants
     uint256 public constant DEFAULT_REPUTATION = 5000;
@@ -36,9 +45,7 @@ library Constants {
     uint256 public constant MIN_REPUTATION = 500;
     uint256 public constant SUCCESS_INCREASE = 10;
     uint256 public constant REJECTION_DECREASE = 50;
-    uint256 public constant SLASH_DECREASE = 100;
     uint256 public constant MAX_DAILY_GAIN = 100;
-    uint256 public constant MIN_REPUTATION_FLOOR = 1000;
 
     bytes32 public constant ORIGINATOR_ROLE_KEY = keccak256("ORIGINATOR");
     bytes32 public constant CONTRIBUTOR_ROLE_KEY = keccak256("CONTRIBUTOR");

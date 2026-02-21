@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "test/BaseTest.sol";
-import {IQualityEngine} from "src/interfaces/IQualityEngine.sol";
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 import {Constants as C} from "src/Constants.sol";
 
 /// @title SEC-H-02 FIX VERIFICATION: forceSettleValidator now available
@@ -24,7 +24,7 @@ contract SEC_H_02_NoForceSettle is BaseTest {
         assertTrue(inFlightBefore > 0, "validator3 has in-flight stake");
 
         // Warp past FORCE_SETTLE_DELAY
-        vm.warp(block.timestamp + C.FORCE_SETTLE_DELAY + 1);
+        vm.warp(block.timestamp + C.DEFAULT_FORCE_SETTLE_DELAY + 1);
 
         // FIX VERIFIED: a third party (keeper) can now force-settle for validator3
         address keeper = makeAddr("keeper");
@@ -49,7 +49,7 @@ contract SEC_H_02_NoForceSettle is BaseTest {
         // Try to force-settle too early
         address keeper = makeAddr("keeper");
         vm.prank(keeper);
-        vm.expectRevert(IQualityEngine.ForceSettleTooEarly.selector);
+        vm.expectRevert(ISapienCore.ForceSettleTooEarly.selector);
         engine.forceSettleValidator(projectId, idx, 0, validator3);
     }
 
@@ -88,7 +88,7 @@ contract SEC_H_02_NoForceSettle is BaseTest {
         assertTrue(inFlightBefore > 0, "validator3 has in-flight stake");
 
         // Warp past force-settle delay
-        vm.warp(block.timestamp + C.FORCE_SETTLE_DELAY + 1);
+        vm.warp(block.timestamp + C.DEFAULT_FORCE_SETTLE_DELAY + 1);
 
         // Keeper force-settles the outlier — their stake gets slashed
         address keeper = makeAddr("keeper");

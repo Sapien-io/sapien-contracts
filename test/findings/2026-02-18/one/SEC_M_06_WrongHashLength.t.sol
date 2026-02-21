@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 import {BaseTest} from "test/BaseTest.sol";
 
 /// @title SEC-M-06 FIX VERIFICATION: verifyStorageLocation uses correct hash derivation
-/// @notice Verifies that StakeVault.verifyStorageLocation() now works correctly after
+/// @notice Verifies that SapienVault.verifyStorageLocation() now works correctly after
 ///         replacing the buggy inline assembly (wrong length: 30 instead of 25) with
 ///         Solidity-level keccak256.
 contract SEC_M_06_WrongHashLength is BaseTest {

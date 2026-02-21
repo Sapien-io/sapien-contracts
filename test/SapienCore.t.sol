@@ -2,22 +2,20 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "./BaseTest.sol";
-import {QualityEngine} from "src/QualityEngine.sol";
-import {IQualityEngine} from "src/interfaces/IQualityEngine.sol";
+import {SapienCore} from "src/SapienCore.sol";
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 import {
     Project,
     ProjectStatus,
     Claim,
     ClaimStatus,
-    IndexState,
-    SubmissionStatus,
     Contribution,
     ContributionStatus,
     ConsensusReport,
     Reputation
 } from "src/Types.sol";
 
-contract QualityEngineProjectTest is BaseTest {
+contract SapienCoreProjectTest is BaseTest {
     // ═══════════════════════════════════════════════════════════════
     // Project Management
     // ═══════════════════════════════════════════════════════════════
@@ -42,7 +40,7 @@ contract QualityEngineProjectTest is BaseTest {
             completedAt: 0
         });
 
-        engine.createProject(PROJECT_ID, config);
+        engine.createProject(PROJECT_ID, "", config);
 
         Project memory proj = engine.getProject(PROJECT_ID);
         assertEq(proj.originator, originator);
@@ -74,9 +72,9 @@ contract QualityEngineProjectTest is BaseTest {
             completedAt: 0
         });
 
-        engine.createProject(PROJECT_ID, config);
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.InvalidProjectConfig.selector, "project already exists"));
-        engine.createProject(PROJECT_ID, config);
+        engine.createProject(PROJECT_ID, "", config);
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "project already exists"));
+        engine.createProject(PROJECT_ID, "", config);
         vm.stopPrank();
     }
 
@@ -130,15 +128,15 @@ contract QualityEngineProjectTest is BaseTest {
             activatedAt: 0,
             completedAt: 0
         });
-        engine.createProject(PROJECT_ID, config);
+        engine.createProject(PROJECT_ID, "", config);
 
         vm.prank(contributor1);
-        vm.expectRevert(IQualityEngine.NotProjectOriginator.selector);
+        vm.expectRevert(ISapienCore.NotProjectOriginator.selector);
         engine.fundProject(PROJECT_ID, 1000e18, 5, address(0));
     }
 }
 
-contract QualityEngineClaimTest is BaseTest {
+contract SapienCoreClaimTest is BaseTest {
     // ═══════════════════════════════════════════════════════════════
     // Claims & Contributions
     // ═══════════════════════════════════════════════════════════════
@@ -168,7 +166,7 @@ contract QualityEngineClaimTest is BaseTest {
         _createAndFundProject();
 
         vm.prank(originator);
-        vm.expectRevert(IQualityEngine.OriginatorCannotContribute.selector);
+        vm.expectRevert(ISapienCore.OriginatorCannotContribute.selector);
         engine.claimToContribute(PROJECT_ID, 1, address(0));
     }
 
@@ -176,7 +174,7 @@ contract QualityEngineClaimTest is BaseTest {
         _createAndFundProject();
 
         vm.prank(contributor1);
-        vm.expectRevert(IQualityEngine.NoSlotsAvailable.selector);
+        vm.expectRevert(ISapienCore.NoSlotsAvailable.selector);
         engine.claimToContribute(PROJECT_ID, QUANTITY + 1, address(0));
     }
 
@@ -187,16 +185,13 @@ contract QualityEngineClaimTest is BaseTest {
         (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(PROJECT_ID, 2, adapter);
 
         bytes32 hash = keccak256("submission-data");
-        engine.contribute(claimId, indices[0], hash);
+        engine.contribute(claimId, indices[0], hash, "");
 
         Contribution memory contrib = engine.getContribution(PROJECT_ID, indices[0]);
         assertEq(contrib.contributor, contributor1);
         assertEq(contrib.submissionHash, hash);
         assertEq(uint256(contrib.status), uint256(ContributionStatus.Pending));
         assertGt(contrib.rewardRate, 0);
-
-        IndexState memory idx = engine.getIndexState(PROJECT_ID, indices[0]);
-        assertEq(uint256(idx.status), uint256(SubmissionStatus.Submitted));
 
         Claim memory claim = engine.getClaim(claimId);
         assertEq(claim.submittedCount, 1);
@@ -210,7 +205,7 @@ contract QualityEngineClaimTest is BaseTest {
         (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(PROJECT_ID, 2, adapter);
 
         for (uint256 i; i < indices.length; ++i) {
-            engine.contribute(claimId, indices[i], keccak256(abi.encodePacked("data", i)));
+            engine.contribute(claimId, indices[i], keccak256(abi.encodePacked("data", i)), "");
         }
 
         Claim memory claim = engine.getClaim(claimId);
@@ -225,8 +220,8 @@ contract QualityEngineClaimTest is BaseTest {
         (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(PROJECT_ID, 1, adapter);
 
         vm.prank(contributor2);
-        vm.expectRevert(IQualityEngine.NotClaimOwner.selector);
-        engine.contribute(claimId, indices[0], keccak256("data"));
+        vm.expectRevert(ISapienCore.NotClaimOwner.selector);
+        engine.contribute(claimId, indices[0], keccak256("data"), "");
     }
 
     function test_expireClaim() public {
@@ -237,7 +232,7 @@ contract QualityEngineClaimTest is BaseTest {
 
         // Submit 1 of 3
         vm.prank(contributor1);
-        engine.contribute(claimId, indices[0], keccak256("data0"));
+        engine.contribute(claimId, indices[0], keccak256("data0"), "");
 
         // Warp past deadline
         vm.warp(block.timestamp + 8 days);
@@ -259,12 +254,12 @@ contract QualityEngineClaimTest is BaseTest {
         vm.prank(contributor1);
         (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(PROJECT_ID, 1, adapter);
 
-        vm.expectRevert(IQualityEngine.ClaimDeadlineNotPassed.selector);
+        vm.expectRevert(ISapienCore.ClaimDeadlineNotPassed.selector);
         engine.expireClaim(claimId, indices);
     }
 }
 
-contract QualityEngineValidationTest is BaseTest {
+contract SapienCoreValidationTest is BaseTest {
     // ═══════════════════════════════════════════════════════════════
     // Validation (Commit-Reveal)
     // ═══════════════════════════════════════════════════════════════
@@ -279,8 +274,13 @@ contract QualityEngineValidationTest is BaseTest {
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
         vm.startPrank(validator1);
-        engine.setValidatorCapacity(VALIDATOR_STAKE);
-        engine.commitValidation(PROJECT_ID, index, commitHash, uint128(VALIDATOR_STAKE));
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(PROJECT_ID, _indices);
+        }
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        engine.commitValidation(PROJECT_ID, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
         engine.revealValidation(PROJECT_ID, index, score, salt);
         vm.stopPrank();
 
@@ -293,14 +293,15 @@ contract QualityEngineValidationTest is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, PROJECT_ID, 1);
 
         uint256 index = indices[0];
-        uint256 nonce = engine.getSubmissionNonce(PROJECT_ID, index);
-        bytes32 commitHash =
-            keccak256(abi.encodePacked(PROJECT_ID, index, nonce, contributor1, uint16(8000), bytes32("salt")));
 
         vm.startPrank(contributor1);
-        engine.setValidatorCapacity(VALIDATOR_STAKE);
-        vm.expectRevert(IQualityEngine.CannotValidateOwnContribution.selector);
-        engine.commitValidation(PROJECT_ID, index, commitHash, uint128(VALIDATOR_STAKE));
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        vm.expectRevert(ISapienCore.CannotValidateOwnContribution.selector);
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(PROJECT_ID, _indices);
+        }
         vm.stopPrank();
     }
 
@@ -315,11 +316,16 @@ contract QualityEngineValidationTest is BaseTest {
         bytes32 commitHash = keccak256(abi.encodePacked(PROJECT_ID, index, nonce, validator1, score, salt));
 
         vm.startPrank(validator1);
-        engine.setValidatorCapacity(VALIDATOR_STAKE);
-        engine.commitValidation(PROJECT_ID, index, commitHash, uint128(VALIDATOR_STAKE));
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(PROJECT_ID, _indices);
+        }
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        engine.commitValidation(PROJECT_ID, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
 
         // Try to reveal with wrong score
-        vm.expectRevert(IQualityEngine.InvalidReveal.selector);
+        vm.expectRevert(ISapienCore.InvalidReveal.selector);
         engine.revealValidation(PROJECT_ID, index, 5000, salt);
         vm.stopPrank();
     }
@@ -334,16 +340,21 @@ contract QualityEngineValidationTest is BaseTest {
             keccak256(abi.encodePacked(PROJECT_ID, index, nonce, validator1, uint16(8000), bytes32("salt")));
 
         vm.startPrank(validator1);
-        engine.setValidatorCapacity(VALIDATOR_STAKE * 2);
-        engine.commitValidation(PROJECT_ID, index, commitHash, uint128(VALIDATOR_STAKE));
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(PROJECT_ID, _indices);
+        }
+        engine.lockValidatorCapacity(VALIDATOR_STAKE * 2);
+        engine.commitValidation(PROJECT_ID, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
 
-        vm.expectRevert(IQualityEngine.AlreadyCommitted.selector);
-        engine.commitValidation(PROJECT_ID, index, commitHash, uint128(VALIDATOR_STAKE));
+        vm.expectRevert(ISapienCore.AlreadyCommitted.selector);
+        engine.commitValidation(PROJECT_ID, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
         vm.stopPrank();
     }
 }
 
-contract QualityEngineConsensusTest is BaseTest {
+contract SapienCoreConsensusTest is BaseTest {
     // ═══════════════════════════════════════════════════════════════
     // Consensus & Finalization
     // ═══════════════════════════════════════════════════════════════
@@ -400,7 +411,7 @@ contract QualityEngineConsensusTest is BaseTest {
         _commitAndReveal(validator1, PROJECT_ID, index, 8000, uint128(VALIDATOR_STAKE));
         _commitAndReveal(validator2, PROJECT_ID, index, 8500, uint128(VALIDATOR_STAKE));
 
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.ConsensusNotReady.selector, 2, 3));
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.ConsensusNotReady.selector, 2, 3));
         engine.computeConsensus(PROJECT_ID, index);
     }
 
@@ -415,7 +426,7 @@ contract QualityEngineConsensusTest is BaseTest {
 
         engine.computeConsensus(PROJECT_ID, index);
 
-        vm.expectRevert(IQualityEngine.ConsensusAlreadyComputed.selector);
+        vm.expectRevert(ISapienCore.ConsensusAlreadyComputed.selector);
         engine.computeConsensus(PROJECT_ID, index);
     }
 
@@ -458,13 +469,13 @@ contract QualityEngineConsensusTest is BaseTest {
         vm.startPrank(validator1);
         engine.settleValidator(PROJECT_ID, index, nonce);
 
-        vm.expectRevert(IQualityEngine.AlreadySettled.selector);
+        vm.expectRevert(ISapienCore.AlreadySettled.selector);
         engine.settleValidator(PROJECT_ID, index, nonce);
         vm.stopPrank();
     }
 }
 
-contract QualityEngineRewardTest is BaseTest {
+contract SapienCoreRewardTest is BaseTest {
     // ═══════════════════════════════════════════════════════════════
     // Rewards
     // ═══════════════════════════════════════════════════════════════
@@ -501,7 +512,7 @@ contract QualityEngineRewardTest is BaseTest {
         engine.computeConsensus(PROJECT_ID, index);
 
         // Don't warp — challenge period not elapsed
-        vm.expectRevert(IQualityEngine.ChallengeNotElapsed.selector);
+        vm.expectRevert(ISapienCore.ChallengeNotElapsed.selector);
         engine.releaseContributorReward(PROJECT_ID, index);
     }
 
@@ -539,7 +550,7 @@ contract QualityEngineRewardTest is BaseTest {
 
     function test_claimReward_revertsNoReward() public {
         vm.prank(contributor1);
-        vm.expectRevert(IQualityEngine.NoRewardToClaim.selector);
+        vm.expectRevert(ISapienCore.NoRewardToClaim.selector);
         engine.claimReward(address(token));
     }
 
@@ -558,7 +569,7 @@ contract QualityEngineRewardTest is BaseTest {
     }
 }
 
-contract QualityEngineReputationTest is BaseTest {
+contract SapienCoreReputationTest is BaseTest {
     // ═══════════════════════════════════════════════════════════════
     // Reputation
     // ═══════════════════════════════════════════════════════════════
@@ -587,14 +598,14 @@ contract QualityEngineReputationTest is BaseTest {
             activatedAt: 0,
             completedAt: 0
         });
-        engine.createProject(PROJECT_ID, config);
+        engine.createProject(PROJECT_ID, "", config);
 
         Reputation memory rep = engine.getReputation(originator, keccak256("ORIGINATOR"));
         assertGt(rep.score, 5000);
     }
 }
 
-contract QualityEngineAdminTest is BaseTest {
+contract SapienCoreAdminTest is BaseTest {
     // ═══════════════════════════════════════════════════════════════
     // Admin Functions
     // ═══════════════════════════════════════════════════════════════
@@ -606,7 +617,7 @@ contract QualityEngineAdminTest is BaseTest {
 
     function test_setProtocolFee_revertsTooHigh() public {
         vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.AdapterFeeTooHigh.selector, 1500, 1000));
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.AdapterFeeTooHigh.selector, 1500, 1000));
         engine.setProtocolFee(1500);
     }
 
@@ -620,7 +631,7 @@ contract QualityEngineAdminTest is BaseTest {
 
     function test_setAdapterFees_revertsTooHigh() public {
         vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.AdapterFeeTooHigh.selector, 600, 500));
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.AdapterFeeTooHigh.selector, 600, 500));
         engine.setOriginationFee(600);
     }
 
@@ -631,6 +642,7 @@ contract QualityEngineAdminTest is BaseTest {
         vm.expectRevert();
         engine.createProject(
             PROJECT_ID,
+            "",
             Project({
                 originator: address(0),
                 rewardToken: address(token),
@@ -668,7 +680,7 @@ contract QualityEngineAdminTest is BaseTest {
 
     function test_setTreasury_revertsZeroAddress() public {
         vm.prank(admin);
-        vm.expectRevert(IQualityEngine.ZeroAddress.selector);
+        vm.expectRevert(ISapienCore.ZeroAddress.selector);
         engine.setTreasury(address(0));
     }
 }

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "test/BaseTest.sol";
-import {IQualityEngine} from "src/interfaces/IQualityEngine.sol";
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 
 /// @title SEC-L-02: Redundant zero-check after zero-revert
 /// @notice Proves that the `if (stakeAmount > 0)` guard in commitValidation is dead code
@@ -18,12 +18,17 @@ contract SEC_L_02_RedundantZeroCheck is BaseTest {
         bytes32 commitHash = keccak256(abi.encodePacked(uint16(8000), salt));
 
         vm.startPrank(validator1);
-        engine.setValidatorCapacity(VALIDATOR_STAKE);
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = idx;
+            engine.claimToValidate(projectId, _indices);
+        }
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
 
         // stakeAmount = 0 reverts with InsufficientStake(1, 0)
         // The later `if (stakeAmount > 0) { vault.commitStake(...) }` is never reached
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.InsufficientStake.selector, 1, 0));
-        engine.commitValidation(projectId, idx, commitHash, 0);
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.InsufficientStake.selector, 1, 0));
+        engine.commitValidation(projectId, idx, commitHash, 0, address(0));
         vm.stopPrank();
     }
 }

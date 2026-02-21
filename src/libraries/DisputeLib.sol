@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {Constants as C} from "src/Constants.sol";
-import {IQualityEngine} from "src/interfaces/IQualityEngine.sol";
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 import {ReputationLib} from "src/libraries/ReputationLib.sol";
 import {
     EngineStorage,
@@ -18,13 +18,13 @@ import {
 
 /// @title DisputeLib
 /// @notice Deployed library for dispute and originator report operations.
-/// @dev Called via DELEGATECALL from QualityEngine; operates on the caller's ERC-7201 storage.
+/// @dev Called via DELEGATECALL from SapienCore; operates on the caller's ERC-7201 storage.
 ///      Uses ReputationLib (also via DELEGATECALL) for reputation updates.
 library DisputeLib {
-    // keccak256(abi.encode(uint256(keccak256("sapien.storage.QualityEngine")) - 1)) & ~bytes32(uint256(0xff))
+    // keccak256(abi.encode(uint256(keccak256("sapien.storage.SapienCore")) - 1)) & ~bytes32(uint256(0xff))
     function _getStorage() private pure returns (EngineStorage storage $) {
         assembly {
-            $.slot := 0x93ae96f70dc96ca851a79b6bf630e034298e11be62b3174b3a3408302fc00900
+            $.slot := 0xb21037e32bd67da4126ec23c3d75228183c819f055709f5aa59aa33cc3fd2b00
         }
     }
 
@@ -33,49 +33,49 @@ library DisputeLib {
     // ════════════════════════════════════════════════════════════════════
 
     /// @notice Open a dispute on a consensus outcome during the challenge period.
-    function openDispute(bytes32 projectId, uint256 index, bytes32 evidenceHash) public {
+    function openDispute(bytes32 projectId, uint256 index, bytes32 evidenceHash, string calldata evidenceCid) public {
         // SEC-L-03: Require non-empty evidence hash
-        if (evidenceHash == bytes32(0)) revert IQualityEngine.InvalidEvidenceHash();
+        if (evidenceHash == bytes32(0)) revert ISapienCore.InvalidEvidenceHash();
 
         EngineStorage storage $ = _getStorage();
         Contribution storage contrib = $.contributions[projectId][index];
 
         uint256 nonce = contrib.consensusNonce;
         if (!$.consensusReports[projectId][index][nonce].computed && contrib.status != ContributionStatus.Rejected) {
-            revert IQualityEngine.ConsensusNotComputed();
+            revert ISapienCore.ConsensusNotComputed();
         }
 
-        if (contrib.challengeEndsAt == 0) revert IQualityEngine.ConsensusNotComputed();
-        if (block.timestamp > contrib.challengeEndsAt) revert IQualityEngine.DisputeWindowClosed();
+        if (contrib.challengeEndsAt == 0) revert ISapienCore.ConsensusNotComputed();
+        if (block.timestamp > contrib.challengeEndsAt) revert ISapienCore.DisputeWindowClosed();
 
         // SEC-C-01: disputes keyed by nonce to prevent cross-nonce poisoning
         Dispute storage dispute = $.disputes[projectId][index][nonce];
 
         // SEC-H-03: only one dispute per (projectId, index, nonce) — block reopening
-        if (dispute.status == DisputeStatus.Open) revert IQualityEngine.DisputeAlreadyOpen();
+        if (dispute.status == DisputeStatus.Open) revert ISapienCore.DisputeAlreadyOpen();
         if (dispute.status == DisputeStatus.Rejected || dispute.status == DisputeStatus.Upheld) {
-            revert IQualityEngine.DisputeAlreadyClosed();
+            revert ISapienCore.DisputeAlreadyClosed();
         }
 
         if (contrib.status == ContributionStatus.Accepted && contrib.contributor == msg.sender) {
-            revert IQualityEngine.CannotDisputeOwnContribution();
+            revert ISapienCore.CannotDisputeOwnContribution();
         }
 
-        uint256 bondAmount = (contrib.rewardRate * uint256($.disputeBondBps)) / C.BPS;
+        uint256 bondAmount = (contrib.rewardRate * $.disputeBondBps) / C.BPS;
         if (bondAmount == 0) bondAmount = 1;
         $.vault.lockContributor(msg.sender, bondAmount);
 
         dispute.challenger = msg.sender;
-        dispute.openedAt = uint64(block.timestamp);
+        dispute.openedAt = block.timestamp;
         dispute.status = DisputeStatus.Open;
-        dispute.bondAmount = uint128(bondAmount);
+        dispute.bondAmount = bondAmount;
         dispute.evidenceHash = evidenceHash;
 
         if (contrib.status == ContributionStatus.Accepted) {
-            contrib.challengeEndsAt = uint64(block.timestamp + C.DISPUTE_RESOLUTION_DEADLINE);
+            contrib.challengeEndsAt = block.timestamp + C.DISPUTE_RESOLUTION_DEADLINE;
         }
 
-        emit IQualityEngine.DisputeOpened(projectId, index, msg.sender, bondAmount);
+        emit ISapienCore.DisputeOpened(projectId, index, msg.sender, bondAmount, evidenceCid);
     }
 
     /// @notice Execute the "upheld" path for a dispute (used by both resolve and escalate).
@@ -87,7 +87,7 @@ library DisputeLib {
         address rewardToken = proj.rewardToken;
 
         dispute.status = DisputeStatus.Upheld;
-        dispute.resolvedAt = uint64(block.timestamp);
+        dispute.resolvedAt = block.timestamp;
         $.vault.unlockContributor(dispute.challenger, dispute.bondAmount);
 
         if (contrib.status == ContributionStatus.Accepted) {
@@ -124,11 +124,11 @@ library DisputeLib {
         Contribution storage contrib = $.contributions[projectId][index];
 
         dispute.status = DisputeStatus.Rejected;
-        dispute.resolvedAt = uint64(block.timestamp);
+        dispute.resolvedAt = block.timestamp;
         $.vault.slashContributor(dispute.challenger, dispute.bondAmount);
 
         if (contrib.status == ContributionStatus.Accepted) {
-            contrib.challengeEndsAt = uint64(block.timestamp);
+            contrib.challengeEndsAt = block.timestamp;
         }
     }
 
@@ -139,32 +139,32 @@ library DisputeLib {
     /// @notice Report an originator for misconduct.
     function reportOriginator(bytes32 projectId, bytes32 evidenceHash) public {
         // SEC-L-03: Require non-empty evidence hash
-        if (evidenceHash == bytes32(0)) revert IQualityEngine.InvalidEvidenceHash();
+        if (evidenceHash == bytes32(0)) revert ISapienCore.InvalidEvidenceHash();
 
         EngineStorage storage $ = _getStorage();
         Project storage proj = $.projects[projectId];
 
-        if (proj.originator == address(0)) revert IQualityEngine.InvalidProjectConfig("project does not exist");
+        if (proj.originator == address(0)) revert ISapienCore.InvalidProjectConfig("project does not exist");
         if (proj.status != ProjectStatus.Active && proj.status != ProjectStatus.Funded) {
-            revert IQualityEngine.ProjectNotCancellable();
+            revert ISapienCore.ProjectNotCancellable();
         }
 
-        if (proj.originator == msg.sender) revert IQualityEngine.NotProjectOriginator();
+        if (proj.originator == msg.sender) revert ISapienCore.NotProjectOriginator();
 
         OriginatorReport storage report = $.originatorReports[projectId];
-        if (report.status == OriginatorReportStatus.Open) revert IQualityEngine.OriginatorReportAlreadyOpen();
+        if (report.status == OriginatorReportStatus.Open) revert ISapienCore.OriginatorReportAlreadyOpen();
 
-        uint256 bondAmount = (proj.totalRewards * uint256($.originatorReportBondBps)) / C.BPS;
+        uint256 bondAmount = (proj.totalRewards * $.originatorReportBondBps) / C.BPS;
         if (bondAmount == 0) bondAmount = 1;
         $.vault.lockContributor(msg.sender, bondAmount);
 
         report.reporter = msg.sender;
-        report.reportedAt = uint64(block.timestamp);
+        report.reportedAt = block.timestamp;
         report.status = OriginatorReportStatus.Open;
-        report.bondAmount = uint128(bondAmount);
+        report.bondAmount = bondAmount;
         report.evidenceHash = evidenceHash;
 
-        emit IQualityEngine.OriginatorReported(projectId, msg.sender, bondAmount);
+        emit ISapienCore.OriginatorReported(projectId, msg.sender, bondAmount);
     }
 
     /// @notice Execute the "upheld" path for an originator report.
@@ -175,7 +175,7 @@ library DisputeLib {
         Project storage proj = $.projects[projectId];
 
         report.status = OriginatorReportStatus.Upheld;
-        report.resolvedAt = uint64(block.timestamp);
+        report.resolvedAt = block.timestamp;
         $.vault.unlockContributor(report.reporter, report.bondAmount);
 
         uint256 originatorStake = $.originatorLockedStake[projectId];
@@ -195,7 +195,7 @@ library DisputeLib {
 
         ReputationLib.update(proj.originator, C.ORIGINATOR_ROLE_KEY, false, 0);
         proj.status = ProjectStatus.Cancelled;
-        emit IQualityEngine.ProjectCancelled(projectId);
+        emit ISapienCore.ProjectCancelled(projectId);
     }
 
     /// @notice Execute the "rejected" path for an originator report.
@@ -204,7 +204,7 @@ library DisputeLib {
         OriginatorReport storage report = $.originatorReports[projectId];
 
         report.status = OriginatorReportStatus.Rejected;
-        report.resolvedAt = uint64(block.timestamp);
+        report.resolvedAt = block.timestamp;
         $.vault.slashContributor(report.reporter, report.bondAmount);
     }
 }

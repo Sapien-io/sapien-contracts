@@ -46,7 +46,7 @@ contract SEC_H_04_ExcessiveDisputePayout is BaseTest {
             activatedAt: 0,
             completedAt: 0
         });
-        engine.createProject(projectId, config);
+        engine.createProject(projectId, "", config);
 
         uint256 fundAmount = 5000e18;
         token.approve(address(engine), fundAmount);
@@ -71,7 +71,7 @@ contract SEC_H_04_ExcessiveDisputePayout is BaseTest {
 
         // Challenger disputes the rejection
         vm.prank(challenger);
-        engine.openDispute(projectId, idx, keccak256("overturn"));
+        engine.openDispute(projectId, idx, keccak256("overturn"), "evidenceCid");
 
         // Operator upholds the dispute
         vm.prank(admin);
@@ -110,7 +110,7 @@ contract SEC_H_04_ExcessiveDisputePayout is BaseTest {
             activatedAt: 0,
             completedAt: 0
         });
-        engine.createProject(projectId, config);
+        engine.createProject(projectId, "", config);
 
         uint256 fundAmount = 3000e18;
         token.approve(address(engine), fundAmount);
@@ -144,7 +144,7 @@ contract SEC_H_04_ExcessiveDisputePayout is BaseTest {
         engine.computeConsensus(projectId, idx);
 
         vm.prank(challenger);
-        engine.openDispute(projectId, idx, keccak256(abi.encode("overturn", contribNum)));
+        engine.openDispute(projectId, idx, keccak256(abi.encode("overturn", contribNum)), "evidenceCid");
 
         vm.prank(admin);
         engine.resolveDispute(projectId, idx, true);

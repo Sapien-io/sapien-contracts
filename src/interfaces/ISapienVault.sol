@@ -3,9 +3,9 @@ pragma solidity ^0.8.30;
 
 import {StakeAccount} from "src/Types.sol";
 
-/// @title IStakeVault
-/// @notice Interface for the StakeVault contract used by QualityEngine
-interface IStakeVault {
+/// @title ISapienVault
+/// @notice Interface for the SapienVault contract used by SapienCore
+interface ISapienVault {
     // ── Contributor stake ──────────────────────────────────────────────
     function lockContributor(address user, uint256 amount) external;
     function unlockContributor(address user, uint256 amount) external;

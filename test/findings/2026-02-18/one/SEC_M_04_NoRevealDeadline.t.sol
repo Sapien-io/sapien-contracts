@@ -3,7 +3,7 @@ pragma solidity ^0.8.30;
 
 import {BaseTest} from "test/BaseTest.sol";
 import {Constants as C} from "src/Constants.sol";
-import {IQualityEngine} from "src/interfaces/IQualityEngine.sol";
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 
 /// @title SEC-M-04 FIX VERIFICATION: Reveal deadline now enforced
 /// @notice Verifies that revealValidation() rejects reveals after the
@@ -23,16 +23,21 @@ contract SEC_M_04_NoRevealDeadline is BaseTest {
         uint16 score = 8000;
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
         vm.startPrank(validator3);
-        engine.setValidatorCapacity(uint256(VALIDATOR_STAKE));
-        engine.commitValidation(projectId, idx, commitHash, uint128(VALIDATOR_STAKE));
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = idx;
+            engine.claimToValidate(projectId, _indices);
+        }
+        engine.lockValidatorCapacity(uint256(VALIDATOR_STAKE));
+        engine.commitValidation(projectId, idx, commitHash, uint128(VALIDATOR_STAKE), address(0));
         vm.stopPrank();
 
         // Warp past the reveal deadline
-        vm.warp(block.timestamp + C.COMMIT_DEADLINE + C.REVEAL_DEADLINE + 1);
+        vm.warp(block.timestamp + C.DEFAULT_COMMIT_DEADLINE + C.DEFAULT_REVEAL_DEADLINE + 1);
 
         // FIX VERIFIED: validator3's late reveal is now rejected
         vm.prank(validator3);
-        vm.expectRevert(IQualityEngine.RevealWindowClosed.selector);
+        vm.expectRevert(ISapienCore.RevealWindowClosed.selector);
         engine.revealValidation(projectId, idx, score, salt);
     }
 
@@ -49,12 +54,17 @@ contract SEC_M_04_NoRevealDeadline is BaseTest {
         uint16 score = 8000;
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
         vm.startPrank(validator3);
-        engine.setValidatorCapacity(uint256(VALIDATOR_STAKE));
-        engine.commitValidation(projectId, idx, commitHash, uint128(VALIDATOR_STAKE));
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = idx;
+            engine.claimToValidate(projectId, _indices);
+        }
+        engine.lockValidatorCapacity(uint256(VALIDATOR_STAKE));
+        engine.commitValidation(projectId, idx, commitHash, uint128(VALIDATOR_STAKE), address(0));
         vm.stopPrank();
 
         // Warp to just before deadline
-        vm.warp(block.timestamp + C.COMMIT_DEADLINE + C.REVEAL_DEADLINE);
+        vm.warp(block.timestamp + C.DEFAULT_COMMIT_DEADLINE + C.DEFAULT_REVEAL_DEADLINE);
 
         // Reveal within window succeeds
         vm.prank(validator3);
@@ -77,16 +87,21 @@ contract SEC_M_04_NoRevealDeadline is BaseTest {
         uint16 score = 8000;
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
         vm.startPrank(validator3);
-        engine.setValidatorCapacity(uint256(VALIDATOR_STAKE));
-        engine.commitValidation(projectId, idx, commitHash, uint128(VALIDATOR_STAKE));
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = idx;
+            engine.claimToValidate(projectId, _indices);
+        }
+        engine.lockValidatorCapacity(uint256(VALIDATOR_STAKE));
+        engine.commitValidation(projectId, idx, commitHash, uint128(VALIDATOR_STAKE), address(0));
         vm.stopPrank();
 
         // Warp past the cancellation threshold
-        vm.warp(block.timestamp + C.COMMIT_DEADLINE + C.REVEAL_DEADLINE + 1);
+        vm.warp(block.timestamp + C.DEFAULT_COMMIT_DEADLINE + C.DEFAULT_REVEAL_DEADLINE + 1);
 
         // FIX VERIFIED: validator3 cannot front-run with a late reveal
         vm.prank(validator3);
-        vm.expectRevert(IQualityEngine.RevealWindowClosed.selector);
+        vm.expectRevert(ISapienCore.RevealWindowClosed.selector);
         engine.revealValidation(projectId, idx, score, salt);
 
         // cancelExpiredCommitment can now safely be called

@@ -2,17 +2,15 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "test/BaseTest.sol";
-import {QualityEngine} from "src/QualityEngine.sol";
-import {IQualityEngine} from "src/interfaces/IQualityEngine.sol";
-import {StakeVault} from "src/StakeVault.sol";
+import {SapienCore} from "src/SapienCore.sol";
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
+import {SapienVault} from "src/SapienVault.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
 import {
     Project,
     ProjectStatus,
     Claim,
     ClaimStatus,
-    IndexState,
-    SubmissionStatus,
     Contribution,
     ContributionStatus,
     ConsensusReport,
@@ -51,7 +49,7 @@ contract LifecycleFuzzTest is BaseTest {
 
     /// @dev Ensure an address has enough *available* (unlocked) tokens in the vault.
     ///      Accounts for existing contributor locks, validator capacity, and in-flight stake.
-    function _ensureStake(address user, uint256 needed) internal {
+    function _ensureStake(address user, uint256 needed) internal override {
         uint256 available = vault.availableBalance(user);
         if (available < needed) {
             uint256 deficit = needed - available + 1e18; // buffer
@@ -79,8 +77,13 @@ contract LifecycleFuzzTest is BaseTest {
         _ensureStake(val, uint256(stakeAmt) * 2);
 
         vm.startPrank(val);
-        engine.setValidatorCapacity(stakeAmt);
-        engine.commitValidation(projectId, index, commitHash, stakeAmt);
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(projectId, _indices);
+        }
+        engine.lockValidatorCapacity(stakeAmt);
+        engine.commitValidation(projectId, index, commitHash, stakeAmt, address(0));
         engine.revealValidation(projectId, index, score, salt);
         vm.stopPrank();
     }
@@ -137,7 +140,7 @@ contract LifecycleFuzzTest is BaseTest {
             activatedAt: 0,
             completedAt: 0
         });
-        engine.createProject(projId, config);
+        engine.createProject(projId, "", config);
         token.approve(address(engine), fundAmount);
         engine.fundProject(projId, fundAmount, quantity, adapter);
         vm.stopPrank();
@@ -157,7 +160,7 @@ contract LifecycleFuzzTest is BaseTest {
             assertEq(indices.length, 1);
             index = indices[0];
             bytes32 subHash = keccak256(abi.encodePacked("fuzz-submission", index));
-            engine.contribute(claimId, index, subHash);
+            engine.contribute(claimId, index, subHash, "");
             vm.stopPrank();
         }
 
@@ -272,7 +275,7 @@ contract LifecycleFuzzTest is BaseTest {
             activatedAt: 0,
             completedAt: 0
         });
-        engine.createProject(projId, config);
+        engine.createProject(projId, "", config);
         token.approve(address(engine), fundAmount);
         engine.fundProject(projId, fundAmount, quantity, adapter);
         vm.stopPrank();
@@ -286,7 +289,7 @@ contract LifecycleFuzzTest is BaseTest {
             vm.startPrank(contributor1);
             (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(projId, 1, adapter);
             index = indices[0];
-            engine.contribute(claimId, index, keccak256("rejected-submission"));
+            engine.contribute(claimId, index, keccak256("rejected-submission"), "");
             vm.stopPrank();
         }
 
@@ -349,7 +352,7 @@ contract LifecycleFuzzTest is BaseTest {
                 activatedAt: 0,
                 completedAt: 0
             });
-            engine.createProject(projId, config);
+            engine.createProject(projId, "", config);
             token.approve(address(engine), fundAmount);
             engine.fundProject(projId, fundAmount, claimQty + 5, adapter);
             vm.stopPrank();
@@ -358,7 +361,7 @@ contract LifecycleFuzzTest is BaseTest {
             uint256 claimId;
             (claimId, indices) = engine.claimToContribute(projId, claimQty, adapter);
             for (uint256 i; i < indices.length; ++i) {
-                engine.contribute(claimId, indices[i], keccak256(abi.encodePacked("multi", i)));
+                engine.contribute(claimId, indices[i], keccak256(abi.encodePacked("multi", i)), "");
             }
             vm.stopPrank();
 
@@ -444,7 +447,7 @@ contract LifecycleFuzzTest is BaseTest {
                 activatedAt: 0,
                 completedAt: 0
             });
-            engine.createProject(projId, config);
+            engine.createProject(projId, "", config);
             token.approve(address(engine), fundAmount);
             engine.fundProject(projId, fundAmount, claimQty, adapter);
             vm.stopPrank();
@@ -459,7 +462,7 @@ contract LifecycleFuzzTest is BaseTest {
             (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(projId, claimQty, adapter);
 
             for (uint256 i; i < submitCount; ++i) {
-                engine.contribute(claimId, indices[i], keccak256(abi.encodePacked("partial", i)));
+                engine.contribute(claimId, indices[i], keccak256(abi.encodePacked("partial", i)), "");
             }
             vm.stopPrank();
 
@@ -539,7 +542,7 @@ contract LifecycleFuzzTest is BaseTest {
                 activatedAt: 0,
                 completedAt: 0
             });
-            engine.createProject(projId, config);
+            engine.createProject(projId, "", config);
             token.approve(address(engine), fundAmount);
             engine.fundProject(projId, fundAmount, 5, adapter);
             vm.stopPrank();
@@ -551,7 +554,7 @@ contract LifecycleFuzzTest is BaseTest {
             vm.startPrank(contributor1);
             (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(projId, 1, adapter);
             index = indices[0];
-            engine.contribute(claimId, index, keccak256("outlier-test"));
+            engine.contribute(claimId, index, keccak256("outlier-test"), "");
             vm.stopPrank();
         }
 
@@ -639,7 +642,7 @@ contract LifecycleFuzzTest is BaseTest {
                 activatedAt: 0,
                 completedAt: 0
             });
-            engine.createProject(projId, config);
+            engine.createProject(projId, "", config);
             token.approve(address(engine), fundAmount);
             engine.fundProject(projId, fundAmount, 5, adapter);
             vm.stopPrank();
@@ -651,7 +654,7 @@ contract LifecycleFuzzTest is BaseTest {
             vm.startPrank(contributor1);
             (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(projId, 1, adapter);
             index = indices[0];
-            engine.contribute(claimId, index, keccak256("ghost-test"));
+            engine.contribute(claimId, index, keccak256("ghost-test"), "");
             vm.stopPrank();
         }
 
@@ -662,8 +665,13 @@ contract LifecycleFuzzTest is BaseTest {
             bytes32 commitHash = keccak256(abi.encodePacked(projId, index, nonce, validator1, uint16(8000), salt));
 
             vm.startPrank(validator1);
-            engine.setValidatorCapacity(valStake);
-            engine.commitValidation(projId, index, commitHash, valStake);
+            {
+                uint256[] memory _indices = new uint256[](1);
+                _indices[0] = index;
+                engine.claimToValidate(projId, _indices);
+            }
+            engine.lockValidatorCapacity(valStake);
+            engine.commitValidation(projId, index, commitHash, valStake, address(0));
             vm.stopPrank();
         }
 
@@ -724,7 +732,7 @@ contract LifecycleFuzzTest is BaseTest {
                 activatedAt: 0,
                 completedAt: 0
             });
-            engine.createProject(projId, config);
+            engine.createProject(projId, "", config);
             token.approve(address(engine), fundAmount);
             engine.fundProject(projId, fundAmount, 10, adapter);
             vm.stopPrank();
@@ -738,7 +746,7 @@ contract LifecycleFuzzTest is BaseTest {
             vm.startPrank(contributor1);
             (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(projId, 1, adapter);
             idx = indices[0];
-            engine.contribute(claimId, idx, keccak256(abi.encodePacked("inv", idx)));
+            engine.contribute(claimId, idx, keccak256(abi.encodePacked("inv", idx)), "");
             vm.stopPrank();
         }
 
@@ -844,7 +852,7 @@ contract LifecycleFuzzTest is BaseTest {
             activatedAt: 0,
             completedAt: 0
         });
-        engine.createProject(projId, config);
+        engine.createProject(projId, "", config);
         token.approve(address(engine), fundAmount);
         engine.fundProject(projId, fundAmount, 3, adapter);
         vm.stopPrank();
@@ -855,7 +863,7 @@ contract LifecycleFuzzTest is BaseTest {
             vm.startPrank(contributor1);
             (uint256 claimId1, uint256[] memory indices1) = engine.claimToContribute(projId, 1, adapter);
             index = indices1[0];
-            engine.contribute(claimId1, index, keccak256("bad-work"));
+            engine.contribute(claimId1, index, keccak256("bad-work"), "");
             vm.stopPrank();
 
             _fuzzCommitAndReveal(validator1, projId, index, 2000, valStake);
@@ -874,7 +882,7 @@ contract LifecycleFuzzTest is BaseTest {
             vm.startPrank(contributor2);
             (uint256 claimId2, uint256[] memory indices2) = engine.claimToContribute(projId, 1, adapter);
             index2 = indices2[0];
-            engine.contribute(claimId2, index2, keccak256("good-work"));
+            engine.contribute(claimId2, index2, keccak256("good-work"), "");
             vm.stopPrank();
 
             _fuzzCommitAndReveal(validator1, projId, index2, 9000, valStake);
@@ -936,7 +944,7 @@ contract LifecycleFuzzTest is BaseTest {
                 activatedAt: 0,
                 completedAt: 0
             });
-            engine.createProject(projId, config);
+            engine.createProject(projId, "", config);
             token.approve(address(engine), fundAmount);
             engine.fundProject(projId, fundAmount, 10, adapter);
             vm.stopPrank();
@@ -948,7 +956,7 @@ contract LifecycleFuzzTest is BaseTest {
             vm.startPrank(contributor1);
             (uint256 claimId1, uint256[] memory indices1) = engine.claimToContribute(projId, 1, adapter);
             goodIndex = indices1[0];
-            engine.contribute(claimId1, goodIndex, keccak256("good-work"));
+            engine.contribute(claimId1, goodIndex, keccak256("good-work"), "");
             vm.stopPrank();
         }
 
@@ -958,7 +966,7 @@ contract LifecycleFuzzTest is BaseTest {
             vm.startPrank(contributor2);
             (uint256 claimId2, uint256[] memory indices2) = engine.claimToContribute(projId, 1, adapter);
             badIndex = indices2[0];
-            engine.contribute(claimId2, badIndex, keccak256("bad-work"));
+            engine.contribute(claimId2, badIndex, keccak256("bad-work"), "");
             vm.stopPrank();
         }
 
@@ -1040,7 +1048,7 @@ contract LifecycleFuzzTest is BaseTest {
                 activatedAt: 0,
                 completedAt: 0
             });
-            engine.createProject(projId, config);
+            engine.createProject(projId, "", config);
             token.approve(address(engine), fundAmount);
             engine.fundProject(projId, fundAmount, 5, adapter);
             vm.stopPrank();
@@ -1052,7 +1060,7 @@ contract LifecycleFuzzTest is BaseTest {
             vm.startPrank(contributor1);
             (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(projId, 1, adapter);
             index = indices[0];
-            engine.contribute(claimId, index, keccak256("stake-weight-test"));
+            engine.contribute(claimId, index, keccak256("stake-weight-test"), "");
             vm.stopPrank();
         }
 

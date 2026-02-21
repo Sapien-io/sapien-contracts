@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 import {BaseTest} from "test/BaseTest.sol";
 import {Contribution, Dispute, DisputeStatus} from "src/Types.sol";
 import {Constants as C} from "src/Constants.sol";
-import {IQualityEngine} from "src/interfaces/IQualityEngine.sol";
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 
 /// @title SEC-H-03 FIX VERIFICATION: Dispute reopening blocked after rejection
 /// @notice Verifies that only one dispute can be opened per (projectId, index, nonce).
@@ -39,7 +39,7 @@ contract SEC_H_03_DisputeGriefLoop is BaseTest {
 
         // attacker1 opens dispute
         vm.prank(attacker1);
-        engine.openDispute(projectId, idx, keccak256("grief-1"));
+        engine.openDispute(projectId, idx, keccak256("grief-1"), "evidenceCid");
 
         // Operator rejects dispute
         vm.prank(admin);
@@ -50,8 +50,8 @@ contract SEC_H_03_DisputeGriefLoop is BaseTest {
 
         // FIX VERIFIED: attacker2 cannot open a new dispute on the same nonce
         vm.prank(attacker2);
-        vm.expectRevert(IQualityEngine.DisputeAlreadyClosed.selector);
-        engine.openDispute(projectId, idx, keccak256("grief-2"));
+        vm.expectRevert(ISapienCore.DisputeAlreadyClosed.selector);
+        engine.openDispute(projectId, idx, keccak256("grief-2"), "evidenceCid");
     }
 
     function test_cannotReopenDisputeAfterUphold() public {
@@ -66,15 +66,15 @@ contract SEC_H_03_DisputeGriefLoop is BaseTest {
         engine.computeConsensus(projectId, idx);
 
         vm.prank(attacker1);
-        engine.openDispute(projectId, idx, keccak256("dispute-1"));
+        engine.openDispute(projectId, idx, keccak256("dispute-1"), "evidenceCid");
 
         vm.prank(admin);
         engine.resolveDispute(projectId, idx, true);
 
         // FIX VERIFIED: cannot reopen after uphold either
         vm.prank(attacker2);
-        vm.expectRevert(IQualityEngine.DisputeAlreadyClosed.selector);
-        engine.openDispute(projectId, idx, keccak256("dispute-2"));
+        vm.expectRevert(ISapienCore.DisputeAlreadyClosed.selector);
+        engine.openDispute(projectId, idx, keccak256("dispute-2"), "evidenceCid");
     }
 
     function test_rewardBlockedDuringGriefLoop() public {
@@ -89,17 +89,17 @@ contract SEC_H_03_DisputeGriefLoop is BaseTest {
         engine.computeConsensus(projectId, idx);
 
         // Warp to just before original challenge ends
-        vm.warp(block.timestamp + C.CHALLENGE_PERIOD - 1);
+        vm.warp(block.timestamp + C.DEFAULT_CHALLENGE_PERIOD - 1);
 
         // Attacker opens dispute — extends deadline
         vm.prank(attacker1);
-        engine.openDispute(projectId, idx, keccak256("block-reward"));
+        engine.openDispute(projectId, idx, keccak256("block-reward"), "evidenceCid");
 
-        vm.warp(block.timestamp + C.CHALLENGE_PERIOD + 1);
+        vm.warp(block.timestamp + C.DEFAULT_CHALLENGE_PERIOD + 1);
 
         // Reward still blocked by the open dispute (ChallengeNotElapsed because
         // the dispute extended the challenge window)
-        vm.expectRevert(IQualityEngine.ChallengeNotElapsed.selector);
+        vm.expectRevert(ISapienCore.ChallengeNotElapsed.selector);
         engine.releaseContributorReward(projectId, idx);
 
         // But once the dispute is resolved and challenge period passes, reward releases

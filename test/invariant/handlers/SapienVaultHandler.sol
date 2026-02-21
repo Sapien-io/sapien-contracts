@@ -2,18 +2,18 @@
 pragma solidity ^0.8.30;
 
 import {Test} from "forge-std/Test.sol";
-import {StakeVault} from "../../../src/StakeVault.sol";
+import {SapienVault} from "../../../src/SapienVault.sol";
 import {MockERC20} from "../../mocks/MockERC20.sol";
 import {StakeAccount} from "../../../src/Types.sol";
 
-/// @title StakeVaultHandler
-/// @notice Foundry invariant-test handler that wraps StakeVault operations with bounded
+/// @title SapienVaultHandler
+/// @notice Foundry invariant-test handler that wraps SapienVault operations with bounded
 ///         inputs and tracks ghost state for invariant assertions.
 /// @dev All "engine" functions (lock/unlock/slash/commit/release) are called via vm.prank
 ///      using the engine address so that the ENGINE_ROLE check passes.
-contract StakeVaultHandler is Test {
+contract SapienVaultHandler is Test {
     // ── Contracts ────────────────────────────────────────────────────────
-    StakeVault public vault;
+    SapienVault public vault;
     MockERC20 public token;
     address public engine;
 
@@ -47,7 +47,7 @@ contract StakeVaultHandler is Test {
     uint256 public constant MAX_DEPOSIT = 1_000_000e18;
     uint256 public constant MIN_DEPOSIT = 1e18;
 
-    constructor(StakeVault vault_, MockERC20 token_, address engine_, address[] memory actors_) {
+    constructor(SapienVault vault_, MockERC20 token_, address engine_, address[] memory actors_) {
         vault = vault_;
         token = token_;
         engine = engine_;

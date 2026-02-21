@@ -4,12 +4,12 @@ pragma solidity ^0.8.30;
 import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {StakeVault} from "src/StakeVault.sol";
+import {SapienVault} from "src/SapienVault.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
 import {StakeAccount} from "src/Types.sol";
 
-contract StakeVaultTest is Test {
-    StakeVault public vault;
+contract SapienVaultTest is Test {
+    SapienVault public vault;
     MockERC20 public token;
 
     address public admin = makeAddr("admin");
@@ -22,9 +22,9 @@ contract StakeVaultTest is Test {
     function setUp() public {
         token = new MockERC20("Sapien Token", "SPN");
 
-        StakeVault vaultImpl = new StakeVault();
-        bytes memory initData = abi.encodeCall(StakeVault.initialize, (IERC20(address(token)), admin));
-        vault = StakeVault(address(new ERC1967Proxy(address(vaultImpl), initData)));
+        SapienVault vaultImpl = new SapienVault();
+        bytes memory initData = abi.encodeCall(SapienVault.initialize, (IERC20(address(token)), admin));
+        vault = SapienVault(address(new ERC1967Proxy(address(vaultImpl), initData)));
 
         vm.startPrank(admin);
         vault.grantRole(vault.ENGINE_ROLE(), engine);

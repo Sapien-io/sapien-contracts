@@ -2,23 +2,12 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "test/BaseTest.sol";
-import {IQualityEngine} from "src/interfaces/IQualityEngine.sol";
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 
 /// @title SEC-M-02 FIX VERIFICATION: Events emitted for critical admin setters
-/// @notice Verifies that setConsensusAlgorithm and setTreasury now properly emit events,
+/// @notice Verifies that setTreasury now properly emits events,
 ///         enabling off-chain monitoring of critical parameter changes.
 contract SEC_M_02_MissingEvents is BaseTest {
-    function test_setConsensusAlgorithmEmitsEvent() public {
-        address newAlgorithm = makeAddr("newAlgo");
-
-        vm.recordLogs();
-        vm.prank(admin);
-        engine.setConsensusAlgorithm(newAlgorithm);
-
-        // FIX VERIFIED: event IS now emitted
-        assertTrue(vm.getRecordedLogs().length > 0, "should emit ConsensusAlgorithmUpdated event");
-    }
-
     function test_setTreasuryEmitsEvent() public {
         address newTreasury = makeAddr("newTreasury");
 

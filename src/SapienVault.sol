@@ -7,14 +7,20 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {IStakeVault} from "src/interfaces/IStakeVault.sol";
+import {ISapienVault} from "src/interfaces/ISapienVault.sol";
 import {StakeAccount} from "src/Types.sol";
 
-/// @title StakeVault
+/// @title SapienVault
 /// @notice ERC-4626 vault for SAPIEN token staking with typed lock categories
 /// @dev Deployed behind an ERC-1967 proxy. Holds user funds and implements contributor locks,
 ///      validator capacity, in-flight stake tracking, and share-burn slashing.
-contract StakeVault is ERC4626Upgradeable, AccessControlUpgradeable, PausableUpgradeable, UUPSUpgradeable, IStakeVault {
+contract SapienVault is
+    ERC4626Upgradeable,
+    AccessControlUpgradeable,
+    PausableUpgradeable,
+    UUPSUpgradeable,
+    ISapienVault
+{
     using SafeERC20 for IERC20;
 
     // ── Roles ──────────────────────────────────────────────────────────
@@ -41,12 +47,12 @@ contract StakeVault is ERC4626Upgradeable, AccessControlUpgradeable, PausableUpg
 
     // ── Storage (ERC-7201 namespaced) ──────────────────────────────────
     /// @custom:storage-location erc7201:sapien.storage.StakeVault
-    struct StakeVaultStorage {
+    struct SapienVaultStorage {
         mapping(address => StakeAccount) accounts;
     }
 
     // keccak256(abi.encode(uint256(keccak256("sapien.storage.StakeVault")) - 1)) & ~bytes32(uint256(0xff))
-    function _getStakeVaultStorage() private pure returns (StakeVaultStorage storage $) {
+    function _getSapienVaultStorage() private pure returns (SapienVaultStorage storage $) {
         assembly {
             $.slot := 0x0745d816f844b8d3ebe69904ebcd305a06dedec42070def1e397b29c2e74a900
         }
@@ -85,30 +91,30 @@ contract StakeVault is ERC4626Upgradeable, AccessControlUpgradeable, PausableUpg
 
     // ── Contributor stake operations ───────────────────────────────────
 
-    /// @inheritdoc IStakeVault
+    /// @inheritdoc ISapienVault
     function lockContributor(address user, uint256 amount) external onlyRole(ENGINE_ROLE) {
         if (amount == 0) revert ZeroAmount();
         uint256 avail = availableBalance(user);
         if (avail < amount) revert InsufficientAvailableBalance(amount, avail);
 
-        _getStakeVaultStorage().accounts[user].contributorLock += amount;
+        _getSapienVaultStorage().accounts[user].contributorLock += amount;
         emit ContributorLocked(user, amount);
     }
 
-    /// @inheritdoc IStakeVault
+    /// @inheritdoc ISapienVault
     function unlockContributor(address user, uint256 amount) external onlyRole(ENGINE_ROLE) {
         if (amount == 0) revert ZeroAmount();
-        StakeAccount storage acct = _getStakeVaultStorage().accounts[user];
+        StakeAccount storage acct = _getSapienVaultStorage().accounts[user];
         if (acct.contributorLock < amount) revert InsufficientContributorLock(amount, acct.contributorLock);
 
         acct.contributorLock -= amount;
         emit ContributorUnlocked(user, amount);
     }
 
-    /// @inheritdoc IStakeVault
+    /// @inheritdoc ISapienVault
     function slashContributor(address user, uint256 amount) external onlyRole(ENGINE_ROLE) {
         if (amount == 0) revert ZeroAmount();
-        StakeAccount storage acct = _getStakeVaultStorage().accounts[user];
+        StakeAccount storage acct = _getSapienVaultStorage().accounts[user];
         if (acct.contributorLock < amount) revert InsufficientContributorLock(amount, acct.contributorLock);
 
         acct.contributorLock -= amount;
@@ -118,20 +124,20 @@ contract StakeVault is ERC4626Upgradeable, AccessControlUpgradeable, PausableUpg
 
     // ── Validator capacity operations ──────────────────────────────────
 
-    /// @inheritdoc IStakeVault
+    /// @inheritdoc ISapienVault
     function lockValidatorCapacity(address user, uint256 amount) external onlyRole(ENGINE_ROLE) {
         if (amount == 0) revert ZeroAmount();
         uint256 avail = availableBalance(user);
         if (avail < amount) revert InsufficientAvailableBalance(amount, avail);
 
-        _getStakeVaultStorage().accounts[user].validatorCapacity += amount;
+        _getSapienVaultStorage().accounts[user].validatorCapacity += amount;
         emit ValidatorCapacityLocked(user, amount);
     }
 
-    /// @inheritdoc IStakeVault
+    /// @inheritdoc ISapienVault
     function unlockValidatorCapacity(address user, uint256 amount) external onlyRole(ENGINE_ROLE) {
         if (amount == 0) revert ZeroAmount();
-        StakeAccount storage acct = _getStakeVaultStorage().accounts[user];
+        StakeAccount storage acct = _getSapienVaultStorage().accounts[user];
         if (acct.validatorCapacity < amount) revert InsufficientValidatorCapacity(amount, acct.validatorCapacity);
 
         acct.validatorCapacity -= amount;
@@ -140,10 +146,10 @@ contract StakeVault is ERC4626Upgradeable, AccessControlUpgradeable, PausableUpg
 
     // ── Validator in-flight operations ─────────────────────────────────
 
-    /// @inheritdoc IStakeVault
+    /// @inheritdoc ISapienVault
     function commitStake(address user, uint256 amount) external onlyRole(ENGINE_ROLE) {
         if (amount == 0) revert ZeroAmount();
-        StakeAccount storage acct = _getStakeVaultStorage().accounts[user];
+        StakeAccount storage acct = _getSapienVaultStorage().accounts[user];
         if (acct.validatorCapacity < amount) revert InsufficientValidatorCapacity(amount, acct.validatorCapacity);
 
         acct.validatorCapacity -= amount;
@@ -151,10 +157,10 @@ contract StakeVault is ERC4626Upgradeable, AccessControlUpgradeable, PausableUpg
         emit StakeCommitted(user, amount);
     }
 
-    /// @inheritdoc IStakeVault
+    /// @inheritdoc ISapienVault
     function releaseCommit(address user, uint256 amount) external onlyRole(ENGINE_ROLE) {
         if (amount == 0) revert ZeroAmount();
-        StakeAccount storage acct = _getStakeVaultStorage().accounts[user];
+        StakeAccount storage acct = _getSapienVaultStorage().accounts[user];
         if (acct.inFlight < amount) revert InsufficientInFlight(amount, acct.inFlight);
 
         acct.inFlight -= amount;
@@ -162,10 +168,10 @@ contract StakeVault is ERC4626Upgradeable, AccessControlUpgradeable, PausableUpg
         emit CommitReleased(user, amount);
     }
 
-    /// @inheritdoc IStakeVault
+    /// @inheritdoc ISapienVault
     function slashValidator(address user, uint256 amount) external onlyRole(ENGINE_ROLE) {
         if (amount == 0) revert ZeroAmount();
-        StakeAccount storage acct = _getStakeVaultStorage().accounts[user];
+        StakeAccount storage acct = _getSapienVaultStorage().accounts[user];
         if (acct.inFlight < amount) revert InsufficientInFlight(amount, acct.inFlight);
 
         acct.inFlight -= amount;
@@ -175,12 +181,12 @@ contract StakeVault is ERC4626Upgradeable, AccessControlUpgradeable, PausableUpg
 
     // ── Batch operations ──────────────────────────────────────────────
 
-    /// @inheritdoc IStakeVault
+    /// @inheritdoc ISapienVault
     function slashAndUnlockContributor(address user, uint256 slashAmount, uint256 unlockAmount)
         external
         onlyRole(ENGINE_ROLE)
     {
-        StakeAccount storage acct = _getStakeVaultStorage().accounts[user];
+        StakeAccount storage acct = _getSapienVaultStorage().accounts[user];
         uint256 totalDeduction = slashAmount + unlockAmount;
         if (acct.contributorLock < totalDeduction) {
             revert InsufficientContributorLock(totalDeduction, acct.contributorLock);
@@ -197,33 +203,40 @@ contract StakeVault is ERC4626Upgradeable, AccessControlUpgradeable, PausableUpg
 
     // ── Views ──────────────────────────────────────────────────────────
 
-    /// @inheritdoc IStakeVault
+    /// @inheritdoc ISapienVault
     function getStakeAccount(address user) external view returns (StakeAccount memory) {
-        return _getStakeVaultStorage().accounts[user];
+        return _getSapienVaultStorage().accounts[user];
     }
 
-    /// @inheritdoc IStakeVault
+    /// @inheritdoc ISapienVault
     function availableBalance(address user) public view returns (uint256) {
-        StakeAccount storage acct = _getStakeVaultStorage().accounts[user];
+        StakeAccount storage acct = _getSapienVaultStorage().accounts[user];
         uint256 totalLocked = acct.contributorLock + acct.validatorCapacity + acct.inFlight;
         uint256 totalAssets_ = convertToAssets(balanceOf(user));
         return totalAssets_ > totalLocked ? totalAssets_ - totalLocked : 0;
     }
 
-    /// @inheritdoc IStakeVault
+    /// @inheritdoc ISapienVault
     function totalStaked(address user) external view returns (uint256) {
         return convertToAssets(balanceOf(user));
     }
 
     // ── Withdrawal guard ───────────────────────────────────────────────
     /// @dev Override maxRedeem to limit withdrawals to unlocked balance.
-    ///      OZ's maxWithdraw calls maxRedeem, so we only need to override maxRedeem.
     function maxRedeem(address owner) public view override returns (uint256) {
         if (paused()) return 0; // SEC-M-01: block redemptions when paused
         uint256 avail = availableBalance(owner);
         uint256 availShares = convertToShares(avail);
         uint256 parentMax = super.maxRedeem(owner); // balanceOf(owner)
         return availShares < parentMax ? availShares : parentMax;
+    }
+
+    /// @dev Override maxWithdraw — OZ's default does NOT delegate to maxRedeem.
+    function maxWithdraw(address owner) public view override returns (uint256) {
+        if (paused()) return 0; // SEC-M-01: block withdrawals when paused
+        uint256 avail = availableBalance(owner);
+        uint256 parentMax = super.maxWithdraw(owner);
+        return avail < parentMax ? avail : parentMax;
     }
 
     // SEC-M-01: Block ERC4626 deposits/mints when paused
@@ -241,7 +254,7 @@ contract StakeVault is ERC4626Upgradeable, AccessControlUpgradeable, PausableUpg
     ///      Mints (from == 0) and burns (to == 0) are unrestricted.
     function _update(address from, address to, uint256 value) internal override {
         if (from != address(0) && to != address(0)) {
-            StakeAccount storage acct = _getStakeVaultStorage().accounts[from];
+            StakeAccount storage acct = _getSapienVaultStorage().accounts[from];
             uint256 totalLocked = acct.contributorLock + acct.validatorCapacity + acct.inFlight;
             uint256 lockedShares = convertToShares(totalLocked);
             if (balanceOf(from) - value < lockedShares) revert TransferExceedsUnlockedShares();

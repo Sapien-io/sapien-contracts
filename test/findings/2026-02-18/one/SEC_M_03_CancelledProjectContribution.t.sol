@@ -3,7 +3,7 @@ pragma solidity ^0.8.30;
 
 import {BaseTest} from "test/BaseTest.sol";
 import {ProjectStatus} from "src/Types.sol";
-import {IQualityEngine} from "src/interfaces/IQualityEngine.sol";
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 
 /// @title SEC-M-03 FIX VERIFICATION: Contributions blocked on cancelled/completed projects
 /// @notice Verifies that contribute() now checks project status and reverts with
@@ -15,7 +15,7 @@ contract SEC_M_03_CancelledProjectContribution is BaseTest {
         // Contributor claims indices
         vm.startPrank(contributor1);
         (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(projectId, 2, adapter);
-        engine.contribute(claimId, indices[0], keccak256("submission-0"));
+        engine.contribute(claimId, indices[0], keccak256("submission-0"), "");
         vm.stopPrank();
 
         // Cancel the project via originator report
@@ -31,7 +31,7 @@ contract SEC_M_03_CancelledProjectContribution is BaseTest {
 
         // FIX VERIFIED: contribute reverts on cancelled project
         vm.prank(contributor1);
-        vm.expectRevert(IQualityEngine.ProjectNotActive.selector);
-        engine.contribute(claimId, indices[1], keccak256("submission-1"));
+        vm.expectRevert(ISapienCore.ProjectNotActive.selector);
+        engine.contribute(claimId, indices[1], keccak256("submission-1"), "");
     }
 }

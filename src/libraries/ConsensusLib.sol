@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {ValidationInput, ConsensusResult} from "src/Types.sol";
+import {Constants as C} from "src/Constants.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title ConsensusLib
@@ -11,7 +12,6 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 library ConsensusLib {
     using Math for uint256;
 
-    uint256 internal constant BPS = 10_000;
     uint256 internal constant MIN_REPUTATION_FLOOR = 1_000;
     uint256 internal constant PRECISION = 1e18;
 
@@ -44,13 +44,13 @@ library ConsensusLib {
             for (uint256 i; i < n; ++i) {
                 ValidationInput memory inp = inputs[i];
                 uint256 effectiveRep = inp.reputation < MIN_REPUTATION_FLOOR ? MIN_REPUTATION_FLOOR : inp.reputation;
-                uint256 sqrtStake = Math.sqrt(uint256(inp.stakeAmount));
+                uint256 sqrtStake = Math.sqrt(inp.stakeAmount);
                 uint256 w = sqrtStake * effectiveRep;
                 if (w == 0) w = 1;
                 weights[i] = w;
                 totalWeight += w;
                 // Accumulate score * w to avoid overflow in score * w * PRECISION
-                weightedSum += uint256(inp.score) * w;
+                weightedSum += inp.score * w;
             }
             // Apply PRECISION after division to prevent overflow
             weightedAverage = Math.mulDiv(weightedSum, PRECISION, totalWeight);
@@ -63,7 +63,7 @@ library ConsensusLib {
             uint256 varianceSum;
             for (uint256 i; i < n; ++i) {
                 ValidationInput memory inp = inputs[i];
-                uint256 scorePrecision = uint256(inp.score) * PRECISION;
+                uint256 scorePrecision = inp.score * PRECISION;
                 uint256 diff = scorePrecision > weightedAverage
                     ? scorePrecision - weightedAverage
                     : weightedAverage - scorePrecision;
@@ -98,13 +98,13 @@ library ConsensusLib {
         uint256 totalAccurateWeight;
 
         for (uint256 i; i < n; ++i) {
-            uint256 scorePrecision = uint256(inputs[i].score) * PRECISION;
+            uint256 scorePrecision = inputs[i].score * PRECISION;
             uint256 deviation =
                 scorePrecision > weightedAverage ? scorePrecision - weightedAverage : weightedAverage - scorePrecision;
 
             if (stdDev > 0 && deviation > (stdDev * TIER_1_THRESHOLD) / PRECISION) {
                 isOutlier[i] = true;
-                slashAmounts[i] = _computeSlash(deviation, stdDev, uint256(inputs[i].stakeAmount));
+                slashAmounts[i] = _computeSlash(deviation, stdDev, inputs[i].stakeAmount);
             } else {
                 totalAccurateWeight += weights[i];
             }
@@ -138,6 +138,6 @@ library ConsensusLib {
             slashBps = TIER_1_SLASH_BPS;
         }
 
-        return (stakeAmount * slashBps) / BPS;
+        return (stakeAmount * slashBps) / C.BPS;
     }
 }

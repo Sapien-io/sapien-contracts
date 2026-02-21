@@ -4,19 +4,19 @@ pragma solidity ^0.8.30;
 import {Test} from "forge-std/Test.sol";
 import {console2} from "forge-std/console2.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {StakeVault} from "src/StakeVault.sol";
+import {SapienVault} from "src/SapienVault.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
 import {StakeAccount} from "src/Types.sol";
-import {StakeVaultHandler} from "test/invariant/handlers/StakeVaultHandler.sol";
+import {SapienVaultHandler} from "test/invariant/handlers/SapienVaultHandler.sol";
 
-/// @title StakeVaultInvariantTest
-/// @notice Invariant tests for the StakeVault ERC-4626 vault
+/// @title SapienVaultInvariantTest
+/// @notice Invariant tests for the SapienVault ERC-4626 vault
 /// @dev Tests that core vault invariants hold across arbitrary sequences of
 ///      deposits, withdrawals, locks, unlocks, commits, releases, and slashes.
-contract StakeVaultInvariantTest is Test {
-    StakeVault public vault;
+contract SapienVaultInvariantTest is Test {
+    SapienVault public vault;
     MockERC20 public token;
-    StakeVaultHandler public handler;
+    SapienVaultHandler public handler;
 
     address public admin = makeAddr("admin");
     address public engine = makeAddr("engine");
@@ -28,10 +28,10 @@ contract StakeVaultInvariantTest is Test {
         // Deploy token
         token = new MockERC20("Sapien Token", "SPN");
 
-        // Deploy StakeVault behind proxy
-        StakeVault vaultImpl = new StakeVault();
-        bytes memory vaultInit = abi.encodeCall(StakeVault.initialize, (token, admin));
-        vault = StakeVault(address(new ERC1967Proxy(address(vaultImpl), vaultInit)));
+        // Deploy SapienVault behind proxy
+        SapienVault vaultImpl = new SapienVault();
+        bytes memory vaultInit = abi.encodeCall(SapienVault.initialize, (token, admin));
+        vault = SapienVault(address(new ERC1967Proxy(address(vaultImpl), vaultInit)));
 
         // Grant ENGINE_ROLE to engine address
         vm.startPrank(admin);
@@ -45,7 +45,7 @@ contract StakeVaultInvariantTest is Test {
         }
 
         // Deploy handler
-        handler = new StakeVaultHandler(vault, token, engine, actors);
+        handler = new SapienVaultHandler(vault, token, engine, actors);
 
         // Set handler as the only target for invariant testing
         targetContract(address(handler));
@@ -211,7 +211,7 @@ contract StakeVaultInvariantTest is Test {
     // ════════════════════════════════════════════════════════════════════
 
     function invariant_callSummary() public view {
-        console2.log("--- StakeVault Handler Call Summary ---");
+        console2.log("--- SapienVault Handler Call Summary ---");
         console2.log("  deposit:                 ", handler.calls_deposit());
         console2.log("  withdraw:                ", handler.calls_withdraw());
         console2.log("  lockContributor:         ", handler.calls_lockContributor());

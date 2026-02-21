@@ -3,7 +3,7 @@ pragma solidity ^0.8.30;
 
 import {BaseTest} from "test/BaseTest.sol";
 import {Dispute, OriginatorReport} from "src/Types.sol";
-import {IQualityEngine} from "src/interfaces/IQualityEngine.sol";
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 
 /// @title SEC-L-03 FIX VERIFICATION: Evidence hash validation enforced
 /// @notice Verifies that openDispute and reportOriginator now reject bytes32(0) as
@@ -33,8 +33,8 @@ contract SEC_L_03_NoEvidenceValidation is BaseTest {
 
         // FIX VERIFIED: empty evidence hash is now rejected
         vm.prank(disputer);
-        vm.expectRevert(IQualityEngine.InvalidEvidenceHash.selector);
-        engine.openDispute(projectId, idx, bytes32(0));
+        vm.expectRevert(ISapienCore.InvalidEvidenceHash.selector);
+        engine.openDispute(projectId, idx, bytes32(0), "evidenceCid");
     }
 
     function test_reportOriginatorRejectsZeroEvidenceHash() public {
@@ -43,7 +43,7 @@ contract SEC_L_03_NoEvidenceValidation is BaseTest {
 
         // FIX VERIFIED: empty evidence hash is now rejected
         vm.prank(disputer);
-        vm.expectRevert(IQualityEngine.InvalidEvidenceHash.selector);
+        vm.expectRevert(ISapienCore.InvalidEvidenceHash.selector);
         engine.reportOriginator(projectId, bytes32(0));
     }
 
@@ -60,7 +60,7 @@ contract SEC_L_03_NoEvidenceValidation is BaseTest {
 
         // Non-zero evidence hash still works
         vm.prank(disputer);
-        engine.openDispute(projectId, idx, keccak256("valid evidence"));
+        engine.openDispute(projectId, idx, keccak256("valid evidence"), "evidenceCid");
 
         Dispute memory d = engine.getDispute(projectId, idx);
         assertEq(d.evidenceHash, keccak256("valid evidence"), "valid evidence hash accepted");

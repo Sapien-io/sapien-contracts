@@ -3,16 +3,14 @@ pragma solidity ^0.8.30;
 
 import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {QualityEngine} from "../src/QualityEngine.sol";
-import {StakeVault} from "../src/StakeVault.sol";
+import {SapienCore} from "../src/SapienCore.sol";
+import {SapienVault} from "../src/SapienVault.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {
     Project,
     ProjectStatus,
     Claim,
     ClaimStatus,
-    IndexState,
-    SubmissionStatus,
     Contribution,
     ContributionStatus,
     Reputation
@@ -20,8 +18,8 @@ import {
 
 /// @notice Base test contract with common setup for all test suites
 contract BaseTest is Test {
-    QualityEngine public engine;
-    StakeVault public vault;
+    SapienCore public engine;
+    SapienVault public vault;
     MockERC20 public token;
 
     address public admin = makeAddr("admin");
@@ -41,34 +39,26 @@ contract BaseTest is Test {
     uint256 public constant VALIDATOR_STAKE = 50e18;
 
     function setUp() public virtual {
-        // Deploy token
         token = new MockERC20("Sapien Token", "SPN");
 
-        // Deploy StakeVault behind proxy
-        StakeVault vaultImpl = new StakeVault();
-        bytes memory vaultInit = abi.encodeCall(StakeVault.initialize, (token, admin));
-        vault = StakeVault(address(new ERC1967Proxy(address(vaultImpl), vaultInit)));
+        SapienVault vaultImpl = new SapienVault();
+        bytes memory vaultInit = abi.encodeCall(SapienVault.initialize, (token, admin));
+        vault = SapienVault(address(new ERC1967Proxy(address(vaultImpl), vaultInit)));
 
-        // Deploy QualityEngine behind proxy
-        QualityEngine engineImpl = new QualityEngine();
-        bytes memory engineInit =
-            abi.encodeCall(QualityEngine.initialize, (admin, address(vault), treasury, address(0)));
-        engine = QualityEngine(address(new ERC1967Proxy(address(engineImpl), engineInit)));
+        SapienCore engineImpl = new SapienCore();
+        bytes memory engineInit = abi.encodeCall(SapienCore.initialize, (admin, address(vault), treasury));
+        engine = SapienCore(address(new ERC1967Proxy(address(engineImpl), engineInit)));
 
-        // Grant ENGINE_ROLE to QualityEngine on the vault
         vm.startPrank(admin);
         vault.grantRole(vault.ENGINE_ROLE(), address(engine));
         vm.stopPrank();
 
-        // Mint tokens and set up balances
         _setupBalances();
     }
 
     function _setupBalances() internal {
-        // Originator gets reward tokens
         token.mint(originator, FUND_AMOUNT * 2);
 
-        // Contributors and validators get stake tokens
         address[5] memory stakers = [contributor1, contributor2, validator1, validator2, validator3];
         for (uint256 i; i < stakers.length; ++i) {
             token.mint(stakers[i], STAKE_AMOUNT * 10);
@@ -79,7 +69,6 @@ contract BaseTest is Test {
         }
     }
 
-    /// @dev Helper to create and fund a standard test project
     function _createAndFundProject() internal returns (bytes32) {
         return _createAndFundProject(PROJECT_ID, FUND_AMOUNT, QUANTITY);
     }
@@ -88,14 +77,14 @@ contract BaseTest is Test {
         vm.startPrank(originator);
 
         Project memory config = Project({
-            originator: address(0), // set by contract
+            originator: address(0),
             rewardToken: address(token),
             totalRewards: 0,
             totalQuantity: 0,
             availableSlots: 0,
-            consensusThreshold: 7000, // 70%
+            consensusThreshold: 7000,
             minStakeToClaim: STAKE_AMOUNT,
-            validatorRewardBps: 2000, // 20%
+            validatorRewardBps: 2000,
             numberOfValidations: 3,
             requiredSkill: bytes32(0),
             minValidatorReputation: 0,
@@ -105,7 +94,7 @@ contract BaseTest is Test {
             completedAt: 0
         });
 
-        engine.createProject(projectId, config);
+        engine.createProject(projectId, "", config);
 
         token.approve(address(engine), amount);
         engine.fundProject(projectId, amount, qty, adapter);
@@ -115,7 +104,6 @@ contract BaseTest is Test {
         return projectId;
     }
 
-    /// @dev Helper to claim and contribute a single index
     function _claimAndContribute(address contrib, bytes32 projectId, uint256 qty)
         internal
         returns (uint256 claimId, uint256[] memory indices)
@@ -124,26 +112,40 @@ contract BaseTest is Test {
         (claimId, indices) = engine.claimToContribute(projectId, qty, adapter);
         for (uint256 i; i < indices.length; ++i) {
             bytes32 hash = keccak256(abi.encodePacked("submission", indices[i]));
-            engine.contribute(claimId, indices[i], hash);
+            engine.contribute(claimId, indices[i], hash, "");
         }
         vm.stopPrank();
         return (claimId, indices);
     }
 
-    /// @dev Helper for commit-reveal validation
+    function _ensureStake(address user, uint256 needed) internal virtual {
+        uint256 available = vault.availableBalance(user);
+        if (available < needed) {
+            uint256 deficit = needed - available + 1e18;
+            token.mint(user, deficit);
+            vm.startPrank(user);
+            token.approve(address(vault), deficit);
+            vault.deposit(deficit, user);
+            vm.stopPrank();
+        }
+    }
+
     function _commitAndReveal(address val, bytes32 projectId, uint256 index, uint16 score, uint128 stakeAmt) internal {
         bytes32 salt = keccak256(abi.encodePacked("salt", val, index));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
+        _ensureStake(val, uint256(stakeAmt) * 2);
+
         vm.startPrank(val);
 
-        // Set validator capacity if needed
-        engine.setValidatorCapacity(stakeAmt);
+        uint256[] memory indices = new uint256[](1);
+        indices[0] = index;
+        engine.claimToValidate(projectId, indices);
 
-        // Commit
-        engine.commitValidation(projectId, index, commitHash, stakeAmt);
+        engine.lockValidatorCapacity(stakeAmt);
 
-        // Reveal
+        engine.commitValidation(projectId, index, commitHash, stakeAmt, address(0));
+
         engine.revealValidation(projectId, index, score, salt);
 
         vm.stopPrank();

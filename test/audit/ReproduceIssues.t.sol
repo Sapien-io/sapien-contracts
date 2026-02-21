@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "test/BaseTest.sol";
-import {IQualityEngine} from "src/interfaces/IQualityEngine.sol";
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 import {Project, ProjectStatus, Contribution, ContributionStatus} from "src/Types.sol";
 
 /// @title ReproduceIssuesTest
@@ -15,8 +15,13 @@ contract ReproduceIssuesTest is BaseTest {
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
         vm.startPrank(val);
-        engine.setValidatorCapacity(stakeAmt);
-        engine.commitValidation(projectId, index, commitHash, stakeAmt);
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(projectId, _indices);
+        }
+        engine.lockValidatorCapacity(stakeAmt);
+        engine.commitValidation(projectId, index, commitHash, stakeAmt, address(0));
         engine.revealValidation(projectId, index, score, salt);
         vm.stopPrank();
     }
@@ -82,7 +87,7 @@ contract ReproduceIssuesTest is BaseTest {
             activatedAt: 0,
             completedAt: 0
         });
-        engine.createProject(projId, config);
+        engine.createProject(projId, "", config);
         token.mint(originator, 1000e18);
         token.approve(address(engine), 1000e18);
         engine.fundProject(projId, 1000e18, 1, adapter);
@@ -104,9 +109,14 @@ contract ReproduceIssuesTest is BaseTest {
         _validate(validator3, projId, index, 7500, 50e18);
 
         vm.startPrank(validator4);
-        engine.setValidatorCapacity(50e18);
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(projId, _indices);
+        }
+        engine.lockValidatorCapacity(50e18);
         bytes32 salt4 = keccak256("validator4");
-        engine.commitValidation(projId, index, keccak256(abi.encodePacked(uint16(8200), salt4)), 50e18);
+        engine.commitValidation(projId, index, keccak256(abi.encodePacked(uint16(8200), salt4)), 50e18, address(0));
         engine.revealValidation(projId, index, 8200, salt4);
         vm.stopPrank();
 
@@ -147,7 +157,7 @@ contract ReproduceIssuesTest is BaseTest {
         address validator4 = contributor2; // reuse contributor2 who has stake
         vm.startPrank(contributor1);
         (uint256 claimId2,) = engine.claimToContribute(PROJECT_ID, 1, adapter);
-        engine.contribute(claimId2, index, keccak256("resubmission"));
+        engine.contribute(claimId2, index, keccak256("resubmission"), "");
         vm.stopPrank();
 
         _validate(validator1, PROJECT_ID, index, 9000, uint128(VALIDATOR_STAKE));
@@ -161,7 +171,7 @@ contract ReproduceIssuesTest is BaseTest {
         // validator3 (round 1 only) cannot settle — round 2 nonce=1, they have no commit for nonce 1
         uint256 round2Nonce = engine.getContribution(PROJECT_ID, index).consensusNonce;
         vm.prank(validator3);
-        vm.expectRevert(IQualityEngine.NotCommitted.selector);
+        vm.expectRevert(ISapienCore.NotCommitted.selector);
         engine.settleValidator(PROJECT_ID, index, round2Nonce);
     }
 
@@ -190,7 +200,7 @@ contract ReproduceIssuesTest is BaseTest {
             activatedAt: 0,
             completedAt: 0
         });
-        engine.createProject(projId, config);
+        engine.createProject(projId, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(projId, FUND_AMOUNT, 1, adapter);
         vm.stopPrank();
@@ -204,9 +214,14 @@ contract ReproduceIssuesTest is BaseTest {
 
         // contributor2 tries zero-stake commit — should revert after RISK-007 fix
         vm.startPrank(contributor2);
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(projId, _indices);
+        }
         bytes32 salt = keccak256("zero-stake");
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.InsufficientStake.selector, 1, 0));
-        engine.commitValidation(projId, index, keccak256(abi.encodePacked(uint16(1000), salt)), 0);
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.InsufficientStake.selector, 1, 0));
+        engine.commitValidation(projId, index, keccak256(abi.encodePacked(uint16(1000), salt)), 0, address(0));
         vm.stopPrank();
     }
 }

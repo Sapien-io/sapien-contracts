@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 import {BaseTest} from "test/BaseTest.sol";
 import {Dispute, DisputeStatus, ContributionStatus, Contribution} from "src/Types.sol";
 import {Constants as C} from "src/Constants.sol";
-import {IQualityEngine} from "src/interfaces/IQualityEngine.sol";
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 
 /// @title SEC-C-01 FIX VERIFICATION: Nonce-keyed disputes prevent cross-nonce poisoning
 /// @notice Verifies that disputes are now keyed by (projectId, index, nonce), so a dispute
@@ -38,7 +38,7 @@ contract SEC_C_01_DisputeIndexPoisoning is BaseTest {
 
         // --- Attacker opens dispute on the rejected contribution (nonce 0) ---
         vm.prank(attacker);
-        engine.openDispute(projectId, targetIndex, keccak256("evidence"));
+        engine.openDispute(projectId, targetIndex, keccak256("evidence"), "evidenceCid");
 
         // Settle round 1 validators
         vm.prank(validator1);
@@ -62,7 +62,7 @@ contract SEC_C_01_DisputeIndexPoisoning is BaseTest {
         assertEq(uint8(contrib.status), uint8(ContributionStatus.Accepted), "should be accepted");
 
         // --- Wait for challenge period to pass ---
-        vm.warp(block.timestamp + C.CHALLENGE_PERIOD + 1);
+        vm.warp(block.timestamp + C.DEFAULT_CHALLENGE_PERIOD + 1);
 
         // FIX VERIFIED: releaseContributorReward succeeds because the dispute
         // from nonce 0 is now isolated and doesn't affect nonce 1.
@@ -86,7 +86,7 @@ contract SEC_C_01_DisputeIndexPoisoning is BaseTest {
 
         // Attacker disputes, operator upholds it
         vm.prank(attacker);
-        engine.openDispute(projectId, idx, keccak256("evidence"));
+        engine.openDispute(projectId, idx, keccak256("evidence"), "evidenceCid");
         vm.prank(admin);
         engine.resolveDispute(projectId, idx, true);
 
@@ -110,7 +110,7 @@ contract SEC_C_01_DisputeIndexPoisoning is BaseTest {
         _commitAndReveal(validator3, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
         engine.computeConsensus(projectId, idx);
 
-        vm.warp(block.timestamp + C.CHALLENGE_PERIOD + 1);
+        vm.warp(block.timestamp + C.DEFAULT_CHALLENGE_PERIOD + 1);
 
         // FIX VERIFIED: contribute() resets rewardReleased and challengeEndsAt,
         // and disputes are nonce-scoped, so recycled index works correctly.
@@ -132,7 +132,7 @@ contract SEC_C_01_DisputeIndexPoisoning is BaseTest {
         engine.computeConsensus(projectId, idx);
 
         vm.prank(attacker);
-        engine.openDispute(projectId, idx, keccak256("evidence"));
+        engine.openDispute(projectId, idx, keccak256("evidence"), "evidenceCid");
 
         // Before recycling, getDispute returns the open dispute (at nonce 0)
         Dispute memory d1 = engine.getDispute(projectId, idx);

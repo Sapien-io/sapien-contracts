@@ -5,7 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {Constants as C} from "src/Constants.sol";
-import {IQualityEngine} from "src/interfaces/IQualityEngine.sol";
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 import {ReputationLib} from "src/libraries/ReputationLib.sol";
 import {
     EngineStorage,
@@ -22,57 +22,52 @@ import {
 
 /// @title FinalizationLib
 /// @notice Deployed library for validator settlement and reward release operations.
-/// @dev Called via DELEGATECALL from QualityEngine; operates on the caller's ERC-7201 storage.
+/// @dev Called via DELEGATECALL from SapienCore; operates on the caller's ERC-7201 storage.
 library FinalizationLib {
     using SafeERC20 for IERC20;
 
-    // keccak256(abi.encode(uint256(keccak256("sapien.storage.QualityEngine")) - 1)) & ~bytes32(uint256(0xff))
+    // keccak256(abi.encode(uint256(keccak256("sapien.storage.SapienCore")) - 1)) & ~bytes32(uint256(0xff))
     function _getStorage() private pure returns (EngineStorage storage $) {
         assembly {
-            $.slot := 0x93ae96f70dc96ca851a79b6bf630e034298e11be62b3174b3a3408302fc00900
+            $.slot := 0xb21037e32bd67da4126ec23c3d75228183c819f055709f5aa59aa33cc3fd2b00
         }
     }
 
-    /// @notice Settle a validator's outcome for a consensus round.
-    /// @param nonce The submission nonce the validator participated in (RISK-006)
     function settleValidator(bytes32 projectId, uint256 index, uint256 nonce) public {
         _settleValidatorFor(projectId, index, nonce, msg.sender);
     }
 
-    /// @notice Permissionless force-settle after FORCE_SETTLE_DELAY (SEC-H-02).
     function forceSettleValidator(bytes32 projectId, uint256 index, uint256 nonce, address validator) public {
         EngineStorage storage $ = _getStorage();
         ConsensusReport storage report = $.consensusReports[projectId][index][nonce];
-        if (!report.computed) revert IQualityEngine.ConsensusNotReady(0, 1);
+        if (!report.computed) revert ISapienCore.ConsensusNotReady(0, 1);
 
-        // Enforce timeout: must wait FORCE_SETTLE_DELAY after the consensus report's nonce was computed.
-        // We use the contribution's challengeEndsAt as a proxy for when consensus was computed,
-        // but for safety we check the commit timestamp of the validator instead.
         ValidatorCommit storage vc = $.validatorCommits[projectId][index][nonce][validator];
-        if (vc.revealedAt == 0) revert IQualityEngine.NotCommitted();
-        if (block.timestamp <= uint256(vc.revealedAt) + C.FORCE_SETTLE_DELAY) {
-            revert IQualityEngine.ForceSettleTooEarly();
+        if (vc.revealedAt == 0) revert ISapienCore.NotCommitted();
+        if (block.timestamp <= vc.revealedAt + $.forceSettleDelay) {
+            revert ISapienCore.ForceSettleTooEarly();
         }
 
         _settleValidatorFor(projectId, index, nonce, validator);
     }
 
-    /// @dev Shared settlement logic for both self-settle and force-settle.
     function _settleValidatorFor(bytes32 projectId, uint256 index, uint256 nonce, address validator) internal {
         EngineStorage storage $ = _getStorage();
 
         ConsensusReport storage report = $.consensusReports[projectId][index][nonce];
-        if (!report.computed) revert IQualityEngine.ConsensusNotReady(0, 1);
+        if (!report.computed) revert ISapienCore.ConsensusNotReady(0, 1);
 
-        uint128 committedStake;
+        uint256 committedStake;
+        address validationAdapter;
         {
             ValidatorCommit storage vc = $.validatorCommits[projectId][index][nonce][validator];
 
-            if (vc.settled) revert IQualityEngine.AlreadySettled();
-            if (vc.revealedAt == 0) revert IQualityEngine.NotCommitted();
+            if (vc.settled) revert ISapienCore.AlreadySettled();
+            if (vc.revealedAt == 0) revert ISapienCore.NotCommitted();
 
             vc.settled = true;
             committedStake = vc.stakedAmount;
+            validationAdapter = vc.adapter;
         }
 
         Project storage proj = $.projects[projectId];
@@ -80,7 +75,7 @@ library FinalizationLib {
         bool outlier = vcr.isOutlier;
 
         if (outlier) {
-            uint256 slashAmt = uint256(vcr.slashAmount);
+            uint256 slashAmt = vcr.slashAmount;
             if (slashAmt > 0 && committedStake > 0) {
                 uint256 actualSlash = slashAmt > committedStake ? committedStake : slashAmt;
                 $.vault.slashValidator(validator, actualSlash);
@@ -99,44 +94,50 @@ library FinalizationLib {
 
             Contribution storage contrib = $.contributions[projectId][index];
             if (contrib.status == ContributionStatus.Accepted) {
-                uint256 weight = uint256(vcr.weight);
-                uint256 totalAccWeight = uint256(report.totalAccurateWeight);
+                uint256 weight = vcr.weight;
+                uint256 totalAccWeight = report.totalAccurateWeight;
 
                 if (totalAccWeight > 0 && weight > 0) {
-                    uint256 reward = (proj.totalRewards * uint256(proj.validatorRewardBps) * weight)
+                    uint256 validatorShare = (proj.totalRewards * proj.validatorRewardBps * weight)
                         / (C.BPS * proj.totalQuantity * totalAccWeight);
+                    uint256 reward = validatorShare;
+
+                    if (validationAdapter != address(0) && $.validationFeeBps > 0) {
+                        uint256 fee = (reward * $.validationFeeBps) / C.BPS;
+                        $.pendingRewards[validationAdapter][proj.rewardToken] += fee;
+                        reward -= fee;
+                        emit ISapienCore.ValidationAdapterFeePaid(projectId, index, validationAdapter, fee);
+                    }
 
                     $.pendingRewards[validator][proj.rewardToken] += reward;
-                    $.projectEscrow[projectId][proj.rewardToken] -= reward;
+                    $.projectEscrow[projectId][proj.rewardToken] -= validatorShare;
                 }
             }
             ReputationLib.update(validator, C.VALIDATOR_ROLE_KEY, true, 0);
         }
 
-        emit IQualityEngine.ValidatorSettled(projectId, index, validator, outlier);
+        emit ISapienCore.ValidatorSettled(projectId, index, validator, outlier);
     }
 
-    /// @notice Release a contributor's reward after the challenge period.
     function releaseContributorReward(bytes32 projectId, uint256 index) public {
         EngineStorage storage $ = _getStorage();
         Contribution storage contrib = $.contributions[projectId][index];
 
-        if (contrib.status != ContributionStatus.Accepted) revert IQualityEngine.ContributionNotAccepted();
-        if (block.timestamp < contrib.challengeEndsAt) revert IQualityEngine.ChallengeNotElapsed();
-        if (contrib.rewardReleased) revert IQualityEngine.RewardAlreadyReleased();
+        if (contrib.status != ContributionStatus.Accepted) revert ISapienCore.ContributionNotAccepted();
+        if (block.timestamp < contrib.challengeEndsAt) revert ISapienCore.ChallengeNotElapsed();
+        if (contrib.rewardReleased) revert ISapienCore.RewardAlreadyReleased();
 
-        // SEC-C-01: look up dispute at the current contribution's nonce
         uint256 nonce = contrib.consensusNonce;
         Dispute storage dispute = $.disputes[projectId][index][nonce];
-        if (dispute.status == DisputeStatus.Open) revert IQualityEngine.DisputeInProgress();
-        if (dispute.status == DisputeStatus.Upheld) revert IQualityEngine.DisputeInProgress();
+        if (dispute.status == DisputeStatus.Open) revert ISapienCore.DisputeInProgress();
+        if (dispute.status == DisputeStatus.Upheld) revert ISapienCore.DisputeInProgress();
 
         contrib.rewardReleased = true;
 
         Project storage proj = $.projects[projectId];
         address token = proj.rewardToken;
 
-        uint256 contributorShare = (contrib.rewardRate * (C.BPS - uint256(proj.validatorRewardBps))) / C.BPS;
+        uint256 contributorShare = (contrib.rewardRate * (C.BPS - proj.validatorRewardBps)) / C.BPS;
         uint256 reward = contributorShare;
 
         address adapter = $.contributionAdapter[contrib.claimId];
@@ -144,56 +145,53 @@ library FinalizationLib {
             uint256 fee = (reward * $.contributionFeeBps) / C.BPS;
             $.pendingRewards[adapter][token] += fee;
             reward -= fee;
-            emit IQualityEngine.ContributionAdapterFeePaid(projectId, index, adapter, fee);
+            emit ISapienCore.ContributionAdapterFeePaid(projectId, index, adapter, fee);
         }
 
         $.pendingRewards[contrib.contributor][token] += reward;
         $.projectEscrow[projectId][token] -= contributorShare;
 
-        // SEC-H-01: decrement pending contributions counter
         $.pendingContributions[projectId]--;
 
-        emit IQualityEngine.ContributorRewardReleased(projectId, index, contrib.contributor, reward);
+        emit ISapienCore.ContributorRewardReleased(projectId, index, contrib.contributor, reward);
     }
 
-    /// @notice Claim accumulated rewards for a token.
     function claimReward(address token) public {
         EngineStorage storage $ = _getStorage();
         uint256 amount = $.pendingRewards[msg.sender][token];
-        if (amount == 0) revert IQualityEngine.NoRewardToClaim();
+        if (amount == 0) revert ISapienCore.NoRewardToClaim();
 
         if ($.minClaimAmount > 0 && amount < $.minClaimAmount) {
-            revert IQualityEngine.ClaimAmountTooSmall(amount, $.minClaimAmount);
+            revert ISapienCore.ClaimAmountTooSmall(amount, $.minClaimAmount);
         }
 
         if ($.claimCooldown > 0) {
-            uint64 lastClaim = $.lastClaimTime[msg.sender];
+            uint256 lastClaim = $.lastClaimTime[msg.sender];
             if (lastClaim > 0 && block.timestamp < lastClaim + $.claimCooldown) {
-                revert IQualityEngine.ClaimCooldownActive(block.timestamp, lastClaim + $.claimCooldown);
+                revert ISapienCore.ClaimCooldownActive(block.timestamp, lastClaim + $.claimCooldown);
             }
-            $.lastClaimTime[msg.sender] = uint64(block.timestamp);
+            $.lastClaimTime[msg.sender] = block.timestamp;
         }
 
         $.pendingRewards[msg.sender][token] = 0;
         IERC20(token).safeTransfer(msg.sender, amount);
 
-        emit IQualityEngine.RewardClaimed(msg.sender, token, amount);
+        emit ISapienCore.RewardClaimed(msg.sender, token, amount);
     }
 
-    /// @notice Cancel an expired validation commitment and slash the ghost validator.
     function cancelExpiredCommitment(bytes32 projectId, uint256 index, address validator) public {
         EngineStorage storage $ = _getStorage();
         uint256 nonce = $.submissionNonce[projectId][index];
 
         ValidatorCommit storage vc = $.validatorCommits[projectId][index][nonce][validator];
-        if (vc.commitTimestamp == 0) revert IQualityEngine.NotCommitted();
-        if (vc.revealedAt != 0) revert IQualityEngine.AlreadyRevealed();
+        if (vc.commitTimestamp == 0) revert ISapienCore.NotCommitted();
+        if (vc.revealedAt != 0) revert ISapienCore.AlreadyRevealed();
 
-        if (block.timestamp <= uint256(vc.commitTimestamp) + C.COMMIT_DEADLINE + C.REVEAL_DEADLINE) {
-            revert IQualityEngine.ClaimDeadlineNotPassed();
+        if (block.timestamp <= vc.commitTimestamp + $.commitDeadline + $.revealDeadline) {
+            revert ISapienCore.ClaimDeadlineNotPassed();
         }
 
-        uint128 committedStake = vc.stakedAmount;
+        uint256 committedStake = vc.stakedAmount;
         if (committedStake > 0) {
             $.vault.slashValidator(validator, committedStake);
         }
@@ -204,20 +202,18 @@ library FinalizationLib {
         ReputationLib.update(validator, C.VALIDATOR_ROLE_KEY, false, 0);
     }
 
-    /// @notice Mark a project as Completed.
     function completeProject(bytes32 projectId) public {
         EngineStorage storage $ = _getStorage();
         Project storage proj = $.projects[projectId];
-        if (proj.originator != msg.sender) revert IQualityEngine.NotProjectOriginator();
+        if (proj.originator != msg.sender) revert ISapienCore.NotProjectOriginator();
         if (proj.status != ProjectStatus.Active && proj.status != ProjectStatus.Funded) {
-            revert IQualityEngine.ProjectNotActive();
+            revert ISapienCore.ProjectNotActive();
         }
 
-        // SEC-H-01: prevent completion while contributions are in the pipeline
-        if ($.pendingContributions[projectId] > 0) revert IQualityEngine.ProjectHasActivePipeline();
+        if ($.pendingContributions[projectId] > 0) revert ISapienCore.ProjectHasActivePipeline();
 
         proj.status = ProjectStatus.Completed;
-        proj.completedAt = uint64(block.timestamp);
+        proj.completedAt = block.timestamp;
 
         uint256 originatorStake = $.originatorLockedStake[projectId];
         if (originatorStake > 0) {
@@ -225,26 +221,25 @@ library FinalizationLib {
             $.originatorLockedStake[projectId] = 0;
         }
 
-        emit IQualityEngine.ProjectCompleted(projectId);
+        emit ISapienCore.ProjectCompleted(projectId);
     }
 
-    /// @notice Refund remaining escrow to the originator after the completion grace period.
     function refundEscrow(bytes32 projectId) public {
         EngineStorage storage $ = _getStorage();
         Project storage proj = $.projects[projectId];
-        if (proj.originator != msg.sender) revert IQualityEngine.NotProjectOriginator();
-        if (proj.status != ProjectStatus.Completed) revert IQualityEngine.ProjectNotCompleted();
-        if (block.timestamp < uint256(proj.completedAt) + C.PROJECT_COMPLETION_DELAY) {
-            revert IQualityEngine.ChallengeNotElapsed();
+        if (proj.originator != msg.sender) revert ISapienCore.NotProjectOriginator();
+        if (proj.status != ProjectStatus.Completed) revert ISapienCore.ProjectNotCompleted();
+        if (block.timestamp < proj.completedAt + C.PROJECT_COMPLETION_DELAY) {
+            revert ISapienCore.ChallengeNotElapsed();
         }
 
         address token = proj.rewardToken;
         uint256 remaining = $.projectEscrow[projectId][token];
-        if (remaining == 0) revert IQualityEngine.ZeroAmount();
+        if (remaining == 0) revert ISapienCore.ZeroAmount();
 
         $.projectEscrow[projectId][token] = 0;
         IERC20(token).safeTransfer(proj.originator, remaining);
 
-        emit IQualityEngine.EscrowRefunded(projectId, remaining);
+        emit ISapienCore.EscrowRefunded(projectId, remaining);
     }
 }

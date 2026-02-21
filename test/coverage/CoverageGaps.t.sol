@@ -4,10 +4,10 @@ pragma solidity ^0.8.30;
 import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {QualityEngine} from "src/QualityEngine.sol";
-import {StakeVault} from "src/StakeVault.sol";
-import {IStakeVault} from "src/interfaces/IStakeVault.sol";
-import {IQualityEngine} from "src/interfaces/IQualityEngine.sol";
+import {SapienCore} from "src/SapienCore.sol";
+import {SapienVault} from "src/SapienVault.sol";
+import {ISapienVault} from "src/interfaces/ISapienVault.sol";
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 import {ConsensusLib} from "src/libraries/ConsensusLib.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
 import {
@@ -15,8 +15,6 @@ import {
     ProjectStatus,
     Claim,
     ClaimStatus,
-    IndexState,
-    SubmissionStatus,
     Contribution,
     ContributionStatus,
     ConsensusReport,
@@ -166,11 +164,11 @@ contract ConsensusLibCoverageTest is Test {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// StakeVault Coverage Tests
+// SapienVault Coverage Tests
 // ═══════════════════════════════════════════════════════════════════════
 
-contract StakeVaultCoverageTest is Test {
-    StakeVault internal vault;
+contract SapienVaultCoverageTest is Test {
+    SapienVault internal vault;
     MockERC20 internal token;
     address internal admin = makeAddr("admin");
     address internal user1 = makeAddr("user1");
@@ -180,9 +178,9 @@ contract StakeVaultCoverageTest is Test {
     function setUp() public {
         token = new MockERC20("Sapien Token", "SPN");
 
-        StakeVault vaultImpl = new StakeVault();
-        bytes memory vaultInit = abi.encodeCall(StakeVault.initialize, (token, admin));
-        vault = StakeVault(address(new ERC1967Proxy(address(vaultImpl), vaultInit)));
+        SapienVault vaultImpl = new SapienVault();
+        bytes memory vaultInit = abi.encodeCall(SapienVault.initialize, (token, admin));
+        vault = SapienVault(address(new ERC1967Proxy(address(vaultImpl), vaultInit)));
 
         engineAddr = makeAddr("engine");
         vm.startPrank(admin);
@@ -206,49 +204,49 @@ contract StakeVaultCoverageTest is Test {
 
     function test_revert_lockContributor_zeroAmount() public {
         vm.prank(engineAddr);
-        vm.expectRevert(StakeVault.ZeroAmount.selector);
+        vm.expectRevert(SapienVault.ZeroAmount.selector);
         vault.lockContributor(user1, 0);
     }
 
     function test_revert_unlockContributor_zeroAmount() public {
         vm.prank(engineAddr);
-        vm.expectRevert(StakeVault.ZeroAmount.selector);
+        vm.expectRevert(SapienVault.ZeroAmount.selector);
         vault.unlockContributor(user1, 0);
     }
 
     function test_revert_slashContributor_zeroAmount() public {
         vm.prank(engineAddr);
-        vm.expectRevert(StakeVault.ZeroAmount.selector);
+        vm.expectRevert(SapienVault.ZeroAmount.selector);
         vault.slashContributor(user1, 0);
     }
 
     function test_revert_lockValidatorCapacity_zeroAmount() public {
         vm.prank(engineAddr);
-        vm.expectRevert(StakeVault.ZeroAmount.selector);
+        vm.expectRevert(SapienVault.ZeroAmount.selector);
         vault.lockValidatorCapacity(user1, 0);
     }
 
     function test_revert_unlockValidatorCapacity_zeroAmount() public {
         vm.prank(engineAddr);
-        vm.expectRevert(StakeVault.ZeroAmount.selector);
+        vm.expectRevert(SapienVault.ZeroAmount.selector);
         vault.unlockValidatorCapacity(user1, 0);
     }
 
     function test_revert_commitStake_zeroAmount() public {
         vm.prank(engineAddr);
-        vm.expectRevert(StakeVault.ZeroAmount.selector);
+        vm.expectRevert(SapienVault.ZeroAmount.selector);
         vault.commitStake(user1, 0);
     }
 
     function test_revert_releaseCommit_zeroAmount() public {
         vm.prank(engineAddr);
-        vm.expectRevert(StakeVault.ZeroAmount.selector);
+        vm.expectRevert(SapienVault.ZeroAmount.selector);
         vault.releaseCommit(user1, 0);
     }
 
     function test_revert_slashValidator_zeroAmount() public {
         vm.prank(engineAddr);
-        vm.expectRevert(StakeVault.ZeroAmount.selector);
+        vm.expectRevert(SapienVault.ZeroAmount.selector);
         vault.slashValidator(user1, 0);
     }
 
@@ -257,50 +255,50 @@ contract StakeVaultCoverageTest is Test {
     function test_revert_lockContributor_insufficientBalance() public {
         uint256 avail = vault.availableBalance(user1);
         vm.prank(engineAddr);
-        vm.expectRevert(abi.encodeWithSelector(StakeVault.InsufficientAvailableBalance.selector, 99999e18, avail));
+        vm.expectRevert(abi.encodeWithSelector(SapienVault.InsufficientAvailableBalance.selector, 99999e18, avail));
         vault.lockContributor(user1, 99999e18);
     }
 
     function test_revert_unlockContributor_insufficientLock() public {
         vm.prank(engineAddr);
-        vm.expectRevert(abi.encodeWithSelector(StakeVault.InsufficientContributorLock.selector, 100e18, 0));
+        vm.expectRevert(abi.encodeWithSelector(SapienVault.InsufficientContributorLock.selector, 100e18, 0));
         vault.unlockContributor(user1, 100e18);
     }
 
     function test_revert_slashContributor_insufficientLock() public {
         vm.prank(engineAddr);
-        vm.expectRevert(abi.encodeWithSelector(StakeVault.InsufficientContributorLock.selector, 100e18, 0));
+        vm.expectRevert(abi.encodeWithSelector(SapienVault.InsufficientContributorLock.selector, 100e18, 0));
         vault.slashContributor(user1, 100e18);
     }
 
     function test_revert_lockValidatorCapacity_insufficientBalance() public {
         uint256 avail = vault.availableBalance(user1);
         vm.prank(engineAddr);
-        vm.expectRevert(abi.encodeWithSelector(StakeVault.InsufficientAvailableBalance.selector, 99999e18, avail));
+        vm.expectRevert(abi.encodeWithSelector(SapienVault.InsufficientAvailableBalance.selector, 99999e18, avail));
         vault.lockValidatorCapacity(user1, 99999e18);
     }
 
     function test_revert_unlockValidatorCapacity_insufficientCapacity() public {
         vm.prank(engineAddr);
-        vm.expectRevert(abi.encodeWithSelector(StakeVault.InsufficientValidatorCapacity.selector, 100e18, 0));
+        vm.expectRevert(abi.encodeWithSelector(SapienVault.InsufficientValidatorCapacity.selector, 100e18, 0));
         vault.unlockValidatorCapacity(user1, 100e18);
     }
 
     function test_revert_commitStake_insufficientCapacity() public {
         vm.prank(engineAddr);
-        vm.expectRevert(abi.encodeWithSelector(StakeVault.InsufficientValidatorCapacity.selector, 100e18, 0));
+        vm.expectRevert(abi.encodeWithSelector(SapienVault.InsufficientValidatorCapacity.selector, 100e18, 0));
         vault.commitStake(user1, 100e18);
     }
 
     function test_revert_releaseCommit_insufficientInFlight() public {
         vm.prank(engineAddr);
-        vm.expectRevert(abi.encodeWithSelector(StakeVault.InsufficientInFlight.selector, 100e18, 0));
+        vm.expectRevert(abi.encodeWithSelector(SapienVault.InsufficientInFlight.selector, 100e18, 0));
         vault.releaseCommit(user1, 100e18);
     }
 
     function test_revert_slashValidator_insufficientInFlight() public {
         vm.prank(engineAddr);
-        vm.expectRevert(abi.encodeWithSelector(StakeVault.InsufficientInFlight.selector, 100e18, 0));
+        vm.expectRevert(abi.encodeWithSelector(SapienVault.InsufficientInFlight.selector, 100e18, 0));
         vault.slashValidator(user1, 100e18);
     }
 
@@ -309,7 +307,7 @@ contract StakeVaultCoverageTest is Test {
     function test_revert_slashAndUnlock_insufficientLock() public {
         vm.startPrank(engineAddr);
         vault.lockContributor(user1, 50e18);
-        vm.expectRevert(abi.encodeWithSelector(StakeVault.InsufficientContributorLock.selector, 100e18, 50e18));
+        vm.expectRevert(abi.encodeWithSelector(SapienVault.InsufficientContributorLock.selector, 100e18, 50e18));
         vault.slashAndUnlockContributor(user1, 60e18, 40e18);
         vm.stopPrank();
     }
@@ -342,7 +340,7 @@ contract StakeVaultCoverageTest is Test {
 
         uint256 shares = vault.balanceOf(user1);
         vm.prank(user1);
-        vm.expectRevert(StakeVault.TransferExceedsUnlockedShares.selector);
+        vm.expectRevert(SapienVault.TransferExceedsUnlockedShares.selector);
         vault.transfer(user2, shares);
     }
 
@@ -385,13 +383,13 @@ contract StakeVaultCoverageTest is Test {
     // ── UUPS Upgrade ──────────────────────────────────────────────
 
     function test_vault_authorizeUpgrade() public {
-        StakeVault newImpl = new StakeVault();
+        SapienVault newImpl = new SapienVault();
         vm.prank(admin);
         vault.upgradeToAndCall(address(newImpl), "");
     }
 
     function test_revert_vault_upgradeNonAdmin() public {
-        StakeVault newImpl = new StakeVault();
+        SapienVault newImpl = new SapienVault();
         vm.prank(user1);
         vm.expectRevert();
         vault.upgradeToAndCall(address(newImpl), "");
@@ -400,9 +398,9 @@ contract StakeVaultCoverageTest is Test {
     // ── Initialize reverts ────────────────────────────────────────
 
     function test_revert_initializeZeroAddress() public {
-        StakeVault impl = new StakeVault();
-        vm.expectRevert(StakeVault.ZeroAddress.selector);
-        new ERC1967Proxy(address(impl), abi.encodeCall(StakeVault.initialize, (token, address(0))));
+        SapienVault impl = new SapienVault();
+        vm.expectRevert(SapienVault.ZeroAddress.selector);
+        new ERC1967Proxy(address(impl), abi.encodeCall(SapienVault.initialize, (token, address(0))));
     }
 
     // ── View functions ────────────────────────────────────────────
@@ -421,12 +419,12 @@ contract StakeVaultCoverageTest is Test {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// QualityEngine Coverage Tests — Shared Base
+// SapienCore Coverage Tests — Shared Base
 // ═══════════════════════════════════════════════════════════════════════
 
 contract QECoverageBase is Test {
-    QualityEngine internal engine;
-    StakeVault internal vault;
+    SapienCore internal engine;
+    SapienVault internal vault;
     MockERC20 internal token;
 
     address internal admin = makeAddr("admin");
@@ -449,17 +447,16 @@ contract QECoverageBase is Test {
     function setUp() public virtual {
         token = new MockERC20("Sapien Token", "SPN");
 
-        StakeVault vaultImpl = new StakeVault();
-        vault = StakeVault(
-            address(new ERC1967Proxy(address(vaultImpl), abi.encodeCall(StakeVault.initialize, (token, admin))))
+        SapienVault vaultImpl = new SapienVault();
+        vault = SapienVault(
+            address(new ERC1967Proxy(address(vaultImpl), abi.encodeCall(SapienVault.initialize, (token, admin))))
         );
 
-        QualityEngine engineImpl = new QualityEngine();
-        engine = QualityEngine(
+        SapienCore engineImpl = new SapienCore();
+        engine = SapienCore(
             address(
                 new ERC1967Proxy(
-                    address(engineImpl),
-                    abi.encodeCall(QualityEngine.initialize, (admin, address(vault), treasury, address(0)))
+                    address(engineImpl), abi.encodeCall(SapienCore.initialize, (admin, address(vault), treasury))
                 )
             )
         );
@@ -520,7 +517,7 @@ contract QECoverageBase is Test {
     function _setupProject(bytes32 projectId, uint256 fundAmount, uint256 qty) internal {
         token.mint(originator, fundAmount);
         vm.startPrank(originator);
-        engine.createProject(projectId, _defaultConfig());
+        engine.createProject(projectId, "", _defaultConfig());
         token.approve(address(engine), fundAmount);
         engine.fundProject(projectId, fundAmount, qty, adapter);
         vm.stopPrank();
@@ -535,7 +532,7 @@ contract QECoverageBase is Test {
         (claimId, indices) = engine.claimToContribute(projectId, qty, adapter);
         for (uint256 i; i < indices.length; ++i) {
             bytes32 hash = keccak256(abi.encodePacked("sub", projectId, indices[i]));
-            engine.contribute(claimId, indices[i], hash);
+            engine.contribute(claimId, indices[i], hash, "");
         }
         vm.stopPrank();
     }
@@ -547,8 +544,13 @@ contract QECoverageBase is Test {
         _ensureStake(val, uint256(stakeAmt) * 2);
 
         vm.startPrank(val);
-        engine.setValidatorCapacity(stakeAmt);
-        engine.commitValidation(projectId, index, commitHash, stakeAmt);
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(projectId, _indices);
+        }
+        engine.lockValidatorCapacity(stakeAmt);
+        engine.commitValidation(projectId, index, commitHash, stakeAmt, address(0));
         engine.revealValidation(projectId, index, score, salt);
         vm.stopPrank();
     }
@@ -583,7 +585,7 @@ contract QECoverageBase is Test {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// QualityEngine — Uncovered Functions
+// SapienCore — Uncovered Functions
 // ═══════════════════════════════════════════════════════════════════════
 
 contract QEUncoveredFunctionsTest is QECoverageBase {
@@ -597,8 +599,8 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
     function test_reduceValidatorCapacity() public {
         _ensureStake(validator1, VALIDATOR_STAKE * 3);
         vm.startPrank(validator1);
-        engine.setValidatorCapacity(VALIDATOR_STAKE);
-        engine.reduceValidatorCapacity(VALIDATOR_STAKE);
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        engine.unlockValidatorCapacity(VALIDATOR_STAKE);
         vm.stopPrank();
     }
 
@@ -632,7 +634,7 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
         token.mint(originator, FUND_AMOUNT);
         _ensureStake(originator, 500e18);
         vm.startPrank(originator);
-        engine.createProject(pid2, _defaultConfig());
+        engine.createProject(pid2, "", _defaultConfig());
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid2, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -653,7 +655,7 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
 
     function test_revert_completeProject_notOriginator() public {
         vm.prank(contributor1);
-        vm.expectRevert(IQualityEngine.NotProjectOriginator.selector);
+        vm.expectRevert(ISapienCore.NotProjectOriginator.selector);
         engine.completeProject(projId);
     }
 
@@ -662,7 +664,7 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
         engine.completeProject(projId);
 
         vm.prank(originator);
-        vm.expectRevert(IQualityEngine.ProjectNotActive.selector);
+        vm.expectRevert(ISapienCore.ProjectNotActive.selector);
         engine.completeProject(projId);
     }
 
@@ -690,13 +692,13 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
         vm.warp(block.timestamp + 31 days);
 
         vm.prank(contributor1);
-        vm.expectRevert(IQualityEngine.NotProjectOriginator.selector);
+        vm.expectRevert(ISapienCore.NotProjectOriginator.selector);
         engine.refundEscrow(projId);
     }
 
     function test_revert_refundEscrow_notCompleted() public {
         vm.prank(originator);
-        vm.expectRevert(IQualityEngine.ProjectNotCompleted.selector);
+        vm.expectRevert(ISapienCore.ProjectNotCompleted.selector);
         engine.refundEscrow(projId);
     }
 
@@ -705,7 +707,7 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
         engine.completeProject(projId);
 
         vm.prank(originator);
-        vm.expectRevert(IQualityEngine.ChallengeNotElapsed.selector);
+        vm.expectRevert(ISapienCore.ChallengeNotElapsed.selector);
         engine.refundEscrow(projId);
     }
 
@@ -724,7 +726,7 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
 
         // Second refund should fail with ZeroAmount
         vm.prank(originator);
-        vm.expectRevert(IQualityEngine.ZeroAmount.selector);
+        vm.expectRevert(ISapienCore.ZeroAmount.selector);
         engine.refundEscrow(pid2);
     }
 
@@ -734,9 +736,9 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
     }
 
     function test_revert_setMinValidationStake_tooHigh() public {
+        uint256 largeAmount = uint256(type(uint128).max) + 1;
         vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.InvalidProjectConfig.selector, "amount exceeds uint128"));
-        engine.setMinValidationStake(type(uint256).max);
+        engine.setMinValidationStake(largeAmount);
     }
 
     // ── View functions ────────────────────────────────────────────
@@ -755,13 +757,13 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
     // ── UUPS Upgrade ──────────────────────────────────────────────
 
     function test_engine_authorizeUpgrade() public {
-        QualityEngine newImpl = new QualityEngine();
+        SapienCore newImpl = new SapienCore();
         vm.prank(admin);
         engine.upgradeToAndCall(address(newImpl), "");
     }
 
     function test_revert_engine_upgradeNonAdmin() public {
-        QualityEngine newImpl = new QualityEngine();
+        SapienCore newImpl = new SapienCore();
         vm.prank(contributor1);
         vm.expectRevert();
         engine.upgradeToAndCall(address(newImpl), "");
@@ -783,7 +785,7 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// QualityEngine — Create/Fund Project Validation Branches
+// SapienCore — Create/Fund Project Validation Branches
 // ═══════════════════════════════════════════════════════════════════════
 
 contract QEProjectValidationTest is QECoverageBase {
@@ -793,8 +795,8 @@ contract QEProjectValidationTest is QECoverageBase {
         Project memory config = _defaultConfig();
         config.rewardToken = address(0);
         vm.prank(originator);
-        vm.expectRevert(IQualityEngine.ZeroAddress.selector);
-        engine.createProject(keccak256("zrt"), config);
+        vm.expectRevert(ISapienCore.ZeroAddress.selector);
+        engine.createProject(keccak256("zrt"), "", config);
     }
 
     function test_revert_createProject_zeroConsensusThreshold() public {
@@ -802,9 +804,9 @@ contract QEProjectValidationTest is QECoverageBase {
         config.consensusThreshold = 0;
         vm.prank(originator);
         vm.expectRevert(
-            abi.encodeWithSelector(IQualityEngine.InvalidProjectConfig.selector, "consensusThreshold out of range")
+            abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "consensusThreshold out of range")
         );
-        engine.createProject(keccak256("zct"), config);
+        engine.createProject(keccak256("zct"), "", config);
     }
 
     function test_revert_createProject_tooHighConsensusThreshold() public {
@@ -812,9 +814,9 @@ contract QEProjectValidationTest is QECoverageBase {
         config.consensusThreshold = 10001;
         vm.prank(originator);
         vm.expectRevert(
-            abi.encodeWithSelector(IQualityEngine.InvalidProjectConfig.selector, "consensusThreshold out of range")
+            abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "consensusThreshold out of range")
         );
-        engine.createProject(keccak256("hct"), config);
+        engine.createProject(keccak256("hct"), "", config);
     }
 
     function test_revert_createProject_tooHighValidatorRewardBps() public {
@@ -822,9 +824,9 @@ contract QEProjectValidationTest is QECoverageBase {
         config.validatorRewardBps = 2501;
         vm.prank(originator);
         vm.expectRevert(
-            abi.encodeWithSelector(IQualityEngine.InvalidProjectConfig.selector, "validatorRewardBps too high")
+            abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "validatorRewardBps too high")
         );
-        engine.createProject(keccak256("hvr"), config);
+        engine.createProject(keccak256("hvr"), "", config);
     }
 
     function test_revert_createProject_zeroNumberOfValidations() public {
@@ -832,9 +834,9 @@ contract QEProjectValidationTest is QECoverageBase {
         config.numberOfValidations = 0;
         vm.prank(originator);
         vm.expectRevert(
-            abi.encodeWithSelector(IQualityEngine.InvalidProjectConfig.selector, "numberOfValidations out of range")
+            abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "numberOfValidations out of range")
         );
-        engine.createProject(keccak256("znv"), config);
+        engine.createProject(keccak256("znv"), "", config);
     }
 
     function test_revert_createProject_tooHighNumberOfValidations() public {
@@ -842,9 +844,9 @@ contract QEProjectValidationTest is QECoverageBase {
         config.numberOfValidations = 11;
         vm.prank(originator);
         vm.expectRevert(
-            abi.encodeWithSelector(IQualityEngine.InvalidProjectConfig.selector, "numberOfValidations out of range")
+            abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "numberOfValidations out of range")
         );
-        engine.createProject(keccak256("hnv"), config);
+        engine.createProject(keccak256("hnv"), "", config);
     }
 
     // ── fundProject validation ────────────────────────────────────
@@ -852,8 +854,8 @@ contract QEProjectValidationTest is QECoverageBase {
     function test_revert_fundProject_zeroAmount() public {
         bytes32 pid = keccak256("fa0");
         vm.startPrank(originator);
-        engine.createProject(pid, _defaultConfig());
-        vm.expectRevert(IQualityEngine.ZeroAmount.selector);
+        engine.createProject(pid, "", _defaultConfig());
+        vm.expectRevert(ISapienCore.ZeroAmount.selector);
         engine.fundProject(pid, 0, 5, adapter);
         vm.stopPrank();
     }
@@ -861,9 +863,9 @@ contract QEProjectValidationTest is QECoverageBase {
     function test_revert_fundProject_zeroQuantity() public {
         bytes32 pid = keccak256("fq0");
         vm.startPrank(originator);
-        engine.createProject(pid, _defaultConfig());
+        engine.createProject(pid, "", _defaultConfig());
         token.approve(address(engine), 1000e18);
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.InvalidProjectConfig.selector, "quantity must be > 0"));
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "quantity must be > 0"));
         engine.fundProject(pid, 1000e18, 0, adapter);
         vm.stopPrank();
     }
@@ -886,7 +888,7 @@ contract QEProjectValidationTest is QECoverageBase {
         vm.startPrank(originator);
         token.approve(address(engine), 1000e18);
         vm.expectRevert(
-            abi.encodeWithSelector(IQualityEngine.InvalidProjectConfig.selector, "project not in fundable state")
+            abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "project not in fundable state")
         );
         engine.fundProject(pid, 1000e18, 5, adapter);
         vm.stopPrank();
@@ -896,7 +898,7 @@ contract QEProjectValidationTest is QECoverageBase {
         bytes32 pid = keccak256("fna");
         token.mint(originator, FUND_AMOUNT);
         vm.startPrank(originator);
-        engine.createProject(pid, _defaultConfig());
+        engine.createProject(pid, "", _defaultConfig());
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid, FUND_AMOUNT, QUANTITY, address(0));
         vm.stopPrank();
@@ -908,7 +910,7 @@ contract QEProjectValidationTest is QECoverageBase {
         bytes32 pid = keccak256("faf");
         token.mint(originator, FUND_AMOUNT * 2);
         vm.startPrank(originator);
-        engine.createProject(pid, _defaultConfig());
+        engine.createProject(pid, "", _defaultConfig());
         token.approve(address(engine), FUND_AMOUNT * 2);
         engine.fundProject(pid, FUND_AMOUNT, 5, adapter);
         engine.fundProject(pid, FUND_AMOUNT, 5, adapter);
@@ -921,32 +923,26 @@ contract QEProjectValidationTest is QECoverageBase {
     // ── Initialize validation ─────────────────────────────────────
 
     function test_revert_initialize_zeroAdmin() public {
-        QualityEngine impl = new QualityEngine();
-        vm.expectRevert(IQualityEngine.ZeroAddress.selector);
-        new ERC1967Proxy(
-            address(impl), abi.encodeCall(QualityEngine.initialize, (address(0), address(vault), treasury, address(0)))
-        );
+        SapienCore impl = new SapienCore();
+        vm.expectRevert(ISapienCore.ZeroAddress.selector);
+        new ERC1967Proxy(address(impl), abi.encodeCall(SapienCore.initialize, (address(0), address(vault), treasury)));
     }
 
     function test_revert_initialize_zeroVault() public {
-        QualityEngine impl = new QualityEngine();
-        vm.expectRevert(IQualityEngine.ZeroAddress.selector);
-        new ERC1967Proxy(
-            address(impl), abi.encodeCall(QualityEngine.initialize, (admin, address(0), treasury, address(0)))
-        );
+        SapienCore impl = new SapienCore();
+        vm.expectRevert(ISapienCore.ZeroAddress.selector);
+        new ERC1967Proxy(address(impl), abi.encodeCall(SapienCore.initialize, (admin, address(0), treasury)));
     }
 
     function test_revert_initialize_zeroTreasury() public {
-        QualityEngine impl = new QualityEngine();
-        vm.expectRevert(IQualityEngine.ZeroAddress.selector);
-        new ERC1967Proxy(
-            address(impl), abi.encodeCall(QualityEngine.initialize, (admin, address(vault), address(0), address(0)))
-        );
+        SapienCore impl = new SapienCore();
+        vm.expectRevert(ISapienCore.ZeroAddress.selector);
+        new ERC1967Proxy(address(impl), abi.encodeCall(SapienCore.initialize, (admin, address(vault), address(0))));
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// QualityEngine — Claim & Contribute Branch Coverage
+// SapienCore — Claim & Contribute Branch Coverage
 // ═══════════════════════════════════════════════════════════════════════
 
 contract QEClaimBranchTest is QECoverageBase {
@@ -959,25 +955,25 @@ contract QEClaimBranchTest is QECoverageBase {
 
     function test_revert_claimToContribute_zeroQuantity() public {
         vm.prank(contributor1);
-        vm.expectRevert(IQualityEngine.ZeroAmount.selector);
+        vm.expectRevert(ISapienCore.ZeroAmount.selector);
         engine.claimToContribute(projId, 0, adapter);
     }
 
     function test_revert_claimToContribute_exceedsMax() public {
         vm.prank(contributor1);
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.ClaimQuantityTooHigh.selector, 21, 20));
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.ClaimQuantityTooHigh.selector, 21, 20));
         engine.claimToContribute(projId, 21, adapter);
     }
 
     function test_revert_claimToContribute_wrongProjectStatus() public {
         bytes32 pid2 = keccak256("cov-claim-status");
         vm.prank(originator);
-        engine.createProject(pid2, _defaultConfig());
+        engine.createProject(pid2, "", _defaultConfig());
         // Project is Created but not Funded
 
         _ensureStake(contributor1, STAKE_AMOUNT * 3);
         vm.prank(contributor1);
-        vm.expectRevert(IQualityEngine.ProjectNotActive.selector);
+        vm.expectRevert(ISapienCore.ProjectNotActive.selector);
         engine.claimToContribute(pid2, 1, adapter);
     }
 
@@ -985,14 +981,14 @@ contract QEClaimBranchTest is QECoverageBase {
         _ensureStake(contributor1, STAKE_AMOUNT * 3);
         vm.startPrank(contributor1);
         (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(projId, 2, adapter);
-        engine.contribute(claimId, indices[0], keccak256("data0"));
+        engine.contribute(claimId, indices[0], keccak256("data0"), "");
         vm.stopPrank();
 
         vm.warp(block.timestamp + 8 days);
 
         vm.prank(contributor1);
-        vm.expectRevert(IQualityEngine.ClaimDeadlinePassed.selector);
-        engine.contribute(claimId, indices[1], keccak256("data1"));
+        vm.expectRevert(ISapienCore.ClaimDeadlinePassed.selector);
+        engine.contribute(claimId, indices[1], keccak256("data1"), "");
     }
 
     function test_revert_contribute_indexNotInClaim() public {
@@ -1006,18 +1002,18 @@ contract QEClaimBranchTest is QECoverageBase {
         (, uint256[] memory indices2) = engine.claimToContribute(projId, 1, adapter);
 
         vm.prank(contributor1);
-        vm.expectRevert(IQualityEngine.IndexNotInClaim.selector);
-        engine.contribute(claimId1, indices2[0], keccak256("wrong"));
+        vm.expectRevert(ISapienCore.IndexNotInClaim.selector);
+        engine.contribute(claimId1, indices2[0], keccak256("wrong"), "");
     }
 
     function test_revert_contribute_indexNotReserved() public {
         _ensureStake(contributor1, STAKE_AMOUNT * 5);
         vm.startPrank(contributor1);
         (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(projId, 2, adapter);
-        engine.contribute(claimId, indices[0], keccak256("data"));
+        engine.contribute(claimId, indices[0], keccak256("data"), "");
         // indices[0] status is now Submitted, not Reserved
-        vm.expectRevert(IQualityEngine.IndexNotReserved.selector);
-        engine.contribute(claimId, indices[0], keccak256("data2"));
+        vm.expectRevert(ISapienCore.IndexNotReserved.selector);
+        engine.contribute(claimId, indices[0], keccak256("data2"), "");
         vm.stopPrank();
     }
 
@@ -1030,7 +1026,7 @@ contract QEClaimBranchTest is QECoverageBase {
 
         uint256[] memory wrongIndices = new uint256[](1);
         wrongIndices[0] = 0;
-        vm.expectRevert(IQualityEngine.InvalidIndex.selector);
+        vm.expectRevert(ISapienCore.InvalidIndex.selector);
         engine.expireClaim(claimId, wrongIndices);
     }
 
@@ -1049,7 +1045,7 @@ contract QEClaimBranchTest is QECoverageBase {
         // Try to expire claimId1 with claimId2's indices — fails because claimId mismatch
         uint256[] memory mixedIndices = new uint256[](1);
         mixedIndices[0] = indices2[0];
-        vm.expectRevert(IQualityEngine.IndexNotInClaim.selector);
+        vm.expectRevert(ISapienCore.IndexNotInClaim.selector);
         engine.expireClaim(claimId1, mixedIndices);
     }
 
@@ -1066,7 +1062,7 @@ contract QEClaimBranchTest is QECoverageBase {
         config.minStakeToClaim = 0;
         token.mint(originator, FUND_AMOUNT);
         vm.startPrank(originator);
-        engine.createProject(pid2, config);
+        engine.createProject(pid2, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid2, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -1076,7 +1072,7 @@ contract QEClaimBranchTest is QECoverageBase {
         assertGt(indices.length, 0);
 
         vm.prank(contributor1);
-        engine.contribute(claimId, indices[0], keccak256("data"));
+        engine.contribute(claimId, indices[0], keccak256("data"), "");
     }
 
     function test_expireClaim_noStake() public {
@@ -1085,7 +1081,7 @@ contract QEClaimBranchTest is QECoverageBase {
         config.minStakeToClaim = 0;
         token.mint(originator, FUND_AMOUNT);
         vm.startPrank(originator);
-        engine.createProject(pid2, config);
+        engine.createProject(pid2, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid2, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -1101,19 +1097,19 @@ contract QEClaimBranchTest is QECoverageBase {
         _ensureStake(contributor1, STAKE_AMOUNT * 3);
         vm.startPrank(contributor1);
         (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(projId, 2, adapter);
-        engine.contribute(claimId, indices[0], keccak256("data0"));
-        engine.contribute(claimId, indices[1], keccak256("data1"));
+        engine.contribute(claimId, indices[0], keccak256("data0"), "");
+        engine.contribute(claimId, indices[1], keccak256("data1"), "");
         vm.stopPrank();
 
         // Now all are submitted but claim is Completed, not Active → should revert
         vm.warp(block.timestamp + 8 days);
-        vm.expectRevert(IQualityEngine.ClaimDeadlineNotPassed.selector);
+        vm.expectRevert(ISapienCore.ClaimDeadlineNotPassed.selector);
         engine.expireClaim(claimId, indices);
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// QualityEngine — Validation Branch Coverage
+// SapienCore — Validation Branch Coverage
 // ═══════════════════════════════════════════════════════════════════════
 
 contract QEValidationBranchTest is QECoverageBase {
@@ -1130,9 +1126,14 @@ contract QEValidationBranchTest is QECoverageBase {
 
         _ensureStake(validator1, VALIDATOR_STAKE * 2);
         vm.startPrank(validator1);
-        engine.setValidatorCapacity(VALIDATOR_STAKE);
-        vm.expectRevert(IQualityEngine.InvalidCommitHash.selector);
-        engine.commitValidation(projId, index, bytes32(0), uint128(VALIDATOR_STAKE));
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(projId, _indices);
+        }
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        vm.expectRevert(ISapienCore.InvalidCommitHash.selector);
+        engine.commitValidation(projId, index, bytes32(0), uint128(VALIDATOR_STAKE), address(0));
         vm.stopPrank();
     }
 
@@ -1144,14 +1145,16 @@ contract QEValidationBranchTest is QECoverageBase {
         _validate(validator2, projId, index, 8500, uint128(VALIDATOR_STAKE));
         _validate(validator3, projId, index, 7500, uint128(VALIDATOR_STAKE));
 
-        // 4th validator tries to commit
+        // 4th validator tries to claim — all slots taken
         _ensureStake(validator4, VALIDATOR_STAKE * 2);
-        bytes32 salt = keccak256("salt4");
-        bytes32 commitHash = keccak256(abi.encodePacked(uint16(8000), salt));
         vm.startPrank(validator4);
-        engine.setValidatorCapacity(VALIDATOR_STAKE);
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.ConsensusNotReady.selector, 3, 3));
-        engine.commitValidation(projId, index, commitHash, uint128(VALIDATOR_STAKE));
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.ConsensusNotReady.selector, 3, 3));
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(projId, _indices);
+        }
         vm.stopPrank();
     }
 
@@ -1166,9 +1169,14 @@ contract QEValidationBranchTest is QECoverageBase {
         bytes32 salt = keccak256("salt");
         bytes32 commitHash = keccak256(abi.encodePacked(uint16(8000), salt));
         vm.startPrank(validator1);
-        engine.setValidatorCapacity(10e18);
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.InsufficientStake.selector, 100e18, 10e18));
-        engine.commitValidation(projId, index, commitHash, 10e18);
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(projId, _indices);
+        }
+        engine.lockValidatorCapacity(10e18);
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.InsufficientStake.selector, 100e18, 10e18));
+        engine.commitValidation(projId, index, commitHash, 10e18, address(0));
         vm.stopPrank();
     }
 
@@ -1181,11 +1189,14 @@ contract QEValidationBranchTest is QECoverageBase {
 
         // Contribution is now Accepted, not Pending
         _ensureStake(validator4, VALIDATOR_STAKE * 2);
-        bytes32 commitHash = keccak256(abi.encodePacked(uint16(8000), bytes32("salt")));
         vm.startPrank(validator4);
-        engine.setValidatorCapacity(VALIDATOR_STAKE);
-        vm.expectRevert(IQualityEngine.IndexNotSubmitted.selector);
-        engine.commitValidation(projId, index, commitHash, uint128(VALIDATOR_STAKE));
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        vm.expectRevert(ISapienCore.IndexNotSubmitted.selector);
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(projId, _indices);
+        }
         vm.stopPrank();
     }
 
@@ -1199,9 +1210,14 @@ contract QEValidationBranchTest is QECoverageBase {
 
         _ensureStake(validator1, VALIDATOR_STAKE * 2);
         vm.startPrank(validator1);
-        engine.setValidatorCapacity(VALIDATOR_STAKE);
-        engine.commitValidation(projId, index, commitHash, uint128(VALIDATOR_STAKE));
-        vm.expectRevert(IQualityEngine.InvalidScore.selector);
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(projId, _indices);
+        }
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        engine.commitValidation(projId, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
+        vm.expectRevert(ISapienCore.InvalidScore.selector);
         engine.revealValidation(projId, index, score, salt);
         vm.stopPrank();
     }
@@ -1211,7 +1227,7 @@ contract QEValidationBranchTest is QECoverageBase {
         uint256 index = indices[0];
 
         vm.prank(validator1);
-        vm.expectRevert(IQualityEngine.NotCommitted.selector);
+        vm.expectRevert(ISapienCore.NotCommitted.selector);
         engine.revealValidation(projId, index, 8000, keccak256("salt"));
     }
 
@@ -1225,10 +1241,15 @@ contract QEValidationBranchTest is QECoverageBase {
 
         _ensureStake(validator1, VALIDATOR_STAKE * 2);
         vm.startPrank(validator1);
-        engine.setValidatorCapacity(VALIDATOR_STAKE);
-        engine.commitValidation(projId, index, commitHash, uint128(VALIDATOR_STAKE));
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(projId, _indices);
+        }
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        engine.commitValidation(projId, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
         engine.revealValidation(projId, index, score, salt);
-        vm.expectRevert(IQualityEngine.AlreadyRevealed.selector);
+        vm.expectRevert(ISapienCore.AlreadyRevealed.selector);
         engine.revealValidation(projId, index, score, salt);
         vm.stopPrank();
     }
@@ -1239,7 +1260,7 @@ contract QEValidationBranchTest is QECoverageBase {
         config.minValidationStake = 0;
         token.mint(originator, FUND_AMOUNT);
         vm.startPrank(originator);
-        engine.createProject(pid2, config);
+        engine.createProject(pid2, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid2, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -1252,14 +1273,19 @@ contract QEValidationBranchTest is QECoverageBase {
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
         vm.startPrank(validator1);
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.InsufficientStake.selector, 1, 0));
-        engine.commitValidation(pid2, index, commitHash, 0);
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(pid2, _indices);
+        }
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.InsufficientStake.selector, 1, 0));
+        engine.commitValidation(pid2, index, commitHash, 0, address(0));
         vm.stopPrank();
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// QualityEngine — Settle Validator Branch Coverage
+// SapienCore — Settle Validator Branch Coverage
 // ═══════════════════════════════════════════════════════════════════════
 
 contract QESettleBranchTest is QECoverageBase {
@@ -1274,7 +1300,7 @@ contract QESettleBranchTest is QECoverageBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
         uint256 nonce = engine.getContribution(projId, indices[0]).consensusNonce;
         vm.prank(validator1);
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.ConsensusNotReady.selector, 0, 1));
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.ConsensusNotReady.selector, 0, 1));
         engine.settleValidator(projId, indices[0], nonce);
     }
 
@@ -1286,7 +1312,7 @@ contract QESettleBranchTest is QECoverageBase {
 
         uint256 nonce = engine.getContribution(projId, index).consensusNonce;
         vm.prank(contributor2);
-        vm.expectRevert(IQualityEngine.NotCommitted.selector);
+        vm.expectRevert(ISapienCore.NotCommitted.selector);
         engine.settleValidator(projId, index, nonce);
     }
 
@@ -1299,7 +1325,7 @@ contract QESettleBranchTest is QECoverageBase {
         config.numberOfValidations = 4;
         token.mint(originator, FUND_AMOUNT);
         vm.startPrank(originator);
-        engine.createProject(pid2, config);
+        engine.createProject(pid2, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid2, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -1337,7 +1363,7 @@ contract QESettleBranchTest is QECoverageBase {
         config.minValidationStake = 0;
         token.mint(originator, FUND_AMOUNT);
         vm.startPrank(originator);
-        engine.createProject(pid2, config);
+        engine.createProject(pid2, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid2, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -1356,8 +1382,13 @@ contract QESettleBranchTest is QECoverageBase {
 
         _ensureStake(validator4, 1e18);
         vm.startPrank(validator4);
-        engine.setValidatorCapacity(5);
-        engine.commitValidation(pid2, index, commitHash, 5);
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(pid2, _indices);
+        }
+        engine.lockValidatorCapacity(5);
+        engine.commitValidation(pid2, index, commitHash, 5, address(0));
         engine.revealValidation(pid2, index, score, salt);
         vm.stopPrank();
 
@@ -1376,7 +1407,7 @@ contract QESettleBranchTest is QECoverageBase {
         config.minValidationStake = 0;
         token.mint(originator, FUND_AMOUNT);
         vm.startPrank(originator);
-        engine.createProject(pid2, config);
+        engine.createProject(pid2, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid2, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -1392,8 +1423,13 @@ contract QESettleBranchTest is QECoverageBase {
         bytes32 salt = keccak256(abi.encodePacked("salt", validator3, pid2, index, score));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
         vm.startPrank(validator3);
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.InsufficientStake.selector, 1, 0));
-        engine.commitValidation(pid2, index, commitHash, 0);
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(pid2, _indices);
+        }
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.InsufficientStake.selector, 1, 0));
+        engine.commitValidation(pid2, index, commitHash, 0, address(0));
         vm.stopPrank();
     }
 
@@ -1404,7 +1440,7 @@ contract QESettleBranchTest is QECoverageBase {
         _ensureStake(contributor1, STAKE_AMOUNT * 3);
         vm.startPrank(contributor1);
         (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(pid2, 1, address(0));
-        engine.contribute(claimId, indices[0], keccak256("data"));
+        engine.contribute(claimId, indices[0], keccak256("data"), "");
         vm.stopPrank();
 
         _validateAboveThreshold(pid2, indices[0]);
@@ -1419,7 +1455,7 @@ contract QESettleBranchTest is QECoverageBase {
     function test_revert_releaseContributorReward_notAccepted() public {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
         // Contribution is still Pending
-        vm.expectRevert(IQualityEngine.ContributionNotAccepted.selector);
+        vm.expectRevert(ISapienCore.ContributionNotAccepted.selector);
         engine.releaseContributorReward(projId, indices[0]);
     }
 
@@ -1430,17 +1466,17 @@ contract QESettleBranchTest is QECoverageBase {
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
-        engine.openDispute(projId, index, keccak256("evidence"));
+        engine.openDispute(projId, index, keccak256("evidence"), "evidenceCid");
 
         // Warp past the extended challenge period (7 days from dispute) but dispute still Open
         vm.warp(block.timestamp + 7 days + 1);
-        vm.expectRevert(IQualityEngine.DisputeInProgress.selector);
+        vm.expectRevert(ISapienCore.DisputeInProgress.selector);
         engine.releaseContributorReward(projId, index);
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// QualityEngine — Dispute & Report Branch Coverage
+// SapienCore — Dispute & Report Branch Coverage
 // ═══════════════════════════════════════════════════════════════════════
 
 contract QEDisputeBranchTest is QECoverageBase {
@@ -1455,25 +1491,25 @@ contract QEDisputeBranchTest is QECoverageBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
         // Contribution is still Pending (no consensus)
         vm.prank(challenger);
-        vm.expectRevert(IQualityEngine.ConsensusNotComputed.selector);
-        engine.openDispute(projId, indices[0], keccak256("evidence"));
+        vm.expectRevert(ISapienCore.ConsensusNotComputed.selector);
+        engine.openDispute(projId, indices[0], keccak256("evidence"), "evidenceCid");
     }
 
     function test_revert_openDispute_noChallengeEndsAt() public {
         // A contribution that exists but has no challengeEndsAt set
         vm.prank(challenger);
-        vm.expectRevert(IQualityEngine.ConsensusNotComputed.selector);
-        engine.openDispute(projId, 999, keccak256("evidence"));
+        vm.expectRevert(ISapienCore.ConsensusNotComputed.selector);
+        engine.openDispute(projId, 999, keccak256("evidence"), "evidenceCid");
     }
 
     function test_revert_resolveDispute_notOpen() public {
         vm.prank(admin);
-        vm.expectRevert(IQualityEngine.DisputeNotOpen.selector);
+        vm.expectRevert(ISapienCore.DisputeNotOpen.selector);
         engine.resolveDispute(projId, 0, true);
     }
 
     function test_revert_escalateDispute_notOpen() public {
-        vm.expectRevert(IQualityEngine.DisputeNotOpen.selector);
+        vm.expectRevert(ISapienCore.DisputeNotOpen.selector);
         engine.escalateDispute(projId, 0);
     }
 
@@ -1490,7 +1526,7 @@ contract QEDisputeBranchTest is QECoverageBase {
         // Open dispute on rejected contribution
         _ensureStake(contributor1, STAKE_AMOUNT);
         vm.prank(contributor1);
-        engine.openDispute(projId, index, keccak256("unfair-rejection"));
+        engine.openDispute(projId, index, keccak256("unfair-rejection"), "evidenceCid");
 
         // Warp past resolution deadline → escalate
         vm.warp(block.timestamp + 8 days);
@@ -1512,7 +1548,7 @@ contract QEDisputeBranchTest is QECoverageBase {
 
         _ensureStake(contributor1, STAKE_AMOUNT);
         vm.prank(contributor1);
-        engine.openDispute(projId, index, keccak256("bad-rejection"));
+        engine.openDispute(projId, index, keccak256("bad-rejection"), "evidenceCid");
 
         vm.prank(admin);
         engine.resolveDispute(projId, index, true);
@@ -1530,7 +1566,7 @@ contract QEDisputeBranchTest is QECoverageBase {
 
         _ensureStake(contributor1, STAKE_AMOUNT);
         vm.prank(contributor1);
-        engine.openDispute(projId, index, keccak256("weak-dispute"));
+        engine.openDispute(projId, index, keccak256("weak-dispute"), "evidenceCid");
 
         uint256 sharesBefore = vault.balanceOf(contributor1);
 
@@ -1548,7 +1584,7 @@ contract QEDisputeBranchTest is QECoverageBase {
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
-        engine.openDispute(projId, index, keccak256("evidence"));
+        engine.openDispute(projId, index, keccak256("evidence"), "evidenceCid");
 
         vm.warp(block.timestamp + 8 days);
         engine.escalateDispute(projId, index);
@@ -1560,7 +1596,7 @@ contract QEDisputeBranchTest is QECoverageBase {
 
     function test_revert_cancelExpiredCommitment_notCommitted() public {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
-        vm.expectRevert(IQualityEngine.NotCommitted.selector);
+        vm.expectRevert(ISapienCore.NotCommitted.selector);
         engine.cancelExpiredCommitment(projId, indices[0], validator1);
     }
 
@@ -1571,20 +1607,20 @@ contract QEDisputeBranchTest is QECoverageBase {
         _validate(validator1, projId, index, 8000, uint128(VALIDATOR_STAKE));
 
         vm.warp(block.timestamp + 6 days);
-        vm.expectRevert(IQualityEngine.AlreadyRevealed.selector);
+        vm.expectRevert(ISapienCore.AlreadyRevealed.selector);
         engine.cancelExpiredCommitment(projId, index, validator1);
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// QualityEngine — Originator Report Branch Coverage
+// SapienCore — Originator Report Branch Coverage
 // ═══════════════════════════════════════════════════════════════════════
 
 contract QEOriginatorReportBranchTest is QECoverageBase {
     function test_revert_reportOriginator_nonExistentProject() public {
         bytes32 pid = keccak256("nonexistent");
         vm.prank(challenger);
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.InvalidProjectConfig.selector, "project does not exist"));
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "project does not exist"));
         engine.reportOriginator(pid, keccak256("evidence"));
     }
 
@@ -1600,18 +1636,18 @@ contract QEOriginatorReportBranchTest is QECoverageBase {
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
-        vm.expectRevert(IQualityEngine.ProjectNotCancellable.selector);
+        vm.expectRevert(ISapienCore.ProjectNotCancellable.selector);
         engine.reportOriginator(pid, keccak256("evidence"));
     }
 
     function test_revert_resolveOriginatorReport_notOpen() public {
         vm.prank(admin);
-        vm.expectRevert(IQualityEngine.OriginatorReportNotOpen.selector);
+        vm.expectRevert(ISapienCore.OriginatorReportNotOpen.selector);
         engine.resolveOriginatorReport(keccak256("nonexistent"), true);
     }
 
     function test_revert_escalateOriginatorReport_notOpen() public {
-        vm.expectRevert(IQualityEngine.OriginatorReportNotOpen.selector);
+        vm.expectRevert(ISapienCore.OriginatorReportNotOpen.selector);
         engine.escalateOriginatorReport(keccak256("nonexistent"));
     }
 
@@ -1645,7 +1681,7 @@ contract QEOriginatorReportBranchTest is QECoverageBase {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// QualityEngine — Reputation & Admin Branch Coverage
+// SapienCore — Reputation & Admin Branch Coverage
 // ═══════════════════════════════════════════════════════════════════════
 
 contract QEReputationAdminBranchTest is QECoverageBase {
@@ -1713,37 +1749,37 @@ contract QEReputationAdminBranchTest is QECoverageBase {
 
     function test_revert_setDecayRate_tooHigh() public {
         vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.AdapterFeeTooHigh.selector, 600, 500));
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.AdapterFeeTooHigh.selector, 600, 500));
         engine.setDecayRate(600);
     }
 
     function test_revert_setDisputeBondBps_tooHigh() public {
         vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.DisputeBondTooHigh.selector, 6000, 5000));
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.DisputeBondTooHigh.selector, 6000, 5000));
         engine.setDisputeBondBps(6000);
     }
 
     function test_revert_setOriginatorStakeRequirement_tooHigh() public {
+        uint256 largeAmount = uint256(type(uint128).max) + 1;
         vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.InvalidProjectConfig.selector, "amount exceeds uint128"));
-        engine.setOriginatorStakeRequirement(type(uint256).max);
+        engine.setOriginatorStakeRequirement(largeAmount);
     }
 
     function test_revert_setOriginatorReportBondBps_tooHigh() public {
         vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.AdapterFeeTooHigh.selector, 2000, 1000));
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.AdapterFeeTooHigh.selector, 2000, 1000));
         engine.setOriginatorReportBondBps(2000);
     }
 
     function test_revert_setContributionFee_tooHigh() public {
         vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.AdapterFeeTooHigh.selector, 600, 500));
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.AdapterFeeTooHigh.selector, 600, 500));
         engine.setContributionFee(600);
     }
 
     function test_revert_setValidationFee_tooHigh() public {
         vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(IQualityEngine.AdapterFeeTooHigh.selector, 600, 500));
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.AdapterFeeTooHigh.selector, 600, 500));
         engine.setValidationFee(600);
     }
 
@@ -1805,7 +1841,7 @@ contract QEReputationAdminBranchTest is QECoverageBase {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// QualityEngine — Validation Adapter Fee Coverage
+// SapienCore — Validation Adapter Fee Coverage
 // ═══════════════════════════════════════════════════════════════════════
 
 contract QEValidationAdapterFeeTest is QECoverageBase {
@@ -1828,7 +1864,7 @@ contract QEValidationAdapterFeeTest is QECoverageBase {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// QualityEngine — Additional Edge Cases for Remaining Coverage Gaps
+// SapienCore — Additional Edge Cases for Remaining Coverage Gaps
 // ═══════════════════════════════════════════════════════════════════════
 
 contract QERemainingGapsTest is QECoverageBase {
@@ -1844,7 +1880,7 @@ contract QERemainingGapsTest is QECoverageBase {
         config.minStakeToClaim = 0;
         token.mint(originator, FUND_AMOUNT);
         vm.startPrank(originator);
-        engine.createProject(pid, config);
+        engine.createProject(pid, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -1860,8 +1896,13 @@ contract QERemainingGapsTest is QECoverageBase {
             bytes32 commitHash = keccak256(abi.encodePacked(scores[i], salt));
             _ensureStake(vals[i], 1e18);
             vm.startPrank(vals[i]);
-            engine.setValidatorCapacity(9);
-            engine.commitValidation(pid, index, commitHash, 9);
+            {
+                uint256[] memory _indices = new uint256[](1);
+                _indices[0] = index;
+                engine.claimToValidate(pid, _indices);
+            }
+            engine.lockValidatorCapacity(9);
+            engine.commitValidation(pid, index, commitHash, 9, address(0));
             engine.revealValidation(pid, index, scores[i], salt);
             vm.stopPrank();
         }
@@ -1917,7 +1958,7 @@ contract QERemainingGapsTest is QECoverageBase {
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
-        engine.openDispute(pid, index, keccak256("evidence"));
+        engine.openDispute(pid, index, keccak256("evidence"), "evidenceCid");
 
         Dispute memory d = engine.getDispute(pid, index);
         assertEq(d.bondAmount, 1);
@@ -1949,7 +1990,7 @@ contract QERemainingGapsTest is QECoverageBase {
         token.mint(originator, FUND_AMOUNT);
         _ensureStake(originator, 500e18);
         vm.startPrank(originator);
-        engine.createProject(pid, _defaultConfig());
+        engine.createProject(pid, "", _defaultConfig());
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -1978,7 +2019,7 @@ contract QERemainingGapsTest is QECoverageBase {
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
-        engine.openDispute(pid, index, keccak256("evidence"));
+        engine.openDispute(pid, index, keccak256("evidence"), "evidenceCid");
 
         vm.prank(admin);
         engine.resolveDispute(pid, index, true);
@@ -1996,7 +2037,7 @@ contract QERemainingGapsTest is QECoverageBase {
         config.numberOfValidations = 5;
         token.mint(originator, FUND_AMOUNT);
         vm.startPrank(originator);
-        engine.createProject(pid, config);
+        engine.createProject(pid, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -2057,7 +2098,7 @@ contract QERemainingGapsTest is QECoverageBase {
         config.minValidatorReputation = 0;
         token.mint(originator, FUND_AMOUNT);
         vm.startPrank(originator);
-        engine.createProject(pid2, config);
+        engine.createProject(pid2, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid2, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -2099,7 +2140,7 @@ contract QERemainingGapsTest is QECoverageBase {
         config.requiredSkill = keccak256("SPECIAL_SKILL");
         token.mint(originator, FUND_AMOUNT);
         vm.startPrank(originator);
-        engine.createProject(pid, config);
+        engine.createProject(pid, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -2119,7 +2160,7 @@ contract QERemainingGapsTest is QECoverageBase {
         config.minStakeToClaim = 0;
         token.mint(originator, FUND_AMOUNT);
         vm.startPrank(originator);
-        engine.createProject(pid, config);
+        engine.createProject(pid, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -2136,7 +2177,7 @@ contract QERemainingGapsTest is QECoverageBase {
         config.minStakeToClaim = 0;
         token.mint(originator, FUND_AMOUNT);
         vm.startPrank(originator);
-        engine.createProject(pid, config);
+        engine.createProject(pid, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -2157,7 +2198,7 @@ contract QERemainingGapsTest is QECoverageBase {
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
-        engine.openDispute(pid, index, keccak256("bad-evidence"));
+        engine.openDispute(pid, index, keccak256("bad-evidence"), "evidenceCid");
 
         // Reject the dispute — should set challengeEndsAt to now
         vm.prank(admin);
@@ -2218,50 +2259,49 @@ contract DirectInitCoverageTest is Test {
         token = new MockERC20("Sapien Token", "SPN");
     }
 
-    /// @notice Deploy QualityEngine implementation directly — covers constructor _disableInitializers
+    /// @notice Deploy SapienCore implementation directly — covers constructor _disableInitializers
     function test_QE_constructorDisablesInitializers() public {
-        QualityEngine impl = new QualityEngine();
+        SapienCore impl = new SapienCore();
         // Should revert if we try to initialize the implementation
         vm.expectRevert();
-        impl.initialize(address(this), address(1), address(2), address(0));
+        impl.initialize(address(this), address(1), address(2));
     }
 
-    /// @notice Deploy StakeVault implementation directly — covers constructor _disableInitializers
+    /// @notice Deploy SapienVault implementation directly — covers constructor _disableInitializers
     function test_SV_constructorDisablesInitializers() public {
-        StakeVault impl = new StakeVault();
+        SapienVault impl = new SapienVault();
         // Should revert if we try to initialize the implementation
         vm.expectRevert();
         impl.initialize(IERC20(address(token)), address(this));
     }
 
-    /// @notice Initialize QualityEngine through proxy covering all init lines
+    /// @notice Initialize SapienCore through proxy covering all init lines
     function test_QE_fullInitialize() public {
-        QualityEngine impl = new QualityEngine();
+        SapienCore impl = new SapienCore();
         address admin_ = makeAddr("admin");
         address vault_ = makeAddr("vault");
         address treasury_ = makeAddr("treasury");
-        address consensus_ = makeAddr("consensus");
 
-        bytes memory initData = abi.encodeCall(QualityEngine.initialize, (admin_, vault_, treasury_, consensus_));
-        QualityEngine engine = QualityEngine(address(new ERC1967Proxy(address(impl), initData)));
+        bytes memory initData = abi.encodeCall(SapienCore.initialize, (admin_, vault_, treasury_));
+        SapienCore engine = SapienCore(address(new ERC1967Proxy(address(impl), initData)));
 
         assertTrue(engine.hasRole(engine.DEFAULT_ADMIN_ROLE(), admin_));
     }
 
-    /// @notice Initialize StakeVault through proxy covering all init lines
+    /// @notice Initialize SapienVault through proxy covering all init lines
     function test_SV_fullInitialize() public {
-        StakeVault impl = new StakeVault();
+        SapienVault impl = new SapienVault();
         address admin_ = makeAddr("admin");
 
-        bytes memory initData = abi.encodeCall(StakeVault.initialize, (IERC20(address(token)), admin_));
-        StakeVault vault = StakeVault(address(new ERC1967Proxy(address(impl), initData)));
+        bytes memory initData = abi.encodeCall(SapienVault.initialize, (IERC20(address(token)), admin_));
+        SapienVault vault = SapienVault(address(new ERC1967Proxy(address(impl), initData)));
 
         assertTrue(vault.hasRole(vault.DEFAULT_ADMIN_ROLE(), admin_));
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// QualityEngine — Explicit Branch Coverage for ir-minimum stubborn paths
+// SapienCore — Explicit Branch Coverage for ir-minimum stubborn paths
 // ═══════════════════════════════════════════════════════════════════════
 
 contract QEExplicitBranchTest is QECoverageBase {
@@ -2321,7 +2361,7 @@ contract QEExplicitBranchTest is QECoverageBase {
 
         _ensureStake(contributor1, STAKE_AMOUNT);
         vm.prank(contributor1);
-        engine.openDispute(pid, index, keccak256("dispute-rejected"));
+        engine.openDispute(pid, index, keccak256("dispute-rejected"), "evidenceCid");
 
         Dispute memory d = engine.getDispute(pid, index);
         assertEq(uint256(d.status), uint256(DisputeStatus.Open));
@@ -2337,8 +2377,8 @@ contract QEExplicitBranchTest is QECoverageBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
 
         vm.prank(challenger);
-        vm.expectRevert(IQualityEngine.ConsensusNotComputed.selector);
-        engine.openDispute(pid, indices[0], keccak256("evidence"));
+        vm.expectRevert(ISapienCore.ConsensusNotComputed.selector);
+        engine.openDispute(pid, indices[0], keccak256("evidence"), "evidenceCid");
     }
 
     /// @notice resolveDispute rejected on accepted contribution (line 974 branch 1 + line 1015)
@@ -2352,7 +2392,7 @@ contract QEExplicitBranchTest is QECoverageBase {
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
-        engine.openDispute(pid, index, keccak256("weak-evidence"));
+        engine.openDispute(pid, index, keccak256("weak-evidence"), "evidenceCid");
 
         vm.prank(admin);
         engine.resolveDispute(pid, index, false);
@@ -2373,7 +2413,7 @@ contract QEExplicitBranchTest is QECoverageBase {
 
         _ensureStake(contributor1, STAKE_AMOUNT);
         vm.prank(contributor1);
-        engine.openDispute(pid, index, keccak256("weak-dispute"));
+        engine.openDispute(pid, index, keccak256("weak-dispute"), "evidenceCid");
 
         vm.prank(admin);
         engine.resolveDispute(pid, index, false);
@@ -2422,7 +2462,7 @@ contract QEExplicitBranchTest is QECoverageBase {
         engine.computeConsensus(pid2, indices2[0]);
     }
 
-    /// @notice QualityEngine pause blocks whenNotPaused functions
+    /// @notice SapienCore pause blocks whenNotPaused functions
     function test_engine_pause_blocks_operations() public {
         bytes32 pid = keccak256("cov-explicit-pause");
         _setupProject(pid, FUND_AMOUNT, QUANTITY);
@@ -2444,7 +2484,7 @@ contract QEExplicitBranchTest is QECoverageBase {
         engine.claimToContribute(pid, 1, adapter);
     }
 
-    /// @notice StakeVault pause/unpause explicit test
+    /// @notice SapienVault pause/unpause explicit test
     function test_vault_pause_unpause_explicit() public {
         vm.prank(admin);
         vault.pause();
@@ -2457,7 +2497,7 @@ contract QEExplicitBranchTest is QECoverageBase {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// QualityEngine — Full Path Coverage (covers lines missed by fuzz exclusion)
+// SapienCore — Full Path Coverage (covers lines missed by fuzz exclusion)
 // ═══════════════════════════════════════════════════════════════════════
 
 contract QEFullPathCoverageTest is QECoverageBase {
@@ -2485,20 +2525,22 @@ contract QEFullPathCoverageTest is QECoverageBase {
         config.minValidatorReputation = 9999; // very high bar
         token.mint(originator, FUND_AMOUNT);
         vm.startPrank(originator);
-        engine.createProject(pid, config);
+        engine.createProject(pid, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
 
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
 
-        bytes32 salt = keccak256("salt");
-        bytes32 commitHash = keccak256(abi.encodePacked(uint16(8000), salt));
         _ensureStake(validator1, VALIDATOR_STAKE * 3);
         vm.startPrank(validator1);
-        engine.setValidatorCapacity(uint128(VALIDATOR_STAKE));
+        engine.lockValidatorCapacity(uint128(VALIDATOR_STAKE));
         vm.expectRevert(); // InsufficientReputation
-        engine.commitValidation(pid, indices[0], commitHash, uint128(VALIDATOR_STAKE));
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = indices[0];
+            engine.claimToValidate(pid, _indices);
+        }
         vm.stopPrank();
     }
 
@@ -2515,7 +2557,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         engine.releaseContributorReward(pid, index);
 
         // Second release should revert
-        vm.expectRevert(IQualityEngine.RewardAlreadyReleased.selector);
+        vm.expectRevert(ISapienCore.RewardAlreadyReleased.selector);
         engine.releaseContributorReward(pid, index);
     }
 
@@ -2530,13 +2572,13 @@ contract QEFullPathCoverageTest is QECoverageBase {
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
-        engine.openDispute(pid, index, keccak256("evidence"));
+        engine.openDispute(pid, index, keccak256("evidence"), "evidenceCid");
 
         vm.prank(admin);
         engine.resolveDispute(pid, index, true); // upheld
 
         vm.warp(block.timestamp + 30 days);
-        vm.expectRevert(IQualityEngine.DisputeInProgress.selector);
+        vm.expectRevert(ISapienCore.DisputeInProgress.selector);
         engine.releaseContributorReward(pid, index);
     }
 
@@ -2553,8 +2595,13 @@ contract QEFullPathCoverageTest is QECoverageBase {
         bytes32 commitHash = keccak256(abi.encodePacked(uint16(8000), salt));
         _ensureStake(validator1, VALIDATOR_STAKE * 3);
         vm.startPrank(validator1);
-        engine.setValidatorCapacity(uint128(VALIDATOR_STAKE));
-        engine.commitValidation(pid, index, commitHash, uint128(VALIDATOR_STAKE));
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(pid, _indices);
+        }
+        engine.lockValidatorCapacity(uint128(VALIDATOR_STAKE));
+        engine.commitValidation(pid, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
         vm.stopPrank();
 
         // Warp past commit + reveal deadline
@@ -2576,8 +2623,8 @@ contract QEFullPathCoverageTest is QECoverageBase {
         // contributor1 tries to dispute their own accepted contribution
         _ensureStake(contributor1, STAKE_AMOUNT);
         vm.prank(contributor1);
-        vm.expectRevert(IQualityEngine.CannotDisputeOwnContribution.selector);
-        engine.openDispute(pid, index, keccak256("self-dispute"));
+        vm.expectRevert(ISapienCore.CannotDisputeOwnContribution.selector);
+        engine.openDispute(pid, index, keccak256("self-dispute"), "evidenceCid");
     }
 
     // ── DisputeWindowClosed (line 915) ───────────────────────────────
@@ -2594,8 +2641,8 @@ contract QEFullPathCoverageTest is QECoverageBase {
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
-        vm.expectRevert(IQualityEngine.DisputeWindowClosed.selector);
-        engine.openDispute(pid, index, keccak256("too-late"));
+        vm.expectRevert(ISapienCore.DisputeWindowClosed.selector);
+        engine.openDispute(pid, index, keccak256("too-late"), "evidenceCid");
     }
 
     // ── DisputeAlreadyOpen (line 919) ────────────────────────────────
@@ -2609,11 +2656,11 @@ contract QEFullPathCoverageTest is QECoverageBase {
 
         _ensureStake(challenger, STAKE_AMOUNT * 2);
         vm.prank(challenger);
-        engine.openDispute(pid, index, keccak256("first"));
+        engine.openDispute(pid, index, keccak256("first"), "evidenceCid");
 
         vm.prank(challenger);
-        vm.expectRevert(IQualityEngine.DisputeAlreadyOpen.selector);
-        engine.openDispute(pid, index, keccak256("second"));
+        vm.expectRevert(ISapienCore.DisputeAlreadyOpen.selector);
+        engine.openDispute(pid, index, keccak256("second"), "evidenceCid");
     }
 
     // ── escalateDispute too early (line 1027-1028) ───────────────────
@@ -2627,10 +2674,10 @@ contract QEFullPathCoverageTest is QECoverageBase {
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
-        engine.openDispute(pid, index, keccak256("evidence"));
+        engine.openDispute(pid, index, keccak256("evidence"), "evidenceCid");
 
         // Try to escalate immediately (before 7 day resolution deadline)
-        vm.expectRevert(IQualityEngine.DisputeResolutionNotExpired.selector);
+        vm.expectRevert(ISapienCore.DisputeResolutionNotExpired.selector);
         engine.escalateDispute(pid, index);
     }
 
@@ -2663,7 +2710,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         token.mint(originator, FUND_AMOUNT);
         _ensureStake(originator, 500e18);
         vm.startPrank(originator);
-        engine.createProject(pid, _defaultConfig());
+        engine.createProject(pid, "", _defaultConfig());
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -2690,7 +2737,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         vm.prank(challenger);
         engine.reportOriginator(pid, keccak256("evidence"));
 
-        vm.expectRevert(IQualityEngine.DisputeResolutionNotExpired.selector);
+        vm.expectRevert(ISapienCore.DisputeResolutionNotExpired.selector);
         engine.escalateOriginatorReport(pid);
     }
 
@@ -2702,7 +2749,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
 
         _ensureStake(originator, STAKE_AMOUNT);
         vm.prank(originator);
-        vm.expectRevert(IQualityEngine.NotProjectOriginator.selector);
+        vm.expectRevert(ISapienCore.NotProjectOriginator.selector);
         engine.reportOriginator(pid, keccak256("evidence"));
     }
 
@@ -2717,7 +2764,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         engine.reportOriginator(pid, keccak256("first"));
 
         vm.prank(challenger);
-        vm.expectRevert(IQualityEngine.OriginatorReportAlreadyOpen.selector);
+        vm.expectRevert(ISapienCore.OriginatorReportAlreadyOpen.selector);
         engine.reportOriginator(pid, keccak256("second"));
     }
 
@@ -2732,7 +2779,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
 
         // Try to claim while report is open
         vm.prank(contributor1);
-        vm.expectRevert(IQualityEngine.DisputeInProgress.selector);
+        vm.expectRevert(ISapienCore.DisputeInProgress.selector);
         engine.claimToContribute(pid, 1, adapter);
     }
 
@@ -2743,12 +2790,12 @@ contract QEFullPathCoverageTest is QECoverageBase {
 
         vm.startPrank(contributor1);
         (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(pid, 1, adapter);
-        engine.contribute(claimId, indices[0], keccak256("sub1"));
+        engine.contribute(claimId, indices[0], keccak256("sub1"), "");
         // Claim is now Completed (single index, submitted)
 
         // Try to contribute again — claim status is Completed
-        vm.expectRevert(IQualityEngine.ClaimDeadlinePassed.selector);
-        engine.contribute(claimId, indices[0], keccak256("sub2"));
+        vm.expectRevert(ISapienCore.ClaimDeadlinePassed.selector);
+        engine.contribute(claimId, indices[0], keccak256("sub2"), "");
         vm.stopPrank();
     }
 
@@ -2766,7 +2813,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         config.minValidatorReputation = 1; // low bar, so it passes but exercises the path
         token.mint(originator, FUND_AMOUNT);
         vm.startPrank(originator);
-        engine.createProject(pid, config);
+        engine.createProject(pid, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -2784,7 +2831,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         config.minValidatorReputation = 1;
         token.mint(originator, FUND_AMOUNT);
         vm.startPrank(originator);
-        engine.createProject(pid, config);
+        engine.createProject(pid, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -2803,7 +2850,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         config.minValidatorReputation = 1;
         token.mint(originator, FUND_AMOUNT);
         vm.startPrank(originator);
-        engine.createProject(pid2, config);
+        engine.createProject(pid2, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid2, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -2815,9 +2862,8 @@ contract QEFullPathCoverageTest is QECoverageBase {
 
     // ── initialize ZeroAddress for admin (line 190) ──────────────────
     function test_revert_initializeZeroAdmin_directProxy() public {
-        QualityEngine impl = new QualityEngine();
-        bytes memory initData =
-            abi.encodeCall(QualityEngine.initialize, (address(0), address(1), address(2), address(0)));
+        SapienCore impl = new SapienCore();
+        bytes memory initData = abi.encodeCall(SapienCore.initialize, (address(0), address(1), address(2)));
         vm.expectRevert();
         new ERC1967Proxy(address(impl), initData);
     }
@@ -2849,12 +2895,17 @@ contract QEFullPathCoverageTest is QECoverageBase {
         bytes32 commitHash = keccak256(abi.encodePacked(uint16(8000), salt));
         _ensureStake(validator1, VALIDATOR_STAKE * 3);
         vm.startPrank(validator1);
-        engine.setValidatorCapacity(uint128(VALIDATOR_STAKE));
-        engine.commitValidation(pid, index, commitHash, uint128(VALIDATOR_STAKE));
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(pid, _indices);
+        }
+        engine.lockValidatorCapacity(uint128(VALIDATOR_STAKE));
+        engine.commitValidation(pid, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
         vm.stopPrank();
 
         // Try to cancel before expiry
-        vm.expectRevert(IQualityEngine.ClaimDeadlineNotPassed.selector);
+        vm.expectRevert(ISapienCore.ClaimDeadlineNotPassed.selector);
         engine.cancelExpiredCommitment(pid, index, validator1);
     }
 
@@ -2867,8 +2918,8 @@ contract QEFullPathCoverageTest is QECoverageBase {
 
         // Try to dispute index 999 which was never claimed/submitted
         vm.prank(challenger);
-        vm.expectRevert(IQualityEngine.ConsensusNotComputed.selector);
-        engine.openDispute(pid, 999, keccak256("evidence"));
+        vm.expectRevert(ISapienCore.ConsensusNotComputed.selector);
+        engine.openDispute(pid, 999, keccak256("evidence"), "evidenceCid");
     }
 
     // ── Validator reward exceeds available escrow (lines 801-802) ────
@@ -2882,7 +2933,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         uint256 smallFund = 100; // tiny fund (after protocol fee, very little left)
         token.mint(originator, smallFund);
         vm.startPrank(originator);
-        engine.createProject(pid, config);
+        engine.createProject(pid, "", config);
         token.approve(address(engine), smallFund);
         engine.fundProject(pid, smallFund, 1, adapter);
         vm.stopPrank();
@@ -2914,7 +2965,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         config.minValidatorReputation = 1;
         token.mint(originator, FUND_AMOUNT * 2);
         vm.startPrank(originator);
-        engine.createProject(pid, config);
+        engine.createProject(pid, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -2932,7 +2983,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         // on initialized validator with decayBps > 0 and daysSinceUpdate > 0
         bytes32 pid2 = keccak256("cov-rep-cached-all-2");
         vm.startPrank(originator);
-        engine.createProject(pid2, config);
+        engine.createProject(pid2, "", config);
         token.approve(address(engine), FUND_AMOUNT);
         engine.fundProject(pid2, FUND_AMOUNT, QUANTITY, adapter);
         vm.stopPrank();
@@ -2945,14 +2996,14 @@ contract QEFullPathCoverageTest is QECoverageBase {
 
     // ── Initialize with zero admin via proxy (different approach for line 192) ──
     function test_revert_initializeZeroAdmin_coveragePath() public {
-        QualityEngine impl = new QualityEngine();
+        SapienCore impl = new SapienCore();
         // Deploy proxy with no init data
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), "");
-        QualityEngine eng = QualityEngine(address(proxy));
+        SapienCore eng = SapienCore(address(proxy));
 
         // Call initialize separately (not in constructor) for better coverage
-        vm.expectRevert(IQualityEngine.ZeroAddress.selector);
-        eng.initialize(address(0), address(vault), treasury, address(0));
+        vm.expectRevert(ISapienCore.ZeroAddress.selector);
+        eng.initialize(address(0), address(vault), treasury);
     }
 
     // ── claimReward success path (line 793) ─────────────────────────
@@ -2981,7 +3032,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
     // ── claimReward with zero pending (line 792 branch 0) ───────────
     function test_revert_claimReward_noReward() public {
         vm.prank(contributor1);
-        vm.expectRevert(IQualityEngine.NoRewardToClaim.selector);
+        vm.expectRevert(ISapienCore.NoRewardToClaim.selector);
         engine.claimReward(address(token));
     }
 
@@ -2993,25 +3044,11 @@ contract QEFullPathCoverageTest is QECoverageBase {
         assertEq(valBps, 200);
     }
 
-    // ── setConsensusAlgorithm ─────────────────────────────────
-    function test_setConsensusAlgorithm() public {
-        address algo = makeAddr("algo");
-        vm.prank(admin);
-        engine.setConsensusAlgorithm(algo);
-    }
-
-    function test_revert_setConsensusAlgorithm_zeroAddress() public {
-        vm.prank(admin);
-        vm.expectRevert(IQualityEngine.ZeroAddress.selector);
-        engine.setConsensusAlgorithm(address(0));
-    }
-
     // ── initialize with zero treasury (line 190) ─────────────
     function test_revert_initialize_zeroTreasury() public {
-        QualityEngine impl = new QualityEngine();
-        bytes memory initData =
-            abi.encodeCall(QualityEngine.initialize, (admin, address(vault), address(0), address(0)));
-        vm.expectRevert(IQualityEngine.ZeroAddress.selector);
+        SapienCore impl = new SapienCore();
+        bytes memory initData = abi.encodeCall(SapienCore.initialize, (admin, address(vault), address(0)));
+        vm.expectRevert(ISapienCore.ZeroAddress.selector);
         new ERC1967Proxy(address(impl), initData);
     }
 }

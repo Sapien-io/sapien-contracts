@@ -3,7 +3,7 @@ pragma solidity ^0.8.30;
 
 import {BaseTest} from "test/BaseTest.sol";
 import {Project, ProjectStatus} from "src/Types.sol";
-import {IQualityEngine} from "src/interfaces/IQualityEngine.sol";
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 
 /// @title SEC-L-01 FIX VERIFICATION: createProject rejects mismatched originator
 /// @notice Verifies that createProject now reverts with InvalidProjectConfig when
@@ -17,12 +17,11 @@ contract SEC_L_01_OriginatorIgnored is BaseTest {
         // FIX VERIFIED: passing a different originator now reverts
         vm.prank(originator);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                IQualityEngine.InvalidProjectConfig.selector, "originator must be msg.sender or zero"
-            )
+            abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "originator must be msg.sender or zero")
         );
         engine.createProject(
             projectId,
+            "",
             Project({
                 originator: intendedOriginator,
                 rewardToken: address(token),
@@ -50,6 +49,7 @@ contract SEC_L_01_OriginatorIgnored is BaseTest {
         vm.prank(originator);
         engine.createProject(
             projectId,
+            "",
             Project({
                 originator: address(0),
                 rewardToken: address(token),
@@ -80,6 +80,7 @@ contract SEC_L_01_OriginatorIgnored is BaseTest {
         vm.prank(originator);
         engine.createProject(
             projectId,
+            "",
             Project({
                 originator: originator,
                 rewardToken: address(token),

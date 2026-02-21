@@ -2,8 +2,8 @@
 pragma solidity ^0.8.30;
 
 import {Test} from "forge-std/Test.sol";
-import {QualityEngine} from "src/QualityEngine.sol";
-import {StakeVault} from "src/StakeVault.sol";
+import {SapienCore} from "src/SapienCore.sol";
+import {SapienVault} from "src/SapienVault.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
 import {
     Project,
@@ -16,16 +16,16 @@ import {
     StakeAccount
 } from "src/Types.sol";
 
-/// @title QualityEngineHandler
+/// @title SapienCoreHandler
 /// @notice Foundry invariant-test handler that drives the full PoQ protocol lifecycle
 ///         through valid state transitions while tracking ghost variables for invariant checks.
 /// @dev Uses a state-machine approach: tracks which projects/contributions are at which phase
 ///      and only invokes the appropriate next operation. Ghost variables track token flows
 ///      for solvency invariants.
-contract QualityEngineHandler is Test {
+contract SapienCoreHandler is Test {
     // ── Contracts ────────────────────────────────────────────────────────
-    QualityEngine public engine;
-    StakeVault public vault;
+    SapienCore public engine;
+    SapienVault public vault;
     MockERC20 public token;
 
     // ── Actors ──────────────────────────────────────────────────────────
@@ -105,8 +105,8 @@ contract QualityEngineHandler is Test {
     uint256 public nextProjectSeed;
 
     constructor(
-        QualityEngine engine_,
-        StakeVault vault_,
+        SapienCore engine_,
+        SapienVault vault_,
         MockERC20 token_,
         address originator_,
         address[] memory contributors_,
@@ -168,7 +168,7 @@ contract QualityEngineHandler is Test {
             completedAt: 0
         });
 
-        engine.createProject(projectId, config);
+        engine.createProject(projectId, "", config);
 
         token.approve(address(engine), fundAmount);
         engine.fundProject(projectId, fundAmount, QUANTITY, adapter);
@@ -226,7 +226,7 @@ contract QualityEngineHandler is Test {
 
         // Submit contribution immediately
         bytes32 hash = keccak256(abi.encodePacked("submission", projectId, indices[0], block.timestamp));
-        engine.contribute(claimId, indices[0], hash);
+        engine.contribute(claimId, indices[0], hash, "");
         vm.stopPrank();
 
         // Track as pending (ready for validation)
@@ -277,7 +277,7 @@ contract QualityEngineHandler is Test {
             }
 
             vm.startPrank(validator);
-            engine.setValidatorCapacity(VALIDATOR_STAKE);
+            engine.lockValidatorCapacity(VALIDATOR_STAKE);
             vm.stopPrank();
         }
 
@@ -288,7 +288,12 @@ contract QualityEngineHandler is Test {
         bytes32 commitHash = keccak256(abi.encodePacked(pc.projectId, pc.index, nonce, validator, score, salt));
 
         vm.startPrank(validator);
-        engine.commitValidation(pc.projectId, pc.index, commitHash, uint128(VALIDATOR_STAKE));
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = pc.index;
+            engine.claimToValidate(pc.projectId, _indices);
+        }
+        engine.commitValidation(pc.projectId, pc.index, commitHash, uint128(VALIDATOR_STAKE), address(0));
         engine.revealValidation(pc.projectId, pc.index, score, salt);
         vm.stopPrank();
 

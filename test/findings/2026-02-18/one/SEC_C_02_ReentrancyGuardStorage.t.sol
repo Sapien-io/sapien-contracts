@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "test/BaseTest.sol";
-import {QualityEngine} from "src/QualityEngine.sol";
+import {SapienCore} from "src/SapienCore.sol";
 
 /// @title SEC-C-02 FIX VERIFICATION: ReentrancyGuard properly initialized in proxy
 /// @notice Verifies that the proxy's ReentrancyGuard storage slot is now properly
@@ -20,10 +20,13 @@ contract SEC_C_02_ReentrancyGuardStorage is BaseTest {
         assertEq(uint256(status), NOT_ENTERED, "proxy _status should be NOT_ENTERED (1) after initialize()");
     }
 
-    function test_implementationHasConstructorInitializedStatus() public {
-        QualityEngine impl = new QualityEngine();
+    function test_implementationHasUninitializedStatus() public {
+        // With ReentrancyGuardUpgradeable the constructor only calls _disableInitializers();
+        // __ReentrancyGuard_init() runs in initialize(), which is proxy-only.
+        // So the bare implementation's ERC-7201 slot stays at the default (0).
+        SapienCore impl = new SapienCore();
         bytes32 status = vm.load(address(impl), REENTRANCY_GUARD_SLOT);
-        assertEq(uint256(status), NOT_ENTERED, "implementation _status should be NOT_ENTERED (1)");
+        assertEq(uint256(status), 0, "implementation slot should be 0 (uninitialised, initializers disabled)");
     }
 
     function test_proxyStatusRemainsNotEnteredAfterGuardedCall() public {
