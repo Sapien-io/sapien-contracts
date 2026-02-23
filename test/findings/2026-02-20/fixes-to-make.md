@@ -26,3 +26,4 @@ StakeVault -> SapienVault (the docs name)
 
 EXTRA FEATURES
 - Need to add the ability for an Origintator to Pause all new claims on a project, then stop the project and remove funds. However, they must allow all previous claims, contributions and validations to complete prior to remove funds and stopping the project.
+- need to add Validation adapter fee (validationFeeBps)
