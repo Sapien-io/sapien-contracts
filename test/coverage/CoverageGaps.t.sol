@@ -51,7 +51,7 @@ contract ConsensusLibCoverageTest is Test {
 
     function test_revert_emptyInput() public {
         ValidationInput[] memory inputs = new ValidationInput[](0);
-        vm.expectRevert("ConsensusLib: no inputs");
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.ConsensusNotReady.selector, 0, 1));
         harness.calculate(inputs);
     }
 
@@ -482,6 +482,10 @@ contract QECoverageBase is Test {
         }
     }
 
+    function _warpPastChallengePeriod() internal {
+        vm.warp(block.timestamp + engine.challengePeriod() + 1);
+    }
+
     function _ensureStake(address user, uint256 needed) internal {
         uint256 available = vault.availableBalance(user);
         if (available < needed) {
@@ -510,7 +514,8 @@ contract QECoverageBase is Test {
             minValidationStake: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
-            completedAt: 0
+            completedAt: 0,
+            cancelledAt: 0
         });
     }
 
@@ -568,6 +573,7 @@ contract QECoverageBase is Test {
     }
 
     function _settleAllValidators(bytes32 projectId, uint256 index) internal {
+        _warpPastChallengePeriod();
         uint256 nonce = engine.getContribution(projectId, index).consensusNonce;
         vm.prank(validator1);
         engine.settleValidator(projectId, index, nonce);
@@ -1042,10 +1048,11 @@ contract QEClaimBranchTest is QECoverageBase {
 
         vm.warp(block.timestamp + 8 days);
 
-        // Try to expire claimId1 with claimId2's indices — fails because claimId mismatch
+        // Try to expire claimId1 with claimId2's indices — wrong index is skipped but
+        // invariant check catches that unsubmitted count doesn't match
         uint256[] memory mixedIndices = new uint256[](1);
         mixedIndices[0] = indices2[0];
-        vm.expectRevert(ISapienCore.IndexNotInClaim.selector);
+        vm.expectRevert(ISapienCore.InvalidIndex.selector);
         engine.expireClaim(claimId1, mixedIndices);
     }
 
@@ -1340,13 +1347,15 @@ contract QESettleBranchTest is QECoverageBase {
 
         engine.computeConsensus(pid2, index);
 
-        // Settle outlier validator4
         uint256 nonce = engine.getContribution(pid2, index).consensusNonce;
+
+        // Settle outlier validator4 immediately (no challenge period needed for outliers)
         vm.prank(validator4);
         engine.settleValidator(pid2, index, nonce);
         assertTrue(engine.isValidatorOutlier(pid2, index, validator4));
 
-        // Settle accurate validators
+        // Settle accurate validators after challenge period
+        _warpPastChallengePeriod();
         vm.prank(validator1);
         engine.settleValidator(pid2, index, nonce);
         vm.prank(validator2);
@@ -1462,7 +1471,9 @@ contract QESettleBranchTest is QECoverageBase {
     function test_revert_releaseContributorReward_disputeOpen() public {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
         uint256 index = indices[0];
-        _fullAcceptanceFlow(projId, index);
+        // Validate + compute without warping — dispute must be opened within challenge window
+        _validateAboveThreshold(projId, index);
+        engine.computeConsensus(projId, index);
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
@@ -1580,7 +1591,9 @@ contract QEDisputeBranchTest is QECoverageBase {
     function test_escalateDispute_onAcceptedContribution() public {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
         uint256 index = indices[0];
-        _fullAcceptanceFlow(projId, index);
+        // Validate + compute without warping — dispute must be opened within challenge window
+        _validateAboveThreshold(projId, index);
+        engine.computeConsensus(projId, index);
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
@@ -1620,7 +1633,7 @@ contract QEOriginatorReportBranchTest is QECoverageBase {
     function test_revert_reportOriginator_nonExistentProject() public {
         bytes32 pid = keccak256("nonexistent");
         vm.prank(challenger);
-        vm.expectRevert(abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "project does not exist"));
+        vm.expectRevert(ISapienCore.ProjectNotFound.selector);
         engine.reportOriginator(pid, keccak256("evidence"));
     }
 
@@ -1909,7 +1922,8 @@ contract QERemainingGapsTest is QECoverageBase {
 
         engine.computeConsensus(pid, index);
 
-        // Settle all — validator4 is outlier with slashAmt=0, committedStake=9
+        // Settle all — validator4 is outlier (no challenge period needed), others need warp
+        _warpPastChallengePeriod();
         uint256 nonce = engine.getContribution(pid, index).consensusNonce;
         for (uint256 i; i < 4; ++i) {
             vm.prank(vals[i]);
@@ -1954,7 +1968,9 @@ contract QERemainingGapsTest is QECoverageBase {
 
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
         uint256 index = indices[0];
-        _fullAcceptanceFlow(pid, index);
+        // Validate + compute without warping — dispute must be opened within challenge window
+        _validateAboveThreshold(pid, index);
+        engine.computeConsensus(pid, index);
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
@@ -2015,7 +2031,9 @@ contract QERemainingGapsTest is QECoverageBase {
 
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
         uint256 index = indices[0];
-        _fullAcceptanceFlow(pid, index);
+        // Validate + compute without warping — dispute must be opened within challenge window
+        _validateAboveThreshold(pid, index);
+        engine.computeConsensus(pid, index);
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
@@ -2060,7 +2078,8 @@ contract QERemainingGapsTest is QECoverageBase {
 
         engine.computeConsensus(pid, index);
 
-        // Settle all validators — validator5 is outlier with partial slash
+        // Settle all validators — validator5 is outlier (no challenge period), others need warp
+        _warpPastChallengePeriod();
         uint256 nonce = engine.getContribution(pid, index).consensusNonce;
         vm.prank(validator1);
         engine.settleValidator(pid, index, nonce);
@@ -2124,7 +2143,8 @@ contract QERemainingGapsTest is QECoverageBase {
         _validateAboveThreshold(pid, indices[0]);
         engine.computeConsensus(pid, indices[0]);
 
-        // First settle sets score
+        // First settle sets score (warp past challenge period for reward payment)
+        _warpPastChallengePeriod();
         uint256 nonce = engine.getContribution(pid, indices[0]).consensusNonce;
         vm.prank(validator1);
         engine.settleValidator(pid, indices[0], nonce);
@@ -2194,7 +2214,9 @@ contract QERemainingGapsTest is QECoverageBase {
 
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
         uint256 index = indices[0];
-        _fullAcceptanceFlow(pid, index);
+        // Validate + compute without warping — dispute must be opened within challenge window
+        _validateAboveThreshold(pid, index);
+        engine.computeConsensus(pid, index);
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
@@ -2336,7 +2358,8 @@ contract QEExplicitBranchTest is QECoverageBase {
         _validateAboveThreshold(pid, index);
         engine.computeConsensus(pid, index);
 
-        // All validators were in agreement (non-outlier) — settle them
+        // All validators were in agreement (non-outlier) — settle after challenge period
+        _warpPastChallengePeriod();
         uint256 nonce = engine.getContribution(pid, index).consensusNonce;
         vm.prank(validator1);
         engine.settleValidator(pid, index, nonce);
@@ -2388,7 +2411,9 @@ contract QEExplicitBranchTest is QECoverageBase {
 
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
         uint256 index = indices[0];
-        _fullAcceptanceFlow(pid, index);
+        // Validate + compute without warping — dispute must be opened within challenge window
+        _validateAboveThreshold(pid, index);
+        engine.computeConsensus(pid, index);
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
@@ -2568,7 +2593,8 @@ contract QEFullPathCoverageTest is QECoverageBase {
 
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
         uint256 index = indices[0];
-        _fullAcceptanceFlow(pid, index);
+        _validateAboveThreshold(pid, index);
+        engine.computeConsensus(pid, index);
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
@@ -2618,7 +2644,8 @@ contract QEFullPathCoverageTest is QECoverageBase {
 
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
         uint256 index = indices[0];
-        _fullAcceptanceFlow(pid, index);
+        _validateAboveThreshold(pid, index);
+        engine.computeConsensus(pid, index);
 
         // contributor1 tries to dispute their own accepted contribution
         _ensureStake(contributor1, STAKE_AMOUNT);
@@ -2652,7 +2679,8 @@ contract QEFullPathCoverageTest is QECoverageBase {
 
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
         uint256 index = indices[0];
-        _fullAcceptanceFlow(pid, index);
+        _validateAboveThreshold(pid, index);
+        engine.computeConsensus(pid, index);
 
         _ensureStake(challenger, STAKE_AMOUNT * 2);
         vm.prank(challenger);
@@ -2670,7 +2698,9 @@ contract QEFullPathCoverageTest is QECoverageBase {
 
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
         uint256 index = indices[0];
-        _fullAcceptanceFlow(pid, index);
+        // Validate + compute without warping — dispute must be opened within challenge window
+        _validateAboveThreshold(pid, index);
+        engine.computeConsensus(pid, index);
 
         _ensureStake(challenger, STAKE_AMOUNT);
         vm.prank(challenger);
@@ -3050,5 +3080,91 @@ contract QEFullPathCoverageTest is QECoverageBase {
         bytes memory initData = abi.encodeCall(SapienCore.initialize, (admin, address(vault), address(0)));
         vm.expectRevert(ISapienCore.ZeroAddress.selector);
         new ERC1967Proxy(address(impl), initData);
+    }
+
+    // ── Event emission tests for missing events ──────────────────────
+
+    function test_event_cancelExpiredCommitment() public {
+        bytes32 pid = keccak256("event-cancel-commit");
+        _setupProject(pid, FUND_AMOUNT, QUANTITY);
+
+        (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
+        uint256 index = indices[0];
+
+        // Commit but don't reveal
+        bytes32 salt = keccak256(abi.encodePacked("salt", validator1, pid, index));
+        bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), salt));
+        _ensureStake(validator1, VALIDATOR_STAKE * 3);
+        vm.startPrank(validator1);
+        {
+            uint256[] memory _indices = new uint256[](1);
+            _indices[0] = index;
+            engine.claimToValidate(pid, _indices);
+            engine.lockValidatorCapacity(VALIDATOR_STAKE);
+            engine.commitValidation(pid, index, commitHash, VALIDATOR_STAKE, address(0));
+        }
+        vm.stopPrank();
+
+        // Wait for commit deadline + reveal deadline to pass
+        vm.warp(block.timestamp + 1 days + 1 days + 1);
+
+        vm.expectEmit(true, true, true, true);
+        emit ISapienCore.ValidatorCommitmentExpired(pid, index, validator1);
+        engine.cancelExpiredCommitment(pid, index, validator1);
+    }
+
+    function test_event_upholdDispute() public {
+        bytes32 pid = keccak256("event-uphold-dispute");
+        _setupProject(pid, FUND_AMOUNT, QUANTITY);
+
+        (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
+        uint256 index = indices[0];
+        _validateAboveThreshold(pid, index);
+        engine.computeConsensus(pid, index);
+
+        // Open dispute
+        vm.startPrank(contributor2);
+        engine.openDispute(pid, index, bytes32("evidence"), "cid");
+        vm.stopPrank();
+
+        vm.expectEmit(true, true, true, true);
+        emit ISapienCore.DisputeResolved(pid, index, true);
+        vm.prank(admin);
+        engine.resolveDispute(pid, index, true);
+    }
+
+    function test_event_rejectDispute() public {
+        bytes32 pid = keccak256("event-reject-dispute");
+        _setupProject(pid, FUND_AMOUNT, QUANTITY);
+
+        (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
+        uint256 index = indices[0];
+        _validateAboveThreshold(pid, index);
+        engine.computeConsensus(pid, index);
+
+        // Open dispute
+        vm.startPrank(contributor2);
+        engine.openDispute(pid, index, bytes32("evidence"), "cid");
+        vm.stopPrank();
+
+        vm.expectEmit(true, true, true, true);
+        emit ISapienCore.DisputeResolved(pid, index, false);
+        vm.prank(admin);
+        engine.resolveDispute(pid, index, false);
+    }
+
+    function test_event_rejectOriginatorReport() public {
+        bytes32 pid = keccak256("event-reject-report");
+        _setupProject(pid, FUND_AMOUNT, QUANTITY);
+
+        // Report originator
+        vm.startPrank(contributor2);
+        engine.reportOriginator(pid, bytes32("evidence"));
+        vm.stopPrank();
+
+        vm.expectEmit(true, true, true, true);
+        emit ISapienCore.OriginatorReportResolved(pid, false);
+        vm.prank(admin);
+        engine.resolveOriginatorReport(pid, false);
     }
 }

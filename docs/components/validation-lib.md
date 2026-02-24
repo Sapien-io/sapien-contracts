@@ -1,6 +1,6 @@
-# ValidationLib & ConsensusLib (formerly ValidationOracle)
+# ValidationLib & ConsensusLib
 
-> **v0.5 change**: The standalone `ValidationOracle` contract has been replaced by two libraries — `ValidationLib` (commit-reveal workflow and consensus orchestration) and `ConsensusLib` (the consensus algorithm itself). Both operate on `SapienCore`'s ERC-7201 namespaced storage via `DELEGATECALL`.
+`ValidationLib` and `ConsensusLib` are two libraries that operate on `SapienCore`'s ERC-7201 namespaced storage via `DELEGATECALL`. `ValidationLib` handles the commit-reveal workflow and consensus orchestration, while `ConsensusLib` implements the consensus algorithm itself.
 
 ## ValidationLib
 
@@ -58,7 +58,7 @@ Permissionless. Cancels the claim after the 1-hour deadline if the validator fai
 - Must reveal within the **reveal window** (commit timestamp + commit deadline + reveal deadline)
 - Hash verification: `keccak256(uint16(score) || salt)` must match the stored commit
 
-**`batchRevealValidations(projectId, indices[], scores[], salts[])** — batch version.
+**`batchRevealValidations(projectId, indices[], scores[], salts[])`** — batch version.
 
 ### Consensus Computation
 

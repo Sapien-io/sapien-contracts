@@ -1,8 +1,6 @@
-# ReputationLib (formerly SapienTrust)
+# ReputationLib
 
-> **v0.5 change**: The standalone `SapienTrust` contract has been replaced by `ReputationLib`, a library that operates on `SapienCore`'s ERC-7201 namespaced storage via `DELEGATECALL`. All reputation logic is now internal to the core contract.
-
-`ReputationLib` implements the Proof of Quality (PoQ) reputation system. It tracks the historical performance of all participants — originators, contributors, and validators — using role-specific scores with lazy decay and daily gain caps.
+`ReputationLib` implements the Proof of Quality (PoQ) reputation system. It is a library that operates on `SapienCore`'s ERC-7201 namespaced storage via `DELEGATECALL`, keeping all reputation logic internal to the core contract. It tracks the historical performance of all participants — originators, contributors, and validators — using role-specific scores with lazy decay and daily gain caps.
 
 ## Reputation Model
 

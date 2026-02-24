@@ -7,7 +7,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Constants as C} from "src/Constants.sol";
 import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 import {ReputationLib} from "src/libraries/ReputationLib.sol";
-import {EngineStorage, Project, ProjectStatus, IndexRange} from "src/Types.sol";
+import {EngineStorage, Project, ProjectStatus, Contribution, ContributionStatus, IndexRange} from "src/Types.sol";
 
 /// @title OriginationLib
 /// @notice Deployed library for project creation and funding operations.
@@ -142,7 +142,28 @@ library OriginationLib {
 
         ReputationLib.update(proj.originator, C.ORIGINATOR_ROLE_KEY, false, 0);
 
+        // Wind-down active claims and unlock contributor stakes
+        uint256 totalQuantity = proj.totalQuantity;
+        uint256 stakePerSlot = proj.minStakeToClaim;
+        for (uint256 i = 0; i < totalQuantity; ++i) {
+            Contribution storage contrib = $.contributions[projectId][i];
+            if (contrib.status == ContributionStatus.Reserved || contrib.status == ContributionStatus.Pending) {
+                if (contrib.contributor != address(0) && contrib.claimId != 0) {
+                    if (stakePerSlot > 0) {
+                        $.vault.unlockContributor(contrib.contributor, stakePerSlot);
+                    }
+                    contrib.status = ContributionStatus.Empty;
+                    contrib.contributor = address(0);
+                    contrib.claimId = 0;
+                }
+            }
+        }
+
+        // Reset pending contributions counter
+        $.pendingContributions[projectId] = 0;
+
         proj.status = ProjectStatus.Cancelled;
+        proj.cancelledAt = block.timestamp;
 
         emit ISapienCore.ProjectRemoved(projectId, msg.sender);
         emit ISapienCore.ProjectCancelled(projectId);

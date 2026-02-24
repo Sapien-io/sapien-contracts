@@ -28,6 +28,12 @@ library Constants {
     uint256 public constant MAX_REVEAL_DEADLINE = 30 days;
     uint256 public constant MAX_FORCE_SETTLE_DELAY = 90 days;
 
+    uint256 public constant MIN_CHALLENGE_PERIOD = 1 hours;
+    uint256 public constant MIN_CLAIM_DEADLINE = 1 hours;
+    uint256 public constant MIN_COMMIT_DEADLINE = 1 hours;
+    uint256 public constant MIN_REVEAL_DEADLINE = 1 hours;
+    uint256 public constant MIN_FORCE_SETTLE_DELAY = 1 days;
+
     uint256 public constant VALIDATION_CLAIM_DEADLINE = 1 hours;
 
     // Dispute constants

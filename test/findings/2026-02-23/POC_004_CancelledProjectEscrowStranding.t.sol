@@ -3,6 +3,7 @@ pragma solidity ^0.8.30;
 
 import {BaseTest} from "test/BaseTest.sol";
 import {ProjectStatus} from "src/Types.sol";
+import {Constants as C} from "src/Constants.sol";
 
 /// @title FIX VERIFIED — PoC-004: Cancelled Projects Can Now Refund Escrow
 /// @notice Confirms that funded projects cancelled via operator removal or upheld
@@ -22,7 +23,8 @@ contract POC_004_CancelledProjectEscrowStranding is BaseTest {
             "project should be cancelled"
         );
 
-        // After fix: refundEscrow is permitted on Cancelled projects.
+        // After fix: refundEscrow is permitted on Cancelled projects after completion delay.
+        vm.warp(block.timestamp + C.PROJECT_COMPLETION_DELAY + 1);
         vm.prank(originator);
         engine.refundEscrow(projectId);
         assertEq(engine.getProjectEscrow(projectId, address(token)), 0, "escrow should be drained");
@@ -45,7 +47,8 @@ contract POC_004_CancelledProjectEscrowStranding is BaseTest {
             "project should be cancelled"
         );
 
-        // After fix: refundEscrow is permitted on Cancelled projects.
+        // After fix: refundEscrow is permitted on Cancelled projects after completion delay.
+        vm.warp(block.timestamp + C.PROJECT_COMPLETION_DELAY + 1);
         vm.prank(originator);
         engine.refundEscrow(projectId);
         assertEq(engine.getProjectEscrow(projectId, address(token)), 0, "escrow should be drained");

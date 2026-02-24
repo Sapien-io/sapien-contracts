@@ -37,7 +37,8 @@ contract SEC_L_01_OriginatorIgnored is BaseTest {
                 minValidationStake: 0,
                 status: ProjectStatus.Created,
                 activatedAt: 0,
-                completedAt: 0
+                completedAt: 0,
+                cancelledAt: 0
             })
         );
     }
@@ -65,7 +66,8 @@ contract SEC_L_01_OriginatorIgnored is BaseTest {
                 minValidationStake: 0,
                 status: ProjectStatus.Created,
                 activatedAt: 0,
-                completedAt: 0
+                completedAt: 0,
+                cancelledAt: 0
             })
         );
 
@@ -96,7 +98,8 @@ contract SEC_L_01_OriginatorIgnored is BaseTest {
                 minValidationStake: 0,
                 status: ProjectStatus.Created,
                 activatedAt: 0,
-                completedAt: 0
+                completedAt: 0,
+                cancelledAt: 0
             })
         );
 

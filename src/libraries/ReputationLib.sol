@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {Constants as C} from "src/Constants.sol";
 import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 import {EngineStorage, Reputation} from "src/Types.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title ReputationLib
 /// @notice Deployed library for reputation system operations.
@@ -31,7 +32,7 @@ library ReputationLib {
         if (cachedDecayBps > 0) {
             uint256 daysSinceUpdate = (block.timestamp - rep.lastUpdated) / 1 days;
             if (daysSinceUpdate > 0) {
-                uint256 decayAmount = (score * cachedDecayBps * daysSinceUpdate) / C.BPS;
+                uint256 decayAmount = Math.mulDiv(score * cachedDecayBps * daysSinceUpdate, 1, C.BPS);
                 score = score > decayAmount + C.MIN_REPUTATION ? score - decayAmount : C.MIN_REPUTATION;
             }
         }
@@ -50,16 +51,17 @@ library ReputationLib {
         }
 
         uint256 currentScore = rep.score;
-        uint256 oldScore = currentScore;
 
         if ($.decayRateBps > 0) {
             uint256 daysSinceUpdate = (block.timestamp - rep.lastUpdated) / 1 days;
             if (daysSinceUpdate > 0) {
-                uint256 decayAmount = (currentScore * $.decayRateBps * daysSinceUpdate) / C.BPS;
+                uint256 decayAmount = Math.mulDiv(currentScore * $.decayRateBps * daysSinceUpdate, 1, C.BPS);
                 currentScore =
                     currentScore > decayAmount + C.MIN_REPUTATION ? currentScore - decayAmount : C.MIN_REPUTATION;
             }
         }
+
+        uint256 oldScore = currentScore;
 
         rep.totalActions++;
 

@@ -145,14 +145,22 @@ contract SapienVaultInvariantTest is Test {
         uint256 totalAssets = vault.totalAssets();
 
         if (totalSupply > 0) {
-            // convertToAssets(totalSupply) should be >= totalAssets
-            // (with virtual shares, this should always hold approximately)
             uint256 assetsFromShares = vault.convertToAssets(totalSupply);
-            // Allow for rounding from ERC-4626 virtual shares (decimalsOffset = 3).
-            // Each share burn can introduce up to 1 wei rounding, and the virtual
-            // shares (10^3) contribute a small constant offset.
-            uint256 slashOps = handler.calls_slashContributor() + handler.calls_slashValidator();
-            assertGe(assetsFromShares + slashOps + 2, totalAssets, "Share/asset ratio inconsistent with totalAssets");
+            // After share-burn slashing, totalSupply drops while totalAssets stays
+            // constant.  The decimalsOffset virtual shares (10^3 = 1000) then claim
+            // a growing fraction of totalAssets that convertToAssets(totalSupply)
+            // does not reflect.  The exact gap is:
+            //   (1000 * totalAssets - totalSupply) / (totalSupply + 1000)
+            // We compute this expected claim and add +2 for integer rounding in
+            // both this formula and convertToAssets.
+            uint256 virtualClaim;
+            uint256 product = uint256(1000) * totalAssets;
+            if (product > totalSupply) {
+                virtualClaim = (product - totalSupply) / (totalSupply + 1000);
+            }
+            assertGe(
+                assetsFromShares + virtualClaim + 2, totalAssets, "Share/asset ratio inconsistent with totalAssets"
+            );
         }
     }
 

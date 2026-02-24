@@ -22,6 +22,8 @@ contract RISK_005_EscrowUnderflow is BaseTest {
         _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
         engine.computeConsensus(projectId, idx);
 
+        _warpPastChallengePeriod();
+
         uint256 escrowBefore = engine.getProjectEscrow(projectId, address(token));
         assertGt(escrowBefore, 0, "escrow should have funds");
 
@@ -59,7 +61,7 @@ contract RISK_005_EscrowUnderflow is BaseTest {
         uint256 escrowAfterDispute = engine.getProjectEscrow(projectId, address(token));
         assertLt(escrowAfterDispute, escrowBeforeDispute, "dispute drained escrow (with safety check)");
 
-        // Validators settle, further draining already-reduced escrow (no safety check)
+        // After upheld dispute, validators can settle (stake released) but receive NO reward.
         vm.prank(validator1);
         engine.settleValidator(projectId, idx, 0);
         vm.prank(validator2);
@@ -68,6 +70,6 @@ contract RISK_005_EscrowUnderflow is BaseTest {
         engine.settleValidator(projectId, idx, 0);
 
         uint256 escrowFinal = engine.getProjectEscrow(projectId, address(token));
-        assertLt(escrowFinal, escrowAfterDispute, "settlement further drained escrow without check");
+        assertGe(escrowFinal, escrowAfterDispute, "upheld dispute blocks validator reward payout");
     }
 }

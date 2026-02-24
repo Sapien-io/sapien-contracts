@@ -44,7 +44,8 @@ contract SEC_H_04_ExcessiveDisputePayout is BaseTest {
             minValidationStake: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
-            completedAt: 0
+            completedAt: 0,
+            cancelledAt: 0
         });
         engine.createProject(projectId, "", config);
 
@@ -108,7 +109,8 @@ contract SEC_H_04_ExcessiveDisputePayout is BaseTest {
             minValidationStake: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
-            completedAt: 0
+            completedAt: 0,
+            cancelledAt: 0
         });
         engine.createProject(projectId, "", config);
 
@@ -116,8 +118,6 @@ contract SEC_H_04_ExcessiveDisputePayout is BaseTest {
         token.approve(address(engine), fundAmount);
         engine.fundProject(projectId, fundAmount, 3, address(0));
         vm.stopPrank();
-
-        uint256 rewardRate = fundAmount / 3; // 1000e18
 
         // FIX VERIFIED: Each overturn only costs rewardRate (1000), not 1200.
         // Three overturns cost 3000 total, exactly matching the escrow.

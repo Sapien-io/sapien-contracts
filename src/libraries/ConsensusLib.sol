@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 import {ValidationInput, ConsensusResult} from "src/Types.sol";
 import {Constants as C} from "src/Constants.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -33,14 +34,14 @@ library ConsensusLib {
     /// @return result Full consensus result
     function calculate(ValidationInput[] memory inputs) public pure returns (ConsensusResult memory result) {
         uint256 n = inputs.length;
-        require(n > 0, "ConsensusLib: no inputs");
+        if (n == 0) revert ISapienCore.ConsensusNotReady(0, 1);
 
         // ── Pass 1: Compute weights + weighted sum (merged from 2 loops) ──
         uint256[] memory weights = new uint256[](n);
-        uint256 totalWeight;
-        uint256 weightedAverage;
+        uint256 totalWeight = 0;
+        uint256 weightedAverage = 0;
         {
-            uint256 weightedSum;
+            uint256 weightedSum = 0;
             for (uint256 i; i < n; ++i) {
                 ValidationInput memory inp = inputs[i];
                 uint256 effectiveRep = inp.reputation < MIN_REPUTATION_FLOOR ? MIN_REPUTATION_FLOOR : inp.reputation;
@@ -57,10 +58,10 @@ library ConsensusLib {
         }
 
         // ── Pass 2: Variance ──
-        uint256 stdDev;
+        uint256 stdDev = 0;
         address[] memory validators = new address[](n);
         {
-            uint256 varianceSum;
+            uint256 varianceSum = 0;
             for (uint256 i; i < n; ++i) {
                 ValidationInput memory inp = inputs[i];
                 uint256 scorePrecision = inp.score * PRECISION;
@@ -95,7 +96,7 @@ library ConsensusLib {
     ) private pure returns (ConsensusResult memory) {
         bool[] memory isOutlier = new bool[](n);
         uint256[] memory slashAmounts = new uint256[](n);
-        uint256 totalAccurateWeight;
+        uint256 totalAccurateWeight = 0;
 
         for (uint256 i; i < n; ++i) {
             uint256 scorePrecision = inputs[i].score * PRECISION;

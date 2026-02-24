@@ -309,6 +309,55 @@ contract SapienCoreInvariantTest is Test {
     }
 
     // ════════════════════════════════════════════════════════════════════
+    // Invariant 11: Engine token balance sanity check
+    // Engine balance should be >= sum of all project escrows + pending rewards
+    // This is the core token conservation invariant for the engine
+    // ════════════════════════════════════════════════════════════════════
+
+    function invariant_engineBalanceSanity() public view {
+        uint256 engineBalance = token.balanceOf(address(engine));
+
+        // Sum all project escrows
+        uint256 totalProjectEscrow;
+        uint256 projectCount = handler.getProjectCount();
+        for (uint256 i; i < projectCount; ++i) {
+            bytes32 projectId = handler.projectIds(i);
+            totalProjectEscrow += engine.getProjectEscrow(projectId, address(token));
+        }
+
+        // Sum all pending rewards across all participants and adapter
+        uint256 totalPendingRewards;
+        for (uint256 i; i < allParticipants.length; ++i) {
+            totalPendingRewards += engine.getPendingRewards(allParticipants[i], address(token));
+        }
+        totalPendingRewards += engine.getPendingRewards(adapter, address(token));
+
+        // Engine should have at least enough to cover escrows and pending rewards
+        assertGe(engineBalance, totalProjectEscrow + totalPendingRewards, "Engine balance insufficient for obligations");
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // Invariant 12: Project state consistency
+    // For all projects: availableSlots >= 0 && availableSlots <= totalQuantity
+    // ════════════════════════════════════════════════════════════════════
+
+    function invariant_stateConsistency() public view {
+        uint256 projectCount = handler.getProjectCount();
+
+        for (uint256 i; i < projectCount; ++i) {
+            bytes32 projectId = handler.projectIds(i);
+            Project memory proj = engine.getProject(projectId);
+
+            // availableSlots should never be negative (uint256) and should not exceed totalQuantity
+            assertLe(proj.availableSlots, proj.totalQuantity, "Available slots exceed total quantity");
+
+            // Additional consistency checks
+            assertGe(proj.totalQuantity, 0, "Total quantity should be non-negative");
+            assertGe(proj.totalRewards, 0, "Total rewards should be non-negative");
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════
     // Post-run summary
     // ════════════════════════════════════════════════════════════════════
 

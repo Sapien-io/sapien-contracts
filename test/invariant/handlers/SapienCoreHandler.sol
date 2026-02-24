@@ -165,7 +165,8 @@ contract SapienCoreHandler is Test {
             minValidationStake: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
-            completedAt: 0
+            completedAt: 0,
+            cancelledAt: 0
         });
 
         engine.createProject(projectId, "", config);

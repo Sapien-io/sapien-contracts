@@ -90,6 +90,8 @@ library DisputeLib {
         dispute.resolvedAt = block.timestamp;
         $.vault.unlockContributor(dispute.challenger, dispute.bondAmount);
 
+        emit ISapienCore.DisputeResolved(projectId, index, true);
+
         if (contrib.status == ContributionStatus.Accepted) {
             uint256 challengerReward = (contrib.rewardRate * C.DISPUTE_CHALLENGER_REWARD_BPS) / C.BPS;
             if (challengerReward > 0 && $.projectEscrow[projectId][rewardToken] >= challengerReward) {
@@ -136,6 +138,8 @@ library DisputeLib {
         if (contrib.status == ContributionStatus.Accepted) {
             contrib.challengeEndsAt = block.timestamp;
         }
+
+        emit ISapienCore.DisputeResolved(projectId, index, false);
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -150,7 +154,7 @@ library DisputeLib {
         EngineStorage storage $ = _getStorage();
         Project storage proj = $.projects[projectId];
 
-        if (proj.originator == address(0)) revert ISapienCore.InvalidProjectConfig("project does not exist");
+        if (proj.originator == address(0)) revert ISapienCore.ProjectNotFound();
         if (proj.status != ProjectStatus.Active && proj.status != ProjectStatus.Funded) {
             revert ISapienCore.ProjectNotCancellable();
         }
@@ -201,6 +205,7 @@ library DisputeLib {
 
         ReputationLib.update(proj.originator, C.ORIGINATOR_ROLE_KEY, false, 0);
         proj.status = ProjectStatus.Cancelled;
+        proj.cancelledAt = block.timestamp;
         emit ISapienCore.ProjectCancelled(projectId);
     }
 
@@ -212,5 +217,7 @@ library DisputeLib {
         report.status = OriginatorReportStatus.Rejected;
         report.resolvedAt = block.timestamp;
         $.vault.slashContributor(report.reporter, report.bondAmount);
+
+        emit ISapienCore.OriginatorReportResolved(projectId, false);
     }
 }

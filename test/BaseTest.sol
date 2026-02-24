@@ -91,7 +91,8 @@ contract BaseTest is Test {
             minValidationStake: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
-            completedAt: 0
+            completedAt: 0,
+            cancelledAt: 0
         });
 
         engine.createProject(projectId, "", config);
@@ -128,6 +129,10 @@ contract BaseTest is Test {
             vault.deposit(deficit, user);
             vm.stopPrank();
         }
+    }
+
+    function _warpPastChallengePeriod() internal {
+        vm.warp(block.timestamp + engine.challengePeriod() + 1);
     }
 
     function _commitAndReveal(address val, bytes32 projectId, uint256 index, uint256 score, uint256 stakeAmt) internal {

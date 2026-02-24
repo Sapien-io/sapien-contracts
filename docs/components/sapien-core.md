@@ -42,8 +42,8 @@ Registers a new project in `Created` status. The caller becomes the originator. 
 Funds the project with reward tokens and creates contribution slots.
 
 1. Transfers `amount` tokens from the originator
-2. Deducts **protocol fee** (default 10%) to the treasury
-3. Optionally pays an **origination adapter fee** (default 4%) if `adapter != address(0)`
+2. Deducts **protocol fee** (default 1%) to the treasury
+3. Optionally pays an **origination adapter fee** (default 2%) if `adapter != address(0)`
 4. Locks **originator stake** if `originatorStakeRequirement > 0` (per slot)
 5. Initializes the slot index range for allocation
 6. Transitions project to `Funded` status
@@ -179,10 +179,10 @@ All require `DEFAULT_ADMIN_ROLE`:
 
 | Function | Default | Max |
 |----------|---------|-----|
-| `setProtocolFee(bps)` | 1000 (10%) | 1000 (10%) |
-| `setOriginationFee(bps)` | 400 (4%) | 500 (5%) |
-| `setContributionFee(bps)` | 300 (3%) | 500 (5%) |
-| `setValidationFee(bps)` | 300 (3%) | 500 (5%) |
+| `setProtocolFee(bps)` | 100 (1%) | 1000 (10%) |
+| `setOriginationFee(bps)` | 200 (2%) | 500 (5%) |
+| `setContributionFee(bps)` | 200 (2%) | 500 (5%) |
+| `setValidationFee(bps)` | 200 (2%) | 500 (5%) |
 | `setDecayRate(bps)` | 10 (0.1%/day) | 500 (5%/day) |
 | `setDisputeBondBps(bps)` | 1000 (10%) | 5000 (50%) |
 | `setOriginatorStakeRequirement(amount)` | 0 (disabled) | — |

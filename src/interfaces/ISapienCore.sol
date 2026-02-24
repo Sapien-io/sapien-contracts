@@ -74,6 +74,9 @@ interface ISapienCore {
     /// @dev The project is not in an active (funded) state.
     error ProjectNotActive();
 
+    /// @dev The project does not exist.
+    error ProjectNotFound();
+
     /// @dev The project configuration is invalid.
     /// @param reason Human-readable explanation.
     error InvalidProjectConfig(string reason);
@@ -160,6 +163,7 @@ interface ISapienCore {
     /// @param provided Deadline value provided.
     /// @param max Maximum allowed value.
     error DeadlineTooLong(uint256 provided, uint256 max);
+    error DeadlineTooShort(uint256 provided, uint256 min);
 
     // ── Dispute Errors ──────────────────────────────────────────────────
 
@@ -296,6 +300,12 @@ interface ISapienCore {
     /// @param validator Address of the settled validator.
     /// @param outlier Whether the validator was classified as an outlier.
     event ValidatorSettled(bytes32 indexed projectId, uint256 indexed index, address indexed validator, bool outlier);
+
+    /// @notice Emitted when an expired validator commitment is cancelled and stake slashed.
+    /// @param projectId Project the contribution belongs to.
+    /// @param index Contribution slot index.
+    /// @param validator Address of the validator whose commitment expired.
+    event ValidatorCommitmentExpired(bytes32 indexed projectId, uint256 indexed index, address indexed validator);
 
     /// @notice Emitted when a contributor's reward is released to their pending balance.
     /// @param projectId Project the contribution belongs to.

@@ -314,8 +314,6 @@ contract SapienCore is
         } else {
             DisputeLib.rejectDispute(projectId, index, nonce);
         }
-
-        emit DisputeResolved(projectId, index, upheld);
     }
 
     function escalateDispute(bytes32 projectId, uint256 index) external whenNotPaused nonReentrant {
@@ -356,8 +354,6 @@ contract SapienCore is
         } else {
             DisputeLib.rejectOriginatorReport(projectId);
         }
-
-        emit OriginatorReportResolved(projectId, upheld);
     }
 
     function escalateOriginatorReport(bytes32 projectId) external whenNotPaused nonReentrant {
@@ -372,7 +368,6 @@ contract SapienCore is
         DisputeLib.upholdOriginatorReport(projectId, false);
 
         emit OriginatorReportEscalated(projectId);
-        emit ProjectCancelled(projectId);
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -462,30 +457,35 @@ contract SapienCore is
     }
 
     function setClaimDeadline(uint256 deadline) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (deadline < C.MIN_CLAIM_DEADLINE) revert DeadlineTooShort(deadline, C.MIN_CLAIM_DEADLINE);
         if (deadline > C.MAX_CLAIM_DEADLINE) revert DeadlineTooLong(deadline, C.MAX_CLAIM_DEADLINE);
         _getStorage().claimDeadline = deadline;
         emit ClaimDeadlineUpdated(deadline);
     }
 
     function setChallengePeriod(uint256 period) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (period < C.MIN_CHALLENGE_PERIOD) revert DeadlineTooShort(period, C.MIN_CHALLENGE_PERIOD);
         if (period > C.MAX_CHALLENGE_PERIOD) revert DeadlineTooLong(period, C.MAX_CHALLENGE_PERIOD);
         _getStorage().challengePeriod = period;
         emit ChallengePeriodUpdated(period);
     }
 
     function setCommitDeadline(uint256 deadline) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (deadline < C.MIN_COMMIT_DEADLINE) revert DeadlineTooShort(deadline, C.MIN_COMMIT_DEADLINE);
         if (deadline > C.MAX_COMMIT_DEADLINE) revert DeadlineTooLong(deadline, C.MAX_COMMIT_DEADLINE);
         _getStorage().commitDeadline = deadline;
         emit CommitDeadlineUpdated(deadline);
     }
 
     function setRevealDeadline(uint256 deadline) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (deadline < C.MIN_REVEAL_DEADLINE) revert DeadlineTooShort(deadline, C.MIN_REVEAL_DEADLINE);
         if (deadline > C.MAX_REVEAL_DEADLINE) revert DeadlineTooLong(deadline, C.MAX_REVEAL_DEADLINE);
         _getStorage().revealDeadline = deadline;
         emit RevealDeadlineUpdated(deadline);
     }
 
     function setForceSettleDelay(uint256 delay) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (delay < C.MIN_FORCE_SETTLE_DELAY) revert DeadlineTooShort(delay, C.MIN_FORCE_SETTLE_DELAY);
         if (delay > C.MAX_FORCE_SETTLE_DELAY) revert DeadlineTooLong(delay, C.MAX_FORCE_SETTLE_DELAY);
         _getStorage().forceSettleDelay = delay;
         emit ForceSettleDelayUpdated(delay);
@@ -657,6 +657,10 @@ contract SapienCore is
 
     function forceSettleDelay() external view returns (uint256) {
         return _getStorage().forceSettleDelay;
+    }
+
+    function decayRateBps() external view returns (uint256) {
+        return _getStorage().decayRateBps;
     }
 
     // ── UUPS ───────────────────────────────────────────────────────────

@@ -162,6 +162,7 @@ struct Project {
     ProjectStatus status;
     uint256 activatedAt;
     uint256 completedAt;
+    uint256 cancelledAt;
 }
 
 struct Claim {

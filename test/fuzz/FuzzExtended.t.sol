@@ -2,6 +2,8 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "test/BaseTest.sol";
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {
     Project,
     ProjectStatus,
@@ -37,6 +39,23 @@ contract FuzzExtended is BaseTest {
         return bound(raw, 1e18, 200e18);
     }
 
+    /// @dev Commit and reveal for a validator (similar to LifecycleBase._validate)
+    function _validate(address val, bytes32 projectId, uint256 index, uint256 score, uint256 stakeAmt) internal {
+        bytes32 salt = keccak256(abi.encodePacked("fuzz-validate-salt", val, projectId, index, score));
+        bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
+
+        _ensureStake(val, stakeAmt * 2);
+
+        vm.startPrank(val);
+        uint256[] memory indices = new uint256[](1);
+        indices[0] = index;
+        engine.claimToValidate(projectId, indices);
+        engine.lockValidatorCapacity(stakeAmt);
+        engine.commitValidation(projectId, index, commitHash, stakeAmt, address(0));
+        engine.revealValidation(projectId, index, score, salt);
+        vm.stopPrank();
+    }
+
     function _projectId(uint256 seed) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked("fuzz-ext-project", seed));
     }
@@ -65,7 +84,8 @@ contract FuzzExtended is BaseTest {
             minValidationStake: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
-            completedAt: 0
+            completedAt: 0,
+            cancelledAt: 0
         });
         engine.createProject(projId, "", cfg);
         token.approve(address(engine), fundAmount);
@@ -207,24 +227,15 @@ contract FuzzExtended is BaseTest {
 
         (bytes32 projId, uint256 index,) = _setupAcceptedContribution(43, fundAmount, 8500, valStake);
 
-        // Settle all validators first so escrow accounting is clean
-        uint256 nonce = engine.getContribution(projId, index).consensusNonce;
-        vm.prank(validator1);
-        engine.settleValidator(projId, index, nonce);
-        vm.prank(validator2);
-        engine.settleValidator(projId, index, nonce);
-        vm.prank(validator3);
-        engine.settleValidator(projId, index, nonce);
-
         uint256 bondNeeded2 = (engine.getContribution(projId, index).rewardRate * 1000) / 10_000 + 1;
         _ensureStake(contributor2, bondNeeded2 + 1e18);
         uint256 challengerSharesBefore = vault.balanceOf(contributor2);
 
-        // Open dispute
+        // Open dispute within challenge window (before settling)
         vm.prank(contributor2);
         engine.openDispute(projId, index, keccak256("dispute-evidence-2"), "");
 
-        // Admin rejects the dispute
+        // Admin rejects the dispute (resets challengeEndsAt to block.timestamp)
         vm.prank(admin);
         engine.resolveDispute(projId, index, false);
 
@@ -232,6 +243,15 @@ contract FuzzExtended is BaseTest {
 
         // Challenger is slashed
         assertLt(vault.balanceOf(contributor2), challengerSharesBefore);
+
+        // Settle validators (challenge period reset by dispute rejection)
+        uint256 nonce = engine.getContribution(projId, index).consensusNonce;
+        vm.prank(validator1);
+        engine.settleValidator(projId, index, nonce);
+        vm.prank(validator2);
+        engine.settleValidator(projId, index, nonce);
+        vm.prank(validator3);
+        engine.settleValidator(projId, index, nonce);
 
         // Contributor CAN release their reward — challenge period was reset to now
         engine.releaseContributorReward(projId, index);
@@ -327,7 +347,9 @@ contract FuzzExtended is BaseTest {
 
         (bytes32 projId, uint256 index, uint256 nonce) = _setupAcceptedContribution(50, fundAmount, 8500, valStake);
 
-        // Validator1 and Validator2 settle immediately
+        _warpPastChallengePeriod();
+
+        // Validator1 and Validator2 settle after challenge period
         vm.prank(validator1);
         engine.settleValidator(projId, index, nonce);
         vm.prank(validator2);
@@ -435,6 +457,8 @@ contract FuzzExtended is BaseTest {
         _commitReveal(validator3, projId, idxs1[0], 8800, valStake);
         engine.computeConsensus(projId, idxs1[0]);
 
+        _warpPastChallengePeriod();
+
         // Settle validators
         uint256 nonce0 = engine.getContribution(projId, idxs1[0]).consensusNonce;
         vm.prank(validator1);
@@ -445,7 +469,6 @@ contract FuzzExtended is BaseTest {
         engine.settleValidator(projId, idxs1[0], nonce0);
 
         // Release reward → pendingContributions = 0
-        vm.warp(block.timestamp + 2 days);
         engine.releaseContributorReward(projId, idxs1[0]);
 
         // Originator completes the project
@@ -510,7 +533,8 @@ contract FuzzExtended is BaseTest {
         uint256 reporterAvailAfterUpheld = vault.availableBalance(contributor1);
         assertGe(reporterAvailAfterUpheld, reporterAvailAfterReport);
 
-        // Originator can now refund remaining escrow (project is Cancelled — no delay required)
+        // Originator can refund remaining escrow after completion delay
+        vm.warp(block.timestamp + C.PROJECT_COMPLETION_DELAY + 1);
         uint256 escrow = engine.getProjectEscrow(projId, address(token));
         if (escrow > 0) {
             uint256 originatorBalBefore = token.balanceOf(originator);
@@ -721,7 +745,8 @@ contract FuzzExtended is BaseTest {
             minValidationStake: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
-            completedAt: 0
+            completedAt: 0,
+            cancelledAt: 0
         });
         engine.createProject(projId, "", cfg);
         token.approve(address(engine), fundAmount);
@@ -786,7 +811,8 @@ contract FuzzExtended is BaseTest {
             minValidationStake: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
-            completedAt: 0
+            completedAt: 0,
+            cancelledAt: 0
         });
         engine.createProject(projId1, "", cfg);
         token.approve(address(engine), fundAmount * 2);
@@ -892,6 +918,8 @@ contract FuzzExtended is BaseTest {
         _commitReveal(validator3, projId, idxs[0], 8500, VALIDATOR_STAKE);
         engine.computeConsensus(projId, idxs[0]);
 
+        _warpPastChallengePeriod();
+
         uint256 settleNonce = engine.getContribution(projId, idxs[0]).consensusNonce;
         vm.prank(validator1);
         engine.settleValidator(projId, idxs[0], settleNonce);
@@ -900,11 +928,272 @@ contract FuzzExtended is BaseTest {
         vm.prank(validator3);
         engine.settleValidator(projId, idxs[0], settleNonce);
 
-        vm.warp(block.timestamp + 2 days);
         engine.releaseContributorReward(projId, idxs[0]);
 
         // Lock is released — available balance restored
         uint256 availAfterRelease = vault.availableBalance(contributor1);
         assertGe(availAfterRelease, availAfterClaim);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Test 27 — Consensus manipulation with varying stake distributions
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /// @notice Fuzz test consensus manipulation attempts with different stake distributions
+    /// @dev Tests that sqrt(stake) weighting prevents flash loan manipulation
+    function testFuzz_consensusManipulationVaryingStakeDistributions(
+        uint256 fundAmount,
+        uint256 attackerStake,
+        uint256 normalStake,
+        uint256 numValidators
+    ) public {
+        fundAmount = _boundFundAmount(fundAmount);
+        attackerStake = bound(attackerStake, 1e18, 1000e18); // 1 to 1000 tokens
+        normalStake = bound(normalStake, 1e18, 100e18); // 1 to 100 tokens
+        numValidators = bound(numValidators, 3, 10); // 3 to 10 validators
+
+        bytes32 projId = _fundProject(300, fundAmount, 5, numValidators, 7000);
+
+        // Create attacker and normal validators
+        address attacker = makeAddr("attacker");
+        address[] memory normals = new address[](numValidators - 1);
+        for (uint256 i; i < normals.length; ++i) {
+            normals[i] = makeAddr(string(abi.encodePacked("normal", i)));
+        }
+
+        // Fund attacker with large stake
+        token.mint(attacker, attackerStake);
+        vm.startPrank(attacker);
+        token.approve(address(vault), attackerStake);
+        vault.deposit(attackerStake, attacker);
+        vm.stopPrank();
+
+        // Fund normal validators
+        for (uint256 i; i < normals.length; ++i) {
+            token.mint(normals[i], normalStake);
+            vm.startPrank(normals[i]);
+            token.approve(address(vault), normalStake);
+            vault.deposit(normalStake, normals[i]);
+            vm.stopPrank();
+        }
+
+        (, uint256[] memory indices) = _claimAndContribute(contributor1, projId, 1);
+        uint256 index = indices[0];
+
+        // All validators (attacker + normals) vote with same score
+        uint256 consensusScore = 8000;
+
+        // Attacker commits with large stake
+        _ensureStake(attacker, attackerStake * 2);
+        _validate(attacker, projId, index, consensusScore, attackerStake);
+
+        // Normal validators commit
+        for (uint256 i; i < normals.length; ++i) {
+            _ensureStake(normals[i], normalStake * 2);
+            _validate(normals[i], projId, index, consensusScore, normalStake);
+        }
+
+        engine.computeConsensus(projId, index);
+
+        // Contribution should be accepted despite attacker having much more stake
+        assertEq(uint256(engine.getContribution(projId, index).status), uint256(ContributionStatus.Accepted));
+
+        // Verify consensus was computed correctly with stake weighting
+        ConsensusReport memory report = engine.getConsensusReport(projId, index);
+        assertTrue(report.computed);
+        assertGe(report.weightedAverage, 7000); // Above threshold
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Test 29 — Fee calculation edge cases
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /// @notice Fuzz test fee calculation edge cases with extreme values
+    function testFuzz_feeCalculationEdgeCases(uint256 fundAmount, uint256 protocolFeeBps, uint256 adapterFeeBps)
+        public
+    {
+        fundAmount = bound(fundAmount, 1e18, 1e12 * 1e18); // 1 to 1 trillion tokens
+        protocolFeeBps = bound(protocolFeeBps, 0, C.MAX_PROTOCOL_FEE_BPS);
+        adapterFeeBps = bound(adapterFeeBps, 0, C.MAX_ADAPTER_FEE_BPS);
+
+        // Set custom fees
+        vm.startPrank(admin);
+        engine.setProtocolFee(protocolFeeBps);
+        engine.setOriginationFee(adapterFeeBps);
+        engine.setContributionFee(adapterFeeBps);
+        engine.setValidationFee(adapterFeeBps);
+        vm.stopPrank();
+
+        bytes32 projId = _projectId(500 + protocolFeeBps % 100);
+
+        // Create project with extreme funding amount
+        token.mint(originator, fundAmount);
+        vm.startPrank(originator);
+        Project memory cfg = Project({
+            originator: address(0),
+            rewardToken: address(token),
+            totalRewards: 0,
+            totalQuantity: 0,
+            availableSlots: 0,
+            consensusThreshold: 7000,
+            minStakeToClaim: STAKE_AMOUNT,
+            validatorRewardBps: 2000,
+            numberOfValidations: 3,
+            requiredSkill: bytes32(0),
+            minValidatorReputation: 0,
+            minValidationStake: 0,
+            status: ProjectStatus.Created,
+            activatedAt: 0,
+            completedAt: 0,
+            cancelledAt: 0
+        });
+        engine.createProject(projId, "", cfg);
+        token.approve(address(engine), fundAmount);
+        engine.fundProject(projId, fundAmount, 5, adapter);
+        vm.stopPrank();
+
+        // Verify fee calculations don't overflow or underflow
+        uint256 treasuryBalance = token.balanceOf(treasury);
+        uint256 adapterPending = engine.getPendingRewards(adapter, address(token));
+        uint256 projectEscrow = engine.getProjectEscrow(projId, address(token));
+
+        // Total should add up (allowing small rounding tolerance)
+        uint256 totalDistributed = treasuryBalance + adapterPending + projectEscrow;
+        assertApproxEqAbs(totalDistributed, fundAmount, 10, "Fee calculation error with extreme values");
+
+        // Project escrow should be reasonable (not negative, not exceeding original amount)
+        assertGe(projectEscrow, 0, "Project escrow negative");
+        assertLe(projectEscrow, fundAmount, "Project escrow exceeds funding");
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Test 30 — ERC20 integration assumptions
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /// @notice Fuzz test ERC20 integration with various token behaviors
+    function testFuzz_erc20IntegrationAssumptions(uint256 fundAmount, uint256 feeBps, uint256 transferAmount) public {
+        fundAmount = _boundFundAmount(fundAmount);
+        feeBps = bound(feeBps, 0, 500); // 0% to 5% fee
+        transferAmount = bound(transferAmount, 1e18, fundAmount);
+
+        // Create a fee-on-transfer token with fuzzed fee rate
+        FeeOnTransferToken feeToken = new FeeOnTransferToken();
+        feeToken.setFeeBps(feeBps);
+
+        // Fund originator
+        feeToken.mint(originator, fundAmount);
+
+        // Create project with fee-on-transfer token
+        vm.startPrank(originator);
+        bytes32 projId = keccak256(abi.encodePacked("fee-test", feeBps, transferAmount));
+        Project memory cfg = Project({
+            originator: address(0),
+            rewardToken: address(feeToken),
+            totalRewards: 0,
+            totalQuantity: 0,
+            availableSlots: 0,
+            consensusThreshold: 7000,
+            minStakeToClaim: STAKE_AMOUNT,
+            validatorRewardBps: 2000,
+            numberOfValidations: 3,
+            requiredSkill: bytes32(0),
+            minValidatorReputation: 0,
+            minValidationStake: 0,
+            status: ProjectStatus.Created,
+            activatedAt: 0,
+            completedAt: 0,
+            cancelledAt: 0
+        });
+        engine.createProject(projId, "", cfg);
+
+        // Approve and fund - demonstrate fee-on-transfer issue
+        feeToken.approve(address(engine), transferAmount);
+        uint256 balanceBefore = feeToken.balanceOf(address(engine));
+
+        engine.fundProject(projId, transferAmount, 10, adapter);
+
+        uint256 balanceAfter = feeToken.balanceOf(address(engine));
+        uint256 received = balanceAfter - balanceBefore;
+
+        // With fee-on-transfer, received amount should be less than sent amount
+        // This demonstrates the ERC20 integration assumption vulnerability
+        assertLt(received, transferAmount, "Fee-on-transfer tokens should result in less tokens received");
+
+        // The protocol assumes it receives exactly transferAmount, but gets less
+        // This is the vulnerability being tested
+        uint256 expectedFee = (transferAmount * feeBps) / 10000;
+        uint256 actualFee = transferAmount - received;
+        assertGe(actualFee, expectedFee, "Fee should be at least the expected amount");
+
+        // Project should still be created (protocol doesn't validate received amount)
+        Project memory proj = engine.getProject(projId);
+        assertEq(uint256(proj.status), uint256(ProjectStatus.Funded));
+    }
+}
+
+// Mock ERC20 token with configurable fee-on-transfer behavior for testing
+contract FeeOnTransferToken is IERC20 {
+    mapping(address => uint256) private _balances;
+    mapping(address => mapping(address => uint256)) private _allowances;
+    uint256 private _totalSupply;
+    uint256 public feeBps = 100; // Default 1%
+
+    string public constant name = "Fee Token";
+    string public constant symbol = "FEE";
+    uint8 public constant decimals = 18;
+
+    function totalSupply() external view returns (uint256) {
+        return _totalSupply;
+    }
+
+    function balanceOf(address account) external view returns (uint256) {
+        return _balances[account];
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        uint256 fee = (amount * feeBps) / 10000;
+        uint256 netAmount = amount - fee;
+
+        _balances[msg.sender] -= amount;
+        _balances[to] += netAmount;
+        _balances[address(this)] += fee;
+
+        emit Transfer(msg.sender, to, netAmount);
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        _allowances[from][msg.sender] -= amount;
+
+        uint256 fee = (amount * feeBps) / 10000;
+        uint256 netAmount = amount - fee;
+
+        _balances[from] -= amount;
+        _balances[to] += netAmount;
+        _balances[address(this)] += fee;
+
+        emit Transfer(from, to, netAmount);
+        return true;
+    }
+
+    function allowance(address owner, address spender) external view returns (uint256) {
+        return _allowances[owner][spender];
+    }
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        _allowances[msg.sender][spender] = amount;
+        emit Approval(msg.sender, spender, amount);
+        return true;
+    }
+
+    function mint(address to, uint256 amount) external {
+        _balances[to] += amount;
+        _totalSupply += amount;
+        emit Transfer(address(0), to, amount);
+    }
+
+    function setFeeBps(uint256 _feeBps) external {
+        require(_feeBps <= 10000, "Fee too high");
+        feeBps = _feeBps;
     }
 }

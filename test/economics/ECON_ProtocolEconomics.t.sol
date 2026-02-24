@@ -536,7 +536,7 @@ contract ECON_ProtocolEconomics is BaseTest {
         );
     }
 
-    function _simulationJson(ProtocolSimulation memory sim) internal view returns (string memory) {
+    function _simulationJson(ProtocolSimulation memory sim) internal pure returns (string memory) {
         return string(
             abi.encodePacked(
                 "{",
@@ -615,7 +615,7 @@ contract ECON_ProtocolEconomics is BaseTest {
 
     function _buildSummaryMarkdown(ProjectionData memory projection, ProtocolSimulation memory sim)
         internal
-        view
+        pure
         returns (string memory)
     {
         return string(
@@ -667,7 +667,7 @@ contract ECON_ProtocolEconomics is BaseTest {
         );
     }
 
-    function _uintArrayToJson(uint256[5] memory values) internal view returns (string memory) {
+    function _uintArrayToJson(uint256[5] memory values) internal pure returns (string memory) {
         return string(
             abi.encodePacked(
                 "[",
@@ -685,7 +685,7 @@ contract ECON_ProtocolEconomics is BaseTest {
         );
     }
 
-    function _intArrayToJson(int256[5] memory values) internal view returns (string memory) {
+    function _intArrayToJson(int256[5] memory values) internal pure returns (string memory) {
         return string(
             abi.encodePacked(
                 "[",
@@ -703,7 +703,7 @@ contract ECON_ProtocolEconomics is BaseTest {
         );
     }
 
-    function _intToString(int256 value) internal view returns (string memory) {
+    function _intToString(int256 value) internal pure returns (string memory) {
         if (value >= 0) return vm.toString(uint256(value));
         return string(abi.encodePacked("-", vm.toString(uint256(-value))));
     }

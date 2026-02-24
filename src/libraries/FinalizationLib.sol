@@ -3,6 +3,7 @@ pragma solidity ^0.8.30;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {Constants as C} from "src/Constants.sol";
 import {ISapienCore} from "src/interfaces/ISapienCore.sol";
@@ -54,6 +55,9 @@ library FinalizationLib {
     function _settleValidatorFor(bytes32 projectId, uint256 index, uint256 nonce, address validator) internal {
         EngineStorage storage $ = _getStorage();
 
+        Project storage proj = $.projects[projectId];
+        if (proj.status == ProjectStatus.Cancelled) revert ISapienCore.ProjectNotActive();
+
         ConsensusReport storage report = $.consensusReports[projectId][index][nonce];
         if (!report.computed) revert ISapienCore.ConsensusNotReady(0, 1);
 
@@ -70,7 +74,7 @@ library FinalizationLib {
             validationAdapter = vc.adapter;
         }
 
-        Project storage proj = $.projects[projectId];
+        Contribution storage contrib = $.contributions[projectId][index];
         ValidatorConsensusResult storage vcr = $.validatorConsensus[projectId][index][nonce][validator];
         bool outlier = vcr.isOutlier;
 
@@ -88,29 +92,50 @@ library FinalizationLib {
             }
             ReputationLib.update(validator, C.VALIDATOR_ROLE_KEY, false, 0);
         } else {
+            // Always release committed stake — validators must recover their stake
+            // regardless of dispute outcome or contribution status
             if (committedStake > 0) {
                 $.vault.releaseCommit(validator, committedStake);
             }
 
-            Contribution storage contrib = $.contributions[projectId][index];
             if (contrib.status == ContributionStatus.Accepted) {
-                uint256 weight = vcr.weight;
-                uint256 totalAccWeight = report.totalAccurateWeight;
+                Dispute storage dispute = $.disputes[projectId][index][nonce];
 
-                if (totalAccWeight > 0 && weight > 0) {
-                    uint256 validatorShare = (proj.totalRewards * proj.validatorRewardBps * weight)
-                        / (C.BPS * proj.totalQuantity * totalAccWeight);
-                    uint256 reward = validatorShare;
+                // Block settlement while a dispute is actively in progress (can retry after resolution)
+                if (dispute.status == DisputeStatus.Open) revert ISapienCore.DisputeInProgress();
 
-                    if (validationAdapter != address(0) && $.validationFeeBps > 0) {
-                        uint256 fee = (reward * $.validationFeeBps) / C.BPS;
-                        $.pendingRewards[validationAdapter][proj.rewardToken] += fee;
-                        reward -= fee;
-                        emit ISapienCore.ValidationAdapterFeePaid(projectId, index, validationAdapter, fee);
+                // Only pay reward when the dispute was not upheld and the challenge window has closed.
+                // Upheld dispute = contribution was bad; no reward owed to validators who approved it.
+                // Challenge period = prevents same-block reward extraction before a dispute can be filed.
+                if (dispute.status != DisputeStatus.Upheld) {
+                    if (block.timestamp < contrib.challengeEndsAt) revert ISapienCore.ChallengeNotElapsed();
+
+                    uint256 weight = vcr.weight;
+                    uint256 totalAccWeight = report.totalAccurateWeight;
+
+                    if (totalAccWeight > 0 && weight > 0) {
+                        uint256 validatorShare = Math.mulDiv(
+                            proj.totalRewards * proj.validatorRewardBps * weight,
+                            1,
+                            C.BPS * proj.totalQuantity * totalAccWeight
+                        );
+
+                        // Cap to available escrow before computing fees to prevent accounting debt
+                        uint256 availableEscrow = $.projectEscrow[projectId][proj.rewardToken];
+                        uint256 actualValidatorShare =
+                            validatorShare > availableEscrow ? availableEscrow : validatorShare;
+                        uint256 reward = actualValidatorShare;
+
+                        if (validationAdapter != address(0) && $.validationFeeBps > 0) {
+                            uint256 fee = (actualValidatorShare * $.validationFeeBps) / C.BPS;
+                            $.pendingRewards[validationAdapter][proj.rewardToken] += fee;
+                            reward -= fee;
+                            emit ISapienCore.ValidationAdapterFeePaid(projectId, index, validationAdapter, fee);
+                        }
+
+                        $.pendingRewards[validator][proj.rewardToken] += reward;
+                        $.projectEscrow[projectId][proj.rewardToken] -= actualValidatorShare;
                     }
-
-                    $.pendingRewards[validator][proj.rewardToken] += reward;
-                    $.projectEscrow[projectId][proj.rewardToken] -= validatorShare;
                 }
             }
             ReputationLib.update(validator, C.VALIDATOR_ROLE_KEY, true, 0);
@@ -121,6 +146,10 @@ library FinalizationLib {
 
     function releaseContributorReward(bytes32 projectId, uint256 index) public {
         EngineStorage storage $ = _getStorage();
+        Project storage proj = $.projects[projectId];
+
+        if (proj.status == ProjectStatus.Cancelled) revert ISapienCore.ProjectNotActive();
+
         Contribution storage contrib = $.contributions[projectId][index];
 
         if (contrib.status != ContributionStatus.Accepted) revert ISapienCore.ContributionNotAccepted();
@@ -134,22 +163,25 @@ library FinalizationLib {
 
         contrib.rewardReleased = true;
 
-        Project storage proj = $.projects[projectId];
         address token = proj.rewardToken;
 
         uint256 contributorShare = (contrib.rewardRate * (C.BPS - proj.validatorRewardBps)) / C.BPS;
-        uint256 reward = contributorShare;
+
+        // Cap to available escrow before computing fees to prevent accounting debt
+        uint256 availableEscrow = $.projectEscrow[projectId][token];
+        uint256 actualContributorShare = contributorShare > availableEscrow ? availableEscrow : contributorShare;
+        uint256 reward = actualContributorShare;
 
         address adapter = $.contributionAdapter[contrib.claimId];
         if (adapter != address(0) && $.contributionFeeBps > 0) {
-            uint256 fee = (reward * $.contributionFeeBps) / C.BPS;
+            uint256 fee = (actualContributorShare * $.contributionFeeBps) / C.BPS;
             $.pendingRewards[adapter][token] += fee;
             reward -= fee;
             emit ISapienCore.ContributionAdapterFeePaid(projectId, index, adapter, fee);
         }
 
         $.pendingRewards[contrib.contributor][token] += reward;
-        $.projectEscrow[projectId][token] -= contributorShare;
+        $.projectEscrow[projectId][token] -= actualContributorShare;
 
         $.pendingContributions[projectId]--;
 
@@ -197,9 +229,14 @@ library FinalizationLib {
         }
 
         delete $.validatorCommits[projectId][index][nonce][validator];
-        $.validationCounters[projectId][index][nonce].claimCount--;
+
+        if ($.validationCounters[projectId][index][nonce].claimCount > 0) {
+            $.validationCounters[projectId][index][nonce].claimCount--;
+        }
 
         ReputationLib.update(validator, C.VALIDATOR_ROLE_KEY, false, 0);
+
+        emit ISapienCore.ValidatorCommitmentExpired(projectId, index, validator);
     }
 
     function completeProject(bytes32 projectId) public {
@@ -232,7 +269,11 @@ library FinalizationLib {
             if (block.timestamp < proj.completedAt + C.PROJECT_COMPLETION_DELAY) {
                 revert ISapienCore.ChallengeNotElapsed();
             }
-        } else if (proj.status != ProjectStatus.Cancelled) {
+        } else if (proj.status == ProjectStatus.Cancelled) {
+            if (block.timestamp < proj.cancelledAt + C.PROJECT_COMPLETION_DELAY) {
+                revert ISapienCore.ChallengeNotElapsed();
+            }
+        } else {
             revert ISapienCore.ProjectNotCompleted();
         }
 

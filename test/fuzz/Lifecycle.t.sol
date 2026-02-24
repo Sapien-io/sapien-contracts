@@ -138,7 +138,8 @@ contract LifecycleFuzzTest is BaseTest {
             minValidationStake: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
-            completedAt: 0
+            completedAt: 0,
+            cancelledAt: 0
         });
         engine.createProject(projId, "", config);
         token.approve(address(engine), fundAmount);
@@ -189,6 +190,8 @@ contract LifecycleFuzzTest is BaseTest {
         }
 
         // ── Settle all validators ───────────────────────────────────
+        _warpPastChallengePeriod();
+
         uint256 settleNonce = engine.getContribution(projId, index).consensusNonce;
         vm.prank(validator1);
         engine.settleValidator(projId, index, settleNonce);
@@ -273,7 +276,8 @@ contract LifecycleFuzzTest is BaseTest {
             minValidationStake: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
-            completedAt: 0
+            completedAt: 0,
+            cancelledAt: 0
         });
         engine.createProject(projId, "", config);
         token.approve(address(engine), fundAmount);
@@ -350,7 +354,8 @@ contract LifecycleFuzzTest is BaseTest {
                 minValidationStake: 0,
                 status: ProjectStatus.Created,
                 activatedAt: 0,
-                completedAt: 0
+                completedAt: 0,
+                cancelledAt: 0
             });
             engine.createProject(projId, "", config);
             token.approve(address(engine), fundAmount);
@@ -391,6 +396,8 @@ contract LifecycleFuzzTest is BaseTest {
         }
 
         { // ── Settle and release rewards ─────────────────────────────
+            _warpPastChallengePeriod();
+
             for (uint256 i; i < indices.length; ++i) {
                 uint256 settleNonce = engine.getContribution(projId, indices[i]).consensusNonce;
                 vm.prank(validator1);
@@ -400,8 +407,6 @@ contract LifecycleFuzzTest is BaseTest {
                 vm.prank(validator3);
                 engine.settleValidator(projId, indices[i], settleNonce);
             }
-
-            vm.warp(block.timestamp + 2 days);
             for (uint256 i; i < indices.length; ++i) {
                 engine.releaseContributorReward(projId, indices[i]);
             }
@@ -445,7 +450,8 @@ contract LifecycleFuzzTest is BaseTest {
                 minValidationStake: 0,
                 status: ProjectStatus.Created,
                 activatedAt: 0,
-                completedAt: 0
+                completedAt: 0,
+                cancelledAt: 0
             });
             engine.createProject(projId, "", config);
             token.approve(address(engine), fundAmount);
@@ -540,7 +546,8 @@ contract LifecycleFuzzTest is BaseTest {
                 minValidationStake: 0,
                 status: ProjectStatus.Created,
                 activatedAt: 0,
-                completedAt: 0
+                completedAt: 0,
+                cancelledAt: 0
             });
             engine.createProject(projId, "", config);
             token.approve(address(engine), fundAmount);
@@ -580,6 +587,8 @@ contract LifecycleFuzzTest is BaseTest {
         }
 
         { // ── Settle all 5 validators ───────────────────────────────
+            _warpPastChallengePeriod();
+
             uint256 settleNonce = engine.getContribution(projId, index).consensusNonce;
             vm.prank(validator1);
             engine.settleValidator(projId, index, settleNonce);
@@ -640,7 +649,8 @@ contract LifecycleFuzzTest is BaseTest {
                 minValidationStake: 0,
                 status: ProjectStatus.Created,
                 activatedAt: 0,
-                completedAt: 0
+                completedAt: 0,
+                cancelledAt: 0
             });
             engine.createProject(projId, "", config);
             token.approve(address(engine), fundAmount);
@@ -730,7 +740,8 @@ contract LifecycleFuzzTest is BaseTest {
                 minValidationStake: 0,
                 status: ProjectStatus.Created,
                 activatedAt: 0,
-                completedAt: 0
+                completedAt: 0,
+                cancelledAt: 0
             });
             engine.createProject(projId, "", config);
             token.approve(address(engine), fundAmount);
@@ -771,6 +782,8 @@ contract LifecycleFuzzTest is BaseTest {
         // Track validator rewards from settlement
         uint256 totalValidatorRewards;
         {
+            _warpPastChallengePeriod();
+
             uint256 v1Before = engine.getPendingRewards(validator1, address(token));
             uint256 v2Before = engine.getPendingRewards(validator2, address(token));
             uint256 v3Before = engine.getPendingRewards(validator3, address(token));
@@ -850,7 +863,8 @@ contract LifecycleFuzzTest is BaseTest {
             minValidationStake: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
-            completedAt: 0
+            completedAt: 0,
+            cancelledAt: 0
         });
         engine.createProject(projId, "", config);
         token.approve(address(engine), fundAmount);
@@ -894,6 +908,8 @@ contract LifecycleFuzzTest is BaseTest {
         }
 
         { // Full finalization
+            _warpPastChallengePeriod();
+
             uint256 settleNonce = engine.getContribution(projId, index2).consensusNonce;
             vm.prank(validator1);
             engine.settleValidator(projId, index2, settleNonce);
@@ -942,7 +958,8 @@ contract LifecycleFuzzTest is BaseTest {
                 minValidationStake: 0,
                 status: ProjectStatus.Created,
                 activatedAt: 0,
-                completedAt: 0
+                completedAt: 0,
+                cancelledAt: 0
             });
             engine.createProject(projId, "", config);
             token.approve(address(engine), fundAmount);
@@ -995,6 +1012,8 @@ contract LifecycleFuzzTest is BaseTest {
         }
 
         { // ── Settle, release, and verify rewards ───────────────────
+            _warpPastChallengePeriod();
+
             uint256 settleNonce = engine.getContribution(projId, goodIndex).consensusNonce;
             vm.prank(validator1);
             engine.settleValidator(projId, goodIndex, settleNonce);
@@ -1046,7 +1065,8 @@ contract LifecycleFuzzTest is BaseTest {
                 minValidationStake: 0,
                 status: ProjectStatus.Created,
                 activatedAt: 0,
-                completedAt: 0
+                completedAt: 0,
+                cancelledAt: 0
             });
             engine.createProject(projId, "", config);
             token.approve(address(engine), fundAmount);
@@ -1081,6 +1101,8 @@ contract LifecycleFuzzTest is BaseTest {
         }
 
         { // ── Settle all and verify rewards ─────────────────────────
+            _warpPastChallengePeriod();
+
             uint256 settleNonce = engine.getContribution(projId, index).consensusNonce;
             vm.prank(validator1);
             engine.settleValidator(projId, index, settleNonce);

@@ -8,6 +8,7 @@ import {ReputationLib} from "src/libraries/ReputationLib.sol";
 import {
     EngineStorage,
     Project,
+    ProjectStatus,
     Contribution,
     ContributionStatus,
     ValidatorCommit,
@@ -228,7 +229,7 @@ library ValidationLib {
         if (vclaim.status != ValidationClaimStatus.Active) revert ISapienCore.ClaimDeadlineNotPassed();
         if (block.timestamp <= vclaim.deadline) revert ISapienCore.ClaimDeadlineNotPassed();
 
-        uint256 released;
+        uint256 released = 0;
         {
             address validator = vclaim.validator;
             bytes32 projectId = vclaim.projectId;
@@ -269,6 +270,9 @@ library ValidationLib {
     function computeConsensus(bytes32 projectId, uint256 index) public {
         EngineStorage storage $ = _getStorage();
         Project storage proj = $.projects[projectId];
+
+        if (proj.status == ProjectStatus.Cancelled) revert ISapienCore.ProjectNotActive();
+
         uint256 nonce = $.submissionNonce[projectId][index];
 
         ConsensusReport storage report = $.consensusReports[projectId][index][nonce];

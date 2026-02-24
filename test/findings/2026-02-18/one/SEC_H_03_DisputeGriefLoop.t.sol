@@ -106,7 +106,6 @@ contract SEC_H_03_DisputeGriefLoop is BaseTest {
         vm.prank(admin);
         engine.resolveDispute(projectId, idx, false);
 
-        Contribution memory contrib = engine.getContribution(projectId, idx);
         // After rejection, challengeEndsAt is snapped to block.timestamp
         vm.warp(block.timestamp + 1);
         engine.releaseContributorReward(projectId, idx);

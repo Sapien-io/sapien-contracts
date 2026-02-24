@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {BaseTest} from "test/BaseTest.sol";
 import {Constants as C} from "src/Constants.sol";
 import {ProjectStatus} from "src/Types.sol";
+import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 
 /// @title Fix Expectations (2026-02-23)
 /// @notice Expected-behavior tests for the findings in
@@ -105,7 +106,8 @@ contract FIX_2026_02_23_ExpectedBehavior is BaseTest {
         engine.removeProject(projectId);
         assertEq(uint256(engine.getProject(projectId).status), uint256(ProjectStatus.Cancelled));
 
-        // Expected after fix: cancellation path provides an escrow exit.
+        // Expected after fix: cancellation path provides an escrow exit after delay.
+        vm.warp(block.timestamp + C.PROJECT_COMPLETION_DELAY + 1);
         vm.prank(originator);
         engine.refundEscrow(projectId);
         assertEq(engine.getProjectEscrow(projectId, address(token)), 0, "escrow should be drained");

@@ -27,7 +27,8 @@ contract RISK_015_DisputeGriefing is BaseTest {
             minValidationStake: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
-            completedAt: 0
+            completedAt: 0,
+            cancelledAt: 0
         });
         engine.createProject(pid, "", config);
         token.approve(address(engine), 5);

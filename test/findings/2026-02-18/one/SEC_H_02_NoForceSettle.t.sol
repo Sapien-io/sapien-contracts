@@ -64,6 +64,8 @@ contract SEC_H_02_NoForceSettle is BaseTest {
         _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
         engine.computeConsensus(projectId, idx);
 
+        _warpPastChallengePeriod();
+
         // Self-settle still works without delay
         vm.prank(validator1);
         engine.settleValidator(projectId, idx, 0);

@@ -85,7 +85,8 @@ contract ReproduceIssuesTest is BaseTest {
             minValidationStake: 50e18,
             status: ProjectStatus.Created,
             activatedAt: 0,
-            completedAt: 0
+            completedAt: 0,
+            cancelledAt: 0
         });
         engine.createProject(projId, "", config);
         token.mint(originator, 1000e18);
@@ -121,6 +122,8 @@ contract ReproduceIssuesTest is BaseTest {
         vm.stopPrank();
 
         engine.computeConsensus(projId, index);
+
+        _warpPastChallengePeriod();
 
         uint256 nonce = engine.getContribution(projId, index).consensusNonce;
         // First 3 settle
@@ -198,7 +201,8 @@ contract ReproduceIssuesTest is BaseTest {
             minValidationStake: 0, // Allow zero stake
             status: ProjectStatus.Created,
             activatedAt: 0,
-            completedAt: 0
+            completedAt: 0,
+            cancelledAt: 0
         });
         engine.createProject(projId, "", config);
         token.approve(address(engine), FUND_AMOUNT);

@@ -37,7 +37,8 @@ contract SapienCoreProjectTest is BaseTest {
             minValidationStake: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
-            completedAt: 0
+            completedAt: 0,
+            cancelledAt: 0
         });
 
         engine.createProject(PROJECT_ID, "", config);
@@ -69,7 +70,8 @@ contract SapienCoreProjectTest is BaseTest {
             minValidationStake: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
-            completedAt: 0
+            completedAt: 0,
+            cancelledAt: 0
         });
 
         engine.createProject(PROJECT_ID, "", config);
@@ -126,7 +128,8 @@ contract SapienCoreProjectTest is BaseTest {
             minValidationStake: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
-            completedAt: 0
+            completedAt: 0,
+            cancelledAt: 0
         });
         engine.createProject(PROJECT_ID, "", config);
 
@@ -442,6 +445,8 @@ contract SapienCoreConsensusTest is BaseTest {
         engine.computeConsensus(PROJECT_ID, index);
         uint256 nonce = engine.getContribution(PROJECT_ID, index).consensusNonce;
 
+        _warpPastChallengePeriod();
+
         // Settle validator1
         vm.prank(validator1);
         engine.settleValidator(PROJECT_ID, index, nonce);
@@ -465,6 +470,8 @@ contract SapienCoreConsensusTest is BaseTest {
 
         engine.computeConsensus(PROJECT_ID, index);
         uint256 nonce = engine.getContribution(PROJECT_ID, index).consensusNonce;
+
+        _warpPastChallengePeriod();
 
         vm.startPrank(validator1);
         engine.settleValidator(PROJECT_ID, index, nonce);
@@ -528,16 +535,14 @@ contract SapienCoreRewardTest is BaseTest {
         engine.computeConsensus(PROJECT_ID, index);
         uint256 nonce = engine.getContribution(PROJECT_ID, index).consensusNonce;
 
-        // Settle all validators
+        // Warp past challenge period then settle
+        _warpPastChallengePeriod();
         vm.prank(validator1);
         engine.settleValidator(PROJECT_ID, index, nonce);
         vm.prank(validator2);
         engine.settleValidator(PROJECT_ID, index, nonce);
         vm.prank(validator3);
         engine.settleValidator(PROJECT_ID, index, nonce);
-
-        // Warp past challenge period
-        vm.warp(block.timestamp + 2 days);
         engine.releaseContributorReward(PROJECT_ID, index);
 
         // Claim rewards
@@ -596,7 +601,8 @@ contract SapienCoreReputationTest is BaseTest {
             minValidationStake: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
-            completedAt: 0
+            completedAt: 0,
+            cancelledAt: 0
         });
         engine.createProject(PROJECT_ID, "", config);
 
@@ -658,7 +664,8 @@ contract SapienCoreAdminTest is BaseTest {
                 minValidationStake: 0,
                 status: ProjectStatus.Created,
                 activatedAt: 0,
-                completedAt: 0
+                completedAt: 0,
+                cancelledAt: 0
             })
         );
 

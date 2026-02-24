@@ -433,11 +433,12 @@ sequenceDiagram
 | `ContributorRewardReleased` | `releaseContributorReward()` | `projectId`, `index`, `contributor`, `reward` |
 | `RewardClaimed` | `claimReward()` | `user`, `token`, `amount` |
 | `DisputeOpened` | `openDispute()` | `projectId`, `index`, `challenger`, `bondAmount`, `evidenceCid` |
-| `DisputeResolved` | `resolveDispute()` | `projectId`, `index`, `upheld` |
+| `DisputeResolved` | `resolveDispute()`, `upholdDispute()`, `rejectDispute()` | `projectId`, `index`, `upheld` |
 | `DisputeEscalated` | `escalateDispute()` | `projectId`, `index` |
 | `OriginatorReported` | `reportOriginator()` | `projectId`, `reporter`, `bondAmount` |
-| `OriginatorReportResolved` | `resolveOriginatorReport()` | `projectId`, `upheld` |
+| `OriginatorReportResolved` | `resolveOriginatorReport()`, `rejectOriginatorReport()` | `projectId`, `upheld` |
 | `OriginatorReportEscalated` | `escalateOriginatorReport()` | `projectId` |
+| `ValidatorCommitmentExpired` | `cancelExpiredCommitment()` | `projectId`, `index`, `validator` |
 | `EscrowRefunded` | `refundEscrow()` | `projectId`, `amount` |
 
 ---
