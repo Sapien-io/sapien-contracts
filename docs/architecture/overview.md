@@ -1,63 +1,81 @@
 # System Architecture Overview
 
-Sapien PoQ is designed as a modular protocol that provides a "Quality Oracle" for AI systems. It allows human experts to verify AI-generated data or agent behaviors, producing a verifiable quality signal that can be consumed by onchain and offchain systems.
+Sapien PoQ is a protocol that provides a "Quality Oracle" for AI systems. It allows human experts to verify AI-generated data or agent behaviors, producing a verifiable quality signal that can be consumed by onchain and offchain systems.
 
-## 👥 Participant Roles
+## Contract Topology
 
-The protocol defines four primary roles:
+v0.5 consolidates the protocol into **two deployable contracts** with **seven libraries**:
+
+```
+SapienCore (UUPS Proxy — unified entry-point)
+├── OriginationLib     — Project creation & funding
+├── ContributionLib    — Claim & contribute
+├── ValidationLib      — Commit-reveal & consensus orchestration
+├── ConsensusLib       — Stake-weighted consensus algorithm
+├── FinalizationLib    — Settlement, rewards, project completion
+├── DisputeLib         — Disputes & originator reports
+├── ReputationLib      — PoQ reputation with lazy decay
+└─→ SapienVault (UUPS Proxy) — ERC-4626 staking with typed locks
+```
+
+All libraries operate on SapienCore's **ERC-7201 namespaced storage** via `DELEGATECALL`. The only external contract call is SapienCore → SapienVault for stake operations. Shared types are centralized in `Types.sol` and protocol constants in `Constants.sol`.
+
+## Participant Roles
 
 ### 1. Originators
 Originators are the "buyers" of quality. They create projects, define quality criteria, and fund reward pools.
 - **Goal**: Obtain high-quality verified data or agent behavior signals.
-- **Requirement**: Must stake SAPIEN tokens to create projects.
+- **Skin in the game**: Optional per-slot stake requirement (configurable via `originatorStakeRequirement`).
 
 ### 2. Contributors
 Contributors are the workers who perform tasks (e.g., labeling an image, generating an AI response).
 - **Goal**: Earn rewards by providing high-quality work.
-- **Requirement**: Must stake SAPIEN tokens to claim work slots.
+- **Skin in the game**: Must lock stake when claiming contribution slots (`minStakeToClaim`).
 
 ### 3. Validators
-Validators are the independent reviewers who assess the quality of contributions.
+Validators are the independent reviewers who assess the quality of contributions using a commit-reveal scheme.
 - **Goal**: Earn rewards by reaching consensus with other validators.
-- **Requirement**: Must stake SAPIEN tokens to participate in committees.
+- **Skin in the game**: Must pre-lock validator capacity and commit per-validation stakes.
 
-### 4. Oracles (Adapters)
-Oracles are the technical interface between the Sapien protocol and external tools.
-- **Contributor Oracles**: Connect tools like CVAT or custom AI pipelines to submit work.
-- **Validator Oracles**: Provide interfaces for human reviewers to submit scores.
+### 4. Adapters
+Adapters are the technical interface between the Sapien protocol and external tools.
+- **Origination adapters**: Earn fees when projects are funded.
+- **Contribution adapters**: Earn fees when contributor rewards are released.
+- **Validation adapters**: Earn fees when validators are settled.
 
-## 🔄 Verification Lifecycle
+## Verification Lifecycle
 
-The PoQ process follows five distinct phases. For a detailed technical flow, see the [Protocol Lifecycle Diagram](./lifecycle.md). For information on how onchain indices map to offchain data (e.g., S3 buckets), see the [Data Index Lifecycle](./index-lifecycle.md).
+The PoQ process follows six distinct phases. For detailed technical flows, see the [Protocol Lifecycle Diagram](./lifecycle.md). For information on how onchain indices map to offchain data, see the [Data Index Lifecycle](./index-lifecycle.md).
 
 ### Phase 1: Project Setup
-The Originator creates a project in `SapienCore`, defining parameters like the required skill, minimum quality score, and reward distribution. They fund the project with reward tokens (e.g., USDC).
+The originator creates a project via `createProject`, defining parameters like reward token, consensus threshold, number of validations, and validator reward share. They fund it via `fundProject`, which transfers tokens into escrow (after protocol and optional adapter fees) and creates contribution slots.
 
-### Phase 2: Work Submission
-Contributors claim slots and submit their work. The work itself stays in the Originator's storage (e.g., S3, IPFS); only a hash and reference are submitted to `SapienCore`.
+### Phase 2: Contribution
+Contributors claim slots via `claimToContribute` (locks contributor stake) and submit work via `contribute` or `batchContribute` with a submission hash and data CID. Unsubmitted slots can be expired via `expireClaim` after the claim deadline.
 
 ### Phase 3: Validation (Commit-Reveal)
-To prevent collusion and herding, validators use a two-step process in the `ValidationOracle`:
-1. **Capacity Setup**: Validators lock a fixed amount of stake to establish "Validation Capacity," allowing them to handle multiple tasks efficiently.
-2. **Commit**: Validators submit a hash of their score and a secret salt, increasing their "In-Flight Stake."
-3. **Reveal**: After the commit period, validators reveal their actual score and salt. This releases their "In-Flight Stake" back into their capacity pool.
+1. **Capacity Setup**: Validators pre-lock tokens as capacity via `lockValidatorCapacity`.
+2. **Claim**: Validators claim specific indices via `claimToValidate` (1-hour deadline).
+3. **Commit**: Validators submit `keccak256(abi.encodePacked(uint16(score), salt))` with a stake amount. Stake moves from capacity to in-flight.
+4. **Reveal**: Validators reveal `score` and `salt` within the reveal window.
 
-### Phase 4: Consensus Calculation
-Once enough reveals are gathered (or the deadline passes), the `ValidationOracle` uses a pluggable consensus algorithm (e.g., Hybrid or Sqrt Stake) to calculate a weighted average score and identify outliers. `ConsensusLib` handles the statistical heavy lifting, including standard deviation and tiered slashing calculations.
+### Phase 4: Consensus
+Once all required reveals are recorded, `computeConsensus` triggers `ConsensusLib` to calculate a stake-weighted average, identify outliers via tiered thresholds (1.5σ/2σ/3σ/5σ → 10%/25%/50%/100% slash), and set the contribution to Accepted or Rejected. The challenge period begins.
 
-### Phase 5: Finalization & Settlement
-`SapienCore` finalizes the contribution:
-- If accepted: Rewards are distributed via the `Rewards` contract to the contributor and honest validators.
-- If rejected: The work is released back into the project pool for another contributor to attempt.
-- Outlier validators are slashed via the `SapienVault`, and their reputation in `SapienTrust` is penalized.
+### Phase 5: Disputes
+During the challenge period, anyone can open a bonded dispute against a consensus outcome. Operators resolve disputes, or they auto-escalate after 7 days. Originator accountability via `reportOriginator` allows community members to flag bad-faith projects.
 
-## 🏗️ Technical Stack
+### Phase 6: Settlement & Rewards
+- Validators settle via `settleValidator` — outliers slashed, accurate validators rewarded.
+- Contributor rewards released via `releaseContributorReward` after the challenge period.
+- Users withdraw via `claimReward`.
+- Originators complete projects and claim remaining escrow after a 30-day grace period.
 
-The protocol is implemented as a suite of EVM smart contracts:
-- **Core Logic**: `SapienCore`
-- **Consensus Oracle**: `ValidationOracle`
-- **Reputation & Identity**: `SapienTrust`
-- **Staking & Slashing**: `SapienVault`
-- **Incentives**: `Rewards`
+## Technical Stack
 
-All quality signals are recorded as verifiable attestations, making them auditable and composable with other protocols.
+- **Solidity**: ^0.8.30
+- **Proxy Pattern**: UUPS (OpenZeppelin `UUPSUpgradeable`)
+- **Storage Pattern**: ERC-7201 namespaced storage
+- **Access Control**: OpenZeppelin `AccessControlUpgradeable`
+- **Safety**: `ReentrancyGuardUpgradeable`, `PausableUpgradeable`
+- **Token Standard**: ERC-4626 vault for staking (with inflation attack mitigation)

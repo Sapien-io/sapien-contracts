@@ -130,11 +130,11 @@ contract BaseTest is Test {
         }
     }
 
-    function _commitAndReveal(address val, bytes32 projectId, uint256 index, uint16 score, uint128 stakeAmt) internal {
+    function _commitAndReveal(address val, bytes32 projectId, uint256 index, uint256 score, uint256 stakeAmt) internal {
         bytes32 salt = keccak256(abi.encodePacked("salt", val, index));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
-        _ensureStake(val, uint256(stakeAmt) * 2);
+        _ensureStake(val, stakeAmt * 2);
 
         vm.startPrank(val);
 

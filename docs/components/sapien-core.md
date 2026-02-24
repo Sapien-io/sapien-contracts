@@ -1,104 +1,237 @@
-# Sapien Core
+# SapienCore
 
-`SapienCore` is the central coordinator of the Sapien PoQ protocol. It manages the lifecycle of projects, claims, and contributions, and triggers the finalization process that involves rewards and slashing.
+`SapienCore` is the unified entry-point contract for the Sapien Proof-of-Quality (PoQ) protocol. It coordinates the full lifecycle — project origination, contribution claiming, commit-reveal validation, stake-weighted consensus, dispute resolution, and reward distribution.
 
-## 📋 Responsibilities
+Deployed behind an **ERC-1967 UUPS proxy** with **ERC-7201 namespaced storage**. Its only external call target is `SapienVault` for stake operations.
 
-- **Project Management**: Creation and funding of projects.
-- **Contribution Lifecycle**: Handling claims to contribute, work submission, and finalization.
-- **Coordination**: Interfacing with `SapienVault`, `SapienTrust`, `ValidationOracle`, and `Rewards`.
+## Architecture
 
-## 🛠️ Key Functions
+SapienCore delegates all business logic to purpose-built libraries via `DELEGATECALL`:
 
-### Project Functions
+| Library | Responsibility |
+|---------|---------------|
+| `OriginationLib` | Project creation, funding, and removal |
+| `ContributionLib` | Claim creation, contribution submission, claim expiration |
+| `ValidationLib` | Validator capacity, validation claims, commit-reveal, consensus computation |
+| `FinalizationLib` | Validator settlement, contributor reward release, reward claiming, project completion |
+| `DisputeLib` | Dispute opening/resolution, originator reports |
+| `ReputationLib` | Score tracking with lazy decay and daily gain caps |
+| `ConsensusLib` | Stake-weighted consensus calculation with outlier detection |
 
-#### `createProject`
-Allows an Originator to initialize a new project with specific parameters:
-- `projectId`: A unique `bytes32` identifier (usually a hash of the project metadata).
-- `rewardToken`: The ERC20 token used for payouts.
-- `minStakeToClaim`: Minimum stake required for a contributor to claim slots.
-- `minStakeToContribute`: Minimum stake required to contribute (optional/secondary check).
-- `minValidations`: Minimum number of validator reveals required to reach consensus (defaults to 3).
-- `validatorRewardBasisPoints`: The percentage of the reward pool reserved for validators (e.g., 1000 = 10%). Capped at 2500 (25%).
-- `requiredSkill`: Optional skill requirement for contributors.
+Shared types live in `Types.sol` and protocol constants in `Constants.sol`.
 
-#### `fundProject`
-Originators add reward tokens and increase the available quantity of contribution slots.
+## Origination
 
-**Protocol Fee**: When funding a project, a configurable protocol fee (default 1% = 100 basis points) is automatically deducted from the funding amount and sent to the Sapien treasury. The remaining amount is allocated to the project's reward pool.
+### `createProject(bytes32 projectId, string metadataCid, Project config)`
 
-- `projectId`: The project identifier
-- `rewardAmount`: Total amount of reward tokens to deposit (protocol fee is deducted from this)
-- `quantity`: Number of contribution slots to add
+Registers a new project in `Created` status. The caller becomes the originator. Key configuration fields in the `Project` struct:
 
-**Note**: The protocol fee is only collected if:
-- `protocolFeeBasisPoints > 0`
-- `treasury` address is set
-- `rewardAmount > 0`
+| Field | Description |
+|-------|-------------|
+| `rewardToken` | ERC-20 token used for payouts |
+| `minStakeToClaim` | Minimum stake a contributor must lock per claimed slot |
+| `minValidationStake` | Project-level minimum stake for validators |
+| `consensusThreshold` | Basis points threshold for acceptance (e.g. 7000 = 70%) |
+| `validatorRewardBps` | Percentage of reward pool reserved for validators (max 2500 = 25%) |
+| `numberOfValidations` | Number of validator reveals required per contribution (1–10) |
+| `minValidatorReputation` | Minimum reputation score required for validators |
+| `requiredSkill` | Optional skill hash restricting validator participation |
 
-#### `setProtocolFeeBasisPoints`
-Admin-only function to configure the protocol fee percentage.
-- `_feeBasisPoints`: Fee in basis points (e.g., 100 = 1%, max 10000 = 100%)
+### `fundProject(bytes32 projectId, uint256 amount, uint256 quantity, address adapter)`
 
-#### `setTreasury`
-Admin-only function to set the address that receives protocol fees.
-- `_treasury`: The treasury address (must not be zero address)
+Funds the project with reward tokens and creates contribution slots.
 
-#### `reclaimExpiredIndices`
-Allows anyone to reclaim contribution slots that were reserved but not submitted within the deadline. This restores the `activeClaimedQuantity` and makes the slots available for other contributors.
+1. Transfers `amount` tokens from the originator
+2. Deducts **protocol fee** (default 10%) to the treasury
+3. Optionally pays an **origination adapter fee** (default 4%) if `adapter != address(0)`
+4. Locks **originator stake** if `originatorStakeRequirement > 0` (per slot)
+5. Initializes the slot index range for allocation
+6. Transitions project to `Funded` status
 
-### Contribution Functions
+Can be called multiple times on a `Created` or `Funded` project to add more funding.
 
-#### `claimToContribute`
-Contributors claim a specific number of slots in a project. This:
-1. Verifies the contributor's stake in `SapienVault` meets `minStakeToClaim`.
-2. Locks the required stake in the vault.
-3. Reserves specific contribution indices for the contributor using an internal `IndexReservation` system.
-4. Returns a `claimId` used for subsequent submissions.
+### `removeProject(bytes32 projectId)` — OPERATOR_ROLE only
 
-#### `contribute` / `batchContribute`
-Contributors submit a `submissionHash` (e.g., an IPFS CID) for specific indices within their claim. 
-- Must be called before the claim or index reservation deadline.
-- Submissions are automatically enqueued in the `ValidationOracle` for review.
+Removes a project, slashes the originator's locked stake, and cancels the project.
 
-#### `releaseExpiredClaim`
-Marks a claim as expired if the contributor failed to submit work before the deadline.
-- Unlocks the contributor's stake but applies a slash penalty based on the `minStakeToClaim`.
+## Contribution
 
-#### `finalizeContribution`
-The final step in the lifecycle. It:
-1. Requests consensus from the `ValidationOracle` (checks if minimum reveals and deadlines are met).
-2. Updates the contributor's reputation in `SapienTrust` (Success increase or Rejection penalty).
-3. Distributes rewards via `Rewards` for accepted work.
-4. Executes slashing via `SapienVault` for outlier validators identified by consensus.
-5. Re-queues rejected work by releasing the index back to the pool of available slots.
-6. Unlocks the contributor's stake if the entire claim is processed.
+### `claimToContribute(bytes32 projectId, uint256 quantity, address adapter) → (claimId, indices[])`
 
-## 🚨 Events
+Claims one or more contribution slots (max 20 per call). Locks the contributor's stake at `minStakeToClaim * quantity`. Returns a `claimId` and the assigned slot `indices`. The first claim on a `Funded` project transitions it to `Active`.
 
-- `ProjectCreated`: Emitted when a new project is registered.
-- `ProjectFunded`: Emitted when a project receives funding.
-- `ProtocolFeeCollected`: Emitted when a protocol fee is collected during project funding.
-- `ProtocolFeeUpdated`: Emitted when the protocol fee basis points are updated.
-- `TreasuryUpdated`: Emitted when the treasury address is updated.
-- `ContributionSubmitted`: Emitted when a contributor submits work.
-- `ContributionFinalized`: Emitted when consensus is reached and rewards/slashing are processed.
+Slot allocation uses a **range + return-stack hybrid**: fresh indices come from a contiguous range, while previously returned indices (from rejections/expirations) are recycled from a LIFO stack.
 
-## 🔐 Access Control
+### `contribute(uint256 claimId, uint256 index, bytes32 submissionHash, string dataCid)`
 
-- **ORIGINATOR_ROLE**: Required to create projects.
-- **CONTRIBUTOR_ROLE**: Required to claim slots and submit work.
-- **DEFAULT_ADMIN_ROLE**: Global administration and configuration (protocol fee, treasury, and other protocol parameters).
+Submits work for a single claimed slot. Transitions the slot from `Reserved` to `Pending` and records the `submissionHash` and `dataCid`. Must be called before the claim deadline.
 
-## 💰 Protocol Fee
+### `batchContribute(uint256 claimId, uint256[] indices, bytes32[] submissionHashes, string[] dataCids)`
 
-The protocol charges a configurable fee on project funding to support protocol operations and the Sapien treasury.
+Batch version of `contribute`.
 
-- **Default Fee**: 1% (100 basis points)
-- **Collection**: Automatically deducted from `fundProject` calls
-- **Recipient**: Sapien treasury address (configurable by admin)
-- **Configuration**: Admin can update fee percentage and treasury address via `setProtocolFeeBasisPoints()` and `setTreasury()`
+### `expireClaim(uint256 claimId, uint256[] indices)`
 
-The fee is calculated as: `protocolFee = (rewardAmount * protocolFeeBasisPoints) / 10000`
+Permissionless. After the claim deadline passes, returns unsubmitted slots to the pool, slashes the contributor's stake for unsubmitted slots, and unlocks stake for submitted slots. Updates contributor reputation negatively.
 
-The remaining amount after fee deduction is allocated to the project's reward pool for distribution to contributors and validators.
+## Validation
+
+### `lockValidatorCapacity(uint256 amount)` / `unlockValidatorCapacity(uint256 amount)`
+
+Validators pre-lock tokens as "capacity" in the vault. This capacity is drawn down when committing validations, eliminating per-commit lock/unlock gas costs.
+
+### `claimToValidate(bytes32 projectId, uint256[] indices) → claimId`
+
+Reserves the right to validate specific contribution indices. Checks reputation requirements and prevents validators from validating their own contributions. Creates a `ValidationClaim` with a 1-hour deadline to commit.
+
+### `commitValidation(projectId, index, commitHash, stakeAmount, adapter)`
+
+Commits a sealed score hash (`keccak256(abi.encodePacked(score, salt))`) with a stake amount. The stake is moved from validator capacity to in-flight. Must meet both the project-level and global minimum validation stake.
+
+### `batchCommitValidations(projectId, indices[], commitHashes[], stakeAmounts[], adapter)`
+
+Batch version of `commitValidation`.
+
+### `revealValidation(projectId, index, score, salt)`
+
+Reveals the previously committed score. Verifies `hash(score, salt) == commitHash`. Must be called within the reveal window. Score range is 0–10,000.
+
+### `batchRevealValidations(projectId, indices[], scores[], salts[])`
+
+Batch version of `revealValidation`.
+
+### `cancelExpiredValidationClaim(uint256 claimId)`
+
+Permissionless. Cancels a validation claim after its 1-hour deadline if the validator failed to commit. Applies a reputation penalty.
+
+## Finalization
+
+### `computeConsensus(bytes32 projectId, uint256 index)`
+
+Triggers stake-weighted consensus computation via `ConsensusLib` after all required reveals are in. Determines whether the contribution is `Accepted` or `Rejected` based on the project's `consensusThreshold`. Starts the challenge period.
+
+- **Accepted**: Contributor stake unlocked, reputation increased with a quality bonus
+- **Rejected**: Contributor stake slashed, reputation decreased, slot returned to the pool, submission nonce incremented for re-contribution
+
+### `settleValidator(bytes32 projectId, uint256 index, uint256 nonce)`
+
+Validators call this to settle after consensus. Outlier validators are slashed (tiered: 10%/25%/50%/100%); accurate validators receive their stake back plus a share of the validator reward pool. Adapter fees are deducted if applicable.
+
+### `forceSettleValidator(projectId, index, nonce, validator)`
+
+Permissionless. Force-settles an unresponsive validator after `forceSettleDelay` elapses past the reveal.
+
+### `releaseContributorReward(bytes32 projectId, uint256 index)`
+
+Releases the contributor's share of the reward (minus validator and adapter fees) to their pending balance. Requires: contribution is `Accepted`, challenge period elapsed, no active dispute.
+
+### `claimReward(address token)`
+
+Withdraws accumulated pending rewards for a specific token. Subject to `minClaimAmount` and `claimCooldown` restrictions.
+
+### `cancelExpiredCommitment(projectId, index, validator)`
+
+Permissionless keeper function. Slashes validators who committed but failed to reveal within the commit + reveal deadline window.
+
+## Disputes
+
+### `openDispute(projectId, index, evidenceHash, evidenceCid)`
+
+Opens a dispute against a consensus outcome during the challenge period. Requires a bond proportional to the contribution's reward rate (`disputeBondBps`). Cannot dispute your own accepted contribution.
+
+### `resolveDispute(projectId, index, upheld)` — OPERATOR_ROLE only
+
+- **Upheld**: Bond returned, challenger rewarded (20% of saved/slashed amount), contributor reputation penalized
+- **Rejected**: Bond slashed, challenge period ended
+
+### `escalateDispute(projectId, index)`
+
+Permissionless. Auto-upholds a dispute if the `DISPUTE_RESOLUTION_DEADLINE` (7 days) passes without operator resolution.
+
+## Originator Accountability
+
+### `reportOriginator(projectId, evidenceHash)`
+
+Reports an originator for misconduct. Requires a bond proportional to the project's total rewards (`originatorReportBondBps`). Blocks new contribution claims while open.
+
+### `resolveOriginatorReport(projectId, upheld)` — OPERATOR_ROLE only
+
+- **Upheld**: Bond returned, originator stake slashed, project cancelled, reporter rewarded
+- **Rejected**: Bond slashed
+
+### `escalateOriginatorReport(projectId)`
+
+Permissionless. Auto-upholds after `DISPUTE_RESOLUTION_DEADLINE` passes. Project is cancelled.
+
+## Project Completion
+
+### `completeProject(bytes32 projectId)`
+
+Originator marks the project as completed. Requires no active pipeline contributions. Unlocks originator stake.
+
+### `refundEscrow(bytes32 projectId)`
+
+Originator claims remaining escrow after `PROJECT_COMPLETION_DELAY` (30 days) post-completion.
+
+## Admin Functions
+
+All require `DEFAULT_ADMIN_ROLE`:
+
+| Function | Default | Max |
+|----------|---------|-----|
+| `setProtocolFee(bps)` | 1000 (10%) | 1000 (10%) |
+| `setOriginationFee(bps)` | 400 (4%) | 500 (5%) |
+| `setContributionFee(bps)` | 300 (3%) | 500 (5%) |
+| `setValidationFee(bps)` | 300 (3%) | 500 (5%) |
+| `setDecayRate(bps)` | 10 (0.1%/day) | 500 (5%/day) |
+| `setDisputeBondBps(bps)` | 1000 (10%) | 5000 (50%) |
+| `setOriginatorStakeRequirement(amount)` | 0 (disabled) | — |
+| `setOriginatorReportBondBps(bps)` | 100 (1%) | 1000 (10%) |
+| `setMinValidationStake(amount)` | 0 | — |
+| `setTreasury(address)` | — | — |
+| `setMinClaimAmount(amount)` | 0 | — |
+| `setClaimCooldown(seconds)` | 0 | — |
+| `setClaimDeadline(seconds)` | 1 day | 30 days |
+| `setChallengePeriod(seconds)` | 1 day | 30 days |
+| `setCommitDeadline(seconds)` | 1 day | 30 days |
+| `setRevealDeadline(seconds)` | 1 day | 30 days |
+| `setForceSettleDelay(seconds)` | 3 days | 90 days |
+| `pause()` / `unpause()` | — | — |
+
+## View Functions
+
+| Function | Returns |
+|----------|---------|
+| `getProject(projectId)` | `Project` struct |
+| `getClaim(claimId)` | `Claim` struct |
+| `getValidationClaim(claimId)` | `ValidationClaim` struct |
+| `getContribution(projectId, index)` | `Contribution` struct |
+| `getReputation(user, role)` | `Reputation` struct |
+| `getPendingRewards(user, token)` | `uint256` pending balance |
+| `getAdapterFees()` | Origination, contribution, validation BPS |
+| `getOriginationAdapter(projectId)` | Adapter address |
+| `getContributionAdapter(claimId)` | Adapter address |
+| `getValidationAdapter(projectId, index, nonce, validator)` | Adapter address |
+| `getDispute(projectId, index)` | `Dispute` struct (current nonce) |
+| `getOriginatorReport(projectId)` | `OriginatorReport` struct |
+| `getConsensusReport(projectId, index)` | `ConsensusReport` struct |
+| `getSubmissionNonce(projectId, index)` | Current nonce |
+| `getReturnStackTop(projectId)` | Stack height |
+| `getProjectEscrow(projectId, token)` | Escrow balance |
+| `getOriginatorLockedStake(projectId)` | Locked stake amount |
+| `getDisputeConfig()` | Bond BPS, stake req, report bond BPS |
+| `getRevealCount(projectId, index)` | Reveal count for current nonce |
+| `isValidatorOutlier(projectId, index, validator)` | `bool` |
+| `isValidatorSettled(projectId, index, nonce, validator)` | `bool` |
+| `vault()` | Vault address |
+| `treasury()` | Treasury address |
+| `claimDeadline()` / `challengePeriod()` / `commitDeadline()` / `revealDeadline()` / `forceSettleDelay()` | Current deadline values |
+
+## Access Control
+
+| Role | Permissions |
+|------|------------|
+| `DEFAULT_ADMIN_ROLE` | Fee configuration, treasury, deadlines, pause/unpause, upgrades |
+| `OPERATOR_ROLE` | Project removal, dispute resolution, originator report resolution |
+
+All other functions are permissionless (access controlled by on-chain state checks — e.g., only the originator can fund their project, only a claim owner can submit contributions).

@@ -10,7 +10,7 @@ import {Project, ProjectStatus, Contribution, ContributionStatus} from "src/Type
 contract ReproduceIssuesTest is BaseTest {
     bytes32 internal projId = keccak256("audit-repro");
 
-    function _validate(address val, bytes32 projectId, uint256 index, uint16 score, uint128 stakeAmt) internal {
+    function _validate(address val, bytes32 projectId, uint256 index, uint256 score, uint256 stakeAmt) internal {
         bytes32 salt = keccak256(abi.encodePacked("salt", val, projectId, index, score));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
@@ -27,9 +27,9 @@ contract ReproduceIssuesTest is BaseTest {
     }
 
     function _validateBelowThreshold(bytes32 projectId, uint256 index) internal {
-        _validate(validator1, projectId, index, 3000, uint128(VALIDATOR_STAKE));
-        _validate(validator2, projectId, index, 2500, uint128(VALIDATOR_STAKE));
-        _validate(validator3, projectId, index, 4000, uint128(VALIDATOR_STAKE));
+        _validate(validator1, projectId, index, 3000, VALIDATOR_STAKE);
+        _validate(validator2, projectId, index, 2500, VALIDATOR_STAKE);
+        _validate(validator3, projectId, index, 4000, VALIDATOR_STAKE);
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -116,7 +116,7 @@ contract ReproduceIssuesTest is BaseTest {
         }
         engine.lockValidatorCapacity(50e18);
         bytes32 salt4 = keccak256("validator4");
-        engine.commitValidation(projId, index, keccak256(abi.encodePacked(uint16(8200), salt4)), 50e18, address(0));
+        engine.commitValidation(projId, index, keccak256(abi.encodePacked(uint256(8200), salt4)), 50e18, address(0));
         engine.revealValidation(projId, index, 8200, salt4);
         vm.stopPrank();
 
@@ -160,9 +160,9 @@ contract ReproduceIssuesTest is BaseTest {
         engine.contribute(claimId2, index, keccak256("resubmission"), "");
         vm.stopPrank();
 
-        _validate(validator1, PROJECT_ID, index, 9000, uint128(VALIDATOR_STAKE));
-        _validate(validator2, PROJECT_ID, index, 8500, uint128(VALIDATOR_STAKE));
-        _validate(validator4, PROJECT_ID, index, 8000, uint128(VALIDATOR_STAKE));
+        _validate(validator1, PROJECT_ID, index, 9000, VALIDATOR_STAKE);
+        _validate(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
+        _validate(validator4, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
         // validator3 does NOT participate in round 2
 
         engine.computeConsensus(PROJECT_ID, index);
@@ -209,8 +209,8 @@ contract ReproduceIssuesTest is BaseTest {
         uint256 index = indices[0];
 
         // validator1 and validator2 with real stake
-        _validate(validator1, projId, index, 8000, uint128(VALIDATOR_STAKE));
-        _validate(validator2, projId, index, 8500, uint128(VALIDATOR_STAKE));
+        _validate(validator1, projId, index, 8000, VALIDATOR_STAKE);
+        _validate(validator2, projId, index, 8500, VALIDATOR_STAKE);
 
         // contributor2 tries zero-stake commit — should revert after RISK-007 fix
         vm.startPrank(contributor2);
@@ -221,7 +221,7 @@ contract ReproduceIssuesTest is BaseTest {
         }
         bytes32 salt = keccak256("zero-stake");
         vm.expectRevert(abi.encodeWithSelector(ISapienCore.InsufficientStake.selector, 1, 0));
-        engine.commitValidation(projId, index, keccak256(abi.encodePacked(uint16(1000), salt)), 0, address(0));
+        engine.commitValidation(projId, index, keccak256(abi.encodePacked(uint256(1000), salt)), 0, address(0));
         vm.stopPrank();
     }
 }

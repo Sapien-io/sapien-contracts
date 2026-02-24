@@ -125,6 +125,12 @@ library ValidationLib {
         ValidatorCommit storage vc = $.validatorCommits[projectId][index][nonce][msg.sender];
         if (!vc.claimed) revert ISapienCore.ValidationNotClaimed();
         if (vc.commitHash != bytes32(0)) revert ISapienCore.AlreadyCommitted();
+        uint256 vcClaimId = vc.validationClaimId;
+        if (vcClaimId == 0) revert ISapienCore.ValidationNotClaimed();
+
+        ValidationClaim storage vclaim = $.validationClaims[vcClaimId];
+        if (vclaim.status != ValidationClaimStatus.Active) revert ISapienCore.ClaimDeadlinePassed();
+        if (block.timestamp > vclaim.deadline) revert ISapienCore.ClaimDeadlinePassed();
 
         if (stakeAmount == 0) revert ISapienCore.InsufficientStake(1, 0);
         {
@@ -143,13 +149,9 @@ library ValidationLib {
         vc.adapter = adapter;
 
         {
-            uint256 vcClaimId = vc.validationClaimId;
-            if (vcClaimId != 0) {
-                ValidationClaim storage vclaim = $.validationClaims[vcClaimId];
-                vclaim.committedCount++;
-                if (vclaim.committedCount == vclaim.totalCount) {
-                    vclaim.status = ValidationClaimStatus.Fulfilled;
-                }
+            vclaim.committedCount++;
+            if (vclaim.committedCount == vclaim.totalCount) {
+                vclaim.status = ValidationClaimStatus.Fulfilled;
             }
         }
 
@@ -187,13 +189,8 @@ library ValidationLib {
             revert ISapienCore.RevealWindowClosed();
         }
 
-        bytes32 expectedHash;
-        assembly {
-            let ptr := mload(0x40)
-            mstore(ptr, shl(240, score))
-            mstore(add(ptr, 2), salt)
-            expectedHash := keccak256(ptr, 34)
-        }
+        // Canonical format: keccak256(abi.encodePacked(uint256 score, bytes32 salt))
+        bytes32 expectedHash = keccak256(abi.encodePacked(score, salt));
         if (vc.commitHash != expectedHash) revert ISapienCore.InvalidReveal();
 
         vc.score = score;
@@ -226,19 +223,43 @@ library ValidationLib {
 
     function cancelExpiredValidationClaim(uint256 claimId) public {
         EngineStorage storage $ = _getStorage();
-        ValidationClaim storage vc = $.validationClaims[claimId];
+        ValidationClaim storage vclaim = $.validationClaims[claimId];
 
-        if (vc.status != ValidationClaimStatus.Active) revert ISapienCore.ClaimDeadlineNotPassed();
-        if (block.timestamp <= vc.deadline) revert ISapienCore.ClaimDeadlineNotPassed();
+        if (vclaim.status != ValidationClaimStatus.Active) revert ISapienCore.ClaimDeadlineNotPassed();
+        if (block.timestamp <= vclaim.deadline) revert ISapienCore.ClaimDeadlineNotPassed();
 
-        uint256 uncommitted = vc.totalCount - vc.committedCount;
-        vc.status = ValidationClaimStatus.Expired;
+        uint256 released;
+        {
+            address validator = vclaim.validator;
+            bytes32 projectId = vclaim.projectId;
+            uint256 len = vclaim.indices.length;
 
-        if (uncommitted > 0) {
-            ReputationLib.update(vc.validator, C.VALIDATOR_ROLE_KEY, false, 0);
+            for (uint256 i; i < len; ++i) {
+                uint256 idx = vclaim.indices[i];
+                uint256 nonce = $.submissionNonce[projectId][idx];
+
+                ValidatorCommit storage vc = $.validatorCommits[projectId][idx][nonce][validator];
+
+                // Only release reservations that still belong to this claim and were never committed.
+                if (vc.validationClaimId == claimId && vc.commitHash == bytes32(0)) {
+                    delete $.validatorCommits[projectId][idx][nonce][validator];
+
+                    ValidationCounters storage counters = $.validationCounters[projectId][idx][nonce];
+                    if (counters.claimCount > 0) {
+                        counters.claimCount--;
+                    }
+                    released++;
+                }
+            }
         }
 
-        emit ISapienCore.ValidationClaimExpired(claimId, uncommitted);
+        vclaim.status = ValidationClaimStatus.Expired;
+
+        if (released > 0) {
+            ReputationLib.update(vclaim.validator, C.VALIDATOR_ROLE_KEY, false, 0);
+        }
+
+        emit ISapienCore.ValidationClaimExpired(claimId, released);
     }
 
     // ════════════════════════════════════════════════════════════════════

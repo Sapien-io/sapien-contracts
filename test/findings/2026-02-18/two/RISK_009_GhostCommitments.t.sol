@@ -16,9 +16,9 @@ contract RISK_009_GhostCommitments is BaseTest {
         uint256 idx = indices[0];
 
         // Ghost validator commits but will NOT reveal
-        uint16 ghostScore = 8000;
+        uint256 ghostScore = 8000;
         bytes32 ghostSalt = keccak256(abi.encodePacked("salt", validator1, idx));
-        bytes32 ghostHash = keccak256(abi.encodePacked(ghostScore, ghostSalt));
+        bytes32 ghostHash = keccak256(abi.encodePacked(uint256(ghostScore), ghostSalt));
         _ensureStake(validator1, VALIDATOR_STAKE * 2);
 
         vm.startPrank(validator1);
@@ -30,8 +30,8 @@ contract RISK_009_GhostCommitments is BaseTest {
         vm.stopPrank();
 
         // Honest validators commit and reveal — scores now visible on-chain
-        _commitAndReveal(validator2, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
 
         assertEq(engine.getRevealCount(projectId, idx), 2, "only 2 reveals, ghost withheld");
 
@@ -57,9 +57,9 @@ contract RISK_009_GhostCommitments is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        uint16 ghostScore = 8000;
+        uint256 ghostScore = 8000;
         bytes32 ghostSalt = keccak256(abi.encodePacked("salt", validator1, idx));
-        bytes32 ghostHash = keccak256(abi.encodePacked(ghostScore, ghostSalt));
+        bytes32 ghostHash = keccak256(abi.encodePacked(uint256(ghostScore), ghostSalt));
         _ensureStake(validator1, VALIDATOR_STAKE * 2);
 
         vm.startPrank(validator1);
@@ -70,8 +70,8 @@ contract RISK_009_GhostCommitments is BaseTest {
         engine.commitValidation(projectId, idx, ghostHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
 
-        _commitAndReveal(validator2, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
 
         // Ghost sees scores, waits almost until deadline, then reveals
         vm.warp(block.timestamp + engine.commitDeadline() + engine.revealDeadline() - 1);

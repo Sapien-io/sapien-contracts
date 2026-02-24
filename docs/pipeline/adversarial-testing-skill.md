@@ -12,7 +12,7 @@ To systematically generate, document, and implement test cases that simulate mal
 
 **Target**: `test/` directory (specifically `test/lifecycle/` and new `Security` or `Adversarial` test suites).
 
-**Architecture Reference**: `docs/v0.5-contracs.md` — QualityEngine + StakeVault + ConsensusLib.
+**Architecture Reference**: Sapien PoQ v0.5 -- SapienCore + SapienVault + 7 libraries (OriginationLib, ContributionLib, ValidationLib, ConsensusLib, FinalizationLib, DisputeLib, ReputationLib).
 
 ---
 
@@ -28,7 +28,7 @@ When using this skill, adopt the persona of a motivated attacker who:
 
 ## Attack Vectors by Phase
 
-Based on v0.5 lifecycle (`docs/v0.5-contracs.md`), test these vectors for each phase:
+Based on v0.5 lifecycle, test these vectors for each phase:
 
 ### Phase 1: Project Setup
 - **Malicious Originator**:
@@ -45,38 +45,45 @@ Based on v0.5 lifecycle (`docs/v0.5-contracs.md`), test these vectors for each p
 - **Front-running**:
   - Front-run legitimate claims to steal reserved indices.
 - **State Locking**:
-  - Claim slots but never submit — `expireClaim` should return indices and slash.
+  - Claim slots but never submit -- `expireClaim` should return indices and slash.
   - Verify expiry returns indices atomically (no zombie indices).
 
 ### Phase 3: Validation (Commit-Reveal)
 - **Ghost Validator**:
-  - `commitValidation` but never `revealValidation` — test `cancelExpiredCommitment` slashing.
-  - Verify queue/consensus unblocking (other validators can still reach `numberOfValidations`).
+  - `commitValidation` but never `revealValidation` -- test `cancelExpiredCommitment` slashing.
+  - Verify consensus unblocking (other validators can still reach `numberOfValidations`).
+- **Validation Claim Griefing**:
+  - `claimToValidate` but never commit -- test `cancelExpiredValidationClaim`.
 - **Mirroring Attack**:
-  - Wait for others to reveal, then try to copy their score (prevented by salt in commit hash).
+  - Wait for others to reveal, then try to copy their score (prevented by salt in commit hash and commit deadline).
 - **Stake Manipulation**:
-  - Commit hash is `keccak256(abi.encodePacked(score, salt))` — stake amount is separate.
-  - Committed stake is stored in `committedStakes` and used for weighting/slashing — verify no mismatch exploit.
-  - Flash loan staking to inflate weight temporarily (deposit → commit → reveal → withdraw).
+  - Commit hash is `keccak256(abi.encodePacked(score, salt))` -- stake amount is separate.
+  - Committed stake is stored in `ValidatorCommit.stakedAmount` and used for weighting/slashing -- verify no mismatch exploit.
+  - Flash loan staking to inflate weight temporarily (deposit -> lock capacity -> commit -> reveal -> withdraw).
 
 ### Phase 4: Finalization
 - **Consensus Manipulation**:
   - Collusion: 51%+ of validators coordinate to approve bad work or reject good work.
   - Lazy validation: Random scores to farm rewards without work.
-- **Reentrancy & Races**:
+  - Tiered slashing edge: score exactly at 1.5 sigma boundary.
+- **Reentrancy and Races**:
   - Reenter during `claimReward` or `releaseContributorReward`.
   - Race between `computeConsensus` and `openDispute` during challenge period.
-  - `ReentrancyGuard` is used — verify coverage.
+  - `ReentrancyGuardUpgradeable` is used -- verify coverage.
+- **Force Settlement**:
+  - `forceSettleValidator` after `forceSettleDelay` -- can it be used to grief validators?
 
-### Phase 5: Disputes & Originator Reports
+### Phase 5: Disputes and Originator Reports
 - **Dispute Gaming**:
-  - Open dispute, escalate before operator resolves — auto-uphold mechanics.
-  - Challenge own acceptance (blocked — `CannotDisputeOwnContribution`).
-  - Rejected contributor disputes — compensation flow.
+  - Open dispute, escalate before operator resolves -- auto-uphold mechanics.
+  - Challenge own acceptance (blocked -- `CannotDisputeOwnContribution`).
+  - Rejected contributor disputes -- compensation flow.
+  - Cross-nonce dispute poisoning (prevented -- disputes keyed by consensus nonce).
 - **Originator Report**:
-  - Report own project (blocked).
+  - Report own project (blocked -- `NotProjectOriginator` revert).
   - Spam reports (one active at a time).
-  - Escalation griefing.
+  - Escalation griefing after 7-day resolution deadline.
+  - Reporter reward from escrow when originator has locked stake.
 
 ---
 
@@ -107,7 +114,7 @@ function test_Adversarial_[AttackName]() public {
 
 ## Specific Edge Cases to Probe
 
-Referencing v0.5 "Edge Cases & Timeouts":
+Referencing v0.5 edge cases and timeouts:
 
 1. **Validator Timeout Griefing**:
    - Validator commits but waits until deadline to reveal (or never reveals).
@@ -115,9 +122,9 @@ Referencing v0.5 "Edge Cases & Timeouts":
    - Can it be front-run to save the validator?
 
 2. **Index Reclamation**:
-   - Claim → Expire → Re-claim same indices.
-   - Off-by-one errors in `availableIndexStack` / `availableIndexTop`.
-   - Rejected contributions: nonce increment, index return — ensure no overlap with new claim.
+   - Claim -> Expire -> Re-claim same indices.
+   - Off-by-one errors in `returnStack` / `returnStackTop`.
+   - Rejected contributions: nonce increment, index return -- ensure no overlap with new claim.
 
 3. **Cross-Phase State Corruption**:
    - `contribute` to finalized/rejected index.
@@ -130,9 +137,13 @@ Referencing v0.5 "Edge Cases & Timeouts":
    - Double `computeConsensus` (reverts `ConsensusAlreadyComputed`).
    - Double `settleValidator` (reverts `AlreadySettled`).
 
+5. **Nonce-Based Re-Validation**:
+   - After rejection and nonce increment, stale validators attempt to settle with old nonce.
+   - New validators commit/reveal on the new nonce for the same index.
+
 ---
 
-## Anti-Hallucination & Verification
+## Anti-Hallucination and Verification
 
 | Rationalization | Counter-Argument | Test Requirement |
 |-----------------|------------------|------------------|
@@ -145,7 +156,7 @@ Referencing v0.5 "Edge Cases & Timeouts":
 
 ## Execution Instructions
 
-1. **Review Architecture**: Read `docs/v0.5-contracs.md` for intended flow.
+1. **Review Architecture**: Read source code in `src/` for intended flow.
 2. **Select Vector**: Choose an attack vector from the list above.
 3. **Draft Test Plan**: Describe the step-by-step attack in plain English.
 4. **Implement Test**: Write the Foundry test in `test/lifecycle/` or `test/adversarial/`.

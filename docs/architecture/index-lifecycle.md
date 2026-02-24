@@ -1,116 +1,120 @@
-# Data Index Lifecycle (S3 Mapping)
+# Data Index Lifecycle
 
-This document explains how the Sapien V2 protocol uses onchain indices to manage offchain data stored in S3 (e.g., `0.json`, `1.json`, `3.json`).
+This document explains how the Sapien v0.5 protocol uses onchain indices to manage offchain data stored in external systems (e.g., S3 buckets, IPFS).
 
 ## Overview
 
-The "Index" is the unique identifier that bridges the onchain logic with offchain storage. The contract does not know about S3 or JSON; it treats each index as a "logical unit of work" that requires one submission and multiple validations.
+The "index" is the unique identifier that bridges onchain logic with offchain storage. The contracts treat each index as a "logical unit of work" that requires one submission and multiple validations. The association between an index and specific data files is maintained by the frontend and offchain infrastructure.
+
+## Slot Allocation: Range + Return-Stack Hybrid
+
+v0.5 uses a hybrid allocator that combines contiguous range allocation with a LIFO return stack for recycled indices.
+
+### Storage Layout
+
+```solidity
+mapping(bytes32 => IndexRange) indexRange;           // projectId → {start, count}
+mapping(bytes32 => mapping(uint256 => uint256)) returnStack;  // projectId → stack
+mapping(bytes32 => uint256) returnStackTop;           // projectId → stack height
+```
+
+### Allocation Flow
+
+When `claimToContribute` assigns indices:
+
+1. **Return stack first**: Recycle previously returned indices (from rejections/expirations)
+2. **Range fallback**: Allocate fresh indices from the contiguous range
+
+```
+claimToContribute(projectId, quantity=3)
+  │
+  ├─ returnStackTop > 0?
+  │   ├─ Yes: Pop from returnStack (LIFO)
+  │   └─ Repeat until filled or stack empty
+  │
+  └─ remaining > 0?
+      └─ Allocate from indexRange (decrement count)
+```
+
+### Return Flow
+
+Indices are returned to the stack when:
+- **Contribution rejected**: `computeConsensus` returns the slot when score < threshold
+- **Claim expired**: `expireClaim` returns unsubmitted slots
+
+```solidity
+returnStack[projectId][returnStackTop[projectId]] = index;
+returnStackTop[projectId]++;
+project.availableSlots++;
+```
 
 ## Sequence Diagram
 
 ```mermaid
 sequenceDiagram
-    participant S3 as S3 Bucket (3.json)
+    participant S3 as S3 Bucket
     participant FE as Frontend
-    participant SC as SapienCore (onchain)
-    participant VO as ValidationOracle (onchain)
-    participant V as Validator
+    participant SC as SapienCore
 
-    Note over FE, SC: 1. Contributor Reservation
-    FE->>SC: claimToContribute(projectId, quantity: 1)
-    SC-->>FE: assignedIndex: 3
-    Note right of SC: project.state.nextContributionIndex++
+    Note over FE, SC: 1. Contributor Claims Slots
+    FE->>SC: claimToContribute(projectId, quantity: 3, adapter)
+    SC->>SC: Check returnStack first, then indexRange
+    SC-->>FE: (claimId, indices: [5, 2, 6])
+    Note right of SC: Index 2 recycled from stack,<br/>5 and 6 from fresh range
 
     Note over FE, S3: 2. Work Execution
-    FE->>S3: GET /3.json
+    FE->>S3: GET /2.json, /5.json, /6.json
     S3-->>FE: Task Data
-    Note left of FE: Contributor performs task
+    Note left of FE: Contributor performs tasks
 
-    Note over FE, SC: 3. Submission & Enqueueing
-    FE->>SC: contribute(projectId, index: 3, hash)
-    SC->>VO: enqueueValidation(projectId, index: 3)
-    Note right of VO: Multiplier Effect:<br/>index 3 added to pendingQueue<br/>maxValidations times (e.g., 10x)
+    Note over FE, SC: 3. Submission
+    FE->>SC: batchContribute(claimId, [5,2,6], hashes[], cids[])
+    Note right of SC: Each slot: Reserved → Pending
+    Note right of SC: pendingContributions += 3
 
-    Note over V, VO: 4. Validator Pickup
-    V->>VO: claimToValidate(projectId)
-    VO-->>V: assignedIndex: 3
-    Note right of VO: queueHead++
+    Note over FE, SC: 4. Validation & Consensus
+    Note right of SC: Validators commit-reveal scores
+    SC->>SC: computeConsensus(projectId, index: 2)
 
-    Note over V, S3: 5. Validation Execution
-    V->>FE: View Task (index 3)
-    FE->>S3: GET /3.json
-    V->>VO: commit/reveal score for index 3
-
-    Note over SC, SC: 6. Recycling (If Rejected)
-    alt Rejected by Consensus
-        SC->>SC: Add index 3 to availableIndices (recycle bin)
-        Note left of SC: Next contributor receives index 3<br/>instead of a new number
+    alt Accepted (score ≥ threshold)
+        Note right of SC: Index 2 stays assigned
+        Note right of SC: Contributor can claim reward
+    else Rejected (score < threshold)
+        SC->>SC: returnStack.push(2)
+        SC->>SC: availableSlots++
+        SC->>SC: submissionNonce[projectId][2]++
+        Note right of SC: Index 2 available for re-claim
     end
+
+    Note over FE, SC: 5. Re-Claim (Next Contributor)
+    FE->>SC: claimToContribute(projectId, quantity: 1, adapter)
+    SC->>SC: Pop index 2 from returnStack
+    SC-->>FE: (claimId, indices: [2])
+    Note right of SC: New contributor gets index 2
 ```
 
-## Step-by-Step Lifecycle
+## Nonce System
 
-### 1. The Contributor "Reserves" the Number
-When a contributor wants to work, they call `claimToContribute` in `SapienCore.sol`.
+Each index tracks a `submissionNonce` that increments when a contribution is rejected. This enables:
 
-```solidity
-// SapienCore.sol
-assignedIndex = project.state.nextContributionIndex;
-project.state.nextContributionIndex++;
+- **Re-contribution**: A new contributor can submit to the same index
+- **Isolation**: Validations, consensus reports, and disputes are keyed by `(projectId, index, nonce)` to prevent state cross-contamination between rounds
+
 ```
-
-If the project is new, the first contributor gets index `0`, then `1`, etc. If they claim a quantity of 3, they are assigned indices `0, 1, 2`. The frontend interprets this as: *"Go fetch `0.json`, `1.json`, and `2.json` from S3."*
-
-### 2. The Submission
-After finishing work for `3.json`, the contributor calls `contribute`. The contract records that index `3` has been submitted and notifies the Oracle.
-
-```solidity
-// SapienCore.sol
-oracle.enqueueValidation(projectId, contributionIndex, block.timestamp);
+submissionNonce[projectId][index] = 0  (first submission)
+  → Rejected by consensus
+submissionNonce[projectId][index] = 1  (second submission)
+  → Accepted by consensus
 ```
-
-### 3. The Validation Queue (The "Multiplier" Effect)
-When index `3` is submitted, the `ValidationOracle` adds it to the queue multiple times based on the project's `maxValidations` setting.
-
-```solidity
-// ValidationOracle.sol
-for (uint256 i = 0; i < max; i++) {
-    pendingQueue[projectId][settings.queueTail] = contributionIndex;
-    settings.queueTail++;
-}
-```
-
-If `maxValidations` is 10, index `3` is added 10 times, ensuring 10 different people review the data.
-
-### 4. Validator Pickup
-When a validator calls `claimToValidate`, they "pop" the next number off the queue.
-
-```solidity
-// ValidationOracle.sol
-uint256 index = pendingQueue[projectId][settings.queueHead];
-settings.queueHead++;
-```
-
-If assigned index `3`, the frontend knows to display the data from `3.json` and the corresponding submission.
-
-### 5. Index Re-queuing (The "Safety" Mechanism)
-If `3.json` is rejected, `SapienCore` puts the index back in a "recycle bin" so another contributor can try again.
-
-```solidity
-// SapienCore.sol
-stackTop[projectId]++;
-availableIndices[projectId][stackTop[projectId]] = index;
-```
-
-The next contributor to call `claimToContribute` will receive `3` from the recycle bin before any new indices are generated.
 
 ## Summary Mapping
 
 | System Component | Role of the Index |
-| :--- | :--- |
-| **S3 Bucket** | The filename (`3.json`). |
-| **SapienCore** | The unique "slot" for a piece of work. |
-| **ValidationOracle** | The "task" identifier in the FIFO queue. |
+|:---|:---|
+| **S3 / IPFS** | The filename or CID (e.g., `3.json`). |
+| **SapienCore** | The unique "slot" for a piece of work, tracked in `contributions[projectId][index]`. |
 | **Frontend** | The key used to construct the URL: `bucket.s3.com/${index}.json`. |
+| **Return Stack** | Recycling bin for rejected/expired indices, ensuring no wasted slots. |
+| **Nonce** | Version counter per index, isolating each submission round. |
 
-**Key Takeaway:** The contracts manage the flow of "units of work" (indices). The association between an index and specific data (S3 files) is maintained by the frontend and offchain infrastructure.
+**Key Takeaway:** The contracts manage the flow of "units of work" (indices) with automatic recycling. The association between an index and specific data is maintained by the frontend and offchain infrastructure.

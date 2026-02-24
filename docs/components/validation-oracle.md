@@ -1,66 +1,136 @@
-# Validation Oracle
+# ValidationLib & ConsensusLib (formerly ValidationOracle)
 
-The `ValidationOracle` is a stateless consensus engine that manages the validation process for Sapien PoQ. It implements a commit-reveal scheme to ensure validator independence and uses pluggable algorithms to calculate consensus.
+> **v0.5 change**: The standalone `ValidationOracle` contract has been replaced by two libraries — `ValidationLib` (commit-reveal workflow and consensus orchestration) and `ConsensusLib` (the consensus algorithm itself). Both operate on `SapienCore`'s ERC-7201 namespaced storage via `DELEGATECALL`.
 
-## 📋 Responsibilities
+## ValidationLib
 
-- **Validation Management**: Handling claims to validate, commits, and reveals.
-- **Consensus Calculation**: Delegating the mathematical calculation to external algorithm contracts.
-- **Oracle Logic**: Recording the relationship between projects, contributions, and validators.
+Manages the full validation lifecycle: validator capacity, validation claims, commit-reveal scoring, and consensus computation.
 
-## 🛠️ Key Functions
+### Validator Capacity
 
-### Validator Workflow
+Before participating, validators pre-lock tokens as "capacity" in the vault:
 
-#### `setValidatorCapacity`
-Before participating, validators must set their "validation capacity" by locking SAPIEN tokens in the `SapienVault`.
-- This provides a pool of locked stake that covers multiple "in-flight" validations.
-- Eliminates the need to lock/unlock stake for every individual commit, significantly reducing gas costs for active validators.
+#### `lockValidatorCapacity(uint256 amount)`
+Moves tokens from available balance to the `validatorCapacity` bucket via `SapienVault`.
 
-#### `claimToValidate`
-Validators express interest in reviewing contributions for a specific project. 
-- Requires `VALIDATOR_ROLE` and sufficient available capacity (Locked Stake - In-Flight Stake).
-- Reserves slots from the `pendingQueue` for a fixed `CLAIM_DURATION` (default 1 hour).
+#### `unlockValidatorCapacity(uint256 amount)`
+Returns capacity tokens to available balance.
 
-#### `commitValidation` / `batchCommitValidations`
-Validators submit a `commitHash` which is `keccak256(score, stakeAmount, salt)`. 
-- This increases the validator's `inFlightStake`.
-- Sybil protection prevents Originators and the original Contributor from validating the work.
+This capacity model eliminates per-commit lock/unlock transactions, significantly reducing gas costs for active validators.
 
-#### `revealValidation` / `batchRevealValidations`
-Validators reveal their `score` and `salt`. 
-- The oracle verifies the reveal matches the commit.
-- The `inFlightStake` is decreased (capacity is freed up for new claims).
+### Validation Claims
 
-#### `cancelExpiredValidationClaim` / `cancelExpiredCommitment`
-Allows the system to penalize validators who block the pipeline:
-- `cancelExpiredValidationClaim`: Slashes validators who claim slots but never commit.
-- `cancelExpiredCommitment`: Slashes validators who commit but fail to reveal within the `revealDeadline`.
+#### `claimToValidate(bytes32 projectId, uint256[] indices) → claimId`
 
-### Consensus Logic
+Validators claim the right to validate specific contribution indices. Guards:
 
-#### `getConsensus`
-Called by `SapienCore` to determine if a contribution is ready for finalization. It:
-1. Verifies that the minimum number of reveals has been reached.
-2. Checks if the reveal deadline has passed for any unrevealed commits.
-3. Fetches the project's assigned `ConsensusAlgorithm`.
-4. Returns the weighted average score, validator count, and a list of outliers to be slashed.
+- Contribution must be in `Pending` status
+- Validator cannot validate their own contribution
+- Validator must meet project's `minValidatorReputation` (checked against `requiredSkill` if set)
+- Cannot claim the same index twice
+- Cannot exceed the project's `numberOfValidations` per index
+- Deadline: **1 hour** (`VALIDATION_CLAIM_DEADLINE`)
 
-### Registry Functions
+Creates a `ValidationClaim` struct tracking the validator, indices, deadline, and commitment progress.
 
-#### `registerAlgorithm`
-(Admin only) Registers a new `IConsensusAlgorithm` implementation.
+#### `cancelExpiredValidationClaim(uint256 claimId)`
 
-#### `setProjectAlgorithm`
-Allows an Originator to choose which consensus algorithm (e.g., "Hybrid", "SqrtStake") to use for their project.
+Permissionless. Cancels the claim after the 1-hour deadline if the validator failed to commit all indices. Applies a reputation penalty for uncommitted slots.
 
-## ⚙️ Configurable Parameters
+### Commit-Reveal
 
-- **Reveal Deadline**: The time validators have to reveal their scores after committing (default is 3 days).
-- **Claim Duration**: The time validators have to commit after claiming a slot (default is 1 hour).
+#### Commit Phase
 
-## 🛡️ Security Features
+**`commitValidation(projectId, index, commitHash, stakeAmount, adapter)`**
 
-- **Sybil Protection**: The protocol prevents a project's Originator or the contribution's Contributor from validating their own work.
-- **Commit-Reveal**: Prevents "herding" behavior where validators simply copy the scores of others.
-- **Stake Locking**: Validator stake is locked from the moment of commitment until reveal or expiration.
+- `commitHash` = `keccak256(abi.encodePacked(uint16(score), salt))`
+- `stakeAmount` must meet both the project's `minValidationStake` and the global `minValidationStake`
+- Stake is moved from `validatorCapacity` → `inFlight` in the vault
+- Optional `adapter` address for fee attribution
+
+**`batchCommitValidations(projectId, indices[], commitHashes[], stakeAmounts[], adapter)`** — batch version.
+
+#### Reveal Phase
+
+**`revealValidation(projectId, index, score, salt)`**
+
+- Score range: 0–10,000
+- Must reveal within the **reveal window** (commit timestamp + commit deadline + reveal deadline)
+- Hash verification: `keccak256(uint16(score) || salt)` must match the stored commit
+
+**`batchRevealValidations(projectId, indices[], scores[], salts[])** — batch version.
+
+### Consensus Computation
+
+#### `computeConsensus(bytes32 projectId, uint256 index)`
+
+Triggered after all required reveals are recorded. Orchestrates:
+
+1. Builds `ValidationInput[]` from revealed validators (scores, stakes, reputation)
+2. Calls `ConsensusLib.calculate()` for the consensus result
+3. Stores `ConsensusReport` and per-validator `ValidatorConsensusResult`
+4. Updates contribution status:
+   - **Score ≥ consensusThreshold** → `Accepted`, contributor stake unlocked, reputation boosted with quality bonus
+   - **Score < consensusThreshold** → `Rejected`, contributor stake slashed, slot returned to pool, nonce incremented
+
+---
+
+## ConsensusLib
+
+A pure library implementing stake-weighted consensus with outlier detection and tiered slashing.
+
+### Weight Calculation
+
+```
+weight = sqrt(stake) × effectiveReputation
+```
+
+Where `effectiveReputation = max(reputation, MIN_REPUTATION_FLOOR=1000)`.
+
+### Algorithm
+
+1. **Pass 1 — Weighted Average**: Compute `Σ(score × weight) / Σ(weight)` using high-precision arithmetic
+2. **Pass 2 — Standard Deviation**: Compute weighted variance and take the square root
+3. **Pass 3 — Outlier Classification**: Flag validators whose deviation from the mean exceeds thresholds
+
+### Outlier Detection & Tiered Slashing
+
+| Tier | Deviation | Slash % |
+|------|-----------|---------|
+| Tier 1 | > 1.5σ | 10% of stake |
+| Tier 2 | > 2.0σ | 25% of stake |
+| Tier 3 | > 3.0σ | 50% of stake |
+| Tier 4 | > 5.0σ | 100% of stake |
+
+Validators within 1.5σ of the mean are classified as "accurate" and contribute to `totalAccurateWeight` (used for reward distribution).
+
+### Output
+
+```
+ConsensusResult {
+    weightedAverage      // Final consensus score
+    stdDeviation         // Standard deviation (in PRECISION units)
+    validators[]         // Ordered validator addresses
+    isOutlier[]          // Per-validator outlier flag
+    slashAmounts[]       // Per-validator slash amount
+    weights[]            // Per-validator weight
+    totalAccurateWeight  // Sum of weights for non-outlier validators
+}
+```
+
+### Stored On-Chain
+
+Per contribution index and nonce:
+
+- `ConsensusReport` — weighted average, std deviation, total accurate weight, nonce, computed flag
+- `ValidatorConsensusResult` — per-validator outlier flag, slash amount, weight
+
+## Deadlines & Timing
+
+| Parameter | Default | Max | Set Via |
+|-----------|---------|-----|---------|
+| Validation claim deadline | 1 hour | — | Constant (`VALIDATION_CLAIM_DEADLINE`) |
+| Commit deadline | 1 day | 30 days | `setCommitDeadline(seconds)` |
+| Reveal deadline | 1 day | 30 days | `setRevealDeadline(seconds)` |
+| Challenge period | 1 day | 30 days | `setChallengePeriod(seconds)` |
+| Force-settle delay | 3 days | 90 days | `setForceSettleDelay(seconds)` |

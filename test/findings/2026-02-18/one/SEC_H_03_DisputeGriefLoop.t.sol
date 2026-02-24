@@ -32,9 +32,9 @@ contract SEC_H_03_DisputeGriefLoop is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
         engine.computeConsensus(projectId, idx);
 
         // attacker1 opens dispute
@@ -60,9 +60,9 @@ contract SEC_H_03_DisputeGriefLoop is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
         engine.computeConsensus(projectId, idx);
 
         vm.prank(attacker1);
@@ -83,9 +83,9 @@ contract SEC_H_03_DisputeGriefLoop is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
         engine.computeConsensus(projectId, idx);
 
         // Warp to just before original challenge ends

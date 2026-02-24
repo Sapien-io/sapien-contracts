@@ -101,7 +101,7 @@ contract SapienCoreHandler is Test {
     uint256 public constant QUANTITY = 5;
     uint256 public constant STAKE_AMOUNT = 100e18;
     uint256 public constant VALIDATOR_STAKE = 50e18;
-    uint16 public constant NUM_VALIDATIONS = 3;
+    uint256 public constant NUM_VALIDATIONS = 3;
     uint256 public nextProjectSeed;
 
     constructor(
@@ -180,11 +180,11 @@ contract SapienCoreHandler is Test {
 
         ghost_totalFunded += fundAmount;
         // Protocol fee: fundAmount * protocolFeeBps / BPS
-        uint256 protocolFee = (fundAmount * 100) / 10_000; // 1% default
+        uint256 protocolFee = (fundAmount * 1000) / 10_000; // 10% default
         ghost_totalProtocolFees += protocolFee;
         uint256 remaining = fundAmount - protocolFee;
         // Origination fee: remaining * originationFeeBps / BPS
-        uint256 originationFee = (remaining * 200) / 10_000; // 2% default
+        uint256 originationFee = (remaining * 400) / 10_000; // 4% default
         ghost_totalOriginationFees += originationFee;
 
         ghost_projectCount++;
@@ -282,10 +282,9 @@ contract SapienCoreHandler is Test {
         }
 
         // Generate score (bounded)
-        uint16 score = uint16(bound(uint256(keccak256(abi.encodePacked(validatorSeed, pc.index))), 5000, 9000));
+        uint256 score = bound(uint256(keccak256(abi.encodePacked(validatorSeed, pc.index))), 5000, 9000);
         bytes32 salt = keccak256(abi.encodePacked("salt", validator, pc.index, block.timestamp));
-        uint256 nonce = engine.getSubmissionNonce(pc.projectId, pc.index);
-        bytes32 commitHash = keccak256(abi.encodePacked(pc.projectId, pc.index, nonce, validator, score, salt));
+        bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
         vm.startPrank(validator);
         {
@@ -293,7 +292,7 @@ contract SapienCoreHandler is Test {
             _indices[0] = pc.index;
             engine.claimToValidate(pc.projectId, _indices);
         }
-        engine.commitValidation(pc.projectId, pc.index, commitHash, uint128(VALIDATOR_STAKE), address(0));
+        engine.commitValidation(pc.projectId, pc.index, commitHash, VALIDATOR_STAKE, address(0));
         engine.revealValidation(pc.projectId, pc.index, score, salt);
         vm.stopPrank();
 

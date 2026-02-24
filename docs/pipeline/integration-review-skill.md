@@ -4,9 +4,9 @@ Purpose: Ensure external protocols and tokens integrate safely with Sapien PoQ v
 
 ## Target Architecture (v0.5)
 
-- **QualityEngine**: Holds reward tokens in `projectEscrow`; transfers to treasury, adapters, participants.
-- **StakeVault**: ERC-4626 over SAPIEN (or configurable) asset token.
-- **External call sites**: IERC20 transfer/transferFrom, IStakeVault stake operations.
+- **SapienCore**: Holds reward tokens in `projectEscrow`; transfers to treasury, adapters, participants via `claimReward`.
+- **SapienVault**: ERC-4626 over SAPIEN (or configurable) asset token.
+- **External call sites**: IERC20 transfer/transferFrom, ISapienVault stake operations (ENGINE_ROLE gated).
 
 ---
 
@@ -22,7 +22,7 @@ Purpose: Ensure external protocols and tokens integrate safely with Sapien PoQ v
 | Standard decimals | Non-18 decimals in reward token | Reward rate / quantity math |
 | Non-reverting | Blacklist, paused tokens | Edge case tests |
 
-### StakeVault (ERC-4626)
+### SapienVault (ERC-4626)
 
 | Assumption | Risk | Test |
 |------------|------|------|
@@ -30,16 +30,19 @@ Purpose: Ensure external protocols and tokens integrate safely with Sapien PoQ v
 | convertToShares / convertToAssets | Inflation attack | _decimalsOffset = 3 |
 | Share burn on slash | Burns from user balance | _burnShares logic |
 | maxWithdraw/maxRedeem | Locked amounts excluded | availableBalance override |
+| maxDeposit/maxMint | Return 0 when paused | Paused state tests |
+| Transfer guard | Locked shares cannot be transferred | _update override |
 
-### QualityEngine ↔ StakeVault
+### SapienCore <-> SapienVault
 
 | Assumption | Risk | Test |
 |------------|------|------|
-| ENGINE_ROLE exclusive | Vault only accepts Engine calls | Role checks |
-| Lock/unlock/slash atomicity | Partial state on revert | ReentrancyGuard |
+| ENGINE_ROLE exclusive | SapienVault only accepts SapienCore calls | Role checks |
+| Lock/unlock/slash atomicity | Partial state on revert | ReentrancyGuardUpgradeable |
 | Available balance = total - locks | Withdrawal guard correct | maxRedeem override |
+| slashAndUnlockContributor | Batch operation correctness | Combined slash+unlock |
 
-### Adapter & Treasury Addresses
+### Adapter and Treasury Addresses
 
 | Assumption | Risk | Test |
 |------------|------|------|
@@ -52,8 +55,8 @@ Purpose: Ensure external protocols and tokens integrate safely with Sapien PoQ v
 | Assumption | Risk | Test |
 |------------|------|------|
 | Pure math, no external calls | Library is stateless | No I/O in library |
-| Delegatecall from Engine | Library runs in Engine context | Storage access via Engine |
-| IConsensusAlgorithm (optional) | Pluggable algorithm | Currently unused in src |
+| DELEGATECALL from SapienCore | Library runs in SapienCore context | Storage access via ERC-7201 |
+| Overflow protection | Variance calculation guards | Large stake/score inputs |
 
 ---
 

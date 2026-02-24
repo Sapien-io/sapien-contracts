@@ -43,9 +43,9 @@ contract NEW_001_ClaimExpiryStakeUnlock is BaseTest {
         engine.expireClaim(claimId, indices);
 
         // Validators reject the submitted contribution
-        _commitAndReveal(validator1, projectId, indices[0], 3000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, projectId, indices[0], 3000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, projectId, indices[0], 3000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, projectId, indices[0], 3000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, projectId, indices[0], 3000, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, projectId, indices[0], 3000, VALIDATOR_STAKE);
 
         // computeConsensus tries to slash contributor but lock is already 0
         vm.expectRevert(abi.encodeWithSelector(SapienVault.InsufficientContributorLock.selector, STAKE_AMOUNT, 0));
@@ -63,9 +63,9 @@ contract NEW_001_ClaimExpiryStakeUnlock is BaseTest {
         vm.warp(block.timestamp + engine.claimDeadline() + 1);
         engine.expireClaim(claimId, indices);
 
-        _commitAndReveal(validator1, projectId, indices[0], 3000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, projectId, indices[0], 3000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, projectId, indices[0], 3000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, projectId, indices[0], 3000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, projectId, indices[0], 3000, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, projectId, indices[0], 3000, VALIDATOR_STAKE);
 
         StakeAccount memory v1Before = vault.getStakeAccount(validator1);
         assertGt(v1Before.inFlight, 0, "validator has in-flight stake");

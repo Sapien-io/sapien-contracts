@@ -1,0 +1,33 @@
+{
+  "title": "SAPIEN PoQ - Revenue Model Assumptions",
+  "currency": "USD",
+  "cadUsd": "0.72",
+  "legend": {"INPUT":"hardcoded assumption","FORMULA":"calculated","LINK":"cross-section reference"},
+  "A_feeStructure": {
+    "protocolFeePct": ["10.0","10.0","10.0","10.0","10.0"],
+    "originatorFeePct": ["4.0","4.0","3.5","3.0","3.0"],
+    "contributorClaimFeePct": ["3.0","3.0","3.0","3.0","3.0"],
+    "validatorClaimFeePct": ["3.0","3.0","3.0","3.0","3.0"],
+    "validatorRewardSharePct": ["10.0","10.0","10.0","10.0","10.0"],
+    "sapienRoutedVolumePct": ["80","50","35","25","20"],
+    "blendedTakeRatePct": ["15.0","13.1","12.0","11.3","11.1"]
+  },
+  "B_pricing": {"enterpriseUsdPerValidation":["0.25","0.20","0.15","0.12","0.10"],"platformUsdPerValidation":["0.05","0.04","0.03","0.03","0.02"]},
+  "C_enterpriseTotalsM": {"year1":3,"year2":31,"year3":138},
+  "D_registeredDevelopers": [900,17500,64000,158000,330000],
+  "E_activationAndUsage": {"activationPct":["20","30","35","38","40"],"avgMonthlyValidations":[1000,5000,6000,8000,10000]},
+  "F_operationsAndGtm": {"rampFactorY1Pct":"40","enterpriseNrr":["1.4","1.6","1.7","1.5","1.4"],"operatingCostsUsd":[3500000,4250000,4500000,4750000,5000000],"seedFundingUsdY1":375000},
+  "G_tokenAndEcosystem": {"tokenPriceUsd":["0.08","0.10","0.20","0.30","0.80"],"sapienTreasuryStakedM":[40,60,75,85,90],"totalVaultStakeM":[100,200,400,600,800],"validatorSlashingRatePct":["8.0","6.0","5.0","4.0","3.0"],"avgSlashSeverityPct":["25","25","20","20","15"],"sapienValidatorShareOfGtvPct":["25","15","10","8","5"]},
+  "H_projectionOutputs": {
+    "enterpriseValidations": [1200000,31000000,138000000,207000000,289000000],
+    "platformValidations": [864000,315000000,1612800000,5763840000,15840000000],
+    "enterpriseRevenueUsd": [300000,6200000,20700000,24840000,28900000],
+    "platformRevenueUsd": [43200,12600000,48384000,172915200,316800000],
+    "gtvUsd": [343200,18800000,69084000,197755200,345700000],
+    "feeRevenueUsd": [51480,2462800,8290080,22346337,38372700],
+    "operatingCostsUsd": [3500000,4250000,4500000,4750000,5000000],
+    "operatingIncomeUsd": [-3073520,-1787200,3790080,17596337,33372700]
+  },
+  "protocolSimulation": {"projectsFunded":3,"contributionsSubmitted":3,"acceptedContributions":1,"rejectedContributions":1,"validatorSettlements":3,"expiredCommitmentSlashes":1,"rewardClaims":3,"fundingAmountWei":10000000000000000000000,"protocolFeeCollectedWei":1000000000000000000000,"originationFeeAccruedWei":360000000000000000000,"escrowAfterFundingWei":8640000000000000000000,"acceptedRewardRateWei":864000000000000000000,"contributorPendingAfterAcceptedWei":670464000000000000000,"validatorPendingAfterAcceptedWei":55872000000000000000,"adapterPendingAfterAcceptedWei":385920000000000000000,"contributorClaimedWei":670464000000000000000,"validatorClaimedWei":55872000000000000000,"adapterClaimedWei":385920000000000000000,"contributorSlashAmountWei":100000000000000000000,"validatorSlashShares":48000000000000000000000,"escrowBeforeRefundWei":7776000000000000000000,"originatorRefundAmountWei":7776000000000000000000,"remainingEscrowAfterRefundWei":0},
+  "generatedAtBlockTimestamp": 2851204
+}

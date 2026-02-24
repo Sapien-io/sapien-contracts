@@ -25,6 +25,11 @@ exclude_lints = ["unsafe-typecast"]
 access = "read-write"
 path = "./deployments"
 
+# Allow economics tests to write model output files
+[[profile.default.fs_permissions]]
+access = "read-write"
+path = "./test/economics"
+
 # ============================================
 # RPC ENDPOINTS
 # ============================================

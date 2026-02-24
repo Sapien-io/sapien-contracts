@@ -97,6 +97,12 @@ library DisputeLib {
                 $.projectEscrow[projectId][rewardToken] -= challengerReward;
             }
             ReputationLib.update(contrib.contributor, C.CONTRIBUTOR_ROLE_KEY, false, 0);
+
+            // Mark this accepted contribution as lifecycle-complete from the pipeline
+            // perspective so upheld disputes do not deadlock project completion.
+            if ($.pendingContributions[projectId] > 0) {
+                $.pendingContributions[projectId]--;
+            }
         } else if (contrib.status == ContributionStatus.Rejected) {
             // SEC-H-04: Cap total payout to rewardRate (contributor + challenger share a single budget)
             uint256 maxPayout = contrib.rewardRate;

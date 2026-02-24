@@ -81,10 +81,10 @@ contract SapienCore is
         $.nextClaimId = 1;
         $.nextValidationClaimId = 1;
 
-        $.protocolFeeBps = 100; // 1%
-        $.originationFeeBps = 200; // 2%
-        $.contributionFeeBps = 200; // 2%
-        $.validationFeeBps = 200; // 2%
+        $.protocolFeeBps = 1000; // 10%
+        $.originationFeeBps = 400; // 4%
+        $.contributionFeeBps = 300; // 3%
+        $.validationFeeBps = 300; // 3%
         $.decayRateBps = 10; // 0.1% per day
 
         $.disputeBondBps = 1000; // 10% of rewardRate

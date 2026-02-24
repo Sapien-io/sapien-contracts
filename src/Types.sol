@@ -29,7 +29,7 @@ struct EngineStorage {
     mapping(uint256 => Claim) claims;
 
     // ── Index Allocation: Range + Stack hybrid ─────────────
-    // Packed range (1 mapping replaces 2; colocates start+count for 1 SLOAD)
+    // Single mapping colocates start+count for one SLOAD (replaces two mappings)
     mapping(bytes32 => IndexRange) indexRange;
     // Return stack for fragmented returns (rejections, expirations)
     mapping(bytes32 => mapping(uint256 => uint256)) returnStack;
@@ -42,10 +42,10 @@ struct EngineStorage {
     mapping(bytes32 => mapping(uint256 => uint256)) submissionNonce;
     mapping(bytes32 => mapping(uint256 => mapping(uint256 => mapping(address => ValidatorCommit)))) validatorCommits;
     mapping(bytes32 => mapping(uint256 => mapping(uint256 => address[]))) revealedValidators;
-    // Packed counters (1 mapping replaces 2; colocates revealCount+claimCount)
+    // Single mapping colocates revealCount+claimCount for one SLOAD (replaces two mappings)
     mapping(bytes32 => mapping(uint256 => mapping(uint256 => ValidationCounters))) validationCounters;
 
-    // ── Consensus Reports (packed into 2-slot struct; keyed by nonce per RISK-006) ──
+    // ── Consensus Reports (keyed by nonce per RISK-006) ──
     mapping(bytes32 => mapping(uint256 => mapping(uint256 => ConsensusReport))) consensusReports;
     mapping(bytes32 => mapping(uint256 => mapping(uint256 => mapping(address => ValidatorConsensusResult))))
         validatorConsensus;

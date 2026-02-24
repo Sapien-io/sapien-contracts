@@ -1,42 +1,110 @@
-# Sapien Vault (Staking & Slashing)
+# SapienVault
 
-The `SapienVault` is an upgradeable staking contract based on the **ERC-4626** standard. It handles the financial "skin in the game" for all protocol participants through token deposits, stake locking, and slashing.
+`SapienVault` is an ERC-4626 vault for SAPIEN token staking with **typed lock categories**. It holds all user funds and implements distinct lock buckets for contributors and validators, in-flight stake tracking, and share-burn slashing.
 
-## 📋 Responsibilities
+Deployed behind an **ERC-1967 UUPS proxy** with **ERC-7201 namespaced storage** (namespace: `sapien.storage.StakeVault`).
 
-- **Staking**: Secure storage of SAPIEN tokens deposited by users.
-- **Locking**: Temporarily restricting a user's ability to withdraw funds while they have active claims or commitments.
-- **Slashing**: Permanently removing a portion of a user's stake as a penalty for poor quality work or dishonest validation.
-- **Inflation Protection**: Uses a decimals offset (3) to protect against common ERC-4626 inflation attacks.
+## Architecture
 
-## 🛠️ Key Functions
+The vault uses a `StakeAccount` struct per user with three distinct lock categories:
 
-### Staking Functions
+```
+StakeAccount {
+    contributorLock    // Tokens locked when claiming contribution slots
+    validatorCapacity  // Tokens pre-locked as validation capacity
+    inFlight           // Tokens committed to active validations (drawn from capacity)
+}
+```
 
-Users interact with the vault using standard ERC-4626 functions (`deposit`, `withdraw`, `mint`, `redeem`). Deposits earn "shares" representing their portion of the vault's total assets.
+**Available balance** = `convertToAssets(shares) - contributorLock - validatorCapacity - inFlight`
 
-### Locking Logic
+Only the available balance can be withdrawn or transferred.
 
-#### `lockStake`
-Called by `SapienCore` or `ValidationOracle` when a user claims a task or sets validation capacity. Locked stake cannot be withdrawn or transferred until it is explicitly unlocked. Every lock includes a `reason` string for transparent event tracking.
+## Staking (ERC-4626)
 
-#### `unlockStake`
-Releases the lock on a user's assets, typically after a contribution is finalized, a claim expires, or a validator reduces their capacity.
+Users interact with standard ERC-4626 functions:
 
-### Slashing
+- `deposit(assets, receiver)` — Deposit SAPIEN tokens, receive vault shares
+- `withdraw(assets, receiver, owner)` — Withdraw up to available balance
+- `mint(shares, receiver)` — Mint specific number of shares
+- `redeem(shares, receiver, owner)` — Redeem shares for assets
 
-#### `slash`
-Removes a specified amount of assets from a user's position by burning their vault shares. 
-- **Internal Mechanism**: The underlying assets remain in the vault. 
-- **Effect**: Since shares are burned but assets remain, the "price per share" increases for all other stakers. This automatically redistributes the slashed value to the rest of the honest participants.
+**Inflation attack mitigation**: The vault uses a `_decimalsOffset()` of 3 (virtual shares), preventing common ERC-4626 donation attacks.
 
-## 🛡️ Security
+**Pause protection**: When paused, `maxDeposit`, `maxMint`, `maxRedeem`, and `maxWithdraw` all return 0, blocking all ERC-4626 operations.
 
-- **Locker/Slasher Roles**: Only authorized contracts (like `SapienCore`) can lock or slash funds.
-- **Pausability**: The vault can be paused by a `PAUSER_ROLE` in case of emergencies, disabling withdrawals while maintaining deposits and internal accounting.
+## Contributor Operations
 
-## 📊 View Functions
+Called by `SapienCore` (requires `ENGINE_ROLE`):
 
-- `getStake`: Returns the total amount of tokens a user has in the vault.
-- `getAvailableStake`: Returns the amount of tokens a user can withdraw (Total - Locked).
-- `getLockedStake`: Returns the amount currently held for active tasks.
+### `lockContributor(address user, uint256 amount)`
+Locks tokens from the user's available balance into the `contributorLock` bucket. Called when a contributor claims slots, posts a dispute bond, or posts an originator report bond.
+
+### `unlockContributor(address user, uint256 amount)`
+Releases tokens from `contributorLock` back to available balance. Called when contributions are accepted, claims complete, or dispute bonds are returned.
+
+### `slashContributor(address user, uint256 amount)`
+Removes tokens from `contributorLock` and burns the equivalent shares. Called when contributors fail to submit, contributions are rejected, or dispute bonds are forfeited.
+
+### `slashAndUnlockContributor(address user, uint256 slashAmount, uint256 unlockAmount)`
+Atomic operation that slashes unsubmitted slots and unlocks submitted slots from a single claim. Avoids two separate calls for claim expiration.
+
+## Validator Operations
+
+Called by `SapienCore` (requires `ENGINE_ROLE`):
+
+### `lockValidatorCapacity(address user, uint256 amount)`
+Moves tokens from available balance to the `validatorCapacity` bucket. Validators pre-lock capacity before claiming validations.
+
+### `unlockValidatorCapacity(address user, uint256 amount)`
+Returns tokens from `validatorCapacity` to available balance.
+
+### `commitStake(address user, uint256 amount)`
+Moves tokens from `validatorCapacity` to `inFlight`. Called when a validator commits a validation score.
+
+### `releaseCommit(address user, uint256 amount)`
+Returns tokens from `inFlight` back to `validatorCapacity`. Called when a validator is settled as accurate.
+
+### `slashValidator(address user, uint256 amount)`
+Removes tokens from `inFlight` and burns the equivalent shares. Called when a validator is identified as an outlier.
+
+## Transfer Guard
+
+Share transfers between users are restricted: the sender must retain enough shares to cover their total locked amount (`contributorLock + validatorCapacity + inFlight`). Mints and burns are unrestricted.
+
+## Events
+
+| Event | Description |
+|-------|-------------|
+| `ContributorLocked(user, amount)` | Contributor stake locked |
+| `ContributorUnlocked(user, amount)` | Contributor stake unlocked |
+| `ContributorSlashed(user, amount)` | Contributor shares burned |
+| `ValidatorCapacityLocked(user, amount)` | Validator capacity locked |
+| `ValidatorCapacityUnlocked(user, amount)` | Validator capacity unlocked |
+| `StakeCommitted(user, amount)` | Stake moved to in-flight |
+| `CommitReleased(user, amount)` | Stake returned from in-flight to capacity |
+| `ValidatorSlashed(user, amount)` | Validator shares burned |
+
+## View Functions
+
+| Function | Returns |
+|----------|---------|
+| `getStakeAccount(user)` | Full `StakeAccount` struct |
+| `availableBalance(user)` | Withdrawable token amount |
+| `totalStaked(user)` | Total assets (all categories) |
+| `maxRedeem(owner)` | Maximum redeemable shares (respects locks + pause) |
+| `maxWithdraw(owner)` | Maximum withdrawable assets (respects locks + pause) |
+| `maxDeposit(address)` | `type(uint256).max` or 0 when paused |
+| `maxMint(address)` | `type(uint256).max` or 0 when paused |
+| `verifyStorageLocation()` | Validates ERC-7201 storage slot derivation |
+
+## Access Control
+
+| Role | Permissions |
+|------|------------|
+| `ENGINE_ROLE` | All lock/unlock/slash/commit/release operations (granted to `SapienCore`) |
+| `DEFAULT_ADMIN_ROLE` | Pause/unpause, upgrades |
+
+## Slashing Economics
+
+When shares are burned via slashing, the underlying assets remain in the vault. Since fewer shares now represent the same pool of assets, the "price per share" increases for all remaining stakers. This redistributes slashed value to honest participants.

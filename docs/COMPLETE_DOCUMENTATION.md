@@ -1,7 +1,7 @@
-# Sapien PoQ Protocol - Complete Documentation
+# Sapien PoQ Protocol — Complete Documentation
 
-**Version:** v0.3  
-**Last Updated:** January 22nd.
+**Version:** v0.5
+**Last Updated:** February 2026
 
 Welcome to the complete documentation for the **Sapien Proof-of-Quality (PoQ) Protocol**.
 
@@ -16,12 +16,13 @@ Sapien PoQ is an open protocol for verifiable, consensus-based quality signals i
    - [System Architecture Overview](#system-architecture-overview)
    - [Protocol Lifecycle](#protocol-lifecycle)
 3. [Core Components](#core-components)
-   - [Sapien Core](#sapien-core)
-   - [Sapien Vault](#sapien-vault)
-   - [Sapien Trust](#sapien-trust)
-   - [Validation Oracle](#validation-oracle)
-   - [Rewards Management](#rewards-management)
-4. [Consensus Algorithms](#consensus-algorithms)
+   - [SapienCore](#sapiencore)
+   - [SapienVault](#sapienvault)
+   - [ReputationLib](#reputationlib)
+   - [ValidationLib & ConsensusLib](#validationlib--consensuslib)
+   - [FinalizationLib](#finalizationlib)
+   - [DisputeLib](#disputelib)
+4. [Consensus Algorithm](#consensus-algorithm)
 5. [User Guides](#user-guides)
    - [Guide for Originators](#guide-for-originators)
    - [Guide for Contributors](#guide-for-contributors)
@@ -38,7 +39,7 @@ Sapien PoQ is an open protocol for verifiable, consensus-based quality signals i
 - **Verifiable Quality**: Cryptographic proof of human judgment for AI systems.
 - **Data Sovereignty**: Your data stays in your storage; only quality signals are onchain.
 - **Incentive Alignment**: Stake-weighted rewards and penalties ensure honest participation.
-- **Composable**: Easily integrate with existing AI tools (CVAT, LangChain, etc.) via oracles.
+- **Composable**: Easily integrate with existing AI tools via adapter contracts.
 
 ---
 
@@ -46,73 +47,73 @@ Sapien PoQ is an open protocol for verifiable, consensus-based quality signals i
 
 ### System Architecture Overview
 
-Sapien PoQ is designed as a modular protocol that provides a "Quality Oracle" for AI systems. It allows human experts to verify AI-generated data or agent behaviors, producing a verifiable quality signal that can be consumed by onchain and offchain systems.
+Sapien PoQ v0.5 consolidates the protocol into **two deployable contracts** with **seven libraries**, dramatically simplifying the contract topology from v0.3's five-contract architecture.
+
+```
+SapienCore (UUPS Proxy)
+├── OriginationLib     — Project creation & funding
+├── ContributionLib    — Claim & contribute
+├── ValidationLib      — Commit-reveal & consensus orchestration
+├── ConsensusLib       — Stake-weighted consensus algorithm
+├── FinalizationLib    — Settlement, rewards, project completion
+├── DisputeLib         — Disputes & originator reports
+├── ReputationLib      — PoQ reputation with lazy decay
+└─→ SapienVault (UUPS Proxy) — ERC-4626 staking
+```
+
+All libraries operate on SapienCore's **ERC-7201 namespaced storage** via `DELEGATECALL`. The only external contract call is SapienCore → SapienVault for stake operations. Shared types are centralized in `Types.sol` and protocol constants in `Constants.sol`.
 
 #### Participant Roles
 
-The protocol defines four primary roles:
-
 **1. Originators**
-- Originators are the "buyers" of quality. They create projects, define quality criteria, and fund reward pools.
+- Create projects, define quality criteria, and fund reward pools.
 - **Goal**: Obtain high-quality verified data or agent behavior signals.
-- **Requirement**: Must stake SAPIEN tokens to create projects.
+- **Skin in the game**: Optional per-slot stake requirement (configurable).
 
 **2. Contributors**
-- Contributors are the workers who perform tasks (e.g., labeling an image, generating an AI response).
+- Perform tasks (e.g., labeling an image, generating an AI response).
 - **Goal**: Earn rewards by providing high-quality work.
-- **Requirement**: Must stake SAPIEN tokens to claim work slots.
+- **Skin in the game**: Must lock stake when claiming contribution slots.
 
 **3. Validators**
-- Validators are the independent reviewers who assess the quality of contributions.
+- Independently review and score contributions using a commit-reveal scheme.
 - **Goal**: Earn rewards by reaching consensus with other validators.
-- **Requirement**: Must stake SAPIEN tokens to participate in committees.
+- **Skin in the game**: Must pre-lock validator capacity and commit per-validation stakes.
 
-**4. Oracles (Adapters)**
-- Oracles are the technical interface between the Sapien protocol and external tools.
-- **Contributor Oracles**: Connect tools like CVAT or custom AI pipelines to submit work.
-- **Validator Oracles**: Provide interfaces for human reviewers to submit scores.
+**4. Adapters**
+- Technical interfaces between the Sapien protocol and external tools.
+- Earn fees for origination, contribution, and validation services.
+- Can be set per-project (origination), per-claim (contribution), or per-commit (validation).
 
 #### Verification Lifecycle
 
-The PoQ process follows five distinct phases:
+The PoQ process follows six distinct phases:
 
 **Phase 1: Project Setup**
-The Originator creates a project in `SapienCore`, defining parameters like the required skill, minimum quality score, and reward distribution. They fund the project with reward tokens (e.g., USDC).
+The originator creates a project via `createProject`, defining parameters like reward token, consensus threshold, number of validations, and validator reward share. They fund the project via `fundProject`, which transfers tokens into escrow (after protocol and optional adapter fees), creates contribution slots, and optionally locks originator stake.
 
-**Phase 2: Work Submission**
-Contributors claim slots and submit their work. The work itself stays in the Originator's storage (e.g., S3, IPFS); only a hash and reference are submitted to `SapienCore`.
+**Phase 2: Contribution**
+Contributors claim slots via `claimToContribute` (locks contributor stake), then submit work via `contribute` or `batchContribute` with a submission hash and data CID. The claim has a configurable deadline (default 1 day). Unsubmitted slots can be expired via `expireClaim`.
 
 **Phase 3: Validation (Commit-Reveal)**
-To prevent collusion and herding, validators use a two-step process in the `ValidationOracle`:
-1. **Capacity Setup**: Validators lock a fixed amount of stake to establish "Validation Capacity," allowing them to handle multiple tasks efficiently.
-2. **Commit**: Validators submit a hash of their score and a secret salt, increasing their "In-Flight Stake."
-3. **Reveal**: After the commit period, validators reveal their actual score and salt. This releases their "In-Flight Stake" back into their capacity pool.
+1. **Capacity Setup**: Validators pre-lock tokens as capacity via `lockValidatorCapacity`.
+2. **Claim**: Validators claim specific indices via `claimToValidate` (1-hour deadline to commit).
+3. **Commit**: Validators submit `keccak256(abi.encodePacked(uint16(score), salt))` with a stake amount via `commitValidation`. Stake moves from capacity to in-flight.
+4. **Reveal**: After committing, validators reveal `score` and `salt` via `revealValidation` within the reveal window.
 
-**Phase 4: Consensus Calculation**
-Once enough reveals are gathered (or the deadline passes), the `ValidationOracle` uses a pluggable consensus algorithm (e.g., Hybrid or Sqrt Stake) to calculate a weighted average score and identify outliers. `ConsensusLib` handles the statistical heavy lifting, including standard deviation and tiered slashing calculations.
+**Phase 4: Consensus**
+Once all required reveals are recorded, anyone can trigger `computeConsensus`. The `ConsensusLib` calculates a stake-weighted average, standard deviation, and classifies outliers using tiered thresholds. The contribution is marked `Accepted` (score ≥ threshold) or `Rejected` (score < threshold). The challenge period begins.
 
-**Phase 5: Finalization & Settlement**
-`SapienCore` finalizes the contribution:
-- If accepted: Rewards are distributed via the `Rewards` contract to the contributor and honest validators.
-- If rejected: The work is released back into the project pool for another contributor to attempt.
-- Outlier validators are slashed via the `SapienVault`, and their reputation in `SapienTrust` is penalized.
+**Phase 5: Disputes**
+During the challenge period, anyone can `openDispute` against a consensus outcome by posting a bond. Operators can `resolveDispute` (uphold/reject). If the resolution deadline (7 days) passes without action, anyone can `escalateDispute` to auto-uphold. Separate originator accountability via `reportOriginator`.
 
-#### Technical Stack
-
-The protocol is implemented as a suite of EVM smart contracts:
-- **Core Logic**: `SapienCore`
-- **Consensus Oracle**: `ValidationOracle`
-- **Reputation & Identity**: `SapienTrust`
-- **Staking & Slashing**: `SapienVault`
-- **Incentives**: `Rewards`
-
-All quality signals are recorded as verifiable attestations, making them auditable and composable with other protocols.
-
----
+**Phase 6: Settlement & Rewards**
+- `settleValidator`: Each validator settles — outliers are slashed (tiered 10%–100%), accurate validators receive rewards.
+- `releaseContributorReward`: After the challenge period, contributor reward is released to pending balance.
+- `claimReward`: Users withdraw accumulated rewards.
+- `completeProject` + `refundEscrow`: Originator completes the project and claims remaining escrow after a 30-day grace period.
 
 ### Protocol Lifecycle
-
-This section illustrates the end-to-end lifecycle of a Sapien PoQ project, from creation to finalization and reward distribution.
 
 #### End-to-End Sequence Diagram
 
@@ -123,413 +124,251 @@ sequenceDiagram
     actor C as Contributor
     actor V as Validator
     participant SC as SapienCore
-    participant VO as ValidationOracle
-    participant ST as SapienTrust
     participant SV as SapienVault
-    participant R as Rewards
 
-    Note over O, R: Phase 1: Project Setup
-    O->>SC: createProject(params)
-    SC->>VO: registerProject(projectId, ...)
-    SC->>ST: updateReputation(originator, ...)
-    O->>SC: fundProject(amount, quantity)
-    SC->>R: allocateRewards(projectId, token, amount)
-    SC->>SC: Reward tokens transferred to escrow
+    Note over O, SV: Phase 1: Project Setup
+    O->>SC: createProject(projectId, metadataCid, config)
+    O->>SC: fundProject(projectId, amount, quantity, adapter)
+    SC->>SV: lockContributor(originator, stake) [if required]
+    Note right of SC: Protocol fee → Treasury
+    Note right of SC: Adapter fee → Adapter (optional)
 
-    Note over O, R: Phase 2: Contribution
-    C->>SC: claimToContribute(quantity)
-    SC->>SV: lockStake(contributor, amount)
-    C->>SC: contribute(submissionHash)
-    SC->>VO: enqueueValidation(projectId, index)
+    Note over O, SV: Phase 2: Contribution
+    C->>SC: claimToContribute(projectId, quantity, adapter)
+    SC->>SV: lockContributor(contributor, stake)
+    C->>SC: contribute(claimId, index, submissionHash, dataCid)
 
-    Note over O, R: Phase 3: Validation (Commit-Reveal)
-    V->>VO: setValidatorCapacity(amount)
-    VO->>SV: lockStake(validator, amount)
-    V->>VO: claimToValidate(quantity)
-    V->>VO: commitValidation(commitHash)
-    Note right of VO: Increments in-flight stake
-    V->>VO: revealValidation(score, salt)
-    Note right of VO: Decrements in-flight stake
+    Note over O, SV: Phase 3: Validation (Commit-Reveal)
+    V->>SC: lockValidatorCapacity(amount)
+    SC->>SV: lockValidatorCapacity(validator, amount)
+    V->>SC: claimToValidate(projectId, indices)
+    V->>SC: commitValidation(projectId, index, commitHash, stakeAmount, adapter)
+    SC->>SV: commitStake(validator, stakeAmount)
+    V->>SC: revealValidation(projectId, index, score, salt)
 
-    Note over O, R: Phase 4: Finalization
-    Note over SC, VO: Triggered via finalizeContribution()
-    SC->>VO: getConsensus(projectId, index)
-    VO->>ST: getTrustScores (for weighting)
-    VO->>VO: Run Consensus Algorithm
-    VO-->>SC: ConsensusReport (avg score, outliers)
+    Note over O, SV: Phase 4: Consensus
+    SC->>SC: computeConsensus(projectId, index)
+    Note right of SC: ConsensusLib.calculate() → Accepted/Rejected
 
-    SC->>ST: updateReputation(contributor, success/failure)
-    
-    alt is Accepted
-        SC->>R: distributeReward(contributor, amount)
-        SC->>ST: validateSkill(contributor, skill)
-    else is Rejected
-        SC->>SC: Re-queue work index (index available for new claim)
+    alt Accepted
+        SC->>SV: unlockContributor(contributor, stake)
+        Note right of SC: Challenge period begins
+    else Rejected
+        SC->>SV: slashContributor(contributor, stake)
+        Note right of SC: Slot returned to pool, nonce incremented
     end
 
-    loop For each Outlier
-        SC->>SV: slash(validator, amount)
-        SC->>VO: handleValidatorSlash(validator, amount)
-        SC->>ST: updateReputation(validator, penalty)
+    Note over O, SV: Phase 5: Settlement
+    V->>SC: settleValidator(projectId, index, nonce)
+    alt Accurate
+        SC->>SV: releaseCommit(validator, stake)
+        Note right of SC: Validator reward → pendingRewards
+    else Outlier
+        SC->>SV: slashValidator(validator, slashAmount)
     end
 
-    loop For each Honest Validator
-        SC->>R: distributeValidatorReward(validator, amount)
-        SC->>ST: updateReputation(validator, success)
-    end
+    Note over O, SV: Phase 6: Rewards
+    SC->>SC: releaseContributorReward(projectId, index)
+    C->>SC: claimReward(token)
+    V->>SC: claimReward(token)
 
-    SC->>SV: unlockStake(contributor, amount)
+    Note over O, SV: Project Completion
+    O->>SC: completeProject(projectId)
+    O->>SC: refundEscrow(projectId) [after 30-day grace]
 ```
-
-#### Breakdown of Phases
-
-**1. Project Setup**
-Originators define the project parameters, including reward tokens, minimum stakes, and required skills. Funding the project moves reward tokens into the `Rewards` contract escrow.
-
-**2. Contribution**
-Contributors claim slots, which locks their "skin in the game" stake in the `SapienVault`. They then submit their work (typically a hash/reference), which is enqueued for validation.
-
-**3. Validation**
-Validators set their validation capacity beforehand. They claim pending contributions, then follow a two-step commit-reveal process to ensure independence. Their "in-flight" stake is tracked against their locked capacity.
-
-**4. Finalization**
-Once consensus is reached, `SapienCore` executes the outcome. Success leads to rewards and reputation gains, while failure or outlier behavior results in slashing and reputation penalties.
 
 ---
 
 ## Core Components
 
-### Sapien Core
+### SapienCore
 
-`SapienCore` is the central coordinator of the Sapien PoQ protocol. It manages the lifecycle of projects, claims, and contributions, and triggers the finalization process that involves rewards and slashing.
+`SapienCore` is the unified entry-point for the Sapien PoQ protocol. It coordinates the full lifecycle — project origination, contribution claiming, commit-reveal validation, stake-weighted consensus, dispute resolution, and reward distribution.
 
-#### Responsibilities
+Deployed behind an **ERC-1967 UUPS proxy** with **ERC-7201 namespaced storage**. All business logic is delegated to purpose-built libraries.
 
-- **Project Management**: Creation and funding of projects.
-- **Contribution Lifecycle**: Handling claims to contribute, work submission, and finalization.
-- **Coordination**: Interfacing with `SapienVault`, `SapienTrust`, `ValidationOracle`, and `Rewards`.
+#### Origination
 
-#### Key Functions
+- **`createProject(projectId, metadataCid, config)`** — Register a new project in `Created` status. Key config fields: `rewardToken`, `minStakeToClaim`, `minValidationStake`, `consensusThreshold` (BPS), `validatorRewardBps` (max 2500), `numberOfValidations` (1–10), `minValidatorReputation`, `requiredSkill`.
+- **`fundProject(projectId, amount, quantity, adapter)`** — Fund with reward tokens, create slots. Protocol fee (10%) → treasury, optional origination adapter fee (4%) → adapter, optional originator stake lock.
+- **`removeProject(projectId)`** — Operator-only. Slash originator stake, cancel project.
 
-**Project Functions**
+#### Contribution
 
-- **`createProject`**: Allows an Originator to initialize a new project with specific parameters:
-  - `projectId`: A unique `bytes32` identifier (usually a hash of the project metadata).
-  - `rewardToken`: The ERC20 token used for payouts.
-  - `minStakeToClaim`: Minimum stake required for a contributor to claim slots.
-  - `minStakeToContribute`: Minimum stake required to contribute (optional/secondary check).
-  - `minValidations`: Minimum number of validator reveals required to reach consensus (defaults to 3).
-  - `validatorRewardBasisPoints`: The percentage of the reward pool reserved for validators (e.g., 1000 = 10%). Capped at 2500 (25%).
-  - `requiredSkill`: Optional skill requirement for contributors.
+- **`claimToContribute(projectId, quantity, adapter)`** — Claim 1–20 slots. Locks contributor stake. Uses range + return-stack hybrid for slot allocation. Returns `(claimId, indices[])`.
+- **`contribute(claimId, index, submissionHash, dataCid)`** — Submit work. Reserved → Pending.
+- **`batchContribute(...)`** — Batch submission.
+- **`expireClaim(claimId, indices)`** — Permissionless after deadline. Slashes unsubmitted, unlocks submitted.
 
-- **`fundProject`**: Originators add reward tokens and increase the available quantity of contribution slots. A configurable protocol fee (default 1%) is automatically deducted and sent to the Sapien treasury. The remaining amount is allocated to the project's reward pool.
+#### Validation
 
-- **`reclaimExpiredIndices`**: Allows anyone to reclaim contribution slots that were reserved but not submitted within the deadline. This restores the `activeClaimedQuantity` and makes the slots available for other contributors.
+- **`lockValidatorCapacity(amount)` / `unlockValidatorCapacity(amount)`** — Pre-lock capacity.
+- **`claimToValidate(projectId, indices)`** — Reserve indices for validation. 1-hour deadline.
+- **`commitValidation(projectId, index, commitHash, stakeAmount, adapter)`** — Seal score. Capacity → in-flight.
+- **`revealValidation(projectId, index, score, salt)`** — Reveal within window. Score 0–10,000.
+- Batch versions: `batchCommitValidations`, `batchRevealValidations`.
 
-**Contribution Functions**
+#### Finalization
 
-- **`claimToContribute`**: Contributors claim a specific number of slots in a project. This:
-  1. Verifies the contributor's stake in `SapienVault` meets `minStakeToClaim`.
-  2. Locks the required stake in the vault.
-  3. Reserves specific contribution indices for the contributor using an internal `IndexReservation` system.
-  4. Returns a `claimId` used for subsequent submissions.
+- **`computeConsensus(projectId, index)`** — Trigger consensus. Accepted/Rejected.
+- **`settleValidator(projectId, index, nonce)`** — Settle after consensus.
+- **`forceSettleValidator(projectId, index, nonce, validator)`** — Permissionless force-settle.
+- **`releaseContributorReward(projectId, index)`** — Release reward after challenge period.
+- **`claimReward(token)`** — Withdraw pending rewards.
+- **`cancelExpiredCommitment(projectId, index, validator)`** — Slash non-revealers.
 
-- **`contribute` / `batchContribute`**: Contributors submit a `submissionHash` (e.g., an IPFS CID) for specific indices within their claim.
-  - Must be called before the claim or index reservation deadline.
-  - Submissions are automatically enqueued in the `ValidationOracle` for review.
+#### Disputes
 
-- **`releaseExpiredClaim`**: Marks a claim as expired if the contributor failed to submit work before the deadline.
-  - Unlocks the contributor's stake but applies a slash penalty based on the `minStakeToClaim`.
+- **`openDispute(projectId, index, evidenceHash, evidenceCid)`** — Bond-backed dispute.
+- **`resolveDispute(projectId, index, upheld)`** — Operator resolution.
+- **`escalateDispute(projectId, index)`** — Auto-uphold after 7 days.
 
-- **`finalizeContribution`**: The final step in the lifecycle. It:
-  1. Requests consensus from the `ValidationOracle` (checks if minimum reveals and deadlines are met).
-  2. Updates the contributor's reputation in `SapienTrust` (Success increase or Rejection penalty).
-  3. Distributes rewards via `Rewards` for accepted work.
-  4. Executes slashing via `SapienVault` for outlier validators identified by consensus.
-  5. Re-queues rejected work by releasing the index back to the pool of available slots.
-  6. Unlocks the contributor's stake if the entire claim is processed.
+#### Originator Accountability
 
-#### Events
+- **`reportOriginator(projectId, evidenceHash)`** — Bond-backed report.
+- **`resolveOriginatorReport(projectId, upheld)`** — Operator resolution.
+- **`escalateOriginatorReport(projectId)`** — Auto-uphold after 7 days.
 
-- `ProjectCreated`: Emitted when a new project is registered.
-- `ProjectFunded`: Emitted when a project receives funding.
-- `ProtocolFeeCollected`: Emitted when a protocol fee is collected during project funding.
-- `ProtocolFeeUpdated`: Emitted when the protocol fee basis points are updated.
-- `TreasuryUpdated`: Emitted when the treasury address is updated.
-- `ContributionSubmitted`: Emitted when a contributor submits work.
-- `ContributionFinalized`: Emitted when consensus is reached and rewards/slashing are processed.
+#### Project Completion
 
-#### Access Control
+- **`completeProject(projectId)`** — Originator completes when pipeline is empty.
+- **`refundEscrow(projectId)`** — Claim remaining escrow after 30-day grace.
 
-- **ORIGINATOR_ROLE**: Required to create projects.
-- **CONTRIBUTOR_ROLE**: Required to claim slots and submit work.
-- **DEFAULT_ADMIN_ROLE**: Global administration and configuration.
+#### Admin (DEFAULT_ADMIN_ROLE)
+
+Fee configuration (`setProtocolFee`, `setOriginationFee`, `setContributionFee`, `setValidationFee`, `setDecayRate`), dispute config (`setDisputeBondBps`, `setOriginatorStakeRequirement`, `setOriginatorReportBondBps`, `setMinValidationStake`), treasury (`setTreasury`), claim protection (`setMinClaimAmount`, `setClaimCooldown`), deadlines (`setClaimDeadline`, `setChallengePeriod`, `setCommitDeadline`, `setRevealDeadline`, `setForceSettleDelay`), and `pause`/`unpause`.
 
 ---
 
-### Sapien Vault
+### SapienVault
 
-The `SapienVault` is an upgradeable staking contract based on the **ERC-4626** standard. It handles the financial "skin in the game" for all protocol participants through token deposits, stake locking, and slashing.
+ERC-4626 vault for SAPIEN token staking with **typed lock categories**.
 
-#### Responsibilities
+**Lock Categories:**
+- `contributorLock` — Locked when claiming contribution slots or posting dispute/report bonds
+- `validatorCapacity` — Pre-locked as validation capacity
+- `inFlight` — Committed to active validations (drawn from capacity)
 
-- **Staking**: Secure storage of SAPIEN tokens deposited by users.
-- **Locking**: Temporarily restricting a user's ability to withdraw funds while they have active claims or commitments.
-- **Slashing**: Permanently removing a portion of a user's stake as a penalty for poor quality work or dishonest validation.
-- **Inflation Protection**: Uses a decimals offset (3) to protect against common ERC-4626 inflation attacks.
+**Available balance** = `totalAssets - contributorLock - validatorCapacity - inFlight`
 
-#### Key Functions
+**Key Operations:**
+- Contributor: `lockContributor`, `unlockContributor`, `slashContributor`, `slashAndUnlockContributor`
+- Validator: `lockValidatorCapacity`, `unlockValidatorCapacity`, `commitStake`, `releaseCommit`, `slashValidator`
+- All stake operations restricted to `ENGINE_ROLE` (granted to SapienCore)
 
-**Staking Functions**
-
-Users interact with the vault using standard ERC-4626 functions (`deposit`, `withdraw`, `mint`, `redeem`). Deposits earn "shares" representing their portion of the vault's total assets.
-
-**Locking Logic**
-
-- **`lockStake`**: Called by `SapienCore` or `ValidationOracle` when a user claims a task or sets validation capacity. Locked stake cannot be withdrawn or transferred until it is explicitly unlocked. Every lock includes a `reason` string for transparent event tracking.
-
-- **`unlockStake`**: Releases the lock on a user's assets, typically after a contribution is finalized, a claim expires, or a validator reduces their capacity.
-
-**Slashing**
-
-- **`slash`**: Removes a specified amount of assets from a user's position by burning their vault shares.
-  - **Internal Mechanism**: The underlying assets remain in the vault.
-  - **Effect**: Since shares are burned but assets remain, the "price per share" increases for all other stakers. This automatically redistributes the slashed value to the rest of the honest participants.
-
-#### Security
-
-- **Locker/Slasher Roles**: Only authorized contracts (like `SapienCore`) can lock or slash funds.
-- **Pausability**: The vault can be paused by a `PAUSER_ROLE` in case of emergencies, disabling withdrawals while maintaining deposits and internal accounting.
-
-#### View Functions
-
-- `getStake`: Returns the total amount of tokens a user has in the vault.
-- `getAvailableStake`: Returns the amount of tokens a user can withdraw (Total - Locked).
-- `getLockedStake`: Returns the amount currently held for active tasks.
+**Security Features:**
+- ERC-4626 inflation attack mitigation via 3-decimal offset
+- Transfer guard: prevents transfers below locked amounts
+- Pause protection: blocks all ERC-4626 operations when paused
+- Slashing economics: burned shares increase price-per-share for remaining stakers
 
 ---
 
-### Sapien Trust
+### ReputationLib
 
-`SapienTrust` is the identity and reputation layer of the Sapien protocol. It implements the **Proof of Quality (PoQ)** system, which tracks the historical performance of all participants (Originators, Contributors, and Validators).
+Implements the Proof of Quality (PoQ) reputation system with lazy decay and daily gain caps.
 
-#### Responsibilities
+**Score Range:** 500 (minimum) – 10,000 (maximum), default 5,000.
 
-- **Reputation Tracking**: Managing scores for different roles based on success/failure and quality of work.
-- **Skill Validation**: Tracking user expertise in specific domains (e.g., "Image Annotation", "NLP").
-- **Role Verification**: Checking if a user meets the minimum stake and reputation requirements for a role.
+**Role Keys:** `keccak256("ORIGINATOR")`, `keccak256("CONTRIBUTOR")`, `keccak256("VALIDATOR")`, or project-specific `requiredSkill` hash.
 
-#### Reputation System (PoQ)
+**Update Rules:**
+- Success: +10 points + optional bonus, capped at 100/day
+- Failure: -50 points
+- Bounded: min 500, max 10,000
 
-Reputation scores range from **500 to 10000** (where 5000 is the neutral starting point).
-
-**Role-Based Scores**
-
-Users have separate reputation scores for each role:
-- `ORIGINATOR_ROLE`
-- `CONTRIBUTOR_ROLE`
-- `VALIDATOR_ROLE`
-
-**Update Logic**
-
-Reputation is updated via the `updateReputation` function, which is called by `SapienCore` during finalization:
-- **Success**: Increases the score by **+10 bps** (0.1%), with an additional quality bonus for high scores (>5000).
-- **Rejection**: Decreases the score by **-50 bps** (0.5%).
-- **Slash (Outlier)**: Decreases the score by **-100 bps** (1.0%).
-
-**Lazy Decay**
-
-Reputation naturally decays over time if a user is inactive, incentivizing consistent high-quality participation.
-- **Mechanism**: The decay is applied "lazily" when a user's reputation is queried or updated.
-- **Rate**: Configurable via `reputationDecayPerDay` (expressed in basis points).
-
-#### Skills
-
-The protocol supports domain-specific skills. When an Originator marks a project as requiring a specific skill (e.g., "Medical Labeling"):
-1. Only users with that validated skill can participate.
-2. Successful completion of contributions in that project can automatically validate the skill for the contributor and increment their `completionCount`.
-
-#### Sybil Resistance
-
-To prevent reputation farming via multiple accounts (Sybil attacks), `SapienTrust` implements several defenses:
-1. **Entry Stake**: Users must have a minimum stake in `SapienVault` to be considered for any role.
-2. **Skin in the Game**: High-value roles require higher minimum stakes (configurable via `roleMinStake`).
-3. **Reputation Floor**: Scores cannot drop below 500, but low reputation restricts access to high-reward projects.
-
-#### Key Functions
-
-- `getTrustScore`: Query a user's reputation for a specific role.
-- `hasValidRole`: Check if a user meets the stake and reputation requirements to act as a contributor or validator.
-- `validateSkill`: Mark a specific skill as verified for a user.
+**Lazy Decay:** Applied on read/update. `decayAmount = score × decayRateBps × daysSinceUpdate / 10000`. Default rate: 0.1%/day.
 
 ---
 
-### Validation Oracle
+### ValidationLib & ConsensusLib
 
-The `ValidationOracle` is a stateless consensus engine that manages the validation process for Sapien PoQ. It implements a commit-reveal scheme to ensure validator independence and uses pluggable algorithms to calculate consensus.
+**ValidationLib** manages the full validation lifecycle:
+1. **Capacity**: Lock/unlock validator capacity in SapienVault
+2. **Claims**: Reserve specific indices (1-hour deadline, reputation check)
+3. **Commit**: Seal `keccak256(uint16(score) || salt)` with stake. Must meet project + global minimum stake
+4. **Reveal**: Verify hash, record score. Window: commit timestamp + commit deadline + reveal deadline
+5. **Consensus**: Build `ValidationInput[]` from reveals, call `ConsensusLib.calculate()`
 
-#### Responsibilities
-
-- **Validation Management**: Handling claims to validate, commits, and reveals.
-- **Consensus Calculation**: Delegating the mathematical calculation to external algorithm contracts.
-- **Oracle Logic**: Recording the relationship between projects, contributions, and validators.
-
-#### Key Functions
-
-**Validator Workflow**
-
-- **`setValidatorCapacity`**: Before participating, validators must set their "validation capacity" by locking SAPIEN tokens in the `SapienVault`.
-  - This provides a pool of locked stake that covers multiple "in-flight" validations.
-  - Eliminates the need to lock/unlock stake for every individual commit, significantly reducing gas costs for active validators.
-
-- **`claimToValidate`**: Validators express interest in reviewing contributions for a specific project.
-  - Requires `VALIDATOR_ROLE` and sufficient available capacity (Locked Stake - In-Flight Stake).
-  - Reserves slots from the `pendingQueue` for a fixed `CLAIM_DURATION` (default 1 hour).
-
-- **`commitValidation` / `batchCommitValidations`**: Validators submit a `commitHash` which is `keccak256(score, stakeAmount, salt)`.
-  - This increases the validator's `inFlightStake`.
-  - Sybil protection prevents Originators and the original Contributor from validating the work.
-
-- **`revealValidation` / `batchRevealValidations`**: Validators reveal their `score` and `salt`.
-  - The oracle verifies the reveal matches the commit.
-  - The `inFlightStake` is decreased (capacity is freed up for new claims).
-
-- **`cancelExpiredValidationClaim` / `cancelExpiredCommitment`**: Allows the system to penalize validators who block the pipeline:
-  - `cancelExpiredValidationClaim`: Slashes validators who claim slots but never commit.
-  - `cancelExpiredCommitment`: Slashes validators who commit but fail to reveal within the `revealDeadline`.
-
-**Consensus Logic**
-
-- **`getConsensus`**: Called by `SapienCore` to determine if a contribution is ready for finalization. It:
-  1. Verifies that the minimum number of reveals has been reached.
-  2. Checks if the reveal deadline has passed for any unrevealed commits.
-  3. Fetches the project's assigned `ConsensusAlgorithm`.
-  4. Returns the weighted average score, validator count, and a list of outliers to be slashed.
-
-**Registry Functions**
-
-- **`registerAlgorithm`**: (Admin only) Registers a new `IConsensusAlgorithm` implementation.
-
-- **`setProjectAlgorithm`**: Allows an Originator to choose which consensus algorithm (e.g., "Hybrid", "SqrtStake") to use for their project.
-
-#### Configurable Parameters
-
-- **Reveal Deadline**: The time validators have to reveal their scores after committing (default is 3 days).
-- **Claim Duration**: The time validators have to commit after claiming a slot (default is 1 hour).
-
-#### Security Features
-
-- **Sybil Protection**: The protocol prevents a project's Originator or the contribution's Contributor from validating their own work.
-- **Commit-Reveal**: Prevents "herding" behavior where validators simply copy the scores of others.
-- **Stake Locking**: Validator stake is locked from the moment of commitment until reveal or expiration.
+**ConsensusLib** implements the consensus algorithm:
+- **Weight**: `sqrt(stake) × max(reputation, 1000)`
+- **Weighted average**: `Σ(score × weight) / Σ(weight)` with high-precision arithmetic
+- **Standard deviation**: Weighted variance, square root
+- **Outlier detection**: Tiered by σ (1.5σ → 10%, 2σ → 25%, 3σ → 50%, 5σ → 100%)
 
 ---
 
-### Rewards Management
+### FinalizationLib
 
-The `Rewards` contract handles the allocation, distribution, and claiming of reward tokens for projects on the Sapien platform. It maintains separate accounting for contributors and validators to ensure fair and transparent payouts.
+Handles the post-consensus settlement flow:
 
-#### Responsibilities
-
-- **Reward Escrow**: Holding funds deposited by Originators until they are earned by participants.
-- **Allocation**: Mapping reward pools to specific project IDs.
-- **Distribution**: Recording the earnings for contributors and validators after successful consensus.
-- **Claiming**: Allowing users to withdraw their earned rewards to their personal wallets.
-
-#### Key Functions
-
-**Core Logic (OnlyCore)**
-
-These functions can only be called by the `SapienCore` contract:
-- `allocateRewards`: Moves project funds into the rewards escrow during the `fundProject` flow.
-- `distributeReward`: Assigns a reward amount to a specific contributor for a project after work is accepted.
-- `distributeValidatorReward`: Assigns a reward amount to a specific validator based on their stake and accuracy after consensus.
-
-**User Functions**
-
-- **`claimRewards` / `claimAllRewards`**: Allows a contributor to withdraw their earned rewards. `claimAllRewards` is a batch function that handles multiple projects in a single transaction, saving gas for active contributors.
-
-- **`claimValidatorRewards` / `claimAllValidatorRewards`**: Allows a validator to withdraw their earnings. Similarly, `claimAllValidatorRewards` allows for batch claiming across multiple projects.
-
-#### View Functions
-
-- `getAvailableRewards`: Check how much a contributor can currently withdraw.
-- `getTotalRewardsEarned`: View the historical total of rewards earned by a user.
-- `getRemainingProjectRewards`: See the current balance of the reward pool for a project.
-
-#### Access Control
-
-- **OnlyCore**: Critical distribution functions are restricted to the `SapienCore` address to prevent unauthorized payouts.
-- **DEFAULT_ADMIN_ROLE**: Configuration of the core contract address and emergency pausing.
+1. **Validator settlement**: Outliers slashed (tiered), accurate validators receive stake back + reward share
+2. **Contributor rewards**: Released after challenge period with no active dispute
+3. **Adapter fees**: Deducted at distribution time (contribution fee from contributor share, validation fee from validator share)
+4. **Reward claiming**: Subject to `minClaimAmount` and `claimCooldown`
+5. **Expired commitments**: Non-revealers fully slashed
+6. **Project completion**: Requires empty pipeline, unlocks originator stake
+7. **Escrow refund**: After 30-day grace period post-completion
 
 ---
 
-## Consensus Algorithms
+### DisputeLib
 
-Sapien PoQ uses a pluggable consensus architecture. Originators can choose the algorithm that best fits their project's security and cost requirements.
+Manages two accountability mechanisms:
 
-### Available Algorithms
+**Contribution Disputes:**
+- Open during challenge period with bond (% of reward rate)
+- Keyed by `(projectId, index, nonce)` to prevent cross-nonce poisoning
+- Upheld: bond returned, challenger rewarded (20%), contributor penalized
+- Rejected: bond slashed
+- Escalation: auto-upheld after 7-day resolution deadline
 
-#### 1. Hybrid Consensus (`HybridConsensus.sol`)
+**Originator Reports:**
+- Report misconduct with bond (% of total rewards)
+- Upheld: project cancelled, originator stake slashed, reporter rewarded
+- Rejected: bond slashed
+- Blocks new contribution claims while open
 
-The most sophisticated and recommended algorithm for Sapien.
+---
 
-- **Weighting**: `min(sqrt(stake) × reputation, 30% cap)`
-- **Security Grade**: **A-**
-- **Best For**: High-value projects where long-term quality and Sybil resistance are critical.
-- **Pros**: Perfectly aligns incentives by considering both financial stake and historical quality (PoQ). Prevents "whale" dominance with a hard cap and sublinear (sqrt) scaling.
+## Consensus Algorithm
 
-#### 2. Sqrt Stake Consensus (`SqrtStakeConsensus.sol`)
+v0.5 uses a single, unified consensus algorithm in `ConsensusLib` that combines the best properties of v0.3's pluggable algorithms.
 
-Uses a quadratic voting approach to balance power.
+### Weight Calculation
 
-- **Weighting**: `sqrt(stake)`
-- **Security Grade**: **A-**
-- **Best For**: Projects seeking maximum validator diversity and fairness.
-- **Pros**: Reduces the influence of large token holders, making it 22% more democratic than linear weighting.
+```
+weight = sqrt(stake) × effectiveReputation
+effectiveReputation = max(reputation, MIN_REPUTATION_FLOOR=1000)
+```
 
-#### 3. Capped Linear Consensus (`CappedLinearConsensus.sol`)
+Using `sqrt(stake)` provides whale resistance (sublinear scaling), while incorporating reputation rewards consistent, high-quality participation.
 
-A middle ground between traditional staking and advanced consensus.
+### Outlier Detection
 
-- **Weighting**: `min(stake, 30% of total committee stake)`
-- **Security Grade**: **B+**
-- **Best For**: General use cases requiring a simple but secure upgrade from linear weighting.
-- **Pros**: Prevents any single validator from controlling the outcome (whale protection).
+After computing the weighted average and standard deviation, validators are classified:
 
-#### 4. Linear Stake Consensus (`LinearStakeConsensus.sol`)
+| Deviation from Mean | Classification | Slash Percentage |
+|---------------------|---------------|-----------------|
+| ≤ 1.5σ | Accurate | 0% (earns rewards) |
+| > 1.5σ | Tier 1 Outlier | 10% of stake |
+| > 2.0σ | Tier 2 Outlier | 25% of stake |
+| > 3.0σ | Tier 3 Outlier | 50% of stake |
+| > 5.0σ | Tier 4 Outlier | 100% of stake |
 
-The simplest form of consensus.
+### Reward Distribution
 
-- **Weighting**: `stake`
-- **Security Grade**: **C+**
-- **Best For**: Low-risk projects or backward compatibility.
-- **Cons**: Vulnerable to "whale" attacks where a single large holder can override the committee.
+Accurate validators share the validator reward pool proportionally to their weight:
 
-### Comparison Summary
+```
+validatorReward = (totalRewards × validatorRewardBps × weight) / (BPS × totalQuantity × totalAccurateWeight)
+```
 
-| Metric | Linear | Capped | Sqrt | Hybrid |
-|--------|--------|--------|------|--------|
-| **Whale Resistance** | Low | High | Medium | High |
-| **Sybil Resistance** | High | Medium | Medium | High |
-| **Efficiency (Gas)** | Very High | High | Medium | Medium |
-| **Incentive Alignment** | Low | Medium | High | Very High |
+Contributors receive the remaining share:
 
-### How it Works
-
-1. **Input**: Each algorithm receives an array of `ValidationInput` (Validator, Score, Stake, Reputation).
-2. **Weighting**: The algorithm calculates the weight of each validator based on its specific logic.
-3. **Consensus**: A weighted average score is calculated.
-4. **Outlier Detection**: The system uses `ConsensusLib` to identify validators whose scores deviate significantly.
-   - **Absolute Threshold**: Any score deviating by more than 1500 (15%) from the mean is considered an outlier.
-   - **Relative Threshold**: Any score deviating by more than 2 standard deviations (2σ) is considered an outlier.
-5. **Slashing Calculation**: `ConsensusLib` calculates a slash percentage based on the number of standard deviations from the mean:
-   - **5σ+**: 100% slash (Extreme Outlier)
-   - **4σ-5σ**: 75% slash
-   - **3σ-4σ**: 50% slash
-   - **2σ-3σ**: 25% slash
-   - **1.5σ-2σ**: 10% slash
-6. **Output**: Returns the final `weightedAverage` and a list of `validatorsToSlash` with their corresponding `slashAmounts`.
+```
+contributorReward = rewardRate × (BPS - validatorRewardBps) / BPS
+```
 
 ---
 
@@ -537,282 +376,273 @@ The simplest form of consensus.
 
 ### Guide for Originators
 
-As an Originator, you use the Sapien protocol to verify the quality of AI datasets or agent behaviors. This guide walks you through creating and funding your first project.
-
 #### 1. Prerequisites
 
-- **SAPIEN Tokens**: You must have SAPIEN tokens staked in the `SapienVault` to meet the minimum stake requirement for the `ORIGINATOR_ROLE`.
-- **Reward Tokens**: You need the ERC20 tokens (e.g., USDC, USDT) that you plan to use for rewards.
+- **SAPIEN Tokens**: You need tokens deposited in `SapienVault` if originator stake is required.
+- **Reward Tokens**: ERC-20 tokens for the reward pool (e.g., USDC, USDT).
 
 #### 2. Create a Project
 
-To create a project, call `SapienCore.createProject()` with the following parameters:
+Call `SapienCore.createProject(projectId, metadataCid, config)`:
 
-- `projectId`: A unique `bytes32` hash identifying the project.
-- `rewardToken`: Address of your chosen reward token.
-- `minStakeToClaim`: Minimum SAPIEN stake required for a contributor to claim a slot.
-- `minStakeToContribute`: (Legacy) Minimum stake required to participate.
-- `minValidations`: The minimum number of human reviewers needed per contribution.
-- `validatorRewardBasisPoints`: Percentage of the total pool for validators (default 1000 = 10%). **Capped at 2500 (25%)**.
-- `requiredSkill`: (Optional) A skill contributors must have or will earn upon successful completion.
+- `projectId`: Unique `bytes32` identifier (chosen off-chain).
+- `metadataCid`: IPFS CID pointing to project metadata.
+- `config`: `Project` struct with:
+  - `rewardToken`: ERC-20 address for payouts
+  - `minStakeToClaim`: Minimum contributor stake per slot
+  - `minValidationStake`: Project-level minimum validator stake
+  - `consensusThreshold`: BPS threshold for acceptance (e.g., 7000 = 70%)
+  - `validatorRewardBps`: Validator share of rewards (max 2500 = 25%)
+  - `numberOfValidations`: Required reveals per contribution (1–10)
+  - `minValidatorReputation`: Minimum validator reputation score
+  - `requiredSkill`: Optional skill hash for validator eligibility
 
 #### 3. Fund Your Project
 
-Once the project is created, you must add funds and define the quantity of work units:
+Call `SapienCore.fundProject(projectId, amount, quantity, adapter)`:
 
-Call `SapienCore.fundProject(projectId, rewardAmount, quantity)`:
-- `rewardAmount`: Total amount of reward tokens to deposit.
-- `quantity`: The total number of contributions you want verified.
+- `amount`: Total reward tokens to deposit (fees deducted from this)
+- `quantity`: Number of contribution slots to create
+- `adapter`: Optional origination adapter address (address(0) for none)
 
-**Protocol Fee**: A protocol fee (default 1% = 100 basis points) is automatically deducted from your funding amount and sent to the Sapien treasury. The remaining amount is allocated to your project's reward pool.
+**Fee breakdown** (example: funding 1000 USDC):
+- Protocol fee (10%): 100 USDC → Treasury
+- Origination adapter fee (4% of remaining, if adapter set): 36 USDC → Adapter
+- Project escrow: 864 USDC → Available for rewards
 
-**Example**: If you fund with 1000 USDC:
-- Protocol fee (1%): 10 USDC → Sent to Sapien treasury
-- Project rewards: 990 USDC → Allocated to your project
+Can be called multiple times to add more funding.
 
-*Note: The protocol will automatically calculate the per-task reward based on `totalRewards / quantity`, where `totalRewards` is the amount after the protocol fee deduction.*
+#### 4. Project Completion
 
-#### 4. Choose a Consensus Algorithm
-
-By default, projects use the protocol-wide default algorithm. You can choose a specific one for your project:
-
-Call `ValidationOracle.setProjectAlgorithm(projectId, "Hybrid")`.
-- Available options: `"Linear"`, `"Capped"`, `"Sqrt"`, `"Hybrid"`.
-
-#### 5. Integrate Your Tools
-
-To connect your existing AI pipeline to Sapien:
-- **Submit Work**: Use a **Contributor Oracle** to call `SapienCore.contribute()` whenever new work is ready for validation.
-- **Consume Signals**: Monitor the `ContributionFinalized` events or query `SapienCore.contributions()` to get the verified quality scores.
+When all contributions are processed:
+1. Call `completeProject(projectId)` — requires no active pipeline
+2. Wait 30 days (grace period for final disputes)
+3. Call `refundEscrow(projectId)` — claim any remaining tokens
 
 #### Best Practices
 
-- **Clear TDS**: Ensure your Task Definition Spec (provided to contributors/validators via the oracle interface) is clear and objective.
-- **Incentivize Validators**: Setting `validatorRewardBasisPoints` too low may lead to slow validation times.
-- **Monitor Outliers**: If many validators are being slashed, your quality criteria might be too subjective or your instructions unclear.
+- **Clear metadata**: Ensure your Task Definition Spec is clear and objective.
+- **Set appropriate thresholds**: Higher `consensusThreshold` means stricter quality.
+- **Incentivize validators**: `validatorRewardBps` too low may lead to slow validation.
+- **Monitor disputes**: Frequent disputes may indicate unclear quality criteria.
 
 ---
 
 ### Guide for Contributors
 
-Contributors perform AI-related tasks and earn rewards based on the quality of their output as determined by human validator consensus.
-
 #### 1. Get Started
 
-- **Stake SAPIEN**: You must have the minimum required stake in the `SapienVault` to claim tasks.
-- **Build Reputation**: Your Proof of Quality (PoQ) score in `SapienTrust` determines your eligibility for high-value projects.
+- **Deposit tokens**: Deposit SAPIEN tokens into `SapienVault` via `deposit()`.
+- **Build reputation**: Your PoQ score determines eligibility for projects with reputation requirements.
 
 #### 2. Claim Work Slots
 
-Before you can submit work, you must "claim" capacity in a project. This prevents others from taking the slots while you are working.
-
-Call `SapienCore.claimToContribute(projectId, quantity)`:
-- `quantity`: Number of work units you commit to finishing.
-- **Deadline**: Each claim has a deadline (defined by the project). If you don't submit work by the deadline, your claim expires and your stake may be slashed.
+Call `SapienCore.claimToContribute(projectId, quantity, adapter)`:
+- `quantity`: Number of slots to claim (max 20 per call)
+- `adapter`: Optional contribution adapter address
+- Your stake is locked at `minStakeToClaim × quantity`
+- Deadline: configurable (default 1 day)
 
 #### 3. Submit Work
 
-Perform the task using the tools provided by the Originator (e.g., CVAT for images). Once finished:
+Call `SapienCore.contribute(claimId, index, submissionHash, dataCid)`:
+- `submissionHash`: Hash of your work for integrity verification
+- `dataCid`: IPFS CID pointing to the contribution data
+- Use `batchContribute` for multiple items in one transaction
 
-Call `SapienCore.contribute(projectId, claimId, contributionIndex, submissionHash)`:
-- `submissionHash`: A unique hash or reference to your work (e.g., an IPFS CID).
-- Use `batchContribute` to submit multiple items in a single transaction.
+#### 4. After Submission
 
-#### 4. Finalization and Rewards
+Your work enters the validation pipeline:
 
-After you submit work, it will be reviewed by validators. Once enough reviews are gathered, the contribution is finalized.
+- **Accepted**: Consensus score ≥ threshold. Your stake is unlocked, reputation increases (with quality bonus). After the challenge period, call `releaseContributorReward` or wait for someone else to.
+- **Rejected**: Consensus score < threshold. Your stake is slashed, reputation decreases, and the slot is returned to the pool.
 
-- **If Accepted**: You will receive your reward tokens in the `Rewards` contract. You can withdraw them using `Rewards.claimRewards()` or `Rewards.claimAllRewards()`.
-- **If Rejected**: If your contribution is rejected by the validator committee, your work index is released back to the project for others to attempt. Your reputation will decrease, and you may be penalized if your quality is consistently low.
+#### 5. Claim Rewards
 
-#### Improving Your Earnings
+Call `SapienCore.claimReward(token)` to withdraw accumulated rewards.
 
-- **Focus on Quality**: Consistently high scores increase your `SapienTrust` reputation, giving you access to projects with higher rewards.
-- **Validate Skills**: Successfully completing specialized tasks will validate those skills on your profile, making you eligible for niche projects.
-- **Manage Deadlines**: Always release or finish claims before they expire to avoid unnecessary slashing.
+#### Important Notes
+
+- Submit before the claim deadline or your unsubmitted slots will be slashed via `expireClaim`
+- Your contributor reputation affects your consensus quality bonus
+- Adapter fees (if set) are deducted from your reward at distribution time
 
 ---
 
 ### Guide for Validators
 
-Validators provide the human intelligence layer of the protocol. By reaching consensus on the quality of work, validators secure the AI systems relying on Sapien.
-
 #### 1. Prerequisites
 
-- **Stake SAPIEN**: High-weight validation requires significant stake.
-- **Maintain Reputation**: Honest participation builds your validator PoQ score.
+- **Deposit tokens**: Deposit SAPIEN tokens into `SapienVault`.
+- **Lock capacity**: Call `lockValidatorCapacity(amount)` to pre-lock your validation capacity.
+- **Maintain reputation**: Projects may require minimum reputation scores.
 
 #### 2. The Validation Process
 
-Validation uses an efficient **Commit-Reveal** scheme. To maximize efficiency, validators manage their commitment using a "Capacity" system.
+**Step 1: Claim Indices**
 
-**Step 1: Set Your Capacity**
+Call `SapienCore.claimToValidate(projectId, indices)`:
+- `indices`: Specific contribution indices you want to validate
+- 1-hour deadline to commit all indices
+- Cannot validate your own contributions
 
-Call `ValidationOracle.setValidatorCapacity(amount)`.
-- This locks a total amount of SAPIEN in the vault that acts as a pool for all your active validations.
-- You only need to do this once (or when you want to change your commitment level).
+**Step 2: Commit Scores**
 
-**Step 2: Claim Task Slots**
+Review the work and decide on a score (0–10,000).
 
-Call `ValidationOracle.claimToValidate(projectId, quantity)`.
-- This reserves a `quantity` of tasks from the project's pending queue.
-- You have a limited time (default 1 hour) to submit your commits for these slots.
+Call `SapienCore.commitValidation(projectId, index, commitHash, stakeAmount, adapter)`:
+- `commitHash`: `keccak256(abi.encodePacked(uint16(score), salt))`
+- `stakeAmount`: Must meet project + global minimum validation stake
+- Stake moves from capacity → in-flight
+- Use `batchCommitValidations` for multiple indices
 
-**Step 3: Commit Your Scores**
+**Step 3: Reveal Scores**
 
-Review the work via the validator interface and decide on a score (0-10000).
+Call `SapienCore.revealValidation(projectId, index, score, salt)`:
+- Must reveal within the reveal window (after commit, before commit + reveal deadline)
+- Use `batchRevealValidations` for efficiency
 
-Call `ValidationOracle.commitValidation(projectId, claimId, contributionIndex, commitHash)` (or use `batchCommitValidations` for efficiency):
-- `commitHash` is `keccak256(score, stakeAmount, salt)`.
-- The `stakeAmount` is deducted from your available capacity.
+**Step 4: Settle**
 
-**Step 4: Reveal Your Scores**
-
-After the project's reveal period begins:
-
-Call `ValidationOracle.revealValidation(projectId, contributionIndex, score, salt)` (or use `batchRevealValidations`):
-- If the reveal matches your commit, the `stakeAmount` is returned to your available capacity.
+After consensus is computed, call `settleValidator(projectId, index, nonce)`:
+- **Accurate**: Stake returned to capacity, earn reward share proportional to your weight
+- **Outlier**: Stake slashed at tiered rates (10%–100%), reputation decreases
 
 #### 3. Rewards and Penalties
 
-- **Alignment Reward**: If your score is within the consensus range (typically within 2 standard deviations of the weighted average), you earn a share of the validator reward pool.
-- **Outlier Slashing**: If your score is identified as an outlier, you will not receive rewards, your reputation will decrease, and a portion of your stake will be slashed.
-- **Non-Reveal Penalty**: If you commit but fail to reveal your score before the deadline, your entire committed stake is slashed.
+- **Alignment reward**: Based on your weight / totalAccurateWeight
+- **Tiered slashing**: 10% (>1.5σ), 25% (>2σ), 50% (>3σ), 100% (>5σ)
+- **Non-reveal penalty**: Full stake slash via `cancelExpiredCommitment`
+- **Non-commit penalty**: Reputation decrease via `cancelExpiredValidationClaim`
 
-#### Pro-Tips for Validators
+#### Pro-Tips
 
-- **Be Objective**: Base your score strictly on the Task Definition Spec (TDS) provided by the Originator.
-- **Keep Secrets**: Never share your salt or score before the reveal phase to avoid being targeted by colluders.
-- **Automate**: For high-volume projects, use a Validator Oracle (adapter) to streamline the commit-reveal process.
+- **Pre-lock sufficient capacity** to avoid per-commit lock/unlock gas costs
+- **Never share your salt** before the reveal phase
+- **Settle promptly** — after `forceSettleDelay`, anyone can force-settle you
+- **Higher stake = higher weight** (via sqrt), but also higher slash exposure
 
 ---
 
 ### Guide for Developers
 
-Developers can extend the Sapien PoQ ecosystem by building **Oracles (Adapters)** that connect external AI tools and workflows to the protocol.
+#### Adapter Architecture
 
-#### Architecture of an Oracle
+Adapters are the integration points between external tools and the Sapien protocol. They earn fees for their services.
 
-An Oracle typically consists of two parts:
-1. **offchain Interface**: A bridge that monitors an external tool (e.g., CVAT for image labeling) and handles user authentication.
-2. **onchain Adapter**: A set of scripts or a contract that calls the `SapienCore` or `ValidationOracle` functions on behalf of the users.
+**Three adapter types:**
+1. **Origination adapter**: Set during `fundProject`. Earns origination fee.
+2. **Contribution adapter**: Set during `claimToContribute`. Earns contribution fee on reward release.
+3. **Validation adapter**: Set during `commitValidation`. Earns validation fee on settlement.
+
+**Fee rates** are configured globally by the protocol admin:
+- Origination: default 4%, max 5%
+- Contribution: default 3%, max 5%
+- Validation: default 3%, max 5%
 
 #### Integration Points
 
-**Contributor Oracle**
+**Contributor Adapter:**
+1. Detect when a user finishes a task in the external tool
+2. Upload work data to storage (S3, IPFS)
+3. Call `claimToContribute` with `adapter = yourAddress`
+4. Call `contribute` or `batchContribute` with the submission hash and data CID
 
-A Contributor Oracle streamlines the submission of work.
-
-- **Workflow**:
-  1. Detect when a user finishes a task in the external tool.
-  2. Upload the work data to a storage bucket (S3, IPFS).
-  3. Call `SapienCore.contribute()` with the data reference and hash.
-
-- **Key Function**: `contribute(bytes32 projectId, uint256 claimId, uint256 contributionIndex, bytes32 submissionHash)`
-
-**Validator Oracle**
-
-A Validator Oracle provides a UI for human reviewers.
-
-- **Workflow**:
-  1. Fetch pending contributions from `ValidationOracle`.
-  2. Present the work and the Task Definition Spec (TDS) to the validator.
-  3. Manage the **Commit-Reveal** lifecycle (storing the salt locally until the reveal phase).
-
-- **Key Functions**: `claimToValidate()`, `commitValidation()`, `revealValidation()`.
-
-#### Building a Custom Consensus Algorithm
-
-If the existing algorithms (Linear, Sqrt, Hybrid) don't meet your needs, you can implement your own.
-
-1. **Implement `IConsensusAlgorithm`**: Create a contract that follows the interface.
-2. **Calculate Consensus**: In the `calculateConsensus` function, implement your logic for weighting and outlier detection.
-3. **Registration**: An admin must register your contract address in the `ValidationOracle`.
-
-```solidity
-interface IConsensusAlgorithm {
-    function calculateConsensus(ValidationInput[] calldata validations)
-        external view returns (ConsensusResult memory result);
-    
-    function getName() external pure returns (string memory);
-}
-```
+**Validator Adapter:**
+1. Monitor `ContributionSubmitted` events for new work
+2. Present work and TDS to human reviewers
+3. Manage the commit-reveal lifecycle (store salt locally until reveal)
+4. Call `claimToValidate`, `commitValidation`, `revealValidation`
+5. Set `adapter = yourAddress` during `commitValidation` to earn fees
 
 #### Consuming Quality Signals
 
-Applications can consume Sapien quality signals in several ways:
-- **onchain**: Query the `SapienCore.contributions` mapping to see the `status` and `averageScore`.
-- **offchain**: Listen for `ContributionFinalized` events.
-- **Attestations**: Read the attestations from the **Ethereum Attestation Service (EAS)** linked to each contribution.
+- **On-chain**: Call `getContribution(projectId, index)` to read `status` and query `getConsensusReport`
+- **Events**: Listen for `ConsensusReached`, `ContributorRewardReleased`, `ValidatorSettled`
+- **Dispute monitoring**: Watch `DisputeOpened`, `DisputeResolved`, `DisputeEscalated`
 
-#### Testing Your Integration
+#### Testing
 
-We recommend using **Foundry** for testing your adapters against the Sapien contracts.
-1. Fork the Sapien deployment on Base Sepolia.
-2. Deploy your adapter.
-3. Simulate the full lifecycle: `createProject` -> `claim` -> `contribute` -> `validate` -> `finalize`.
+Use **Foundry** for integration testing:
+1. Fork the Sapien deployment
+2. Deploy your adapter
+3. Simulate the full lifecycle: `createProject` → `fundProject` → `claimToContribute` → `contribute` → `claimToValidate` → `commitValidation` → `revealValidation` → `computeConsensus` → `settleValidator` → `releaseContributorReward` → `claimReward`
 
 ---
 
 ## Security
 
-The Sapien PoQ protocol is built on the principle of **Economic Security**. We use a combination of financial incentives (staking), penalties (slashing), and cryptographic proofs (commit-reveal, attestations) to ensure the integrity of human-powered AI verification.
-
 ### Core Security Pillars
 
 #### 1. Staking (Skin in the Game)
 
-All active participants must lock SAPIEN tokens in the `SapienVault`. This creates a tangible cost for malicious behavior and ensures that participants are economically aligned with the protocol's success.
+All active participants lock SAPIEN tokens in the `SapienVault` with typed lock categories (contributor locks, validator capacity, in-flight stakes). Locks cannot be bypassed — share transfers are restricted by the transfer guard.
 
 #### 2. Proof of Quality (Reputation)
 
-Reputation is not just a badge; it is a functional component of the consensus engine. In algorithms like **Hybrid Consensus**, your historical accuracy (PoQ score) directly increases your voting power, while a history of outlier behavior reduces it.
+Reputation is a functional component of consensus weight. `weight = sqrt(stake) × reputation`. Historical accuracy directly increases voting power. Lazy decay penalizes inactivity. Asymmetric penalties (-50 for failure vs +10 for success) make Sybil attacks expensive.
 
 #### 3. Commit-Reveal
 
-The `ValidationOracle` enforces a commit-reveal process for all human judgments. This prevents:
-- **Herding**: Validators waiting to see others' scores before submitting their own.
-- **Copy-Pasting**: Lazy validators mirroring the work of others without actually reviewing the task.
+Validators submit sealed score hashes before revealing, preventing:
+- **Herding**: Validators waiting to see others' scores
+- **Copy-pasting**: Lazy validators mirroring others without reviewing
 
-#### 4. Slashing Mechanisms
+#### 4. Tiered Slashing
 
-Slashing is used to penalize three specific types of bad behavior:
-- **Poor Quality (Contributors)**: If work is rejected by consensus, the contributor loses stake proportional to the quality gap.
-- **Outlier Judging (Validators)**: If a validator's score is a statistical outlier, they are slashed to discourage lazy or malicious voting.
-- **Non-Performance**: Failure to fulfill a claim or reveal a commit leads to stake forfeiture.
+Graduated penalties proportional to deviation from consensus:
+- Mild disagreement (>1.5σ): 10% slash
+- Significant disagreement (>2σ): 25% slash
+- Extreme disagreement (>3σ): 50% slash
+- Malicious outlier (>5σ): 100% slash
+
+Slashed shares remain in the vault, increasing the price-per-share for honest stakers.
+
+#### 5. Dispute System
+
+Bond-backed disputes allow anyone to challenge consensus outcomes during the challenge period. Escalation mechanism auto-upholds disputes if operators fail to respond within 7 days. Originator accountability reports allow community members to flag bad-faith projects.
+
+#### 6. Nonce-Based Re-Validation
+
+Rejected contributions increment a submission nonce, enabling re-contribution and re-validation on the same slot index without historical state pollution. Disputes are keyed by `(projectId, index, nonce)` to prevent cross-nonce poisoning.
 
 ### Whale and Sybil Resistance
 
 #### Whale Protection
-
-Large token holders are prevented from dominating consensus through:
-- **Quadratic Weighting**: `sqrt(stake)` reduces the power of large amounts.
-- **Hard Caps**: No single validator can account for more than 30% of a committee's total weight.
+- **Sublinear weighting**: `sqrt(stake)` reduces the power of large amounts
+- **Reputation factor**: Weight also depends on historical accuracy, not just capital
 
 #### Sybil Resistance
+- **Stake requirements**: Financial barrier per claim/validation
+- **Asymmetric penalties**: 5× more costly to fail than to succeed
+- **Daily gain cap**: Maximum +100 reputation/day prevents rapid farming
+- **Reputation maturity**: High-weight validation requires sustained honest participation
 
-Attacking the protocol with multiple small accounts is mitigated by:
-- **Minimum Entry Stake**: A significant financial barrier to creating new accounts.
-- **Reputation Maturity**: High-weight roles require a history of successful actions that cannot be easily faked or automated.
+### Security Architecture Summary
 
-### Auditability
-
-Every final quality signal produced by the protocol is recorded as an onchain attestation. These attestations include:
-- The consensus score.
-- The number of validators involved.
-- The algorithm used.
-- References to the underlying work.
-
-This creates an immutable audit trail for AI training data provenance and agent behavior compliance.
+| Mechanism | Threat Mitigated |
+|-----------|-----------------|
+| Contributor stake lock | Low-quality spam submissions |
+| Validator capacity + commit | Validation griefing |
+| Commit-reveal | Score herding and collusion |
+| Tiered slashing | Lazy/malicious validation |
+| Dispute bonds | Frivolous disputes |
+| Originator reports | Bad-faith project operators |
+| Daily gain cap | Reputation farming via Sybil |
+| Force-settle | Validator liveness failures |
+| Nonce keying | Cross-round state poisoning |
+| ERC-7201 storage | Upgrade storage collisions |
+| Transfer guard | Lock bypassing via share transfers |
+| Pause | Emergency circuit breaker |
 
 ---
 
 ## Conclusion
 
-The Sapien PoQ Protocol provides a comprehensive framework for verifiable quality assurance in AI systems. Through economic incentives, cryptographic proofs, and consensus mechanisms, it enables trustless verification of AI-generated content and behaviors.
+The Sapien PoQ Protocol v0.5 provides a comprehensive framework for verifiable quality assurance in AI systems. Through economic incentives, cryptographic proofs, and consensus mechanisms, it enables trustless verification of AI-generated content and behaviors.
 
 For more information, visit [poq.sapien.io](https://poq.sapien.io).
 
 ---
 
-*This document compiles all documentation from the `/docs` directory. For the most up-to-date information, please refer to the individual documentation files or the official Sapien PoQ website.*
+*This document compiles all documentation from the `/docs` directory for v0.5. For the most up-to-date information, refer to the individual documentation files or the source code.*

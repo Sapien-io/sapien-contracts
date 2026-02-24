@@ -1,33 +1,53 @@
-# Sapien PoQ Protocol - Contracts and Interfaces Reference
+# Sapien PoQ Protocol — Contracts and Interfaces Reference
 
-**Version:** v0.3  
-**Last Updated:** January 23rd, 2026
+**Version:** v0.5
+**Last Updated:** February 2026
 
-This document provides a comprehensive reference for all smart contracts and interfaces in the Sapien PoQ Protocol, including their NatSpec documentation.
+This document provides a comprehensive reference for all smart contracts, libraries, and interfaces in the Sapien PoQ Protocol v0.5.
 
 ---
 
 ## Table of Contents
 
-1. [Core Contracts](#core-contracts)
+1. [Contract Topology](#contract-topology)
+2. [Core Contracts](#core-contracts)
    - [SapienCore](#sapiencore)
    - [SapienVault](#sapienvault)
-   - [SapienTrust](#sapientrust)
-   - [ValidationOracle](#validationoracle)
-   - [Rewards](#rewards)
-2. [Consensus Algorithms](#consensus-algorithms)
-   - [HybridConsensus](#hybridconsensus)
-   - [SqrtStakeConsensus](#sqrtstakeconsensus)
-   - [LinearStakeConsensus](#linearstakeconsensus)
-   - [CappedLinearConsensus](#cappedlinearconsensus)
-3. [Interfaces](#interfaces)
+3. [Libraries](#libraries)
+   - [OriginationLib](#originationlib)
+   - [ContributionLib](#contributionlib)
+   - [ValidationLib](#validationlib)
+   - [ConsensusLib](#consensuslib)
+   - [FinalizationLib](#finalizationlib)
+   - [DisputeLib](#disputelib)
+   - [ReputationLib](#reputationlib)
+4. [Interfaces](#interfaces)
    - [ISapienCore](#isapiencore)
    - [ISapienVault](#isapienvault)
-   - [ISapienTrust](#isapientrust)
-   - [IValidationOracle](#ivalidationoracle)
-   - [IRewards](#irewards)
-   - [IConsensusAlgorithm](#iconsensusalgorithm)
-   - [ISharedTypes](#isharedtypes)
+5. [Shared Types](#shared-types)
+6. [Constants](#constants)
+7. [Access Control](#access-control)
+8. [Storage Layout](#storage-layout)
+
+---
+
+## Contract Topology
+
+v0.5 consolidates the protocol into two deployable contracts with seven libraries:
+
+```
+SapienCore (UUPS Proxy — unified entry-point)
+├── OriginationLib    (project creation & funding)
+├── ContributionLib   (claim & contribute)
+├── ValidationLib     (commit-reveal & consensus orchestration)
+├── ConsensusLib      (stake-weighted consensus algorithm)
+├── FinalizationLib   (settlement, rewards, project completion)
+├── DisputeLib        (disputes & originator reports)
+├── ReputationLib     (PoQ reputation with lazy decay)
+└── SapienVault ──── (ERC-4626 staking with typed locks)
+```
+
+All libraries operate on SapienCore's ERC-7201 namespaced storage via `DELEGATECALL`. The only external contract call is from SapienCore → SapienVault for stake operations.
 
 ---
 
@@ -37,123 +57,249 @@ This document provides a comprehensive reference for all smart contracts and int
 
 **File:** `src/SapienCore.sol`
 
-**Description:**
-```solidity
-/**
- * @title SapienCore
- * @notice Central coordinator for projects, contributions, and rewards.
- * @dev Merges ProjectRegistry and ContributionManager.
- *      Hierarchy: Core -> Oracle -> Trust -> Vault.
- */
-```
+**Inheritance:** `AccessControlUpgradeable`, `PausableUpgradeable`, `ReentrancyGuardUpgradeable`, `UUPSUpgradeable`, `ISapienCore`
 
-**Key Functions:**
+**Description:** Unified contract for the Sapien PoQ protocol — project management, claims, contributions, validations, consensus, reputation, and reward distribution. Deployed behind an ERC-1967 proxy with ERC-7201 namespaced storage.
 
 #### `initialize`
 ```solidity
-/**
- * @notice Initialize the SapienCore contract
- * @param _vault Address of the SapienVault contract
- * @param _rewards Address of the Rewards contract
- * @param _trust Address of the SapienTrust contract
- * @param _oracle Address of the ValidationOracle contract
- * @param _admin Address to grant DEFAULT_ADMIN_ROLE
- */
-function initialize(
-    address _vault,
-    address _rewards,
-    address _trust,
-    address _oracle,
-    address _admin
-) public initializer
+function initialize(address admin_, address vault_, address treasury_) external initializer
 ```
+Initializes the contract with admin, vault, and treasury addresses. Sets default fee rates and deadlines.
 
-#### `createProject`
+#### Origination Functions
+
 ```solidity
-/**
- * @notice Create a new project in the protocol
- * @param projectId Unique identifier for the project
- * @param rewardToken ERC20 token to be used for rewards
- * @param minStakeToClaim Minimum stake required for a contributor to claim a slot
- * @param minStakeToContribute Minimum stake required for a contributor to participate (legacy)
- * @param minValidations Minimum number of validations required to finalize a contribution
- * @param validatorRewardBasisPoints Percentage of rewards allocated to validators (bps)
- * @param requiredSkill Specific skill that contributors will earn upon successful completion
- * @return The hashed projectId (bytes32)
- */
-function createProject(
-    bytes32 projectId,
-    address rewardToken,
-    uint256 minStakeToClaim,
-    uint256 minStakeToContribute,
-    uint256 minValidations,
-    uint256 validatorRewardBasisPoints,
-    string calldata requiredSkill
-) external returns (bytes32)
+function createProject(bytes32 projectId, string calldata metadataCid, Project calldata config) external
 ```
+Register a new project. The caller becomes the originator. Project starts in `Created` status.
 
-#### `fundProject`
 ```solidity
-/**
- * @notice Fund an existing project with rewards and contribution quantity
- * @param projectId Unique identifier for the project
- * @param rewardAmount Amount of reward tokens to add
- * @param quantity Number of contribution slots to add
- */
-function fundProject(bytes32 projectId, uint256 rewardAmount, uint256 quantity) external
+function fundProject(bytes32 projectId, uint256 amount, uint256 quantity, address adapter) external
 ```
+Fund a project with reward tokens and create contribution slots. Deducts protocol fee, optional origination adapter fee, and locks originator stake if required.
 
-#### `claimToContribute`
 ```solidity
-/**
- * @notice Claim a number of contribution slots in a project
- * @param projectId Unique identifier for the project
- * @param quantity Number of slots to claim
- * @return claimId Unique identifier for the created claim
- */
-function claimToContribute(bytes32 projectId, uint256 quantity) external returns (uint256 claimId)
+function removeProject(bytes32 projectId) external  // OPERATOR_ROLE only
 ```
+Remove a project, slash originator stake, cancel the project.
 
-#### `contribute`
+#### Contribution Functions
+
 ```solidity
-/**
- * @notice Submit a contribution for a specific slot in a claim
- * @param projectId Unique identifier for the project
- * @param claimId Unique identifier for the claim
- * @param contributionIndex The index within the project's contribution sequence
- * @param submissionHash Hash of the submitted work (e.g. IPFS CID)
- */
-function contribute(
-    bytes32 projectId,
-    uint256 claimId,
-    uint256 contributionIndex,
-    bytes32 submissionHash
+function claimToContribute(bytes32 projectId, uint256 quantity, address adapter)
+    external returns (uint256 claimId, uint256[] memory indices)
+```
+Claim contribution slots. Locks contributor stake. Returns claim ID and assigned indices.
+
+```solidity
+function contribute(uint256 claimId, uint256 index, bytes32 submissionHash, string calldata dataCid) external
+```
+Submit work for a single claimed slot. Transitions slot from Reserved → Pending.
+
+```solidity
+function batchContribute(
+    uint256 claimId, uint256[] calldata indices,
+    bytes32[] calldata submissionHashes, string[] calldata dataCids
 ) external
 ```
+Batch version of `contribute`.
 
-#### `finalizeContribution`
 ```solidity
-/**
- * @notice Finalize a contribution by calculating consensus and distributing rewards/slashing
- * @param projectId Unique identifier for the project
- * @param contributionIndex The index within the project's contribution sequence
- */
-function finalizeContribution(bytes32 projectId, uint256 contributionIndex) external
+function expireClaim(uint256 claimId, uint256[] calldata indices) external
+```
+Expire a claim after deadline. Returns unsubmitted slots, slashes contributor.
+
+#### Validation Functions
+
+```solidity
+function lockValidatorCapacity(uint256 amount) external
+function unlockValidatorCapacity(uint256 amount) external
+```
+Lock/unlock tokens as validator capacity.
+
+```solidity
+function claimToValidate(bytes32 projectId, uint256[] calldata indices)
+    external returns (uint256 claimId)
+```
+Claim contribution indices for validation. 1-hour deadline to commit.
+
+```solidity
+function commitValidation(
+    bytes32 projectId, uint256 index, bytes32 commitHash,
+    uint256 stakeAmount, address adapter
+) external
+```
+Commit a sealed validation score. `commitHash = keccak256(abi.encodePacked(uint16(score), salt))`.
+
+```solidity
+function batchCommitValidations(
+    bytes32 projectId, uint256[] calldata indices,
+    bytes32[] calldata commitHashes, uint256[] calldata stakeAmounts, address adapter
+) external
+```
+Batch version of `commitValidation`.
+
+```solidity
+function revealValidation(bytes32 projectId, uint256 index, uint256 score, bytes32 salt) external
+```
+Reveal a committed score. Score range: 0–10,000.
+
+```solidity
+function batchRevealValidations(
+    bytes32 projectId, uint256[] calldata indices,
+    uint256[] calldata scores, bytes32[] calldata salts
+) external
+```
+Batch version of `revealValidation`.
+
+```solidity
+function cancelExpiredValidationClaim(uint256 claimId) external
+```
+Cancel a validation claim after the 1-hour deadline.
+
+#### Finalization Functions
+
+```solidity
+function computeConsensus(bytes32 projectId, uint256 index) external
+```
+Compute stake-weighted consensus. Sets contribution to Accepted/Rejected.
+
+```solidity
+function settleValidator(bytes32 projectId, uint256 index, uint256 nonce) external
+```
+Settle a validator's stake and rewards after consensus.
+
+```solidity
+function forceSettleValidator(
+    bytes32 projectId, uint256 index, uint256 nonce, address validator
+) external
+```
+Force-settle an unresponsive validator after `forceSettleDelay`.
+
+```solidity
+function releaseContributorReward(bytes32 projectId, uint256 index) external
+```
+Release contributor reward after challenge period.
+
+```solidity
+function claimReward(address token) external
+```
+Withdraw accumulated pending rewards.
+
+```solidity
+function cancelExpiredCommitment(bytes32 projectId, uint256 index, address validator) external
+```
+Slash a validator who committed but failed to reveal.
+
+#### Dispute Functions
+
+```solidity
+function openDispute(
+    bytes32 projectId, uint256 index, bytes32 evidenceHash, string calldata evidenceCid
+) external
+```
+Open a dispute during the challenge period. Requires bond.
+
+```solidity
+function resolveDispute(bytes32 projectId, uint256 index, bool upheld) external  // OPERATOR_ROLE
+```
+Resolve an open dispute.
+
+```solidity
+function escalateDispute(bytes32 projectId, uint256 index) external
+```
+Auto-uphold after resolution deadline (7 days).
+
+#### Originator Report Functions
+
+```solidity
+function reportOriginator(bytes32 projectId, bytes32 evidenceHash) external
+```
+Report an originator for misconduct. Requires bond.
+
+```solidity
+function resolveOriginatorReport(bytes32 projectId, bool upheld) external  // OPERATOR_ROLE
+```
+Resolve an originator report.
+
+```solidity
+function escalateOriginatorReport(bytes32 projectId) external
+```
+Auto-uphold after resolution deadline.
+
+#### Project Completion Functions
+
+```solidity
+function completeProject(bytes32 projectId) external
+```
+Mark project as completed. Unlocks originator stake.
+
+```solidity
+function refundEscrow(bytes32 projectId) external
+```
+Refund remaining escrow after 30-day grace period.
+
+#### Admin Functions
+
+All require `DEFAULT_ADMIN_ROLE`:
+
+```solidity
+function setProtocolFee(uint256 bps) external        // max 1000 (10%)
+function setOriginationFee(uint256 bps) external      // max 500 (5%)
+function setContributionFee(uint256 bps) external     // max 500 (5%)
+function setValidationFee(uint256 bps) external       // max 500 (5%)
+function setDecayRate(uint256 bps) external            // max 500 (5%/day)
+function setDisputeBondBps(uint256 bps) external       // max 5000 (50%)
+function setOriginatorStakeRequirement(uint256 amount) external
+function setOriginatorReportBondBps(uint256 bps) external  // max 1000 (10%)
+function setMinValidationStake(uint256 amount) external
+function setTreasury(address treasury_) external
+function setMinClaimAmount(uint256 amount) external
+function setClaimCooldown(uint256 cooldown) external
+function setClaimDeadline(uint256 deadline) external   // max 30 days
+function setChallengePeriod(uint256 period) external   // max 30 days
+function setCommitDeadline(uint256 deadline) external  // max 30 days
+function setRevealDeadline(uint256 deadline) external  // max 30 days
+function setForceSettleDelay(uint256 delay) external   // max 90 days
+function pause() external
+function unpause() external
 ```
 
-**Events:**
-- `ProjectCreated(bytes32 indexed projectId, address indexed originator, string requiredSkill)`
-- `ProjectFunded(bytes32 indexed projectId, uint256 rewardAmount, uint256 quantity)`
-- `ClaimCreated(bytes32 indexed projectId, uint256 indexed claimId, address indexed contributor, uint256 quantity)`
-- `ContributionSubmitted(bytes32 indexed projectId, uint256 indexed contributionIndex, address indexed contributor)`
-- `ContributionFinalized(bytes32 indexed projectId, uint256 indexed contributionIndex, ContributionStatus status, uint256 finalScore)`
+#### View Functions
 
-**Errors:**
-- `ProjectAlreadyExists(bytes32 projectId)`
-- `ProjectDoesNotExist(bytes32 projectId)`
-- `InsufficientContributorStake(address contributor, uint256 required, uint256 actual)`
-- `ContributionAlreadySubmitted(uint256 index)`
-- `MissingRequiredSkill(address user, string requiredSkill)`
+```solidity
+function getProject(bytes32 projectId) external view returns (Project memory)
+function getClaim(uint256 claimId) external view returns (Claim memory)
+function getValidationClaim(uint256 claimId) external view returns (ValidationClaim memory)
+function getContribution(bytes32 projectId, uint256 index) external view returns (Contribution memory)
+function getReputation(address user, bytes32 role) external view returns (Reputation memory)
+function getPendingRewards(address user, address token) external view returns (uint256)
+function getAdapterFees() external view returns (uint256, uint256, uint256)
+function getOriginationAdapter(bytes32 projectId) external view returns (address)
+function getContributionAdapter(uint256 claimId) external view returns (address)
+function getValidationAdapter(bytes32 projectId, uint256 index, uint256 nonce, address validator)
+    external view returns (address)
+function getDispute(bytes32 projectId, uint256 index) external view returns (Dispute memory)
+function getOriginatorReport(bytes32 projectId) external view returns (OriginatorReport memory)
+function getConsensusReport(bytes32 projectId, uint256 index) external view returns (ConsensusReport memory)
+function getSubmissionNonce(bytes32 projectId, uint256 index) external view returns (uint256)
+function getReturnStackTop(bytes32 projectId) external view returns (uint256)
+function getProjectEscrow(bytes32 projectId, address token) external view returns (uint256)
+function getOriginatorLockedStake(bytes32 projectId) external view returns (uint256)
+function getDisputeConfig() external view returns (uint256, uint256, uint256)
+function getRevealCount(bytes32 projectId, uint256 index) external view returns (uint256)
+function isValidatorOutlier(bytes32 projectId, uint256 index, address validator) external view returns (bool)
+function isValidatorSettled(bytes32 projectId, uint256 index, uint256 nonce, address validator)
+    external view returns (bool)
+function vault() external view returns (address)
+function treasury() external view returns (address)
+function claimDeadline() external view returns (uint256)
+function challengePeriod() external view returns (uint256)
+function commitDeadline() external view returns (uint256)
+function revealDeadline() external view returns (uint256)
+function forceSettleDelay() external view returns (uint256)
+```
 
 ---
 
@@ -161,440 +307,141 @@ function finalizeContribution(bytes32 projectId, uint256 contributionIndex) exte
 
 **File:** `src/SapienVault.sol`
 
-**Description:**
-```solidity
-/**
- * @title SapienVault
- * @notice ERC-4626 compliant vault for staking with slashing capability (Upgradeable)
- * @dev Users deposit staking tokens and receive vault shares.
- *      Slashing burns shares from penalized users, reducing their position.
- *      Uses transparent proxy pattern for upgradeability.
- */
-```
+**Inheritance:** `ERC4626Upgradeable`, `AccessControlUpgradeable`, `PausableUpgradeable`, `UUPSUpgradeable`, `ISapienVault`
 
-**Key Functions:**
+**Description:** ERC-4626 vault for SAPIEN token staking with typed lock categories (contributor locks, validator capacity, in-flight stakes). Uses ERC-7201 namespaced storage (`sapien.storage.StakeVault`).
 
 #### `initialize`
 ```solidity
-/**
- * @notice Initialize the vault (replaces constructor for upgradeable pattern)
- * @param _stakingToken The underlying token to be staked
- * @param _defaultAdmin The address to grant DEFAULT_ADMIN_ROLE
- */
-function initialize(address _stakingToken, address _defaultAdmin) public initializer
+function initialize(IERC20 asset_, address admin_) external initializer
 ```
+Initializes the vault with the staking token and admin address. Share token is named "Sapien Vault Token" (vSAPIEN).
 
-#### `lockStake`
+#### Contributor Operations (ENGINE_ROLE)
+
 ```solidity
-/**
- * @notice Lock a user's stake to prevent withdrawals/transfers
- * @dev Can only be called by addresses with LOCKER_ROLE (e.g., ProjectRegistry)
- * @param user The user whose stake to lock
- * @param amount The amount to lock
- * @param reason The reason for locking (for event tracking)
- */
-function lockStake(address user, uint256 amount, string calldata reason) external
+function lockContributor(address user, uint256 amount) external
+function unlockContributor(address user, uint256 amount) external
+function slashContributor(address user, uint256 amount) external
+function slashAndUnlockContributor(address user, uint256 slashAmount, uint256 unlockAmount) external
 ```
 
-#### `unlockStake`
+#### Validator Operations (ENGINE_ROLE)
+
 ```solidity
-/**
- * @notice Unlock a user's stake to allow withdrawals/transfers
- * @dev Can only be called by addresses with LOCKER_ROLE
- * @param user The user whose stake to unlock
- * @param amount The amount to unlock
- * @param reason The reason for unlocking (for event tracking)
- */
-function unlockStake(address user, uint256 amount, string calldata reason) external
+function lockValidatorCapacity(address user, uint256 amount) external
+function unlockValidatorCapacity(address user, uint256 amount) external
+function commitStake(address user, uint256 amount) external
+function releaseCommit(address user, uint256 amount) external
+function slashValidator(address user, uint256 amount) external
 ```
 
-#### `slash`
+#### View Functions
+
 ```solidity
-/**
- * @notice Slash a user's stake by burning their vault shares
- * @dev Can only be called by addresses with SLASHER_ROLE
- * @param user The user whose stake to slash
- * @param amount The amount to slash (in underlying tokens)
- * @param projectId The project ID for tracking purposes
- * @return The amount of shares burned
- */
-function slash(address user, uint256 amount, bytes32 projectId) external returns (uint256)
+function getStakeAccount(address user) external view returns (StakeAccount memory)
+function availableBalance(address user) public view returns (uint256)
+function totalStaked(address user) external view returns (uint256)
+function maxRedeem(address owner) public view returns (uint256)
+function maxWithdraw(address owner) public view returns (uint256)
+function maxDeposit(address) public view returns (uint256)
+function maxMint(address) public view returns (uint256)
+function verifyStorageLocation() external pure returns (bool)
 ```
 
-**Events:**
-- `Slashed(address indexed user, uint256 sharesSlashed, uint256 assetsSlashed, address indexed slasher, bytes32 projectId)`
-- `StakeLocked(address indexed user, uint256 amount, address indexed locker, string reason)`
-- `StakeUnlocked(address indexed user, uint256 amount, address indexed locker, string reason)`
+#### Events
 
-**Errors:**
-- `InsufficientUnlockedStake(address user, uint256 required, uint256 available)`
-- `InsufficientLockedStake(address user, uint256 required, uint256 available)`
-- `NoSharesToSlash(address user)`
+```solidity
+event ContributorLocked(address indexed user, uint256 amount)
+event ContributorUnlocked(address indexed user, uint256 amount)
+event ContributorSlashed(address indexed user, uint256 amount)
+event ValidatorCapacityLocked(address indexed user, uint256 amount)
+event ValidatorCapacityUnlocked(address indexed user, uint256 amount)
+event StakeCommitted(address indexed user, uint256 amount)
+event CommitReleased(address indexed user, uint256 amount)
+event ValidatorSlashed(address indexed user, uint256 amount)
+```
+
+#### Errors
+
+```solidity
+error InsufficientAvailableBalance(uint256 required, uint256 available)
+error InsufficientContributorLock(uint256 required, uint256 locked)
+error InsufficientValidatorCapacity(uint256 required, uint256 capacity)
+error InsufficientInFlight(uint256 required, uint256 inFlight)
+error TransferExceedsUnlockedShares()
+error ZeroAmount()
+error ZeroAddress()
+```
 
 ---
 
-### SapienTrust
+## Libraries
 
-**File:** `src/SapienTrust.sol`
+### OriginationLib
 
-**Description:**
-```solidity
-/**
- * @title SapienTrust
- * @notice Unified identity and reputation layer for Sapien V2
- * @dev Simplified Proof of Quality (PoQ) reputation system with implicit identity via staking.
- */
-```
+**File:** `src/libraries/OriginationLib.sol`
 
-**Key Functions:**
+Handles project creation, funding, and operator removal. Validates project configuration, transfers tokens, deducts protocol and adapter fees, locks originator stake, and initializes index ranges.
 
-#### `initialize`
-```solidity
-/**
- * @notice Initialize the SapienTrust contract
- * @param _vault Address of the SapienVault contract
- * @param _minStake Minimum stake required for participation
- * @param _decayRate Reputation decay rate per day (in basis points)
- * @param _admin Address to grant DEFAULT_ADMIN_ROLE
- */
-function initialize(address _vault, uint256 _minStake, uint256 _decayRate, address _admin) public initializer
-```
+**Functions:** `createProject`, `fundProject`, `removeProject`
 
-#### `hasValidRole`
-```solidity
-/**
- * @notice Check if a user is eligible for a role based on their stake.
- * @param user The address to check.
- * @param role The role to check eligibility for.
- * @return True if user meets the protocol's minimum staking requirements.
- */
-function hasValidRole(address user, bytes32 role) public view returns (bool)
-```
+### ContributionLib
 
-#### `getTrustScore`
-```solidity
-/**
- * @notice Get the trust score (reputation) of a user for a specific role
- * @param user Address of the user
- * @param role Role identifier
- * @return Reputation score (0-10000, where 5000 is default)
- */
-function getTrustScore(address user, bytes32 role) external view returns (uint256)
-```
+**File:** `src/libraries/ContributionLib.sol`
 
-#### `updateReputation`
-```solidity
-/**
- * @notice Update a user's reputation based on their performance
- * @param user Address of the user
- * @param role Role identifier
- * @param success True if the action was successful/accurate
- * @param qualityScore Score of the specific action (if applicable)
- */
-function updateReputation(address user, bytes32 role, bool success, uint256 qualityScore) external
-```
+Manages contribution claims and submissions. Uses a range + return-stack hybrid for slot allocation. Locks contributor stake on claim, tracks pending contributions, slashes unsubmitted slots on expiration.
 
-**Events:**
-- `ReputationUpdated(address indexed user, bytes32 role, uint256 oldScore, uint256 newScore)`
-- `SkillValidated(address indexed user, string skill, uint256 completionCount)`
+**Functions:** `claimToContribute`, `contribute`, `batchContribute`, `expireClaim`
 
-**Constants:**
-- `DEFAULT_REPUTATION = 5000` (50%)
-- `MAX_REPUTATION = 10000` (100%)
-- `MIN_REPUTATION = 500` (5%)
-- `SLASH_DECREASE = 100` (-1%)
-- `SUCCESS_INCREASE = 10` (+0.1%)
-- `REJECTION_DECREASE = 50` (-0.5%)
+### ValidationLib
 
----
+**File:** `src/libraries/ValidationLib.sol`
 
-### ValidationOracle
+Manages validator capacity, validation claims, commit-reveal scoring, and consensus computation. Enforces reputation checks, minimum stake requirements, and commit-reveal hash verification.
 
-**File:** `src/ValidationOracle.sol`
+**Functions:** `lockValidatorCapacity`, `unlockValidatorCapacity`, `claimToValidate`, `commitValidation`, `batchCommitValidations`, `revealValidation`, `batchRevealValidations`, `cancelExpiredValidationClaim`, `computeConsensus`
 
-**Description:**
-```solidity
-/**
- * @title ValidationOracle
- * @notice Stateless consensus oracle for Sapien V2
- * @dev Manages commit-reveal validation and pluggable consensus algorithms.
- *      Hierarchy: Oracle -> Trust -> Vault. No dependency on SapienCore.
- */
-```
+### ConsensusLib
 
-**Key Functions:**
+**File:** `src/libraries/ConsensusLib.sol`
 
-#### `initialize`
-```solidity
-/**
- * @notice Initialize the ValidationOracle contract
- * @param _trust Address of the SapienTrust contract
- * @param _vault Address of the SapienVault contract
- * @param _defaultAlgorithmName Name of the default consensus algorithm
- * @param _admin Address to grant DEFAULT_ADMIN_ROLE
- */
-function initialize(
-    address _trust,
-    address _vault,
-    string memory _defaultAlgorithmName,
-    address _admin
-) public initializer
-```
+Pure library implementing stake-weighted consensus with outlier detection and tiered slashing. Weight = `sqrt(stake) × max(reputation, 1000)`.
 
-#### `claimToValidate`
-```solidity
-/**
- * @notice Claim a number of validation slots in a project
- * @param projectId Unique identifier for the project
- * @param quantity Number of slots to claim
- * @return claimId Unique identifier for the created validation claim
- */
-function claimToValidate(bytes32 projectId, uint256 quantity) external returns (uint256 claimId)
-```
+**Tiered Slashing:**
 
-#### `commitValidation`
-```solidity
-/**
- * @notice Commit a validation score hash
- * @param projectId Unique identifier for the project
- * @param claimId Unique identifier for the validation claim
- * @param contributionIndex The index within the project's contribution sequence
- * @param commitHash keccak256(score, salt)
- */
-function commitValidation(
-    bytes32 projectId,
-    uint256 claimId,
-    uint256 contributionIndex,
-    bytes32 commitHash
-) external
-```
+| Tier | Deviation | Slash |
+|------|-----------|-------|
+| 1 | > 1.5σ | 10% |
+| 2 | > 2.0σ | 25% |
+| 3 | > 3.0σ | 50% |
+| 4 | > 5.0σ | 100% |
 
-#### `revealValidation`
-```solidity
-/**
- * @notice Reveal a committed validation score
- * @param projectId Unique identifier for the project
- * @param contributionIndex The index within the project's contribution sequence
- * @param score The validation score (0-10000)
- * @param salt The salt used in the commit
- */
-function revealValidation(
-    bytes32 projectId,
-    uint256 contributionIndex,
-    uint256 score,
-    bytes32 salt
-) external
-```
+**Functions:** `calculate`
 
-#### `getConsensus`
-```solidity
-/**
- * @notice Calculate consensus for a contribution
- * @param projectId Unique identifier for the project
- * @param contributionIndex The index within the project's contribution sequence
- * @param minValidations Minimum validations required to reach consensus
- * @return report Final consensus report containing average, count, and slashes
- */
-function getConsensus(bytes32 projectId, uint256 contributionIndex, uint256 minValidations)
-    external
-    view
-    returns (ConsensusReport memory report)
-```
+### FinalizationLib
 
-**Events:**
-- `ValidationClaimed(bytes32 indexed projectId, uint256 indexed claimId, address indexed validator, uint256 deadline)`
-- `ValidationCommitted(bytes32 indexed projectId, uint256 indexed contributionIndex, address indexed validator, bytes32 commitHash)`
-- `ValidationRevealed(bytes32 indexed projectId, uint256 indexed contributionIndex, address indexed validator, uint256 score)`
-- `ConsensusReached(bytes32 indexed projectId, uint256 indexed contributionIndex, uint256 weightedAverage, uint256 validatorCount)`
+**File:** `src/libraries/FinalizationLib.sol`
 
-**Errors:**
-- `AlreadyCommitted(address validator)`
-- `NoUnrevealedCommit()`
-- `InvalidCommitHash()`
-- `ClaimExpired()`
-- `MissingRequiredSkill(address user, string requiredSkill)`
+Handles validator settlement, contributor reward release, reward claiming, expired commitment cleanup, project completion, and escrow refunds. Applies adapter fee deductions during settlement.
 
----
+**Functions:** `settleValidator`, `forceSettleValidator`, `releaseContributorReward`, `claimReward`, `cancelExpiredCommitment`, `completeProject`, `refundEscrow`
 
-### Rewards
+### DisputeLib
 
-**File:** `src/Rewards.sol`
+**File:** `src/libraries/DisputeLib.sol`
 
-**Description:**
-```solidity
-/**
- * @title Rewards
- * @notice Upgradeable reward distribution contract for the Sapien protocol
- * @dev Uses transparent proxy pattern for upgradeability
- */
-```
+Manages dispute opening, resolution (uphold/reject), and originator accountability reports. Disputes are keyed by nonce to prevent cross-nonce poisoning. Handles bond locking/slashing and challenger rewards.
 
-**Key Functions:**
+**Functions:** `openDispute`, `upholdDispute`, `rejectDispute`, `reportOriginator`, `upholdOriginatorReport`, `rejectOriginatorReport`
 
-#### `initialize`
-```solidity
-/**
- * @notice Initialize the Rewards contract
- * @param _defaultAdmin The address to grant DEFAULT_ADMIN_ROLE
- */
-function initialize(address _defaultAdmin) public initializer
-```
+### ReputationLib
 
-#### `allocateRewards`
-```solidity
-/**
- * @notice Allocate rewards for a project (called during funding)
- * @param projectId Unique identifier for the project
- * @param token The reward token address
- * @param amount The amount of rewards to allocate
- */
-function allocateRewards(bytes32 projectId, address token, uint256 amount) external
-```
+**File:** `src/libraries/ReputationLib.sol`
 
-#### `distributeReward`
-```solidity
-/**
- * @notice Distribute rewards to a contributor (called when contribution is validated)
- * @param projectId Unique identifier for the project
- * @param contributor The address to receive rewards
- * @param token The reward token address
- * @param amount The amount of rewards to distribute
- */
-function distributeReward(bytes32 projectId, address contributor, address token, uint256 amount) external
-```
+Implements PoQ reputation with lazy decay and daily gain caps. Scores range from 500–10,000 (default 5,000). Success gives +10 (+ bonus), failure gives -50. Max daily gain: 100.
 
-#### `distributeValidatorReward`
-```solidity
-/**
- * @notice Distribute rewards to a validator (called when consensus is reached)
- * @param projectId Unique identifier for the project
- * @param validator The address to receive rewards
- * @param token The reward token address
- * @param amount The amount of rewards to distribute
- */
-function distributeValidatorReward(bytes32 projectId, address validator, address token, uint256 amount) external
-```
-
-#### `claimRewards`
-```solidity
-/**
- * @notice Claim available rewards for a contributor
- * @param projectId Unique identifier for the project
- * @param token The reward token address
- */
-function claimRewards(bytes32 projectId, address token) external
-```
-
-**Events:**
-- `RewardsAllocated(bytes32 indexed projectId, address indexed token, uint256 amount)`
-- `RewardsDistributed(bytes32 indexed projectId, address indexed user, address indexed token, uint256 amount)`
-- `RewardsClaimed(address indexed user, bytes32 indexed projectId, address indexed token, uint256 amount)`
-
-**Errors:**
-- `OnlyCore()`
-- `NoRewardsToClaim()`
-- `InsufficientProjectRewards(bytes32 projectId, address token, uint256 required, uint256 available)`
-
----
-
-## Consensus Algorithms
-
-### HybridConsensus
-
-**File:** `src/consensus/HybridConsensus.sol`
-
-**Description:**
-```solidity
-/**
- * @title HybridConsensus
- * @notice Final solution - combines sqrt stake, reputation, and cap
- * @dev Weight = min(sqrt(stake) × reputation, 30% cap)
- * Security Grade: A- (best overall protection)
- */
-```
-
-**Key Functions:**
-
-#### `calculateConsensus`
-```solidity
-/**
- * @notice Calculate consensus from validator inputs
- * @param validations Array of validator inputs
- * @return result Consensus calculation result
- */
-function calculateConsensus(ValidationInput[] calldata validations)
-    external
-    pure
-    returns (ConsensusResult memory result)
-```
-
-**Algorithm Details:**
-- Weight calculation: `min(sqrt(stake) × reputation, 30% cap)`
-- Security Grade: **A-**
-- Best overall protection combining whale resistance, quality incentives, and hard limits
-
----
-
-### SqrtStakeConsensus
-
-**File:** `src/consensus/SqrtStakeConsensus.sol`
-
-**Description:**
-```solidity
-/**
- * @title SqrtStakeConsensus
- * @notice Square root stake weighting - reduces whale power sublinearly
- * @dev Weight = sqrt(stake)
- * Security Grade: A- (reduces whale power by 22%)
- */
-```
-
-**Algorithm Details:**
-- Weight calculation: `sqrt(stake)`
-- Security Grade: **A-**
-- Reduces whale power by 22%, proven in quadratic voting research
-
----
-
-### LinearStakeConsensus
-
-**File:** `src/consensus/LinearStakeConsensus.sol`
-
-**Description:**
-```solidity
-/**
- * @title LinearStakeConsensus
- * @notice Current system - linear stake-weighted consensus
- * @dev Weight = stake (vulnerable to whale attacks with >50% stake)
- * Security Grade: C+ (vulnerable to whale manipulation)
- */
-```
-
-**Algorithm Details:**
-- Weight calculation: `stake`
-- Security Grade: **C+**
-- Vulnerable to whale attacks (>50% stake)
-
----
-
-### CappedLinearConsensus
-
-**File:** `src/consensus/CappedLinearConsensus.sol`
-
-**Description:**
-```solidity
-/**
- * @title CappedLinearConsensus
- * @notice Quick fix - linear stake-weighted with 30% cap per validator
- * @dev Weight = min(stake, 30% of total stake)
- * Security Grade: B+ (prevents single whale dominance)
- */
-```
-
-**Algorithm Details:**
-- Weight calculation: `min(stake, 30% of total stake)`
-- Security Grade: **B+**
-- Prevents single whale dominance
+**Functions:** `getScore`, `getScoreCached`, `update`
 
 ---
 
@@ -602,213 +449,153 @@ function calculateConsensus(ValidationInput[] calldata validations)
 
 ### ISapienCore
 
-**File:** `src/interface/ISapienCore.sol`
+**File:** `src/interfaces/ISapienCore.sol`
 
-**Description:**
-```solidity
-/**
- * @title ISapienCore
- * @notice Single Source of Truth for Sapien V2 protocol
- * @dev Combines Project management and Contribution lifecycle
- */
-```
-
-**Key Functions:**
-- `createProject(...)` - Create a new project
-- `fundProject(...)` - Fund a project with rewards
-- `claimToContribute(...)` - Claim contribution slots
-- `contribute(...)` - Submit a contribution
-- `finalizeContribution(...)` - Finalize a contribution
-- `getProject(...)` - Get project details
-- `getContribution(...)` - Get contribution details
-
----
+Complete interface for SapienCore covering origination, contribution, validation, finalization, disputes, originator reports, project completion, admin, and view functions. Defines all protocol errors (60+) and events (40+).
 
 ### ISapienVault
 
-**File:** `src/interface/ISapienVault.sol`
+**File:** `src/interfaces/ISapienVault.sol`
 
-**Description:**
-```solidity
-/**
- * @title ISapienVault
- * @notice Interface for the Sapien staking vault with slashing capability (Upgradeable)
- * @dev Defines additional slashing and locking functionality beyond ERC-4626 standard
- */
-```
-
-**Key Functions:**
-- `getStake(address user)` - Get user's total stake
-- `lockStake(...)` - Lock a user's stake
-- `unlockStake(...)` - Unlock a user's stake
-- `slash(...)` - Slash a user's stake
-- `getAvailableStake(address user)` - Get available (unlocked) stake
-- `getLockedStake(address user)` - Get locked stake
+Interface for SapienVault defining contributor lock/unlock/slash operations, validator capacity/commit/release/slash operations, and view functions.
 
 ---
 
-### ISapienTrust
+## Shared Types
 
-**File:** `src/interface/ISapienTrust.sol`
+**File:** `src/Types.sol`
 
-**Description:**
-```solidity
-/**
- * @title ISapienTrust
- * @notice Unified identity and reputation layer for Sapien V2
- * @dev Manages simplified user skills and Proof of Quality (PoQ) reputation.
- *      Identity is implicit: anyone with sufficient stake can participate.
- */
-```
+### Enums
 
-**Key Functions:**
-- `hasValidRole(address user, bytes32 role)` - Check role eligibility
-- `hasValidatedSkill(address user, string skill)` - Check skill validation
-- `validateSkill(address user, string skill)` - Mark skill as validated
-- `getTrustScore(address user, bytes32 role)` - Get reputation score
-- `updateReputation(...)` - Update user reputation
-- `hasRequiredStake(address user)` - Check minimum stake requirement
+| Enum | Values |
+|------|--------|
+| `ProjectStatus` | Created, Funded, Active, Completed, Cancelled |
+| `ClaimStatus` | Active, Completed, Expired |
+| `ContributionStatus` | Empty, Reserved, Pending, Accepted, Rejected |
+| `DisputeStatus` | None, Open, Upheld, Rejected |
+| `OriginatorReportStatus` | None, Open, Upheld, Rejected |
+| `ValidationClaimStatus` | Active, Fulfilled, Expired |
 
----
-
-### IValidationOracle
-
-**File:** `src/interface/IValidationOracle.sol`
-
-**Description:**
-```solidity
-/**
- * @title IValidationOracle
- * @notice Stateless consensus oracle for Sapien V2
- * @dev Manages the commit-reveal process and consensus calculations
- */
-```
-
-**Key Functions:**
-- `claimToValidate(...)` - Claim validation slots
-- `enqueueValidation(...)` - Enqueue contribution for validation
-- `commitValidation(...)` - Commit validation score hash
-- `revealValidation(...)` - Reveal committed validation score
-- `getConsensus(...)` - Calculate consensus for a contribution
-- `getValidations(...)` - Get all revealed validations
-- `registerProject(...)` - Register a new project
-- `setProjectAlgorithm(...)` - Set consensus algorithm for project
-
----
-
-### IRewards
-
-**File:** `src/interface/IRewards.sol`
-
-**Description:**
-```solidity
-/**
- * @title IRewards
- * @notice Interface for reward distribution contract
- */
-```
-
-**Key Functions:**
-- `allocateRewards(...)` - Allocate rewards for a project
-- `distributeReward(...)` - Distribute rewards to contributor
-- `distributeValidatorReward(...)` - Distribute rewards to validator
-- `claimRewards(...)` - Claim available rewards
-- `getAvailableRewards(...)` - Get available rewards for contributor
-- `getAvailableValidatorRewards(...)` - Get available rewards for validator
-
----
-
-### IConsensusAlgorithm
-
-**File:** `src/interface/IConsensusAlgorithm.sol`
-
-**Description:**
-```solidity
-/**
- * @title IConsensusAlgorithm
- * @notice Interface for pluggable consensus algorithms
- * @dev Implementations calculate weighted consensus from validator inputs
- */
-```
-
-**Key Functions:**
-- `calculateConsensus(...)` - Calculate consensus from validator inputs
-- `getName()` - Get algorithm name
-- `getSecurityGrade()` - Get security grade
-- `getDescription()` - Get algorithm description
-
-**Structs:**
-```solidity
-struct ValidationInput {
-    address validator;
-    uint256 score; // 0-10000 (0-100%)
-    uint256 stakeAmount; // Amount staked by validator
-    uint256 reputation; // 0-10000 from SapienPoQ
-}
-
-struct ConsensusResult {
-    uint256 weightedAverage; // Final consensus score (0-10000)
-    uint256 stdDev; // Standard deviation
-    address[] validatorsToSlash; // Validators identified as outliers
-    uint256[] slashAmounts; // Corresponding slash amounts
-    uint256[] validatorWeights; // Weight assigned to each validator
-}
-```
-
----
-
-### ISharedTypes
-
-**File:** `src/interface/ISharedTypes.sol`
-
-**Description:**
-```solidity
-/**
- * @title ISharedTypes
- * @notice Shared type definitions used across multiple protocol interfaces
- * @dev Centralizes structs and enums to avoid duplication and struct conversion overhead
- */
-```
-
-**Key Structs:**
+### Core Structs
 
 #### `Project`
 ```solidity
 struct Project {
-    bytes32 projectId;
     address originator;
-    IERC20 rewardToken;
-    ProjectState state;
-    ProjectConfig config;
+    address rewardToken;
+    uint256 totalRewards;
+    uint256 totalQuantity;
+    uint256 availableSlots;
+    uint256 minStakeToClaim;
+    uint256 minValidationStake;
+    bytes32 requiredSkill;
+    uint256 consensusThreshold;      // basis points (e.g. 7000 = 70%)
+    uint256 validatorRewardBps;      // 0–2500
+    uint256 numberOfValidations;
+    uint256 minValidatorReputation;
+    ProjectStatus status;
+    uint256 activatedAt;
+    uint256 completedAt;
+}
+```
+
+#### `Claim`
+```solidity
+struct Claim {
+    address claimant;
+    bytes32 projectId;
+    uint256 deadline;
+    uint256 submittedCount;
+    uint256 totalCount;
+    ClaimStatus status;
 }
 ```
 
 #### `Contribution`
 ```solidity
 struct Contribution {
-    bytes32 projectId;
     address contributor;
     uint256 claimId;
-    uint256 contributionIndex;
-    bytes32 submissionHash;
-    uint256 submittedAt;
-    uint256 totalValidations;
-    uint256 averageScore;
     ContributionStatus status;
+    bool rewardReleased;
+    bytes32 submissionHash;
+    uint256 rewardRate;
+    uint256 submittedAt;
+    uint256 challengeEndsAt;
+    uint256 consensusNonce;
 }
 ```
 
-#### `Validation`
+#### `Reputation`
 ```solidity
-struct Validation {
-    bytes32 projectId;
-    address validator;
-    uint256 contributionIndex;
+struct Reputation {
     uint256 score;
-    uint256 stakeAmount;
-    uint256 submittedAt;
-    bool rewarded;
-    bool slashed;
+    uint256 totalActions;
+    uint256 successfulActions;
+    uint256 lastUpdated;
+    uint256 dailyGain;
+    uint256 dailyGainDate;
+}
+```
+
+#### `StakeAccount`
+```solidity
+struct StakeAccount {
+    uint256 contributorLock;
+    uint256 validatorCapacity;
+    uint256 inFlight;
+}
+```
+
+#### `ValidationClaim`
+```solidity
+struct ValidationClaim {
+    address validator;
+    bytes32 projectId;
+    uint256[] indices;
+    uint256 deadline;
+    uint256 committedCount;
+    uint256 totalCount;
+    ValidationClaimStatus status;
+}
+```
+
+#### `ValidatorCommit`
+```solidity
+struct ValidatorCommit {
+    bytes32 commitHash;
+    uint256 stakedAmount;
+    uint256 commitTimestamp;
+    uint256 revealedAt;
+    uint256 score;
+    bool claimed;
+    bool settled;
+    uint256 validationClaimId;
+    address adapter;
+}
+```
+
+#### `Dispute`
+```solidity
+struct Dispute {
+    address challenger;
+    uint256 openedAt;
+    DisputeStatus status;
+    uint256 bondAmount;
+    uint256 resolvedAt;
+    bytes32 evidenceHash;
+}
+```
+
+#### `OriginatorReport`
+```solidity
+struct OriginatorReport {
+    address reporter;
+    uint256 reportedAt;
+    OriginatorReportStatus status;
+    uint256 bondAmount;
+    uint256 resolvedAt;
+    bytes32 evidenceHash;
 }
 ```
 
@@ -816,92 +603,166 @@ struct Validation {
 ```solidity
 struct ConsensusReport {
     uint256 weightedAverage;
-    uint256 validatorCount;
-    bool isReady;
-    address[] validatorsToSlash;
-    uint256[] slashAmounts;
+    uint256 stdDeviation;
+    uint256 totalAccurateWeight;
+    uint256 nonce;
+    bool computed;
 }
 ```
 
-**Enums:**
-- `ClaimStatus`: Active, Fulfilled, Expired, Cancelled
-- `ContributionStatus`: Pending, Validated, Rewarded, Rejected
-
-**Constants:**
-- `CONTRIBUTOR_ROLE`
-- `VALIDATOR_ROLE`
-- `ORIGINATOR_ROLE`
-- `LOCKER_ROLE`
-- `SLASHER_ROLE`
-- `PAUSER_ROLE`
-- `UPDATER_ROLE`
-- `SAPIEN_CORE_ROLE`
-
----
-
-## Contract Hierarchy
-
-```
-SapienCore (Central Coordinator)
-├── ValidationOracle (Consensus Engine)
-│   ├── SapienTrust (Reputation & Identity)
-│   │   └── SapienVault (Staking & Slashing)
-│   └── ConsensusAlgorithm (Pluggable)
-└── Rewards (Reward Distribution)
-    └── SapienVault (Staking & Slashing)
+#### `ValidatorConsensusResult`
+```solidity
+struct ValidatorConsensusResult {
+    bool isOutlier;
+    uint256 slashAmount;
+    uint256 weight;
+}
 ```
 
+#### `ValidationInput` / `ConsensusResult`
+```solidity
+struct ValidationInput {
+    address validator;
+    uint256 score;
+    uint256 stakeAmount;
+    uint256 reputation;
+}
+
+struct ConsensusResult {
+    uint256 weightedAverage;
+    uint256 stdDeviation;
+    address[] validators;
+    bool[] isOutlier;
+    uint256[] slashAmounts;
+    uint256[] weights;
+    uint256 totalAccurateWeight;
+}
+```
+
 ---
 
-## Access Control Roles
+## Constants
 
-| Role | Purpose | Contracts |
-|------|---------|-----------|
-| `DEFAULT_ADMIN_ROLE` | Full administrative control | All contracts |
-| `ORIGINATOR_ROLE` | Create and fund projects | SapienCore |
-| `CONTRIBUTOR_ROLE` | Submit contributions | SapienCore |
-| `VALIDATOR_ROLE` | Validate contributions | ValidationOracle |
-| `LOCKER_ROLE` | Lock/unlock stakes | SapienVault |
-| `SLASHER_ROLE` | Slash stakes | SapienVault |
-| `PAUSER_ROLE` | Pause contracts | SapienVault, Rewards |
-| `UPDATER_ROLE` | Update reputation | SapienTrust |
-| `SAPIEN_CORE_ROLE` | Core protocol operations | ValidationOracle |
+**File:** `src/Constants.sol`
+
+### Roles
+| Constant | Value |
+|----------|-------|
+| `OPERATOR_ROLE` | `keccak256("OPERATOR_ROLE")` |
+
+### Limits
+| Constant | Value |
+|----------|-------|
+| `MAX_CLAIM_QUANTITY` | 20 |
+| `MAX_NUMBER_OF_VALIDATIONS` | 10 |
+| `BPS` | 10,000 |
+
+### Fee Caps (BPS)
+| Constant | Value | Percentage |
+|----------|-------|------------|
+| `MAX_PROTOCOL_FEE_BPS` | 1000 | 10% |
+| `MAX_ADAPTER_FEE_BPS` | 500 | 5% |
+| `MAX_VALIDATOR_REWARD_BPS` | 2500 | 25% |
+
+### Default Deadlines
+| Constant | Value |
+|----------|-------|
+| `DEFAULT_CHALLENGE_PERIOD` | 1 day |
+| `DEFAULT_CLAIM_DEADLINE` | 1 day |
+| `DEFAULT_COMMIT_DEADLINE` | 1 day |
+| `DEFAULT_REVEAL_DEADLINE` | 1 day |
+| `DEFAULT_FORCE_SETTLE_DELAY` | 3 days |
+| `VALIDATION_CLAIM_DEADLINE` | 1 hour |
+
+### Max Deadlines
+| Constant | Value |
+|----------|-------|
+| `MAX_CHALLENGE_PERIOD` | 30 days |
+| `MAX_CLAIM_DEADLINE` | 30 days |
+| `MAX_COMMIT_DEADLINE` | 30 days |
+| `MAX_REVEAL_DEADLINE` | 30 days |
+| `MAX_FORCE_SETTLE_DELAY` | 90 days |
+
+### Dispute Constants
+| Constant | Value |
+|----------|-------|
+| `DISPUTE_RESOLUTION_DEADLINE` | 7 days |
+| `MAX_DISPUTE_BOND_BPS` | 5000 (50%) |
+| `DISPUTE_CHALLENGER_REWARD_BPS` | 2000 (20%) |
+| `MAX_ORIGINATOR_REPORT_BOND_BPS` | 1000 (10%) |
+| `MAX_DECAY_RATE_BPS` | 500 (5%/day) |
+| `PROJECT_COMPLETION_DELAY` | 30 days |
+
+### Reputation Constants
+| Constant | Value |
+|----------|-------|
+| `DEFAULT_REPUTATION` | 5,000 |
+| `MAX_REPUTATION` | 10,000 |
+| `MIN_REPUTATION` | 500 |
+| `SUCCESS_INCREASE` | +10 |
+| `REJECTION_DECREASE` | -50 |
+| `MAX_DAILY_GAIN` | 100 |
+
+### Role Keys
+| Constant | Value |
+|----------|-------|
+| `ORIGINATOR_ROLE_KEY` | `keccak256("ORIGINATOR")` |
+| `CONTRIBUTOR_ROLE_KEY` | `keccak256("CONTRIBUTOR")` |
+| `VALIDATOR_ROLE_KEY` | `keccak256("VALIDATOR")` |
 
 ---
 
-## Upgradeability
+## Access Control
 
-All core contracts use the **Upgradeable Proxy Pattern** (OpenZeppelin):
-- `SapienCore`: Upgradeable
-- `SapienVault`: Upgradeable (ERC4626Upgradeable)
-- `SapienTrust`: Upgradeable
-- `ValidationOracle`: Upgradeable
-- `Rewards`: Upgradeable
+| Role | Contract | Permissions |
+|------|----------|------------|
+| `DEFAULT_ADMIN_ROLE` | SapienCore | Fee config, treasury, deadlines, pause, upgrades |
+| `OPERATOR_ROLE` | SapienCore | Project removal, dispute resolution, originator report resolution |
+| `DEFAULT_ADMIN_ROLE` | SapienVault | Pause/unpause, upgrades |
+| `ENGINE_ROLE` | SapienVault | All lock/unlock/slash/commit/release operations |
 
-**Storage Gaps:**
-- All contracts include storage gaps for future upgrades
-- Storage gaps prevent storage collision in upgrades
+All other functions are permissionless with on-chain state checks (e.g., only the originator can fund their project, only a claim owner can submit contributions).
+
+---
+
+## Storage Layout
+
+Both contracts use **ERC-7201 namespaced storage** to prevent storage collisions during upgrades.
+
+### SapienCore
+- **Namespace:** `sapien.storage.SapienCore`
+- **Slot:** `0xb21037e32bd67da4126ec23c3d75228183c819f055709f5aa59aa33cc3fd2b00`
+- **Struct:** `EngineStorage` (see `Types.sol`)
+
+### SapienVault
+- **Namespace:** `sapien.storage.StakeVault`
+- **Slot:** `0x0745d816f844b8d3ebe69904ebcd305a06dedec42070def1e397b29c2e74a900`
+- **Struct:** `SapienVaultStorage` containing `mapping(address => StakeAccount)`
+
+### Upgradeability
+- Both contracts use **UUPS proxy pattern** (OpenZeppelin `UUPSUpgradeable`)
+- Upgrade authorization requires `DEFAULT_ADMIN_ROLE`
+- Storage gaps are replaced by ERC-7201 namespaced storage, which avoids slot collision entirely
 
 ---
 
 ## Security Considerations
 
-1. **Reentrancy Protection**: All contracts use `ReentrancyGuardUpgradeable`
-2. **Access Control**: Role-based access control via OpenZeppelin `AccessControl`
-3. **Pausability**: Critical contracts can be paused in emergencies
-4. **Slashing**: Economic penalties for malicious behavior
-5. **Commit-Reveal**: Prevents validator collusion
-6. **Consensus Algorithms**: Pluggable algorithms with security grades
+1. **Reentrancy Protection**: SapienCore uses `ReentrancyGuardUpgradeable` on all state-modifying functions
+2. **Access Control**: Role-based via OpenZeppelin `AccessControlUpgradeable`
+3. **Pausability**: Both contracts support emergency pause
+4. **Commit-Reveal**: Prevents validator score herding and collusion
+5. **Tiered Slashing**: Graduated penalties (10%–100%) proportional to deviation
+6. **Dispute System**: Bonded disputes with escalation for unresponsive operators
+7. **ERC-4626 Inflation Protection**: 3-decimal offset in SapienVault
+8. **Transfer Guards**: Share transfers restricted by locked amounts
+9. **Nonce-Keyed Disputes**: Prevents cross-nonce dispute poisoning
 
 ---
 
 ## Additional Resources
 
-- **Complete Documentation**: [COMPLETE_DOCUMENTATION.md](./COMPLETE_DOCUMENTATION.md)
-- **Architecture Overview**: [architecture/overview.md](./architecture/overview.md)
 - **Component Details**: [components/](./components/)
+- **Architecture Overview**: [architecture/overview.md](./architecture/overview.md)
 - **User Guides**: [guides/](./guides/)
-
----
-
-*This document is automatically generated from contract NatSpec comments. For the most up-to-date information, refer to the source code.*
+- **Security Audit Scope**: [security/AUDIT_SCOPE.md](./security/AUDIT_SCOPE.md)

@@ -1,6 +1,6 @@
 # Solidity Security Review
 
-Comprehensive security review skill for Solidity smart contracts in the `src/` folder.
+Comprehensive security review skill for Solidity smart contracts in the `src/` folder (Sapien PoQ v0.5).
 
 ## Purpose
 
@@ -14,6 +14,8 @@ This skill guides a systematic security review of Solidity smart contracts. When
 
 **Target**: All contracts in `src/` directory.
 
+**Architecture**: Sapien PoQ v0.5 -- SapienCore + SapienVault + 7 libraries (OriginationLib, ContributionLib, ValidationLib, ConsensusLib, FinalizationLib, DisputeLib, ReputationLib).
+
 ---
 
 ## Review Methodology
@@ -23,25 +25,31 @@ This skill guides a systematic security review of Solidity smart contracts. When
 Before hunting for vulnerabilities, build context:
 
 1. **Contract Relationships**
-   - Inheritance hierarchy (Chamber inherits Board, Wallet, ERC4626Upgradeable)
-   - External dependencies (OpenZeppelin contracts)
-   - Inter-contract calls and trust assumptions
+   - SapienCore: AccessControlUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable; delegates to 7 libraries via DELEGATECALL
+   - SapienVault: ERC4626Upgradeable, AccessControlUpgradeable, PausableUpgradeable, UUPSUpgradeable
+   - Libraries: operate on SapienCore's ERC-7201 namespaced storage
+   - External dependency: SapienCore -> SapienVault (ENGINE_ROLE gated)
 
 2. **State Variable Mapping**
-   - Storage layout for upgradeable contracts
-   - Access patterns (who reads/writes each variable)
-   - State invariants that must hold
+   - ERC-7201 namespaced storage for both contracts
+   - EngineStorage (SapienCore): projects, claims, indexRange, returnStack, contributions, validatorCommits, consensusReports, reputation, pendingRewards, projectEscrow, disputes, originatorReports, configurable deadlines
+   - SapienVaultStorage: accounts mapping (contributorLock, validatorCapacity, inFlight)
+   - State invariants that must hold across all operations
 
 3. **Actor Identification**
-   - Users (depositors, delegators)
-   - Board members (NFT holders with delegated power)
-   - Owners/Admins (upgrade authority)
-   - External contracts (ERC20, ERC721, ProxyAdmin)
+   - Originators (create projects, fund reward pools)
+   - Contributors (claim slots, submit work)
+   - Validators (lock capacity, commit/reveal scores)
+   - Admin (DEFAULT_ADMIN_ROLE: fees, deadlines, pause, upgrade)
+   - Operator (OPERATOR_ROLE: resolve disputes/reports, remove projects)
+   - Adapters (receive fees on origination, contribution, validation)
+   - Treasury (receives protocol fees)
+   - Keepers (permissionless: expiry, consensus, settlement, escalation)
 
 4. **Entry Points**
-   - Public/external functions
-   - Fallback/receive functions
-   - Initializers
+   - Public/external functions on SapienCore
+   - SapienVault: deposit, withdraw, mint, redeem (ERC-4626); stake operations (ENGINE_ROLE only)
+   - Initializers on both contracts
 
 ---
 
@@ -51,64 +59,66 @@ For each contract, systematically check:
 
 #### Access Control
 - [ ] Function visibility (public vs external vs internal)
-- [ ] Modifier usage and correctness
-- [ ] Role-based access control implementation
-- [ ] Owner/admin privilege scope
-- [ ] Upgradeability access control
+- [ ] ENGINE_ROLE: only SapienCore can call SapienVault stake ops
+- [ ] OPERATOR_ROLE: resolveDispute, resolveOriginatorReport, removeProject
+- [ ] DEFAULT_ADMIN_ROLE: fee/deadline config, pause, upgrade
+- [ ] Upgradeability access control (UUPS _authorizeUpgrade)
 
 #### Reentrancy
 - [ ] External calls before state changes
-- [ ] ReentrancyGuard usage
-- [ ] Cross-function reentrancy
+- [ ] ReentrancyGuardUpgradeable on SapienCore
+- [ ] Cross-function reentrancy via SapienVault callbacks (none expected)
 - [ ] Read-only reentrancy (view functions)
 
 #### Arithmetic
 - [ ] Overflow/underflow (Solidity 0.8.x built-in checks)
-- [ ] Division by zero
-- [ ] Precision loss in calculations
-- [ ] Rounding direction (favor protocol or user)
+- [ ] Division by zero (totalWeight, totalAccurateWeight in ConsensusLib)
+- [ ] Precision loss in consensus calculations (1e18 PRECISION)
+- [ ] Rounding direction in fee deductions and reward distribution
+- [ ] Overflow protection in ConsensusLib variance computation
 
 #### Input Validation
-- [ ] Zero address checks
-- [ ] Zero amount checks
-- [ ] Array bounds and length limits
-- [ ] Untrusted calldata handling
+- [ ] Zero address checks (admin, vault, treasury)
+- [ ] Zero amount checks (stake ops, fund amounts)
+- [ ] Score bounds (0-10,000)
+- [ ] Config bounds (fee caps, deadline caps, numberOfValidations)
 
 #### State Management
-- [ ] Initialization (initializer modifier, _disableInitializers)
-- [ ] Storage slot collisions in upgrades
-- [ ] State consistency across functions
+- [ ] Initialization (_disableInitializers, initializer modifier)
+- [ ] ERC-7201 storage slot collisions
+- [ ] Nonce consistency (submissionNonce, consensusNonce)
 - [ ] Event emission for state changes
 
 #### External Interactions
-- [ ] Return value handling (ERC20 transfer)
-- [ ] Low-level call safety (.call, .delegatecall)
-- [ ] Callback attack vectors
-- [ ] Oracle/price manipulation
+- [ ] SafeERC20 for all ERC-20 transfers
+- [ ] SapienVault calls (ENGINE_ROLE gated, trusted)
+- [ ] Library DELEGATECALL safety
 
-#### Gas & DoS
-- [ ] Unbounded loops
+#### Gas and DoS
+- [ ] Unbounded loops (bounded by numberOfValidations max 10, MAX_CLAIM_QUANTITY 20)
 - [ ] Block gas limit issues
-- [ ] Griefing vectors
+- [ ] Griefing vectors (dispute escalation, ghost validators)
 - [ ] Failed transfer handling
 
 #### Upgradeability
-- [ ] Storage layout compatibility
+- [ ] ERC-7201 storage layout compatibility
 - [ ] Initializer protection
-- [ ] Implementation slot security
-- [ ] Upgrade authorization
+- [ ] UUPS upgrade authorization
+- [ ] Library upgrade path (new implementation required)
 
-#### Protocol-Specific (ERC4626)
+#### Protocol-Specific (ERC-4626)
 - [ ] Share/asset calculation edge cases
-- [ ] Donation attacks
-- [ ] First depositor front-running
-- [ ] Vault inflation attacks
+- [ ] Inflation attack mitigation (_decimalsOffset = 3)
+- [ ] Transfer guard (locked shares)
+- [ ] Withdrawal guard (locked amounts excluded from maxRedeem/maxWithdraw)
+- [ ] Paused state (all ERC-4626 operations return 0)
 
-#### Governance-Specific
-- [ ] Vote manipulation
-- [ ] Delegation edge cases
-- [ ] Quorum/threshold bypasses
-- [ ] Flash loan governance attacks
+#### Dispute System
+- [ ] Bond sufficiency and slashing
+- [ ] Challenger reward calculation
+- [ ] Auto-escalation timing
+- [ ] Cross-nonce dispute isolation
+- [ ] Originator report lifecycle
 
 ---
 
@@ -117,19 +127,21 @@ For each contract, systematically check:
 After individual contract review:
 
 1. **Call Flow Tracing**
-   - Map all external calls between contracts
-   - Identify assumption mismatches
-   - Check trust boundary violations
+   - Map SapienCore -> SapienVault calls (lock, unlock, slash, commit, release)
+   - Map SapienCore -> ERC-20 token transfers
+   - Verify no callbacks from SapienVault to SapienCore
 
 2. **Invariant Verification**
-   - Global state invariants
-   - Balance consistency (shares vs assets)
-   - Delegation totals match individual delegations
+   - projectEscrow >= sum(pendingRewards) per project
+   - vault.totalAssets() >= sum(all user locks)
+   - availableSlots + indices in pipeline = totalQuantity per project
 
 3. **Attack Scenario Modeling**
-   - Compose multiple functions for attacks
-   - Consider malicious actors at each role
-   - Time-based attack vectors (front-running, sandwich)
+   - Flash loan stake inflation
+   - Consensus collusion (51%+ validators)
+   - Dispute escalation griefing
+   - Ghost validator DoS
+   - Nonce confusion across re-validation cycles
 
 ---
 
@@ -169,10 +181,11 @@ For each finding, document:
 
 Before concluding the review:
 
-- [ ] All contracts in `src/` analyzed
-- [ ] All public/external functions reviewed
-- [ ] Cross-contract interactions mapped
-- [ ] Upgradeability safety verified
+- [ ] SapienCore: all lifecycle + dispute + admin functions
+- [ ] SapienVault: all lock/unlock/slash + ERC-4626 overrides + transfer/withdrawal guards
+- [ ] All 7 libraries analyzed
+- [ ] Cross-contract interactions mapped (SapienCore <-> SapienVault)
+- [ ] Upgradeability safety verified (ERC-7201, UUPS)
 - [ ] Known attack patterns checked
 - [ ] Findings documented with severity
 - [ ] Recommendations provided for each finding
@@ -207,8 +220,7 @@ When invoked, perform the review in this order:
 
 ## Related Tools
 
-Consider using in conjunction with:
-- **Slither** - Static analysis (`slither src/`)
-- **Foundry tests** - `forge test`
-- **Solhint** - Linting (`.solhint.json` exists)
-- **Fuzz tests** - Review `test/fuzz/` coverage
+- **Slither** -- `slither src/`
+- **Foundry tests** -- `forge test`
+- **Fuzz tests** -- Review `test/` coverage
+- **Solhint** -- `.solhint.json` if present

@@ -42,9 +42,9 @@ contract RISK_015_DisputeGriefing is BaseTest {
         engine.contribute(claimId, indices[0], keccak256("sub"), "");
         vm.stopPrank();
 
-        _commitAndReveal(validator1, pid, indices[0], 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, pid, indices[0], 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, pid, indices[0], 8000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, pid, indices[0], 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, pid, indices[0], 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, pid, indices[0], 8000, VALIDATOR_STAKE);
         engine.computeConsensus(pid, indices[0]);
 
         // Griefer opens dispute with trivial 1 wei bond
@@ -60,9 +60,9 @@ contract RISK_015_DisputeGriefing is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
         engine.computeConsensus(projectId, idx);
 
         // Without dispute, contributor can release reward after challenge period

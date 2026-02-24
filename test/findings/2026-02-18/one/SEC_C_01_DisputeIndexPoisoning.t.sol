@@ -28,9 +28,9 @@ contract SEC_C_01_DisputeIndexPoisoning is BaseTest {
         (, uint256[] memory indices1) = _claimAndContribute(contributor1, projectId, 1);
         uint256 targetIndex = indices1[0];
 
-        _commitAndReveal(validator1, projectId, targetIndex, 3000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, projectId, targetIndex, 3000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, projectId, targetIndex, 3000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, projectId, targetIndex, 3000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, projectId, targetIndex, 3000, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, projectId, targetIndex, 3000, VALIDATOR_STAKE);
         engine.computeConsensus(projectId, targetIndex);
 
         Contribution memory contrib = engine.getContribution(projectId, targetIndex);
@@ -53,9 +53,9 @@ contract SEC_C_01_DisputeIndexPoisoning is BaseTest {
         uint256 recycledIndex = indices2[0];
         assertEq(recycledIndex, targetIndex, "should reclaim the same index from return stack");
 
-        _commitAndReveal(validator1, projectId, recycledIndex, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, projectId, recycledIndex, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, projectId, recycledIndex, 8000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, projectId, recycledIndex, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, projectId, recycledIndex, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, projectId, recycledIndex, 8000, VALIDATOR_STAKE);
         engine.computeConsensus(projectId, recycledIndex);
 
         contrib = engine.getContribution(projectId, recycledIndex);
@@ -79,9 +79,9 @@ contract SEC_C_01_DisputeIndexPoisoning is BaseTest {
         (, uint256[] memory indices1) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices1[0];
 
-        _commitAndReveal(validator1, projectId, idx, 3000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, projectId, idx, 3000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, projectId, idx, 3000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, projectId, idx, 3000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, projectId, idx, 3000, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, projectId, idx, 3000, VALIDATOR_STAKE);
         engine.computeConsensus(projectId, idx);
 
         // Attacker disputes, operator upholds it
@@ -105,9 +105,9 @@ contract SEC_C_01_DisputeIndexPoisoning is BaseTest {
         (, uint256[] memory indices2) = _claimAndContribute(contributor2, projectId, 1);
         assertEq(indices2[0], idx, "same index recycled");
 
-        _commitAndReveal(validator1, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
         engine.computeConsensus(projectId, idx);
 
         vm.warp(block.timestamp + C.DEFAULT_CHALLENGE_PERIOD + 1);
@@ -126,9 +126,9 @@ contract SEC_C_01_DisputeIndexPoisoning is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 3000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, projectId, idx, 3000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, projectId, idx, 3000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, projectId, idx, 3000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, projectId, idx, 3000, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, projectId, idx, 3000, VALIDATOR_STAKE);
         engine.computeConsensus(projectId, idx);
 
         vm.prank(attacker);
@@ -149,9 +149,9 @@ contract SEC_C_01_DisputeIndexPoisoning is BaseTest {
         (, uint256[] memory indices2) = _claimAndContribute(contributor2, projectId, 1);
         assertEq(indices2[0], idx, "recycled");
 
-        _commitAndReveal(validator1, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
         engine.computeConsensus(projectId, idx);
 
         // After recycling, getDispute returns the new nonce's dispute (None)

@@ -1,55 +1,118 @@
 # Guide for Originators
 
-As an Originator, you use the Sapien protocol to verify the quality of AI datasets or agent behaviors. This guide walks you through creating and funding your first project.
+As an Originator, you use the Sapien protocol to verify the quality of AI datasets or agent behaviors. This guide walks you through creating, funding, managing, and completing a project.
 
 ## 1. Prerequisites
 
-- **SAPIEN Tokens**: You must have SAPIEN tokens staked in the `SapienVault` to meet the minimum stake requirement for the `ORIGINATOR_ROLE`.
-- **Reward Tokens**: You need the ERC20 tokens (e.g., USDC, USDT) that you plan to use for rewards.
+- **SAPIEN Tokens**: You must have SAPIEN tokens deposited in the `SapienVault`. When you fund a project, the protocol locks a per-slot originator stake as collateral. This stake is returned when the project completes.
+- **Reward Tokens**: You need the ERC-20 tokens (e.g., USDC) that you plan to use for contributor and validator rewards.
 
 ## 2. Create a Project
 
-To create a project, call `SapienCore.createProject()` with the following parameters:
+Call `SapienCore.createProject()` with the following parameters:
 
-- `projectId`: A unique `bytes32` hash identifying the project.
-- `rewardToken`: Address of your chosen reward token.
-- `minStakeToClaim`: Minimum SAPIEN stake required for a contributor to claim a slot.
-- `minStakeToContribute`: (Legacy) Minimum stake required to participate.
-- `minValidations`: The minimum number of human reviewers needed per contribution.
-- `validatorRewardBasisPoints`: Percentage of the total pool for validators (default 1000 = 10%). **Capped at 2500 (25%)**.
-- `requiredSkill`: (Optional) A skill contributors must have or will earn upon successful completion.
+- `projectId` (`bytes32`): A unique identifier for the project (generated off-chain).
+- `metadataCid` (`string`): An IPFS CID pointing to your project metadata document (Task Definition Spec, instructions, etc.).
+- `config` (`Project`): A configuration struct containing:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `rewardToken` | `address` | Address of the ERC-20 reward token |
+| `minStakeToClaim` | `uint256` | Minimum SAPIEN stake required for a contributor to claim slots |
+| `minValidationStake` | `uint256` | Minimum stake per validation commit |
+| `requiredSkill` | `bytes32` | Skill hash contributors must hold (zero for none) |
+| `consensusThreshold` | `uint256` | Score threshold in basis points for acceptance (e.g., 7000 = 70%) |
+| `validatorRewardBps` | `uint256` | Percentage of reward pool for validators (max 2500 = 25%) |
+| `numberOfValidations` | `uint256` | Minimum number of validators per contribution |
+| `minValidatorReputation` | `uint256` | Minimum reputation score for validators |
+
+```solidity
+core.createProject(projectId, "bafybeigdyrzt...", Project({
+    originator: address(0),   // set automatically by the contract
+    rewardToken: usdcAddress,
+    totalRewards: 0,          // set during fundProject
+    totalQuantity: 0,         // set during fundProject
+    availableSlots: 0,        // managed by the contract
+    minStakeToClaim: 100e18,
+    minValidationStake: 50e18,
+    requiredSkill: bytes32(0),
+    consensusThreshold: 7000,
+    validatorRewardBps: 1000,
+    numberOfValidations: 3,
+    minValidatorReputation: 0,
+    status: ProjectStatus.Created, // set by the contract
+    activatedAt: 0,                // set by the contract
+    completedAt: 0                 // set by the contract
+}));
+```
 
 ## 3. Fund Your Project
 
-Once the project is created, you must add funds and define the quantity of work units:
+Once the project is created, fund it and specify the number of contribution slots:
 
-Call `SapienCore.fundProject(projectId, rewardAmount, quantity)`:
-- `rewardAmount`: Total amount of reward tokens to deposit.
-- `quantity`: The total number of contributions you want verified.
+```solidity
+core.fundProject(projectId, rewardAmount, quantity, adapter);
+```
 
-**Protocol Fee**: A protocol fee (default 1%) is automatically deducted from your funding amount and sent to the Sapien treasury. The remaining amount is allocated to your project's reward pool.
+- `rewardAmount`: Total reward tokens to deposit (before fees).
+- `quantity`: Number of contribution slots to create.
+- `adapter`: Address of an origination adapter to receive an adapter fee, or `address(0)` for none.
 
-**Example**: If you fund with 1000 USDC:
-- Protocol fee (1%): 10 USDC → Sent to Sapien treasury
-- Project rewards: 990 USDC → Allocated to your project
+**Fee Deductions**: When funding, the following are deducted from your deposit:
 
-*Note: The protocol will automatically calculate the per-task reward based on `totalRewards / quantity`, where `totalRewards` is the amount after the protocol fee deduction.*
+1. **Protocol fee** (default 10%, max 10%) is sent to the Sapien treasury.
+2. **Origination adapter fee** (default 4%, max 5%) is sent to the adapter address if one is specified.
+3. **Originator stake** is locked per slot from your vault balance.
 
-## 4. Choose a Consensus Algorithm
+The remaining amount after fees becomes the project's reward pool. The per-contribution reward rate is calculated as `remainingRewards / quantity`.
 
-By default, projects use the protocol-wide default algorithm. You can choose a specific one for your project:
+**Example**: Funding with 1000 USDC (10% protocol fee, 4% adapter fee):
+- Protocol fee: 100 USDC to treasury
+- Adapter fee: 36.00 USDC to adapter
+- Reward pool: 864.00 USDC across all contribution slots
 
-Call `ValidationOracle.setProjectAlgorithm(projectId, "Hybrid")`.
-- Available options: `"Linear"`, `"Capped"`, `"Sqrt"`, `"Hybrid"`.
+**Token Approval**: You must approve `SapienCore` to spend the reward token before calling `fundProject`.
 
-## 5. Integrate Your Tools
+## 4. Monitor Your Project
 
-To connect your existing AI pipeline to Sapien:
-- **Submit Work**: Use a **Contributor Oracle** to call `SapienCore.contribute()` whenever new work is ready for validation.
-- **Consume Signals**: Monitor the `ContributionFinalized` events or query `SapienCore.contributions()` to get the verified quality scores.
+After funding, your project is active and contributors can begin claiming slots.
 
-## 🎯 Best Practices
+- **Query project state**: Call `SapienCore.getProject(projectId)` to check `availableSlots`, `totalQuantity`, and `status`.
+- **Watch events**: Listen for `ClaimCreated`, `ContributionSubmitted`, and `ConsensusReached` events filtered by your `projectId`.
+- **Check contributions**: Call `SapienCore.getContribution(projectId, index)` to inspect individual contribution status, score, and contributor address.
 
-- **Clear TDS**: Ensure your Task Definition Spec (provided to contributors/validators via the oracle interface) is clear and objective.
-- **Incentivize Validators**: Setting `validatorRewardBasisPoints` too low may lead to slow validation times.
-- **Monitor Outliers**: If many validators are being slashed, your quality criteria might be too subjective or your instructions unclear.
+## 5. Dispute Awareness
+
+After consensus is computed for a contribution, there is a challenge period (default 1 day) during which validators can open disputes. As an originator, you should be aware of:
+
+- **Dispute resolution**: An operator resolves disputes. If upheld, the contribution enters a new validation round.
+- **Originator reports**: Community members can report originators for misconduct by calling `reportOriginator`. If upheld, the project is cancelled and your originator stake is slashed.
+- **Escalation**: Unresolved disputes or originator reports are automatically escalated if the resolution deadline (7 days) passes.
+
+## 6. Complete Your Project
+
+When all contribution slots have been processed:
+
+```solidity
+core.completeProject(projectId);
+```
+
+This transitions the project to `Completed` status and unlocks your originator stake. The project must have no contributions in the active pipeline (pending validation or settlement).
+
+### Refund Remaining Escrow
+
+After project completion, any unused reward tokens in escrow can be refunded. There is a mandatory 30-day grace period after completion before the refund is available:
+
+```solidity
+core.refundEscrow(projectId);
+```
+
+The refunded amount is added to your pending rewards balance, which you can withdraw via `claimReward(tokenAddress)`.
+
+## Best Practices
+
+- **Clear metadata**: Ensure your Task Definition Spec (referenced via `metadataCid`) is clear, objective, and detailed. Ambiguous instructions lead to high validator disagreement and slashing.
+- **Appropriate validator rewards**: Setting `validatorRewardBps` too low may discourage validators. The default 10% (1000 bps) works well for most projects.
+- **Skill gating**: Use `requiredSkill` to filter contributors for specialized tasks, improving output quality.
+- **Monitor consensus outcomes**: If many validators are being slashed, your quality criteria may be too subjective or your instructions unclear.
+- **Choose adapters wisely**: Adapters (frontends/dapps) facilitate participation. The origination adapter fee is paid from your funding amount.

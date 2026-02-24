@@ -86,8 +86,8 @@ contract SapienCoreProjectTest is BaseTest {
         assertEq(proj.totalQuantity, QUANTITY);
         assertEq(proj.availableSlots, QUANTITY);
 
-        // Protocol fee (1%) = 100e18, origination fee (2% of 9900e18) = 198e18
-        // Escrow = 10000e18 - 100e18 - 198e18 = 9702e18
+        // Protocol fee (10%) = 1000e18, origination fee (4% of 9000e18) = 360e18
+        // Escrow = 10000e18 - 1000e18 - 360e18 = 8640e18
         uint256 escrow = engine.getProjectEscrow(PROJECT_ID, address(token));
         assertGt(escrow, 0);
         assertEq(proj.totalRewards, escrow);
@@ -96,17 +96,17 @@ contract SapienCoreProjectTest is BaseTest {
     function test_fundProject_protocolFee() public {
         _createAndFundProject();
 
-        // Treasury should have received protocol fee (1% of 10000e18 = 100e18)
+        // Treasury should have received protocol fee (10% of 10000e18 = 1000e18)
         uint256 treasuryBal = token.balanceOf(treasury);
-        assertEq(treasuryBal, 100e18);
+        assertEq(treasuryBal, 1000e18);
     }
 
     function test_fundProject_adapterFee() public {
         _createAndFundProject();
 
-        // Adapter should have pending rewards (2% of (10000e18 - 100e18) = 198e18)
+        // Adapter should have pending rewards (4% of (10000e18 - 1000e18) = 360e18)
         uint256 adapterRewards = engine.getPendingRewards(adapter, address(token));
-        assertEq(adapterRewards, 198e18);
+        assertEq(adapterRewards, 360e18);
     }
 
     function test_fundProject_revertsNotOriginator() public {
@@ -269,9 +269,9 @@ contract SapienCoreValidationTest is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, PROJECT_ID, 1);
 
         uint256 index = indices[0];
-        uint16 score = 8000;
+        uint256 score = 8000;
         bytes32 salt = keccak256("salt1");
-        bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
+        bytes32 commitHash = keccak256(abi.encodePacked(uint256(score), salt));
 
         vm.startPrank(validator1);
         {
@@ -280,7 +280,7 @@ contract SapienCoreValidationTest is BaseTest {
             engine.claimToValidate(PROJECT_ID, _indices);
         }
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
-        engine.commitValidation(PROJECT_ID, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
+        engine.commitValidation(PROJECT_ID, index, commitHash, VALIDATOR_STAKE, address(0));
         engine.revealValidation(PROJECT_ID, index, score, salt);
         vm.stopPrank();
 
@@ -310,10 +310,10 @@ contract SapienCoreValidationTest is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, PROJECT_ID, 1);
 
         uint256 index = indices[0];
-        uint16 score = 8000;
+        uint256 score = 8000;
         bytes32 salt = keccak256("salt1");
         uint256 nonce = engine.getSubmissionNonce(PROJECT_ID, index);
-        bytes32 commitHash = keccak256(abi.encodePacked(PROJECT_ID, index, nonce, validator1, score, salt));
+        bytes32 commitHash = keccak256(abi.encodePacked(PROJECT_ID, index, nonce, validator1, uint256(score), salt));
 
         vm.startPrank(validator1);
         {
@@ -322,7 +322,7 @@ contract SapienCoreValidationTest is BaseTest {
             engine.claimToValidate(PROJECT_ID, _indices);
         }
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
-        engine.commitValidation(PROJECT_ID, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
+        engine.commitValidation(PROJECT_ID, index, commitHash, VALIDATOR_STAKE, address(0));
 
         // Try to reveal with wrong score
         vm.expectRevert(ISapienCore.InvalidReveal.selector);
@@ -337,7 +337,7 @@ contract SapienCoreValidationTest is BaseTest {
         uint256 index = indices[0];
         uint256 nonce = engine.getSubmissionNonce(PROJECT_ID, index);
         bytes32 commitHash =
-            keccak256(abi.encodePacked(PROJECT_ID, index, nonce, validator1, uint16(8000), bytes32("salt")));
+            keccak256(abi.encodePacked(PROJECT_ID, index, nonce, validator1, uint256(8000), bytes32("salt")));
 
         vm.startPrank(validator1);
         {
@@ -346,10 +346,10 @@ contract SapienCoreValidationTest is BaseTest {
             engine.claimToValidate(PROJECT_ID, _indices);
         }
         engine.lockValidatorCapacity(VALIDATOR_STAKE * 2);
-        engine.commitValidation(PROJECT_ID, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
+        engine.commitValidation(PROJECT_ID, index, commitHash, VALIDATOR_STAKE, address(0));
 
         vm.expectRevert(ISapienCore.AlreadyCommitted.selector);
-        engine.commitValidation(PROJECT_ID, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
+        engine.commitValidation(PROJECT_ID, index, commitHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
     }
 }
@@ -365,9 +365,9 @@ contract SapienCoreConsensusTest is BaseTest {
         uint256 index = indices[0];
 
         // 3 validators all score above threshold (70%)
-        _commitAndReveal(validator1, PROJECT_ID, index, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, PROJECT_ID, index, 8500, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, PROJECT_ID, index, 7500, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
 
         engine.computeConsensus(PROJECT_ID, index);
 
@@ -386,9 +386,9 @@ contract SapienCoreConsensusTest is BaseTest {
         uint256 index = indices[0];
 
         // 3 validators all score below threshold (70%)
-        _commitAndReveal(validator1, PROJECT_ID, index, 3000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, PROJECT_ID, index, 2500, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, PROJECT_ID, index, 4000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, PROJECT_ID, index, 3000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, PROJECT_ID, index, 2500, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, PROJECT_ID, index, 4000, VALIDATOR_STAKE);
 
         engine.computeConsensus(PROJECT_ID, index);
 
@@ -408,8 +408,8 @@ contract SapienCoreConsensusTest is BaseTest {
         uint256 index = indices[0];
 
         // Only 2 of required 3 validations
-        _commitAndReveal(validator1, PROJECT_ID, index, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, PROJECT_ID, index, 8500, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
 
         vm.expectRevert(abi.encodeWithSelector(ISapienCore.ConsensusNotReady.selector, 2, 3));
         engine.computeConsensus(PROJECT_ID, index);
@@ -420,9 +420,9 @@ contract SapienCoreConsensusTest is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, PROJECT_ID, 1);
         uint256 index = indices[0];
 
-        _commitAndReveal(validator1, PROJECT_ID, index, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, PROJECT_ID, index, 8500, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, PROJECT_ID, index, 7500, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
 
         engine.computeConsensus(PROJECT_ID, index);
 
@@ -435,9 +435,9 @@ contract SapienCoreConsensusTest is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, PROJECT_ID, 1);
         uint256 index = indices[0];
 
-        _commitAndReveal(validator1, PROJECT_ID, index, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, PROJECT_ID, index, 8500, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, PROJECT_ID, index, 7500, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
 
         engine.computeConsensus(PROJECT_ID, index);
         uint256 nonce = engine.getContribution(PROJECT_ID, index).consensusNonce;
@@ -459,9 +459,9 @@ contract SapienCoreConsensusTest is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, PROJECT_ID, 1);
         uint256 index = indices[0];
 
-        _commitAndReveal(validator1, PROJECT_ID, index, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, PROJECT_ID, index, 8500, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, PROJECT_ID, index, 7500, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
 
         engine.computeConsensus(PROJECT_ID, index);
         uint256 nonce = engine.getContribution(PROJECT_ID, index).consensusNonce;
@@ -485,9 +485,9 @@ contract SapienCoreRewardTest is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, PROJECT_ID, 1);
         uint256 index = indices[0];
 
-        _commitAndReveal(validator1, PROJECT_ID, index, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, PROJECT_ID, index, 8500, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, PROJECT_ID, index, 7500, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
 
         engine.computeConsensus(PROJECT_ID, index);
 
@@ -505,9 +505,9 @@ contract SapienCoreRewardTest is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, PROJECT_ID, 1);
         uint256 index = indices[0];
 
-        _commitAndReveal(validator1, PROJECT_ID, index, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, PROJECT_ID, index, 8500, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, PROJECT_ID, index, 7500, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
 
         engine.computeConsensus(PROJECT_ID, index);
 
@@ -521,9 +521,9 @@ contract SapienCoreRewardTest is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, PROJECT_ID, 1);
         uint256 index = indices[0];
 
-        _commitAndReveal(validator1, PROJECT_ID, index, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, PROJECT_ID, index, 8500, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, PROJECT_ID, index, 7500, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
 
         engine.computeConsensus(PROJECT_ID, index);
         uint256 nonce = engine.getContribution(PROJECT_ID, index).consensusNonce;

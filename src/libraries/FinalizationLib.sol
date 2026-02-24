@@ -228,9 +228,12 @@ library FinalizationLib {
         EngineStorage storage $ = _getStorage();
         Project storage proj = $.projects[projectId];
         if (proj.originator != msg.sender) revert ISapienCore.NotProjectOriginator();
-        if (proj.status != ProjectStatus.Completed) revert ISapienCore.ProjectNotCompleted();
-        if (block.timestamp < proj.completedAt + C.PROJECT_COMPLETION_DELAY) {
-            revert ISapienCore.ChallengeNotElapsed();
+        if (proj.status == ProjectStatus.Completed) {
+            if (block.timestamp < proj.completedAt + C.PROJECT_COMPLETION_DELAY) {
+                revert ISapienCore.ChallengeNotElapsed();
+            }
+        } else if (proj.status != ProjectStatus.Cancelled) {
+            revert ISapienCore.ProjectNotCompleted();
         }
 
         address token = proj.rewardToken;

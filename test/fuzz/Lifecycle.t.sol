@@ -28,8 +28,8 @@ contract LifecycleFuzzTest is BaseTest {
     // ════════════════════════════════════════════════════════════════════
 
     /// @dev Bound a score to valid range [0, 10000]
-    function _boundScore(uint16 raw) internal pure returns (uint16) {
-        return uint16(bound(uint256(raw), 0, 10_000));
+    function _boundScore(uint256 raw) internal pure returns (uint256) {
+        return bound(raw, 0, 10_000);
     }
 
     /// @dev Bound a quantity to [1, maxQty]
@@ -42,9 +42,9 @@ contract LifecycleFuzzTest is BaseTest {
         return bound(raw, 1_000e18, 1_000_000e18);
     }
 
-    /// @dev Bound stake to [1e18, 500e18] — must be affordable by deposited balances
-    function _boundStake(uint128 raw) internal pure returns (uint128) {
-        return uint128(bound(uint256(raw), 1e18, 200e18));
+    /// @dev Bound stake to [1e18, 200e18] — must be affordable by deposited balances
+    function _boundStake(uint256 raw) internal pure returns (uint256) {
+        return bound(raw, 1e18, 200e18);
     }
 
     /// @dev Ensure an address has enough *available* (unlocked) tokens in the vault.
@@ -67,14 +67,14 @@ contract LifecycleFuzzTest is BaseTest {
     }
 
     /// @dev Commit and reveal for a validator, ensuring they have capacity
-    function _fuzzCommitAndReveal(address val, bytes32 projectId, uint256 index, uint16 score, uint128 stakeAmt)
+    function _fuzzCommitAndReveal(address val, bytes32 projectId, uint256 index, uint256 score, uint256 stakeAmt)
         internal
     {
         bytes32 salt = keccak256(abi.encodePacked("fuzz-salt", val, index, score));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
         // Ensure validator has enough staked
-        _ensureStake(val, uint256(stakeAmt) * 2);
+        _ensureStake(val, stakeAmt * 2);
 
         vm.startPrank(val);
         {
@@ -101,20 +101,20 @@ contract LifecycleFuzzTest is BaseTest {
     function testFuzz_happyPathLifecycle(
         uint256 fundAmount,
         uint256 quantitySeed,
-        uint128 validatorStakeSeed,
-        uint16 score1Raw,
-        uint16 score2Raw,
-        uint16 score3Raw
+        uint256 validatorStakeSeed,
+        uint256 score1Raw,
+        uint256 score2Raw,
+        uint256 score3Raw
     ) public {
         // ── Bound inputs ────────────────────────────────────────────
         fundAmount = _boundFundAmount(fundAmount);
         uint256 quantity = bound(quantitySeed, 2, 20); // >= 2 to avoid escrow underflow
-        uint128 valStake = _boundStake(validatorStakeSeed);
+        uint256 valStake = _boundStake(validatorStakeSeed);
 
         // All scores above consensus threshold (7000) for acceptance
-        uint16 score1 = uint16(bound(uint256(score1Raw), 7000, 10_000));
-        uint16 score2 = uint16(bound(uint256(score2Raw), 7000, 10_000));
-        uint16 score3 = uint16(bound(uint256(score3Raw), 7000, 10_000));
+        uint256 score1 = bound(score1Raw, 7000, 10_000);
+        uint256 score2 = bound(score2Raw, 7000, 10_000);
+        uint256 score3 = bound(score3Raw, 7000, 10_000);
 
         bytes32 projId = _projectId(fundAmount);
 
@@ -238,18 +238,18 @@ contract LifecycleFuzzTest is BaseTest {
     ///         contribution is rejected, contributor is slashed, index is re-available.
     function testFuzz_rejectionLifecycle(
         uint256 fundAmount,
-        uint128 validatorStakeSeed,
-        uint16 score1Raw,
-        uint16 score2Raw,
-        uint16 score3Raw
+        uint256 validatorStakeSeed,
+        uint256 score1Raw,
+        uint256 score2Raw,
+        uint256 score3Raw
     ) public {
         fundAmount = _boundFundAmount(fundAmount);
-        uint128 valStake = _boundStake(validatorStakeSeed);
+        uint256 valStake = _boundStake(validatorStakeSeed);
 
         // All scores below consensus threshold (7000) for rejection
-        uint16 score1 = uint16(bound(uint256(score1Raw), 0, 6999));
-        uint16 score2 = uint16(bound(uint256(score2Raw), 0, 6999));
-        uint16 score3 = uint16(bound(uint256(score3Raw), 0, 6999));
+        uint256 score1 = bound(score1Raw, 0, 6999);
+        uint256 score2 = bound(score2Raw, 0, 6999);
+        uint256 score3 = bound(score3Raw, 0, 6999);
 
         bytes32 projId = _projectId(fundAmount + 1);
         uint256 quantity = 5;
@@ -319,10 +319,10 @@ contract LifecycleFuzzTest is BaseTest {
     function testFuzz_multiContributionLifecycle(
         uint256 fundAmount,
         uint256 claimQtySeed,
-        uint128 validatorStakeSeed,
-        uint16 score1Raw,
-        uint16 score2Raw,
-        uint16 score3Raw
+        uint256 validatorStakeSeed,
+        uint256 score1Raw,
+        uint256 score2Raw,
+        uint256 score3Raw
     ) public {
         fundAmount = _boundFundAmount(fundAmount);
         bytes32 projId = _projectId(fundAmount + 2);
@@ -370,10 +370,10 @@ contract LifecycleFuzzTest is BaseTest {
         }
 
         { // ── Validate each contribution ─────────────────────────────
-            uint128 valStake = _boundStake(validatorStakeSeed);
-            uint16 score1 = uint16(bound(uint256(score1Raw), 7000, 10_000));
-            uint16 score2 = uint16(bound(uint256(score2Raw), 7000, 10_000));
-            uint16 score3 = uint16(bound(uint256(score3Raw), 7000, 10_000));
+            uint256 valStake = _boundStake(validatorStakeSeed);
+            uint256 score1 = bound(score1Raw, 7000, 10_000);
+            uint256 score2 = bound(score2Raw, 7000, 10_000);
+            uint256 score3 = bound(score3Raw, 7000, 10_000);
 
             for (uint256 i; i < indices.length; ++i) {
                 uint256 idx = indices[i];
@@ -499,9 +499,9 @@ contract LifecycleFuzzTest is BaseTest {
     ///      Average: (4*good + outlier)/5. For avg >= 7000: outlier >= 35000 - 4*good.
     function testFuzz_outlierValidatorSlashing(
         uint256 fundAmount,
-        uint128 validatorStakeSeed,
-        uint16 goodScoreRaw,
-        uint16 outlierScoreRaw
+        uint256 validatorStakeSeed,
+        uint256 goodScoreRaw,
+        uint256 outlierScoreRaw
     ) public {
         fundAmount = _boundFundAmount(fundAmount);
         bytes32 projId = _projectId(fundAmount + 4);
@@ -510,15 +510,15 @@ contract LifecycleFuzzTest is BaseTest {
         address validator4 = makeAddr("fuzz-validator4");
         address validator5 = makeAddr("fuzz-validator5");
 
-        uint16 goodScore;
-        uint16 outlierScore;
+        uint256 goodScore;
+        uint256 outlierScore;
 
         { // ── Bound scores ──────────────────────────────────────────
-            goodScore = uint16(bound(uint256(goodScoreRaw), 9000, 10_000));
-            uint256 minOutlier = 35_000 > 4 * uint256(goodScore) ? 35_000 - 4 * uint256(goodScore) : 0;
-            uint256 maxOutlier = uint256(goodScore) > 3000 ? uint256(goodScore) - 3000 : 0;
+            goodScore = bound(goodScoreRaw, 9000, 10_000);
+            uint256 minOutlier = 35_000 > 4 * goodScore ? 35_000 - 4 * goodScore : 0;
+            uint256 maxOutlier = goodScore > 3000 ? goodScore - 3000 : 0;
             require(maxOutlier >= minOutlier, "invalid outlier range");
-            outlierScore = uint16(bound(uint256(outlierScoreRaw), minOutlier, maxOutlier));
+            outlierScore = bound(outlierScoreRaw, minOutlier, maxOutlier);
         }
 
         token.mint(originator, fundAmount);
@@ -559,7 +559,7 @@ contract LifecycleFuzzTest is BaseTest {
         }
 
         { // ── Validate + consensus ──────────────────────────────────
-            uint128 valStake = _boundStake(validatorStakeSeed);
+            uint256 valStake = _boundStake(validatorStakeSeed);
             _fuzzCommitAndReveal(validator1, projId, index, goodScore, valStake);
             _fuzzCommitAndReveal(validator2, projId, index, goodScore, valStake);
             _fuzzCommitAndReveal(validator3, projId, index, goodScore, valStake);
@@ -615,9 +615,9 @@ contract LifecycleFuzzTest is BaseTest {
 
     /// @notice Fuzz ghost validator behavior: a validator commits but never reveals,
     ///         and after the deadline anyone can cancel and slash them.
-    function testFuzz_ghostValidatorSlash(uint256 fundAmount, uint128 validatorStakeSeed) public {
+    function testFuzz_ghostValidatorSlash(uint256 fundAmount, uint256 validatorStakeSeed) public {
         fundAmount = _boundFundAmount(fundAmount);
-        uint128 valStake = _boundStake(validatorStakeSeed);
+        uint256 valStake = _boundStake(validatorStakeSeed);
 
         bytes32 projId = _projectId(fundAmount + 5);
 
@@ -662,7 +662,7 @@ contract LifecycleFuzzTest is BaseTest {
             _ensureStake(validator1, uint256(valStake) * 2);
             bytes32 salt = keccak256(abi.encodePacked("ghost-salt", validator1));
             uint256 nonce = engine.getSubmissionNonce(projId, index);
-            bytes32 commitHash = keccak256(abi.encodePacked(projId, index, nonce, validator1, uint16(8000), salt));
+            bytes32 commitHash = keccak256(abi.encodePacked(projId, index, nonce, validator1, uint256(8000), salt));
 
             vm.startPrank(validator1);
             {
@@ -703,10 +703,10 @@ contract LifecycleFuzzTest is BaseTest {
     ///      processing 1 of N indices.
     function testFuzz_rewardAccountingInvariant(
         uint256 fundAmount,
-        uint128 validatorStakeSeed,
-        uint16 score1Raw,
-        uint16 score2Raw,
-        uint16 score3Raw
+        uint256 validatorStakeSeed,
+        uint256 score1Raw,
+        uint256 score2Raw,
+        uint256 score3Raw
     ) public {
         fundAmount = _boundFundAmount(fundAmount);
         bytes32 projId = _projectId(fundAmount + 6);
@@ -752,10 +752,10 @@ contract LifecycleFuzzTest is BaseTest {
 
         uint256 rewardRate;
         { // ── Validate + consensus ──────────────────────────────────
-            uint128 valStake = _boundStake(validatorStakeSeed);
-            uint16 score1 = uint16(bound(uint256(score1Raw), 7500, 10_000));
-            uint16 score2 = uint16(bound(uint256(score2Raw), 7500, 10_000));
-            uint16 score3 = uint16(bound(uint256(score3Raw), 7500, 10_000));
+            uint256 valStake = _boundStake(validatorStakeSeed);
+            uint256 score1 = bound(score1Raw, 7500, 10_000);
+            uint256 score2 = bound(score2Raw, 7500, 10_000);
+            uint256 score3 = bound(score3Raw, 7500, 10_000);
 
             _fuzzCommitAndReveal(validator1, projId, idx, score1, valStake);
             _fuzzCommitAndReveal(validator2, projId, idx, score2, valStake);
@@ -825,9 +825,9 @@ contract LifecycleFuzzTest is BaseTest {
     /// @notice Fuzz the rejection-then-resubmission flow: contribution is rejected,
     ///         index returns to the pool, a new contributor claims and submits,
     ///         this time it gets accepted.
-    function testFuzz_rejectionThenResubmission(uint256 fundAmount, uint128 validatorStakeSeed) public {
+    function testFuzz_rejectionThenResubmission(uint256 fundAmount, uint256 validatorStakeSeed) public {
         fundAmount = _boundFundAmount(fundAmount);
-        uint128 valStake = _boundStake(validatorStakeSeed);
+        uint256 valStake = _boundStake(validatorStakeSeed);
 
         bytes32 projId = _projectId(fundAmount + 7);
 
@@ -916,9 +916,9 @@ contract LifecycleFuzzTest is BaseTest {
     ///         one's contribution is accepted, the other's is rejected.
     function testFuzz_mixedOutcomeSameProject(
         uint256 fundAmount,
-        uint128 validatorStakeSeed,
-        uint16 goodScoreRaw,
-        uint16 badScoreRaw
+        uint256 validatorStakeSeed,
+        uint256 goodScoreRaw,
+        uint256 badScoreRaw
     ) public {
         fundAmount = _boundFundAmount(fundAmount);
         bytes32 projId = _projectId(fundAmount + 8);
@@ -971,9 +971,9 @@ contract LifecycleFuzzTest is BaseTest {
         }
 
         { // ── Validate both contributions ───────────────────────────
-            uint128 valStake = _boundStake(validatorStakeSeed);
-            uint16 goodScore = uint16(bound(uint256(goodScoreRaw), 7500, 10_000));
-            uint16 badScore = uint16(bound(uint256(badScoreRaw), 0, 5000));
+            uint256 valStake = _boundStake(validatorStakeSeed);
+            uint256 goodScore = bound(goodScoreRaw, 7500, 10_000);
+            uint256 badScore = bound(badScoreRaw, 0, 5000);
 
             _fuzzCommitAndReveal(validator1, projId, goodIndex, goodScore, valStake);
             _fuzzCommitAndReveal(validator2, projId, goodIndex, goodScore, valStake);
@@ -1019,10 +1019,10 @@ contract LifecycleFuzzTest is BaseTest {
     ///         rewards based on their consensus weight.
     function testFuzz_stakeWeightedRewards(
         uint256 fundAmount,
-        uint128 stake1Seed,
-        uint128 stake2Seed,
-        uint128 stake3Seed,
-        uint16 scoreRaw
+        uint256 stake1Seed,
+        uint256 stake2Seed,
+        uint256 stake3Seed,
+        uint256 scoreRaw
     ) public {
         fundAmount = _boundFundAmount(fundAmount);
         bytes32 projId = _projectId(fundAmount + 9);
@@ -1065,10 +1065,10 @@ contract LifecycleFuzzTest is BaseTest {
         }
 
         { // ── Validate with different stakes (same score) ───────────
-            uint128 stake1 = _boundStake(stake1Seed);
-            uint128 stake2 = _boundStake(stake2Seed);
-            uint128 stake3 = _boundStake(stake3Seed);
-            uint16 score = uint16(bound(uint256(scoreRaw), 8000, 9000));
+            uint256 stake1 = _boundStake(stake1Seed);
+            uint256 stake2 = _boundStake(stake2Seed);
+            uint256 stake3 = _boundStake(stake3Seed);
+            uint256 score = bound(scoreRaw, 8000, 9000);
 
             _fuzzCommitAndReveal(validator1, projId, index, score, stake1);
             _fuzzCommitAndReveal(validator2, projId, index, score, stake2);

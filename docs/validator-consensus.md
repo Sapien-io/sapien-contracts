@@ -17,461 +17,334 @@ Think of it like peer review, but with economic incentives:
 
 | Role | What They Do | Requirements |
 |------|--------------|--------------|
-| **Originator** | Creates projects and funds rewards | Stake tokens, reputation |
-| **Contributor** | Submits work to be validated | Stake tokens, may need specific skills |
-| **Validator** | Evaluates and scores contributions | Stake tokens, may need specific skills |
+| **Originator** | Creates projects and funds rewards | Reward tokens, optional stake |
+| **Contributor** | Submits work to be validated | Stake tokens (locked per slot) |
+| **Validator** | Evaluates and scores contributions | Pre-locked validator capacity, reputation |
 
 ## How Consensus Works (Step by Step)
 
 ### 1. Project Creation
 An originator creates a project with:
-- Reward pool for contributors
-- Required skill (optional)
-- Minimum stake requirements
-- Validator reward percentage (up to 25%)
+- Reward pool for contributors and validators
+- Consensus threshold (BPS, e.g. 7000 = 70%)
+- Number of validations required per contribution (1–10)
+- Validator reward percentage (max 25%)
+- Optional minimum validator reputation and required skill
 
 ### 2. Contribution Submission
 A contributor:
-1. Claims a slot in the project
-2. Submits their work (stored as a hash)
-3. Their stake gets locked until validation completes
+1. Claims slots via `claimToContribute` (max 20 per call)
+2. Submits work via `contribute` with a submission hash and data CID
+3. Their stake gets locked until consensus is reached
 
 ### 3. Validation Process (Commit-Reveal)
 
 Validators use a **two-phase commit-reveal scheme** to prevent gaming:
 
-#### Phase 1: Commit
-- Validator claims a validation slot
-- Validator privately scores the contribution (0-100%)
-- Validator creates a **commit hash** = `hash(score + stake + secret)`
-- Validator submits the hash onchain
-- This hides the actual score until everyone has committed
+#### Step 0: Lock Capacity
+- Validators pre-lock tokens as capacity via `lockValidatorCapacity`
+- This capacity is drawn down when committing validations
 
-#### Phase 2: Reveal
-- After enough validators have committed, reveal phase begins
-- Each validator reveals their actual score with the secret
+#### Step 1: Claim Indices
+- Validator calls `claimToValidate(projectId, indices[])`
+- Claims specific contribution indices for validation
+- 1-hour deadline to commit
+- Cannot validate your own contributions
+- Must meet project's `minValidatorReputation`
+
+#### Step 2: Commit
+- Validator privately scores the contribution (0–10,000)
+- Validator creates a **commit hash** = `keccak256(abi.encodePacked(uint16(score), salt))`
+- Validator calls `commitValidation(projectId, index, commitHash, stakeAmount, adapter)`
+- Stake moves from `validatorCapacity` → `inFlight`
+- Must meet both project-level and global minimum validation stake
+
+#### Step 3: Reveal
+- Validator calls `revealValidation(projectId, index, score, salt)`
 - Contract verifies the reveal matches the original commit
-- Scores are recorded for consensus calculation
+- Must reveal within the reveal window (commit timestamp + commit deadline + reveal deadline)
+- Score is recorded for consensus calculation
 
 > **Why Commit-Reveal?** Without it, later validators could see early scores and copy them to avoid being outliers, undermining the system's integrity.
 
 ### 4. Consensus Calculation
 
-Once enough validators have revealed, consensus is calculated:
+Once all required validators have revealed, anyone can call `computeConsensus`:
 
+**Weight Formula:**
 ```
-Consensus Score = Weighted Average of all validator scores
-```
-
-**The Weight Formula (SqrtStake - Default):**
-```
-Validator Weight = √(Stake)
+weight = sqrt(stake) × max(reputation, 1000)
 ```
 
 This means:
-- **Higher stake = More influence** (but sublinear - doubling stake only increases weight by ~41%)
-- **Whale resistance** - Large stakers can't dominate proportionally
-- **Based on quadratic voting research** - Proven to reduce plutocracy by ~22%
-
-> Note: Other algorithms available include CappedLinear (stake × reputation with 30% cap) and Hybrid.
+- **Higher stake = More influence** (but sublinear — doubling stake only increases weight by ~41%)
+- **Higher reputation = More influence** (linearly — consistent accuracy pays off)
+- **Whale resistance** — large stakers can't dominate proportionally
+- **Newcomer inclusion** — minimum reputation floor of 1,000
 
 ### 5. Outcome Determination
 
-- **Score ≥ 50%**: Contribution is **ACCEPTED**
-  - Contributor receives reward
-  - Contributor gains reputation
-  - Contributor earns the project's required skill (if any)
+- **Score ≥ consensusThreshold**: Contribution is **ACCEPTED**
+  - Contributor stake unlocked
+  - Contributor gains reputation (+10 + quality bonus)
+  - Challenge period begins
 
-- **Score < 50%**: Contribution is **REJECTED**
-  - Contributor stake is unlocked (not slashed)
-  - Contribution slot becomes available again
-  - Contributor loses some reputation
+- **Score < consensusThreshold**: Contribution is **REJECTED**
+  - Contributor stake slashed
+  - Contributor loses reputation (-50)
+  - Slot returned to pool for re-contribution
+  - Submission nonce incremented
 
-### 6. Validator Rewards & Slashing
+### 6. Challenge Period & Disputes
 
-**Accurate Validators (close to consensus):**
-- Receive rewards proportional to their weighted stake
-- Gain reputation
+After consensus, a challenge period begins (default 1 day). During this period:
+- Anyone can `openDispute` by posting a bond
+- Disputes are resolved by operators or auto-escalated after 7 days
+- If upheld: consensus is overturned, challenger rewarded (20% of saved/slashed amount)
+- If rejected: challenger's bond is slashed
 
-**Outlier Validators (far from consensus):**
-- Get slashed based on how far they deviated:
+### 7. Validator Settlement & Rewards
+
+After the challenge period (and no active dispute), each validator calls `settleValidator`:
+
+**Accurate Validators (within 1.5σ):**
+- Committed stake returned to capacity
+- Earn rewards proportional to weight / totalAccurateWeight
+- Gain reputation (+10)
+
+**Outlier Validators (beyond 1.5σ):**
+- Slashed based on deviation severity:
 
 | Deviation | Slash Amount |
 |-----------|-------------|
-| 1.5-2 standard deviations | 10% of stake |
-| 2-3 standard deviations | 25% of stake |
-| 3-4 standard deviations | 50% of stake |
-| 4-5 standard deviations | 75% of stake |
-| 5+ standard deviations | 100% of stake |
+| > 1.5 standard deviations | 10% of stake |
+| > 2.0 standard deviations | 25% of stake |
+| > 3.0 standard deviations | 50% of stake |
+| > 5.0 standard deviations | 100% of stake |
+
+- Remaining stake returned to capacity
+- Lose reputation (-50)
+
+**Force Settlement:**
+If a validator fails to settle, anyone can call `forceSettleValidator` after the `forceSettleDelay` (default 3 days) elapses past their reveal timestamp.
 
 ---
 
 ## Sequence Diagram
 
-The following swimlane diagram shows the complete validation flow:
-
 ```mermaid
 sequenceDiagram
     autonumber
-    
+
     participant O as Originator
     participant Core as SapienCore
+    participant Vault as SapienVault
     participant C as Contributor
     participant V1 as Validator 1
     participant V2 as Validator 2
     participant V3 as Validator 3
-    participant Oracle as ValidationOracle
-    participant Algo as ConsensusAlgorithm
-    
-    %% Project Creation
+
     Note over O,Core: Phase 1: Project Setup
-    O->>Core: createProject(rewards, config)
-    Core-->>O: projectId
-    
-    %% Contribution
+    O->>Core: createProject(projectId, metadataCid, config)
+    O->>Core: fundProject(projectId, amount, quantity, adapter)
+    Core-->>O: Project funded, slots created
+
     Note over C,Core: Phase 2: Contribution
-    C->>Core: claimToContribute(projectId)
-    Core->>Core: Lock contributor stake
-    Core-->>C: claimId + indices
-    C->>Core: contribute(projectId, index, contentHash)
-    Core->>Oracle: enqueueValidation(projectId, index)
-    Oracle-->>Core: Added to validation queue
-    
-    %% Commit Phase
-    Note over V1,Oracle: Phase 3: Commit (Hidden Scores)
-    
-    par Validators Claim Slots
-        V1->>Oracle: claimToValidate(projectId)
-        Oracle->>Oracle: Lock V1 capacity
-        Oracle-->>V1: claimId + assignedIndex
+    C->>Core: claimToContribute(projectId, 1, adapter)
+    Core->>Vault: lockContributor(contributor, stake)
+    Core-->>C: (claimId, [index])
+    C->>Core: contribute(claimId, index, contentHash, dataCid)
+
+    Note over V1,Core: Phase 3a: Capacity & Claims
+    V1->>Core: lockValidatorCapacity(amount)
+    V2->>Core: lockValidatorCapacity(amount)
+    V3->>Core: lockValidatorCapacity(amount)
+
+    par Validators Claim
+        V1->>Core: claimToValidate(projectId, [index])
     and
-        V2->>Oracle: claimToValidate(projectId)
-        Oracle-->>V2: claimId + assignedIndex
+        V2->>Core: claimToValidate(projectId, [index])
     and
-        V3->>Oracle: claimToValidate(projectId)
-        Oracle-->>V3: claimId + assignedIndex
+        V3->>Core: claimToValidate(projectId, [index])
     end
-    
+
     Note over V1,V3: Each validator privately evaluates the work
-    
-    par Validators Commit Hashes
-        V1->>Oracle: commitValidation(hash(85%, stake, salt1))
-        Oracle->>Oracle: Record commit, track in-flight stake
+
+    Note over V1,Core: Phase 3b: Commit (Hidden Scores)
+    par Validators Commit
+        V1->>Core: commitValidation(projectId, index, hash(8500,salt1), 1000, adapter)
+        Core->>Vault: commitStake(V1, 1000)
     and
-        V2->>Oracle: commitValidation(hash(80%, stake, salt2))
+        V2->>Core: commitValidation(projectId, index, hash(8000,salt2), 800, adapter)
+        Core->>Vault: commitStake(V2, 800)
     and
-        V3->>Oracle: commitValidation(hash(30%, stake, salt3))
+        V3->>Core: commitValidation(projectId, index, hash(3000,salt3), 500, adapter)
+        Core->>Vault: commitStake(V3, 500)
     end
-    
-    %% Reveal Phase
-    Note over V1,Oracle: Phase 4: Reveal (Scores Visible)
-    
-    par Validators Reveal Scores
-        V1->>Oracle: revealValidation(85%, salt1)
-        Oracle->>Oracle: Verify hash matches, record score
+
+    Note over V1,Core: Phase 3c: Reveal
+    par Validators Reveal
+        V1->>Core: revealValidation(projectId, index, 8500, salt1)
     and
-        V2->>Oracle: revealValidation(80%, salt2)
+        V2->>Core: revealValidation(projectId, index, 8000, salt2)
     and
-        V3->>Oracle: revealValidation(30%, salt3)
+        V3->>Core: revealValidation(projectId, index, 3000, salt3)
     end
-    
-    %% Consensus & Finalization
-    Note over Core,Algo: Phase 5: Consensus & Finalization
-    
-    Core->>Oracle: getConsensus(projectId, index)
-    Oracle->>Algo: calculateConsensus(validations)
-    
-    Note over Algo: Weight = Stake × ReputationApply 30% cap per validatorCalculate weighted average
-    
-    Algo-->>Oracle: ConsensusResult(avg=82%, outliers=[V3])
-    Oracle-->>Core: ConsensusReport
-    
-    Note over Core: Score 82% ≥ 50% thresholdCONTRIBUTION ACCEPTED
-    
-    Core->>Core: Reward Contributor
-    Core->>Core: Reward V1 & V2 (accurate)
-    Core->>Core: Slash V3 (outlier: 30% vs 82%)
-    Core->>Core: Update reputations
+
+    Note over Core,Vault: Phase 4: Consensus & Settlement
+    Core->>Core: computeConsensus(projectId, index)
+    Note over Core: ConsensusLib.calculate()
+    Note over Core: Weight = sqrt(stake) × reputation
+    Note over Core: Avg ≈ 7215, V3 is outlier (>5σ)
+    Note over Core: 7215 ≥ 7000 threshold → ACCEPTED
+
+    Core->>Vault: unlockContributor(contributor, stake)
+
+    V1->>Core: settleValidator(projectId, index, 0)
+    Core->>Vault: releaseCommit(V1, 1000)
+    Note right of Core: V1 reward → pendingRewards
+
+    V2->>Core: settleValidator(projectId, index, 0)
+    Core->>Vault: releaseCommit(V2, 800)
+    Note right of Core: V2 reward → pendingRewards
+
+    V3->>Core: settleValidator(projectId, index, 0)
+    Core->>Vault: slashValidator(V3, 500)
+    Note right of Core: V3 fully slashed (Tier 4)
+
+    Note over Core,Vault: Phase 5: Rewards
+    Core->>Core: releaseContributorReward(projectId, index)
+    C->>Core: claimReward(token)
+    V1->>Core: claimReward(token)
+    V2->>Core: claimReward(token)
 ```
 
 ---
 
 ## Key Concepts Explained
 
-### Square Root Stake Weighting (Default)
+### Square Root Stake Weighting
 
-The protocol uses square root weighting to calculate validator influence:
+The protocol uses square root weighting for validator influence:
 
 ```
-Validator Weight = √(Stake)
+weight = sqrt(stake) × reputation
 ```
 
 **Example:**
-- Validator A: √1,000 tokens = 31.6 weight
-- Validator B: √500 tokens = 22.4 weight
-- Validator C: √100 tokens = 10.0 weight
+- Validator A: sqrt(10,000) × 7,000 = 100 × 7,000 = 700,000
+- Validator B: sqrt(5,000) × 6,000 = 70.7 × 6,000 = 424,264
+- Validator C: sqrt(2,000) × 5,000 = 44.7 × 5,000 = 223,607
 
-Notice that Validator A has 10× the stake of C, but only 3.16× the weight. This **sublinear scaling** prevents whales from dominating.
+Notice that Validator A has 5× the stake of C, but only ~3.1× the weight. The **sublinear scaling** prevents whales from dominating, while the **reputation factor** rewards consistent accuracy.
 
-### Why Square Root? (Whale Resistance)
+### Why sqrt(stake) × reputation?
 
-Square root weighting is based on **quadratic voting research** and provides:
-- **22% reduction in whale power** compared to linear weighting
-- **Natural Sybil resistance** - splitting stake across accounts doesn't increase total weight
-- **Balanced influence** - smaller stakers have meaningful voice
+- **sqrt(stake)**: Based on quadratic voting research — provides ~22% reduction in whale power compared to linear weighting. Splitting stake across accounts doesn't increase total weight.
+- **reputation**: Linearly rewards historical accuracy. A validator with double the reputation has double the influence (all else equal).
+- **MIN_REPUTATION_FLOOR = 1,000**: Ensures new validators always have some influence, preventing zero-weight exclusion.
+
+### Tiered Slashing
+
+Slashing is proportional to deviation severity:
 
 ```
-Linear:     1000 tokens → 1000 weight (whale dominates)
-Square Root: 1000 tokens → 31.6 weight (whale influence reduced)
-             100 tokens  → 10.0 weight (small staker has 32% of whale's power)
+                     Deviation from consensus
+                          │
+         ┌────────────────┼─────────────────────────────┐
+         │                │                             │
+    ≤ 1.5σ           1.5σ-2σ        2σ-3σ        3σ-5σ        > 5σ
+  Accurate          Tier 1         Tier 2       Tier 3       Tier 4
+   (0%)              (10%)         (25%)         (50%)       (100%)
 ```
 
-### Alternative Algorithms
-
-Other consensus algorithms can be configured per-project:
-
-| Algorithm | Weight Formula | Use Case |
-|-----------|---------------|----------|
-| **SqrtStake** (default) | √(stake) | General purpose, whale-resistant |
-| **CappedLinear** | min(stake × rep, 30%) | High Sybil resistance, reputation-weighted |
-| **LinearStake** | stake | Simple, direct stake weighting |
-| **Hybrid** | Configurable | Custom per-project needs |
-
-### Outlier Detection
-
-The algorithm identifies outliers using standard deviation:
-
-1. Calculate the **weighted average** of all scores
-2. Calculate the **standard deviation**
-3. Any validator whose score deviates by more than:
-   - 15 points absolute, OR
-   - 2 standard deviations
-   
-   ...is flagged as an outlier and slashed.
-
-### Reputation Floor
-
-New validators start with a minimum reputation of 1,000 (10% of max) to ensure they have *some* influence, even when new. This prevents:
-- Zero-weight validators
-- Complete exclusion of newcomers
+This graduated approach means:
+- **Minor disagreement**: Small penalty, encourages diverse but honest opinions
+- **Major deviation**: Significant penalty, deters lazy validation
+- **Extreme outlier**: Full slash, punishes malicious behavior
 
 ---
 
 ## Economics & Fees
 
-This section explains the complete economic flow of the protocol, including staking, fees, and reward distribution.
-
-### Economic Flow Diagram
-
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                           SAPIEN PROTOCOL ECONOMICS                              │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  ORIGINATOR DEPOSITS                                                            │
-│  ───────────────────                                                            │
-│       100 tokens                                                                │
-│           │                                                                     │
-│           ▼                                                                     │
-│  ┌─────────────────┐                                                            │
-│  │  Protocol Fee   │───────────▶  Treasury (1 token)                            │
-│  │     (1%)        │                                                            │
-│  └────────┬────────┘                                                            │
-│           │ 99 tokens                                                           │
-│           ▼                                                                     │
-│  ┌─────────────────────────────────────────────┐                                │
-│  │            REWARD POOL (99 tokens)          │                                │
-│  │                                             │                                │
-│  │  ┌─────────────────┐  ┌─────────────────┐   │                                │
-│  │  │ Contributor     │  │ Validator       │   │                                │
-│  │  │ Rewards (90%)   │  │ Rewards (10%)   │   │                                │
-│  │  │                 │  │                 │   │                                │
-│  │  │ ~89.1 tokens    │  │ ~9.9 tokens     │   │                                │
-│  │  └─────────────────┘  └─────────────────┘   │                                │
-│  └─────────────────────────────────────────────┘                                │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
-
 ### Fee Structure
 
-| Fee Type | Default | Max | Description |
+| Fee Type | Default | Max | When Applied |
 |----------|---------|-----|-------------|
-| **Protocol Fee** | 1% | 100% | Taken from originator deposits, sent to treasury |
-| **Validator Reward Split** | 10% | 25% | Percentage of reward pool allocated to validators |
-| **Contributor Reward** | 90% | 75% | Remaining percentage after validator split |
+| **Protocol fee** | 10% | 10% | Deducted from `fundProject` deposits |
+| **Origination adapter fee** | 4% | 5% | Deducted from funding (after protocol fee) |
+| **Contribution adapter fee** | 3% | 5% | Deducted from contributor reward at `releaseContributorReward` |
+| **Validation adapter fee** | 3% | 5% | Deducted from validator reward at `settleValidator` |
+| **Validator reward share** | per-project | 25% max | Set by originator as `validatorRewardBps` |
 
-**Example with 1,000 tokens deposited:**
-```
-Originator deposits:     1,000 tokens
-─────────────────────────────────────
-Protocol fee (1%):       -  10 tokens  → Treasury
-Reward pool:              990 tokens
-─────────────────────────────────────
-Contributor (90%):        891 tokens  → Per accepted contribution
-Validators (10%):          99 tokens  → Split among accurate validators
-```
-
-### Staking Requirements
-
-All participants must stake tokens in the SapienVault to participate:
-
-| Role | Staking Requirement | Purpose |
-|------|---------------------|---------|
-| **Originator** | `minStake` for ORIGINATOR_ROLE | Right to create projects |
-| **Contributor** | `minStakeToClaim` per claim | Collateral during work period |
-| **Contributor** | `minStakeToContribute` to submit | Additional collateral for submission |
-| **Validator** | Capacity-based locking | Stake locked per validation slot |
-
-**Stake Lifecycle:**
+### Reward Distribution
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                    CONTRIBUTOR STAKE LIFECYCLE                    │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│   DEPOSIT        LOCK            WORK          UNLOCK            │
-│   ───────       ──────          ──────        ────────           │
-│                                                                  │
-│   User          Claim slot      Submit        Contribution       │
-│   deposits  ──▶ locks      ──▶  work     ──▶  finalized    ──▶   │
-│   tokens        stake           (locked)      unlocks stake      │
-│                                                                  │
-│                                 If rejected: stake slashed       │
-│                                 If accepted: stake returned      │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
+Originator funds 1,000 tokens:
+  Protocol fee (10%):     100 tokens → Treasury
+  Adapter fee (4%):       36 tokens  → Origination adapter (optional)
+  Project escrow:         864 tokens
 
-┌──────────────────────────────────────────────────────────────────┐
-│                    VALIDATOR STAKE LIFECYCLE                     │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│   DEPOSIT     SET CAPACITY     VALIDATE       OUTCOME            │
-│   ───────    ─────────────    ──────────    ─────────            │
-│                                                                  │
-│   User        Lock stake       Commit +      If accurate:        │
-│   deposits ──▶ as capacity ──▶ Reveal    ──▶ Reward + unlock     │
-│   tokens                       scores        stake released      │
-│                                                                  │
-│                                              If outlier:         │
-│                                              SLASHED (10-100%)   │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
+Per contribution (10 slots):
+  Reward rate:            86.4 tokens/slot
+  Contributor share:      86.4 × (10000 - validatorRewardBps) / 10000
+  Validator pool:         86.4 × validatorRewardBps / 10000
 ```
 
-### Validator Reward Distribution
-
-Rewards are distributed proportionally based on **Stake × Reputation** weight:
+### Validator Reward Formula
 
 ```
-                     Validator's Weight
-Validator Reward = ─────────────────────── × Total Validator Pool
-                   Sum of All Weights
+validatorReward = (totalRewards × validatorRewardBps × weight) / (BPS × totalQuantity × totalAccurateWeight)
 ```
-
-**Example with 3 validators sharing 99 tokens:**
-
-| Validator | Stake | Reputation | Weight | Share | Reward |
-|-----------|-------|------------|--------|-------|--------|
-| V1 | 100 | 8,000 | 80,000 | 47% | 46.53 tokens |
-| V2 | 100 | 6,000 | 60,000 | 35% | 34.65 tokens |
-| V3 | 50 | 6,000 | 30,000 | 18% | 17.82 tokens |
-| **Total** | | | **170,000** | **100%** | **99 tokens** |
-
-> Note: The 30% cap applies to weight during consensus calculation, but reward distribution uses uncapped weights.
 
 ### Slashing Economics
 
-When a validator is slashed, their tokens **remain in the vault**, increasing the share value for all other stakers:
+When shares are burned via slashing, the underlying assets remain in the vault. Since fewer shares now represent the same pool of assets, the price-per-share increases for all remaining stakers — automatically redistributing slashed value.
+
+### Claim Protection
+
+- **minClaimAmount**: Minimum reward balance required to call `claimReward` (prevents dust claims)
+- **claimCooldown**: Minimum time between successive `claimReward` calls per user
+
+---
+
+## Contract Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     SLASHING REDISTRIBUTION                      │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│   BEFORE SLASH                    AFTER SLASH                   │
-│   ────────────                    ───────────                   │
-│                                                                 │
-│   Vault: 10,000 tokens            Vault: 10,000 tokens          │
-│   Shares: 10,000                  Shares: 9,500 (500 burned)    │
-│   Price: 1.0 token/share          Price: 1.053 token/share      │
-│                                                                 │
-│   Outlier had 500 shares          Outlier has 0 shares          │
-│   Other stakers: 9,500 shares     Other stakers: 9,500 shares   │
-│                                   Value: 10,000 tokens (+5.3%)  │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                       SAPIEN PROTOCOL v0.5                     │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  SapienCore (UUPS Proxy)                                     │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │OriginationLib│  │ContributionLib│ │ ValidationLib │       │
+│  │              │  │              │  │              │       │
+│  │ - create     │  │ - claim      │  │ - capacity   │       │
+│  │ - fund       │  │ - contribute │  │ - commit     │       │
+│  │ - remove     │  │ - expire     │  │ - reveal     │       │
+│  └──────────────┘  └──────────────┘  │ - consensus  │       │
+│                                      └──────────────┘       │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │FinalizationLb│  │  DisputeLib  │  │ ReputationLib│       │
+│  │              │  │              │  │              │       │
+│  │ - settle     │  │ - dispute    │  │ - getScore   │       │
+│  │ - release    │  │ - report     │  │ - update     │       │
+│  │ - claim      │  │ - escalate   │  │ - decay      │       │
+│  │ - complete   │  │              │  │              │       │
+│  └──────────────┘  └──────────────┘  └──────────────┘       │
+│         │                                                    │
+│         ▼               ┌──────────────┐                    │
+│  ┌─────────────┐        │ ConsensusLib │                    │
+│  │ SapienVault │        │              │                    │
+│  │ (UUPS Proxy)│        │ - calculate  │                    │
+│  │             │        │ - outliers   │                    │
+│  │ - locks     │        │ - tiered     │                    │
+│  │ - slashing  │        │   slashing   │                    │
+│  │ - ERC-4626  │        └──────────────┘                    │
+│  └─────────────┘                                             │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
 ```
-
-**Slashing is NOT burned** — it redistributes value to honest stakers through share dilution.
-
-### Complete Lifecycle Economics Example
-
-**Scenario:** Project with 1,000 token reward pool, 10 contributions, 3 validators per contribution
-
-```
-PHASE 1: PROJECT CREATION
-═════════════════════════
-Originator deposits:                    1,000.00 tokens
-Protocol fee (1%):                       - 10.00 tokens → Treasury
-Available for rewards:                    990.00 tokens
-
-Reward per contribution:                   99.00 tokens
-  - Contributor reward (90%):              89.10 tokens
-  - Validator pool (10%):                   9.90 tokens
-
-
-PHASE 2: STAKING (per participant)
-══════════════════════════════════
-Contributor stakes:                       100.00 tokens (locked during work)
-Validator sets capacity:                  500.00 tokens (locked for 5 validations)
-
-
-PHASE 3: VALIDATION OUTCOME (1 contribution)
-════════════════════════════════════════════
-Consensus score: 82% (ACCEPTED)
-
-Contributor receives:                      89.10 tokens ✓
-Contributor stake unlocked:               100.00 tokens ✓
-
-Accurate Validators (V1, V2):
-  - V1 reward (weight 47%):                 4.65 tokens ✓
-  - V2 reward (weight 35%):                 3.47 tokens ✓
-
-Outlier Validator (V3):
-  - Deviation: 52 points (30% vs 82%)
-  - Slash percentage: 50% (3σ deviation)
-  - Slashed:                               50.00 tokens ✗
-  - Redistributed to stakers:              50.00 tokens
-
-
-PHASE 4: FINAL ACCOUNTING
-═════════════════════════
-Treasury received:                         10.00 tokens
-Contributor earned:                        89.10 tokens
-Validators earned:                          8.12 tokens (V1 + V2)
-Validator slashed:                         50.00 tokens → Redistributed
-```
-
-### Key Economic Incentives
-
-| Behavior | Economic Outcome |
-|----------|-----------------|
-| **Honest validation** | Rewards proportional to stake × reputation |
-| **High confidence (more stake)** | More reward if accurate, more risk if wrong |
-| **Building reputation** | Higher weight over time, more influence |
-| **Outlier scores** | Progressive slashing (10% → 100%) |
-| **Not revealing commits** | 100% stake slashed |
-| **Expired claims** | Stake slashed for uncommitted slots |
-
-### Protocol Revenue Model
-
-The protocol generates revenue through:
-
-1. **Protocol Fee (1%)** - Taken from all originator deposits
-2. **Slashed Stakes** - Redistributed to stakers (including protocol-owned stake if any)
-
-There are **no gas subsidies** — all participants pay their own transaction costs.
 
 ---
 
@@ -480,74 +353,46 @@ There are **no gas subsidies** — all participants pay their own transaction co
 | Threat | Mitigation |
 |--------|------------|
 | **Validator copies others' scores** | Commit-reveal hides scores until all committed |
-| **Whale controls consensus** | 30% weight cap limits any single validator |
-| **Sybil attack (many fake accounts)** | Weight = stake × reputation (expensive to build) |
-| **Lazy validation (random scores)** | Outliers get slashed proportionally |
-| **Ghost validators (commit but don't reveal)** | Slashed for expired commitments |
-| **Validator collusion** | Standard deviation penalizes coordinated outliers |
+| **Whale controls consensus** | `sqrt(stake)` sublinear scaling |
+| **Sybil attack (many accounts)** | Weight = `sqrt(stake) × reputation` — expensive to build |
+| **Lazy validation (random scores)** | Tiered slashing (10%–100%) proportional to deviation |
+| **Ghost validators (commit, no reveal)** | Full stake slashed via `cancelExpiredCommitment` |
+| **Validator liveness failure** | `forceSettleValidator` after delay |
+| **Dispute gaming** | Bond-backed disputes with 20% challenger reward |
+| **Originator misconduct** | `reportOriginator` with bond and escalation |
 
 ---
 
 ## Timeline Summary
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         VALIDATION LIFECYCLE                         │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────────────┐  │
-│  │ CLAIM    │   │ COMMIT   │   │ REVEAL   │   │ FINALIZE         │  │
-│  │          │   │          │   │          │   │                  │  │
-│  │ 1 hour   │──▶│ Variable │──▶│ 24 hours │──▶│ After min        │  │
-│  │ deadline │   │          │   │ deadline │   │ validations      │  │
-│  │          │   │          │   │          │   │ revealed         │  │
-│  └──────────┘   └──────────┘   └──────────┘   └──────────────────┘  │
-│       │              │              │                │              │
-│       ▼              ▼              ▼                ▼              │
-│  ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────────────┐  │
-│  │ If not   │   │ If not   │   │ If not   │   │ Consensus        │  │
-│  │ committed│   │ revealed │   │ finalized│   │ calculated,      │  │
-│  │ → Slashed│   │ → Slashed│   │ → Stuck  │   │ rewards/slashes  │  │
-│  │          │   │          │   │          │   │ distributed      │  │
-│  └──────────┘   └──────────┘   └──────────┘   └──────────────────┘  │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Contract Architecture
-
-```
-┌────────────────────────────────────────────────────────────────────┐
-│                          SAPIEN PROTOCOL                            │
-├────────────────────────────────────────────────────────────────────┤
-│                                                                    │
-│  ┌─────────────┐    ┌─────────────────┐    ┌──────────────────┐   │
-│  │ SapienCore  │◄──▶│ ValidationOracle│◄──▶│ConsensusAlgorithm│   │
-│  │             │    │                 │    │                  │   │
-│  │ - Projects  │    │ - Commits       │    │ - Weight calc    │   │
-│  │ - Claims    │    │ - Reveals       │    │ - Outlier detect │   │
-│  │ - Finalize  │    │ - Queue mgmt    │    │ - Weighted avg   │   │
-│  └──────┬──────┘    └────────┬────────┘    └──────────────────┘   │
-│         │                    │                                     │
-│         ▼                    ▼                                     │
-│  ┌─────────────┐    ┌─────────────────┐                           │
-│  │ SapienVault │    │  SapienTrust    │                           │
-│  │             │    │                 │                           │
-│  │ - Stake     │◄──▶│ - Reputation    │                           │
-│  │ - Lock/Unlock│    │ - Skills       │                           │
-│  │ - Slash     │    │ - Role checks   │                           │
-│  └─────────────┘    └─────────────────┘                           │
-│                                                                    │
-└────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────┐
+│                     VALIDATION LIFECYCLE                           │
+├───────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  CLAIM         COMMIT          REVEAL         CONSENSUS           │
+│  ──────        ──────          ──────         ─────────           │
+│  1 hour   →   1 day max   →  1 day max   →  Permissionless      │
+│  deadline      deadline       deadline       trigger              │
+│                                                                   │
+│  CHALLENGE     SETTLE         REWARD                              │
+│  ─────────     ──────         ──────                              │
+│  1 day    →   Self-serve  →  claimReward                         │
+│  period        or force-      (with cooldown)                    │
+│  (disputes)    settle (3d)                                       │
+│                                                                   │
+│  All deadlines are configurable by admin                         │
+│  (up to max limits defined in Constants.sol)                     │
+│                                                                   │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Further Reading
 
-- [Algorithms](./consensus/algorithms.md) - Deep dive into consensus algorithm implementations
-- [Validation Oracle](./components/validation-oracle.md) - Technical details of the oracle
-- [Validators Guide](./guides/validators.md) - How to participate as a validator
-- [Security Overview](./security/overview.md) - Security considerations and attack mitigations
+- [Consensus Algorithm Details](./consensus/algorithms.md) — Deep dive into ConsensusLib
+- [ValidationLib & ConsensusLib](./components/validation-oracle.md) — Technical component docs
+- [Validators Guide](./guides/validators.md) — How to participate as a validator
+- [Security Overview](./security/overview.md) — Security considerations and attack mitigations
+- [Fee Structure](./guides/fees.md) — Complete fee documentation

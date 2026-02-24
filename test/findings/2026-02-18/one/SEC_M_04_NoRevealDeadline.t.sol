@@ -15,13 +15,13 @@ contract SEC_M_04_NoRevealDeadline is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
 
         // validator3 commits but does NOT reveal yet
         bytes32 salt = keccak256(abi.encodePacked("salt", validator3, idx));
-        uint16 score = 8000;
-        bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
+        uint256 score = 8000;
+        bytes32 commitHash = keccak256(abi.encodePacked(uint256(score), salt));
         vm.startPrank(validator3);
         {
             uint256[] memory _indices = new uint256[](1);
@@ -29,7 +29,7 @@ contract SEC_M_04_NoRevealDeadline is BaseTest {
             engine.claimToValidate(projectId, _indices);
         }
         engine.lockValidatorCapacity(uint256(VALIDATOR_STAKE));
-        engine.commitValidation(projectId, idx, commitHash, uint128(VALIDATOR_STAKE), address(0));
+        engine.commitValidation(projectId, idx, commitHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
 
         // Warp past the reveal deadline
@@ -47,12 +47,12 @@ contract SEC_M_04_NoRevealDeadline is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
 
         bytes32 salt = keccak256(abi.encodePacked("salt", validator3, idx));
-        uint16 score = 8000;
-        bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
+        uint256 score = 8000;
+        bytes32 commitHash = keccak256(abi.encodePacked(uint256(score), salt));
         vm.startPrank(validator3);
         {
             uint256[] memory _indices = new uint256[](1);
@@ -60,7 +60,7 @@ contract SEC_M_04_NoRevealDeadline is BaseTest {
             engine.claimToValidate(projectId, _indices);
         }
         engine.lockValidatorCapacity(uint256(VALIDATOR_STAKE));
-        engine.commitValidation(projectId, idx, commitHash, uint128(VALIDATOR_STAKE), address(0));
+        engine.commitValidation(projectId, idx, commitHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
 
         // Warp to just before deadline
@@ -80,12 +80,12 @@ contract SEC_M_04_NoRevealDeadline is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
 
         bytes32 salt = keccak256(abi.encodePacked("salt", validator3, idx));
-        uint16 score = 8000;
-        bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
+        uint256 score = 8000;
+        bytes32 commitHash = keccak256(abi.encodePacked(uint256(score), salt));
         vm.startPrank(validator3);
         {
             uint256[] memory _indices = new uint256[](1);
@@ -93,7 +93,7 @@ contract SEC_M_04_NoRevealDeadline is BaseTest {
             engine.claimToValidate(projectId, _indices);
         }
         engine.lockValidatorCapacity(uint256(VALIDATOR_STAKE));
-        engine.commitValidation(projectId, idx, commitHash, uint128(VALIDATOR_STAKE), address(0));
+        engine.commitValidation(projectId, idx, commitHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
 
         // Warp past the cancellation threshold

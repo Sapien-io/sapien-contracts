@@ -16,6 +16,8 @@ import {
     ConsensusReport,
     Reputation,
     StakeAccount,
+    ValidationClaim,
+    ValidationClaimStatus,
     Dispute,
     DisputeStatus,
     OriginatorReport,
@@ -124,11 +126,11 @@ contract LifecycleBase is BaseTest {
     }
 
     /// @dev Commit and reveal for a validator, ensuring capacity
-    function _validate(address val, bytes32 projectId, uint256 index, uint16 score, uint128 stakeAmt) internal {
+    function _validate(address val, bytes32 projectId, uint256 index, uint256 score, uint256 stakeAmt) internal {
         bytes32 salt = keccak256(abi.encodePacked("salt", val, projectId, index, score));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
-        _ensureStake(val, uint256(stakeAmt) * 2);
+        _ensureStake(val, stakeAmt * 2);
 
         vm.startPrank(val);
         {
@@ -144,16 +146,16 @@ contract LifecycleBase is BaseTest {
 
     /// @dev Run 3 validators above threshold on an index
     function _validateAboveThreshold(bytes32 projectId, uint256 index) internal {
-        _validate(validator1, projectId, index, 8000, uint128(VALIDATOR_STAKE));
-        _validate(validator2, projectId, index, 8500, uint128(VALIDATOR_STAKE));
-        _validate(validator3, projectId, index, 7500, uint128(VALIDATOR_STAKE));
+        _validate(validator1, projectId, index, 8000, VALIDATOR_STAKE);
+        _validate(validator2, projectId, index, 8500, VALIDATOR_STAKE);
+        _validate(validator3, projectId, index, 7500, VALIDATOR_STAKE);
     }
 
     /// @dev Run 3 validators below threshold on an index
     function _validateBelowThreshold(bytes32 projectId, uint256 index) internal {
-        _validate(validator1, projectId, index, 3000, uint128(VALIDATOR_STAKE));
-        _validate(validator2, projectId, index, 2500, uint128(VALIDATOR_STAKE));
-        _validate(validator3, projectId, index, 4000, uint128(VALIDATOR_STAKE));
+        _validate(validator1, projectId, index, 3000, VALIDATOR_STAKE);
+        _validate(validator2, projectId, index, 2500, VALIDATOR_STAKE);
+        _validate(validator3, projectId, index, 4000, VALIDATOR_STAKE);
     }
 
     /// @dev Settle all 3 validators
@@ -279,7 +281,7 @@ contract LifecycleHappyPathTest is LifecycleBase {
 
         Claim memory claim = engine.getClaim(claimId);
         assertEq(uint256(claim.status), uint256(ClaimStatus.Completed));
-        assertEq(claim.submittedCount, uint32(qty));
+        assertEq(claim.submittedCount, qty);
 
         // Process each through full lifecycle
         for (uint256 i; i < indices.length; ++i) {
@@ -795,10 +797,9 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
         uint256 index = indices[0];
 
         // Ghost commits but does NOT reveal
-        uint128 stakeAmt = uint128(VALIDATOR_STAKE);
-        _ensureStake(validator1, uint256(stakeAmt) * 2);
+        _ensureStake(validator1, VALIDATOR_STAKE * 2);
         bytes32 salt = keccak256(abi.encodePacked("ghost", validator1));
-        bytes32 commitHash = keccak256(abi.encodePacked(uint16(8000), salt));
+        bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), salt));
 
         vm.startPrank(validator1);
         {
@@ -806,8 +807,8 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
             _indices[0] = index;
             engine.claimToValidate(projId, _indices);
         }
-        engine.lockValidatorCapacity(stakeAmt);
-        engine.commitValidation(projId, index, commitHash, stakeAmt, address(0));
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        engine.commitValidation(projId, index, commitHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
 
         uint256 sharesBefore = vault.balanceOf(validator1);
@@ -827,10 +828,9 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
         uint256 index = indices[0];
 
-        uint128 stakeAmt = uint128(VALIDATOR_STAKE);
-        _ensureStake(validator1, uint256(stakeAmt) * 2);
+        _ensureStake(validator1, VALIDATOR_STAKE * 2);
         bytes32 salt = keccak256(abi.encodePacked("ghost-early", validator1));
-        bytes32 commitHash = keccak256(abi.encodePacked(uint16(8000), salt));
+        bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), salt));
 
         vm.startPrank(validator1);
         {
@@ -838,8 +838,8 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
             _indices[0] = index;
             engine.claimToValidate(projId, _indices);
         }
-        engine.lockValidatorCapacity(stakeAmt);
-        engine.commitValidation(projId, index, commitHash, stakeAmt, address(0));
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        engine.commitValidation(projId, index, commitHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
 
         vm.expectRevert(ISapienCore.ClaimDeadlineNotPassed.selector);
@@ -923,8 +923,8 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
         uint256 index = indices[0];
 
-        _validate(validator1, projId, index, 8000, uint128(VALIDATOR_STAKE));
-        _validate(validator2, projId, index, 8500, uint128(VALIDATOR_STAKE));
+        _validate(validator1, projId, index, 8000, VALIDATOR_STAKE);
+        _validate(validator2, projId, index, 8500, VALIDATOR_STAKE);
 
         vm.expectRevert(abi.encodeWithSelector(ISapienCore.ConsensusNotReady.selector, 2, 3));
         engine.computeConsensus(projId, index);
@@ -946,7 +946,7 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
         uint256 index = indices[0];
 
-        uint16 score = 8000;
+        uint256 score = 8000;
         bytes32 salt = keccak256("salt1");
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
@@ -958,7 +958,7 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
             engine.claimToValidate(projId, _indices);
         }
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
-        engine.commitValidation(projId, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
+        engine.commitValidation(projId, index, commitHash, VALIDATOR_STAKE, address(0));
 
         vm.expectRevert(ISapienCore.InvalidReveal.selector);
         engine.revealValidation(projId, index, 5000, salt); // wrong score
@@ -970,7 +970,7 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
         uint256 index = indices[0];
 
-        bytes32 commitHash = keccak256(abi.encodePacked(uint16(8000), bytes32("salt")));
+        bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), bytes32("salt")));
 
         _ensureStake(validator1, VALIDATOR_STAKE * 4);
         vm.startPrank(validator1);
@@ -980,10 +980,10 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
             engine.claimToValidate(projId, _indices);
         }
         engine.lockValidatorCapacity(VALIDATOR_STAKE * 2);
-        engine.commitValidation(projId, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
+        engine.commitValidation(projId, index, commitHash, VALIDATOR_STAKE, address(0));
 
         vm.expectRevert(ISapienCore.AlreadyCommitted.selector);
-        engine.commitValidation(projId, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
+        engine.commitValidation(projId, index, commitHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
     }
 
@@ -1115,16 +1115,16 @@ contract LifecycleReputationAndFeesTest is LifecycleBase {
 
     /// @notice Protocol fee sent to treasury on fund
     function test_protocolFeeSentToTreasury() public view {
-        // Protocol fee is 1% of 10000e18 = 100e18
+        // Protocol fee is 10% of 10000e18 = 1000e18
         uint256 treasuryBal = token.balanceOf(treasury);
-        assertEq(treasuryBal, 100e18);
+        assertEq(treasuryBal, 1000e18);
     }
 
     /// @notice Origination adapter fee credited on fund
     function test_originationAdapterFeeCredited() public view {
         uint256 adapterRewards = engine.getPendingRewards(adapter, address(token));
-        // 2% of (10000e18 - 100e18) = 198e18
-        assertEq(adapterRewards, 198e18);
+        // 4% of (10000e18 - 1000e18) = 360e18
+        assertEq(adapterRewards, 360e18);
     }
 
     /// @notice Contribution adapter fee deducted on reward release
@@ -1257,11 +1257,11 @@ contract LifecycleOutlierTest is LifecycleBase {
         uint256 index = indices[0];
 
         // 4 validators score ~9000, outlier scores 1000
-        _validate(validator1, projId, index, 9000, uint128(VALIDATOR_STAKE));
-        _validate(validator2, projId, index, 9000, uint128(VALIDATOR_STAKE));
-        _validate(validator3, projId, index, 9000, uint128(VALIDATOR_STAKE));
-        _validate(validator4, projId, index, 9000, uint128(VALIDATOR_STAKE));
-        _validate(validator5, projId, index, 1000, uint128(VALIDATOR_STAKE));
+        _validate(validator1, projId, index, 9000, VALIDATOR_STAKE);
+        _validate(validator2, projId, index, 9000, VALIDATOR_STAKE);
+        _validate(validator3, projId, index, 9000, VALIDATOR_STAKE);
+        _validate(validator4, projId, index, 9000, VALIDATOR_STAKE);
+        _validate(validator5, projId, index, 1000, VALIDATOR_STAKE);
 
         uint256 outlierSharesBefore = vault.balanceOf(validator5);
 
@@ -1379,13 +1379,13 @@ contract LifecycleFullProjectTest is LifecycleBase {
 
     /// @notice Fee breakdown adds up correctly
     function test_feeBreakdownAccuracy() public view {
-        // Protocol fee = 1% of SMALL_FUND = 300e18
-        uint256 protocolFee = (SMALL_FUND * 100) / 10_000;
+        // Protocol fee = 10% of SMALL_FUND = 3000e18
+        uint256 protocolFee = (SMALL_FUND * 1000) / 10_000;
         assertEq(token.balanceOf(treasury), protocolFee);
 
-        // Origination fee = 2% of (SMALL_FUND - protocolFee)
+        // Origination fee = 4% of (SMALL_FUND - protocolFee)
         uint256 remaining = SMALL_FUND - protocolFee;
-        uint256 originationFee = (remaining * 200) / 10_000;
+        uint256 originationFee = (remaining * 400) / 10_000;
         assertEq(engine.getPendingRewards(adapter, address(token)), originationFee);
 
         // Project escrow = remaining - originationFee
@@ -1553,8 +1553,8 @@ contract LifecycleMultiActorTest is LifecycleBase {
         uint256 index = indices[0];
 
         // Same score, different stakes
-        uint128 lowStake = 10e18;
-        uint128 highStake = 100e18;
+        uint256 lowStake = 10e18;
+        uint256 highStake = 100e18;
 
         _validate(validator1, projId, index, 8000, lowStake);
         _validate(validator2, projId, index, 8000, highStake);
@@ -1666,5 +1666,378 @@ contract LifecycleAdminTest is LifecycleBase {
         vm.prank(admin);
         vm.expectRevert(ISapienCore.ZeroAddress.selector);
         engine.setTreasury(address(0));
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Test Suite 11: Exhaustive Validation & Closure Flows
+// ═══════════════════════════════════════════════════════════════════════
+
+contract LifecycleExhaustiveWorkflowTest is LifecycleBase {
+    bytes32 internal projId;
+    bytes32 internal constant VALIDATOR_KEY = keccak256("VALIDATOR");
+
+    function setUp() public override {
+        super.setUp();
+        projId = _pid("exhaustive-workflow");
+        _setupProject(projId, FUND_AMOUNT, QUANTITY);
+    }
+
+    function _singlePendingIndex(bytes32 projectId_) internal returns (uint256) {
+        (, uint256[] memory indices) = _claimAndSubmit(contributor1, projectId_, 1);
+        return indices[0];
+    }
+
+    function _claimValidation(address validator, bytes32 projectId_, uint256 index) internal returns (uint256 claimId) {
+        uint256[] memory indices = new uint256[](1);
+        indices[0] = index;
+        vm.prank(validator);
+        claimId = engine.claimToValidate(projectId_, indices);
+    }
+
+    function _commitWithoutReveal(address validator, bytes32 projectId_, uint256 index, uint256 score, uint256 stakeAmt)
+        internal
+        returns (bytes32 salt)
+    {
+        salt = keccak256(abi.encodePacked("noreveal", validator, projectId_, index, score));
+        bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
+
+        _ensureStake(validator, stakeAmt * 2);
+
+        vm.startPrank(validator);
+        engine.lockValidatorCapacity(stakeAmt);
+        engine.commitValidation(projectId_, index, commitHash, stakeAmt, address(0));
+        vm.stopPrank();
+    }
+
+    /// @notice Validation claim expires cleanly when validator never commits.
+    function test_validationClaimExpiresWithoutCommit() public {
+        uint256 index = _singlePendingIndex(projId);
+        uint256 claimId = _claimValidation(validator1, projId, index);
+
+        Reputation memory repBefore = engine.getReputation(validator1, VALIDATOR_KEY);
+
+        vm.warp(block.timestamp + 2 hours);
+        engine.cancelExpiredValidationClaim(claimId);
+
+        ValidationClaim memory vclaim = engine.getValidationClaim(claimId);
+        assertEq(uint256(vclaim.status), uint256(ValidationClaimStatus.Expired));
+        assertEq(vclaim.totalCount, 1);
+        assertEq(vclaim.committedCount, 0);
+
+        Reputation memory repAfter = engine.getReputation(validator1, VALIDATOR_KEY);
+        assertLt(repAfter.score, repBefore.score);
+    }
+
+    /// @notice Validation claim expiry tracks committed vs uncommitted slots.
+    function test_validationClaimExpiresAfterPartialCommit() public {
+        (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 2);
+
+        vm.prank(validator1);
+        uint256 claimId = engine.claimToValidate(projId, indices);
+
+        _ensureStake(validator1, VALIDATOR_STAKE * 4);
+
+        bytes32 salt = keccak256(abi.encodePacked("partial", validator1, projId, indices[0]));
+        bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), salt));
+
+        vm.startPrank(validator1);
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        engine.commitValidation(projId, indices[0], commitHash, VALIDATOR_STAKE, address(0));
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 2 hours);
+        engine.cancelExpiredValidationClaim(claimId);
+
+        ValidationClaim memory vclaim = engine.getValidationClaim(claimId);
+        assertEq(uint256(vclaim.status), uint256(ValidationClaimStatus.Expired));
+        assertEq(vclaim.totalCount, 2);
+        assertEq(vclaim.committedCount, 1);
+    }
+
+    /// @notice If one validator fails to reveal, consensus is blocked until commitment is cancelled and replaced.
+    function test_failedRevealFlowRecoversAfterCancellingExpiredCommitment() public {
+        uint256 index = _singlePendingIndex(projId);
+
+        _claimValidation(validator1, projId, index);
+        _commitWithoutReveal(validator1, projId, index, 7900, VALIDATOR_STAKE);
+
+        _validate(validator2, projId, index, 8000, VALIDATOR_STAKE);
+        _validate(validator3, projId, index, 8200, VALIDATOR_STAKE);
+
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.ConsensusNotReady.selector, 2, 3));
+        engine.computeConsensus(projId, index);
+
+        vm.warp(block.timestamp + engine.commitDeadline() + engine.revealDeadline() + 1);
+
+        vm.prank(keeper);
+        engine.cancelExpiredCommitment(projId, index, validator1);
+
+        address validator4 = makeAddr("validator4-recovery");
+        _validate(validator4, projId, index, 8100, VALIDATOR_STAKE);
+
+        engine.computeConsensus(projId, index);
+        assertEq(uint256(engine.getContribution(projId, index).status), uint256(ContributionStatus.Accepted));
+    }
+
+    /// @notice Reveal fails once the commit+reveal window has elapsed.
+    function test_revert_revealAfterCommitAndRevealWindowElapsed() public {
+        uint256 index = _singlePendingIndex(projId);
+
+        _claimValidation(validator1, projId, index);
+        bytes32 salt = _commitWithoutReveal(validator1, projId, index, 8000, VALIDATOR_STAKE);
+
+        vm.warp(block.timestamp + engine.commitDeadline() + engine.revealDeadline() + 1);
+
+        vm.prank(validator1);
+        vm.expectRevert(ISapienCore.RevealWindowClosed.selector);
+        engine.revealValidation(projId, index, 8000, salt);
+    }
+
+    /// @notice Force settlement closes the final validator position after delay.
+    function test_forceSettlePathAfterDelay() public {
+        uint256 index = _singlePendingIndex(projId);
+
+        _validateAboveThreshold(projId, index);
+        engine.computeConsensus(projId, index);
+
+        uint256 nonce = engine.getContribution(projId, index).consensusNonce;
+
+        vm.prank(validator1);
+        engine.settleValidator(projId, index, nonce);
+        vm.prank(validator2);
+        engine.settleValidator(projId, index, nonce);
+
+        vm.expectRevert(ISapienCore.ForceSettleTooEarly.selector);
+        engine.forceSettleValidator(projId, index, nonce, validator3);
+
+        vm.warp(block.timestamp + engine.forceSettleDelay() + 1);
+
+        vm.prank(keeper);
+        engine.forceSettleValidator(projId, index, nonce, validator3);
+        assertTrue(engine.isValidatorSettled(projId, index, nonce, validator3));
+    }
+
+    /// @notice Batch commit/reveal runs end to end across multiple indices.
+    function test_batchCommitRevealMultiIndexLifecycle() public {
+        (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 2);
+
+        uint256[] memory stakeAmounts = new uint256[](2);
+        stakeAmounts[0] = VALIDATOR_STAKE;
+        stakeAmounts[1] = VALIDATOR_STAKE;
+
+        uint256[] memory scores = new uint256[](2);
+        scores[0] = 8000;
+        scores[1] = 8300;
+
+        bytes32[] memory salts = new bytes32[](2);
+        bytes32[] memory commitHashes = new bytes32[](2);
+        for (uint256 i; i < 2; ++i) {
+            salts[i] = keccak256(abi.encodePacked("batch", validator1, projId, indices[i]));
+            commitHashes[i] = keccak256(abi.encodePacked(scores[i], salts[i]));
+        }
+
+        _ensureStake(validator1, VALIDATOR_STAKE * 6);
+
+        vm.startPrank(validator1);
+        engine.claimToValidate(projId, indices);
+        engine.lockValidatorCapacity(VALIDATOR_STAKE * 2);
+        engine.batchCommitValidations(projId, indices, commitHashes, stakeAmounts, address(0));
+        engine.batchRevealValidations(projId, indices, scores, salts);
+        vm.stopPrank();
+
+        _validate(validator2, projId, indices[0], 8100, VALIDATOR_STAKE);
+        _validate(validator3, projId, indices[0], 8200, VALIDATOR_STAKE);
+        _validate(validator2, projId, indices[1], 8400, VALIDATOR_STAKE);
+        _validate(validator3, projId, indices[1], 8500, VALIDATOR_STAKE);
+
+        engine.computeConsensus(projId, indices[0]);
+        engine.computeConsensus(projId, indices[1]);
+
+        assertEq(uint256(engine.getContribution(projId, indices[0]).status), uint256(ContributionStatus.Accepted));
+        assertEq(uint256(engine.getContribution(projId, indices[1]).status), uint256(ContributionStatus.Accepted));
+    }
+
+    /// @notice Full closure path: accepted contribution -> release -> complete -> refund.
+    function test_fullLifecycleCompletionAndEscrowRefund() public {
+        bytes32 pid2 = _pid("completion-refund");
+        _setupProject(pid2, FUND_AMOUNT, 2);
+
+        (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid2, 1);
+        uint256 index = indices[0];
+
+        _validateAboveThreshold(pid2, index);
+        engine.computeConsensus(pid2, index);
+        _settleAllValidators(pid2, index);
+
+        vm.warp(block.timestamp + 2 days);
+        engine.releaseContributorReward(pid2, index);
+
+        vm.prank(originator);
+        engine.completeProject(pid2);
+        assertEq(uint256(engine.getProject(pid2).status), uint256(ProjectStatus.Completed));
+
+        uint256 escrow = engine.getProjectEscrow(pid2, address(token));
+        uint256 balBefore = token.balanceOf(originator);
+
+        vm.warp(block.timestamp + 31 days);
+        vm.prank(originator);
+        engine.refundEscrow(pid2);
+
+        assertEq(engine.getProjectEscrow(pid2, address(token)), 0);
+        assertEq(token.balanceOf(originator) - balBefore, escrow);
+    }
+
+    /// @notice Project cannot complete while any contribution is still in-flight.
+    function test_revert_completeProjectWithPendingContribution() public {
+        _singlePendingIndex(projId);
+
+        vm.prank(originator);
+        vm.expectRevert(ISapienCore.ProjectHasActivePipeline.selector);
+        engine.completeProject(projId);
+    }
+
+    /// @notice Refund is blocked until completion grace period elapses.
+    function test_revert_refundEscrowBeforeCompletionDelay() public {
+        vm.prank(originator);
+        engine.completeProject(projId);
+
+        vm.prank(originator);
+        vm.expectRevert(ISapienCore.ChallengeNotElapsed.selector);
+        engine.refundEscrow(projId);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Test Suite 12: Known Lifecycle Issue Reproductions
+// ═══════════════════════════════════════════════════════════════════════
+
+contract LifecycleKnownIssuesTest is LifecycleBase {
+    bytes32 internal projId;
+
+    function setUp() public override {
+        super.setUp();
+        projId = _pid("known-issues");
+        _setupProject(projId, FUND_AMOUNT, QUANTITY);
+    }
+
+    function _singlePendingIndex() internal returns (uint256) {
+        (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
+        return indices[0];
+    }
+
+    /// @notice FIX VERIFIED: cancelling expired validation claims releases reserved slots for new validators.
+    function test_issue_validationClaimExpiryLocksValidatorSlots() public {
+        uint256 index = _singlePendingIndex();
+
+        uint256[] memory indices = new uint256[](1);
+        indices[0] = index;
+
+        vm.prank(validator1);
+        uint256 claim1 = engine.claimToValidate(projId, indices);
+        vm.prank(validator2);
+        uint256 claim2 = engine.claimToValidate(projId, indices);
+        vm.prank(validator3);
+        uint256 claim3 = engine.claimToValidate(projId, indices);
+
+        vm.warp(block.timestamp + 2 hours);
+        engine.cancelExpiredValidationClaim(claim1);
+        engine.cancelExpiredValidationClaim(claim2);
+        engine.cancelExpiredValidationClaim(claim3);
+
+        // After fix: expired reservations are fully released, new validators can claim.
+        address validator4 = makeAddr("validator4-issue-lock");
+        vm.prank(validator4);
+        engine.claimToValidate(projId, indices);
+    }
+
+    /// @notice FIX VERIFIED: validators cannot commit/reveal after their validation claim is expired.
+    function test_issue_lateCommitAllowedAfterValidationClaimExpiry() public {
+        uint256 index = _singlePendingIndex();
+
+        uint256[] memory indices = new uint256[](1);
+        indices[0] = index;
+
+        vm.prank(validator3);
+        uint256 claimId = engine.claimToValidate(projId, indices);
+
+        _validate(validator1, projId, index, 8000, VALIDATOR_STAKE);
+        _validate(validator2, projId, index, 8200, VALIDATOR_STAKE);
+
+        vm.warp(block.timestamp + 2 hours);
+        engine.cancelExpiredValidationClaim(claimId);
+
+        // After fix: the ValidatorCommit slot is deleted on expiry cancellation,
+        // so a late commit with the stale reservation is no longer possible.
+        uint256 lateScore = 1000;
+        bytes32 salt = keccak256(abi.encodePacked("late", validator3, projId, index));
+        bytes32 commitHash = keccak256(abi.encodePacked(lateScore, salt));
+
+        _ensureStake(validator3, VALIDATOR_STAKE * 3);
+        vm.startPrank(validator3);
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        vm.expectRevert();
+        engine.commitValidation(projId, index, commitHash, VALIDATOR_STAKE, address(0));
+        vm.stopPrank();
+    }
+
+    /// @notice FIX VERIFIED: upheld dispute resolves the pipeline — project completion is not blocked.
+    function test_issue_upheldDisputeCanDeadlockProjectCompletion() public {
+        uint256 index = _singlePendingIndex();
+
+        _validateAboveThreshold(projId, index);
+        engine.computeConsensus(projId, index);
+        _settleAllValidators(projId, index);
+
+        _ensureStake(challenger, STAKE_AMOUNT);
+        vm.prank(challenger);
+        engine.openDispute(projId, index, keccak256("upheld-deadlock"), "evidenceCid");
+
+        vm.prank(admin);
+        engine.resolveDispute(projId, index, true);
+
+        // After fix: dispute resolution adjusts pipeline accounting so the project
+        // can be completed without needing to release the overturned contributor reward.
+        vm.prank(originator);
+        engine.completeProject(projId);
+        assertEq(uint256(engine.getProject(projId).status), uint256(ProjectStatus.Completed));
+    }
+
+    /// @notice FIX VERIFIED: cancelled projects can refund their escrow.
+    function test_issue_cancelledProjectEscrowStranding() public {
+        bytes32 cancelledPid = _pid("cancelled-escrow");
+        _setupProject(cancelledPid, FUND_AMOUNT, QUANTITY);
+        uint256 escrowBefore = engine.getProjectEscrow(cancelledPid, address(token));
+        assertGt(escrowBefore, 0);
+
+        vm.prank(admin);
+        engine.removeProject(cancelledPid);
+
+        // After fix: refundEscrow is permitted on Cancelled projects.
+        vm.prank(originator);
+        engine.refundEscrow(cancelledPid);
+        assertEq(engine.getProjectEscrow(cancelledPid, address(token)), 0);
+    }
+
+    /// @notice FIX VERIFIED: uint256 score commit-hash packing matches reveal verification.
+    function test_issue_uint256CommitHashEncodingMismatch() public {
+        uint256 index = _singlePendingIndex();
+
+        uint256 score = 8000;
+        bytes32 salt = keccak256(abi.encodePacked("doc-style", validator1, projId, index));
+        bytes32 commitHash = keccak256(abi.encodePacked(uint256(score), salt));
+
+        uint256[] memory indices = new uint256[](1);
+        indices[0] = index;
+
+        // After fix: uint256-encoded commit hash is the canonical format and reveals successfully.
+        vm.startPrank(validator1);
+        engine.claimToValidate(projId, indices);
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        engine.commitValidation(projId, index, commitHash, VALIDATOR_STAKE, address(0));
+        engine.revealValidation(projId, index, score, salt);
+        vm.stopPrank();
+
+        assertEq(engine.getRevealCount(projId, index), 1);
     }
 }

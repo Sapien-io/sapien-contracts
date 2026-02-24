@@ -537,11 +537,11 @@ contract QECoverageBase is Test {
         vm.stopPrank();
     }
 
-    function _validate(address val, bytes32 projectId, uint256 index, uint16 score, uint128 stakeAmt) internal {
+    function _validate(address val, bytes32 projectId, uint256 index, uint256 score, uint256 stakeAmt) internal {
         bytes32 salt = keccak256(abi.encodePacked("salt", val, projectId, index, score));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
-        _ensureStake(val, uint256(stakeAmt) * 2);
+        _ensureStake(val, stakeAmt * 2);
 
         vm.startPrank(val);
         {
@@ -556,15 +556,15 @@ contract QECoverageBase is Test {
     }
 
     function _validateAboveThreshold(bytes32 projectId, uint256 index) internal {
-        _validate(validator1, projectId, index, 8000, uint128(VALIDATOR_STAKE));
-        _validate(validator2, projectId, index, 8500, uint128(VALIDATOR_STAKE));
-        _validate(validator3, projectId, index, 7500, uint128(VALIDATOR_STAKE));
+        _validate(validator1, projectId, index, 8000, VALIDATOR_STAKE);
+        _validate(validator2, projectId, index, 8500, VALIDATOR_STAKE);
+        _validate(validator3, projectId, index, 7500, VALIDATOR_STAKE);
     }
 
     function _validateBelowThreshold(bytes32 projectId, uint256 index) internal {
-        _validate(validator1, projectId, index, 3000, uint128(VALIDATOR_STAKE));
-        _validate(validator2, projectId, index, 2500, uint128(VALIDATOR_STAKE));
-        _validate(validator3, projectId, index, 4000, uint128(VALIDATOR_STAKE));
+        _validate(validator1, projectId, index, 3000, VALIDATOR_STAKE);
+        _validate(validator2, projectId, index, 2500, VALIDATOR_STAKE);
+        _validate(validator3, projectId, index, 4000, VALIDATOR_STAKE);
     }
 
     function _settleAllValidators(bytes32 projectId, uint256 index) internal {
@@ -1133,7 +1133,7 @@ contract QEValidationBranchTest is QECoverageBase {
         }
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         vm.expectRevert(ISapienCore.InvalidCommitHash.selector);
-        engine.commitValidation(projId, index, bytes32(0), uint128(VALIDATOR_STAKE), address(0));
+        engine.commitValidation(projId, index, bytes32(0), VALIDATOR_STAKE, address(0));
         vm.stopPrank();
     }
 
@@ -1141,9 +1141,9 @@ contract QEValidationBranchTest is QECoverageBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
         uint256 index = indices[0];
 
-        _validate(validator1, projId, index, 8000, uint128(VALIDATOR_STAKE));
-        _validate(validator2, projId, index, 8500, uint128(VALIDATOR_STAKE));
-        _validate(validator3, projId, index, 7500, uint128(VALIDATOR_STAKE));
+        _validate(validator1, projId, index, 8000, VALIDATOR_STAKE);
+        _validate(validator2, projId, index, 8500, VALIDATOR_STAKE);
+        _validate(validator3, projId, index, 7500, VALIDATOR_STAKE);
 
         // 4th validator tries to claim — all slots taken
         _ensureStake(validator4, VALIDATOR_STAKE * 2);
@@ -1167,7 +1167,7 @@ contract QEValidationBranchTest is QECoverageBase {
 
         _ensureStake(validator1, 200e18);
         bytes32 salt = keccak256("salt");
-        bytes32 commitHash = keccak256(abi.encodePacked(uint16(8000), salt));
+        bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), salt));
         vm.startPrank(validator1);
         {
             uint256[] memory _indices = new uint256[](1);
@@ -1204,7 +1204,7 @@ contract QEValidationBranchTest is QECoverageBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
         uint256 index = indices[0];
 
-        uint16 score = 10001;
+        uint256 score = 10001;
         bytes32 salt = keccak256("salt");
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
@@ -1216,7 +1216,7 @@ contract QEValidationBranchTest is QECoverageBase {
             engine.claimToValidate(projId, _indices);
         }
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
-        engine.commitValidation(projId, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
+        engine.commitValidation(projId, index, commitHash, VALIDATOR_STAKE, address(0));
         vm.expectRevert(ISapienCore.InvalidScore.selector);
         engine.revealValidation(projId, index, score, salt);
         vm.stopPrank();
@@ -1235,9 +1235,9 @@ contract QEValidationBranchTest is QECoverageBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
         uint256 index = indices[0];
 
-        uint16 score = 8000;
+        uint256 score = 8000;
         bytes32 salt = keccak256("salt-double-reveal");
-        bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
+        bytes32 commitHash = keccak256(abi.encodePacked(uint256(score), salt));
 
         _ensureStake(validator1, VALIDATOR_STAKE * 2);
         vm.startPrank(validator1);
@@ -1247,7 +1247,7 @@ contract QEValidationBranchTest is QECoverageBase {
             engine.claimToValidate(projId, _indices);
         }
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
-        engine.commitValidation(projId, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
+        engine.commitValidation(projId, index, commitHash, VALIDATOR_STAKE, address(0));
         engine.revealValidation(projId, index, score, salt);
         vm.expectRevert(ISapienCore.AlreadyRevealed.selector);
         engine.revealValidation(projId, index, score, salt);
@@ -1268,9 +1268,9 @@ contract QEValidationBranchTest is QECoverageBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid2, 1);
         uint256 index = indices[0];
 
-        uint16 score = 8000;
+        uint256 score = 8000;
         bytes32 salt = keccak256(abi.encodePacked("salt", validator1, pid2, index, score));
-        bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
+        bytes32 commitHash = keccak256(abi.encodePacked(uint256(score), salt));
 
         vm.startPrank(validator1);
         {
@@ -1333,10 +1333,10 @@ contract QESettleBranchTest is QECoverageBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid2, 1);
         uint256 index = indices[0];
 
-        _validate(validator1, pid2, index, 9500, uint128(VALIDATOR_STAKE));
-        _validate(validator2, pid2, index, 9500, uint128(VALIDATOR_STAKE));
-        _validate(validator3, pid2, index, 9500, uint128(VALIDATOR_STAKE));
-        _validate(validator4, pid2, index, 100, uint128(VALIDATOR_STAKE));
+        _validate(validator1, pid2, index, 9500, VALIDATOR_STAKE);
+        _validate(validator2, pid2, index, 9500, VALIDATOR_STAKE);
+        _validate(validator3, pid2, index, 9500, VALIDATOR_STAKE);
+        _validate(validator4, pid2, index, 100, VALIDATOR_STAKE);
 
         engine.computeConsensus(pid2, index);
 
@@ -1371,14 +1371,14 @@ contract QESettleBranchTest is QECoverageBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid2, 1);
         uint256 index = indices[0];
 
-        _validate(validator1, pid2, index, 8000, uint128(VALIDATOR_STAKE));
-        _validate(validator2, pid2, index, 8000, uint128(VALIDATOR_STAKE));
-        _validate(validator3, pid2, index, 8000, uint128(VALIDATOR_STAKE));
+        _validate(validator1, pid2, index, 8000, VALIDATOR_STAKE);
+        _validate(validator2, pid2, index, 8000, VALIDATOR_STAKE);
+        _validate(validator3, pid2, index, 8000, VALIDATOR_STAKE);
 
         // validator4 commits with tiny stake (5 wei) → slash = 5 * 1000 / 10000 = 0
-        uint16 score = 100;
+        uint256 score = 100;
         bytes32 salt = keccak256(abi.encodePacked("salt", validator4, pid2, index, score));
-        bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
+        bytes32 commitHash = keccak256(abi.encodePacked(uint256(score), salt));
 
         _ensureStake(validator4, 1e18);
         vm.startPrank(validator4);
@@ -1415,13 +1415,13 @@ contract QESettleBranchTest is QECoverageBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid2, 1);
         uint256 index = indices[0];
 
-        _validate(validator1, pid2, index, 8000, uint128(VALIDATOR_STAKE));
-        _validate(validator2, pid2, index, 8500, uint128(VALIDATOR_STAKE));
+        _validate(validator1, pid2, index, 8000, VALIDATOR_STAKE);
+        _validate(validator2, pid2, index, 8500, VALIDATOR_STAKE);
 
         // validator3 tries to commit with 0 stake — should revert with InsufficientStake
-        uint16 score = 7500;
+        uint256 score = 7500;
         bytes32 salt = keccak256(abi.encodePacked("salt", validator3, pid2, index, score));
-        bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
+        bytes32 commitHash = keccak256(abi.encodePacked(uint256(score), salt));
         vm.startPrank(validator3);
         {
             uint256[] memory _indices = new uint256[](1);
@@ -1604,7 +1604,7 @@ contract QEDisputeBranchTest is QECoverageBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
         uint256 index = indices[0];
 
-        _validate(validator1, projId, index, 8000, uint128(VALIDATOR_STAKE));
+        _validate(validator1, projId, index, 8000, VALIDATOR_STAKE);
 
         vm.warp(block.timestamp + 6 days);
         vm.expectRevert(ISapienCore.AlreadyRevealed.selector);
@@ -1721,12 +1721,12 @@ contract QEReputationAdminBranchTest is QECoverageBase {
     function test_reputationDecay_inConsensus() public {
         // Ensure reputation is initialized, then warp to trigger decay during consensus
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
-        _validate(validator1, projId, indices[0], 8000, uint128(VALIDATOR_STAKE));
-        _validate(validator2, projId, indices[0], 8500, uint128(VALIDATOR_STAKE));
+        _validate(validator1, projId, indices[0], 8000, VALIDATOR_STAKE);
+        _validate(validator2, projId, indices[0], 8500, VALIDATOR_STAKE);
 
         vm.warp(block.timestamp + 10 days);
 
-        _validate(validator3, projId, indices[0], 7500, uint128(VALIDATOR_STAKE));
+        _validate(validator3, projId, indices[0], 7500, VALIDATOR_STAKE);
         engine.computeConsensus(projId, indices[0]);
     }
 
@@ -1890,10 +1890,10 @@ contract QERemainingGapsTest is QECoverageBase {
 
         // All validators commit with tiny stake (9 wei) and equal reputation
         address[4] memory vals = [validator1, validator2, validator3, validator4];
-        uint16[4] memory scores = [uint16(9500), uint16(9500), uint16(9500), uint16(100)];
+        uint256[4] memory scores = [uint256(9500), uint256(9500), uint256(9500), uint256(100)];
         for (uint256 i; i < 4; ++i) {
             bytes32 salt = keccak256(abi.encodePacked("salt", vals[i], pid, index, scores[i]));
-            bytes32 commitHash = keccak256(abi.encodePacked(scores[i], salt));
+            bytes32 commitHash = keccak256(abi.encodePacked(uint256(scores[i]), salt));
             _ensureStake(vals[i], 1e18);
             vm.startPrank(vals[i]);
             {
@@ -2052,11 +2052,11 @@ contract QERemainingGapsTest is QECoverageBase {
         vault.deposit(STAKE_AMOUNT * 10, validator5);
         vm.stopPrank();
 
-        _validate(validator1, pid, index, 9500, uint128(VALIDATOR_STAKE));
-        _validate(validator2, pid, index, 9500, uint128(VALIDATOR_STAKE));
-        _validate(validator3, pid, index, 9500, uint128(VALIDATOR_STAKE));
-        _validate(validator4, pid, index, 9500, uint128(VALIDATOR_STAKE));
-        _validate(validator5, pid, index, 100, uint128(VALIDATOR_STAKE));
+        _validate(validator1, pid, index, 9500, VALIDATOR_STAKE);
+        _validate(validator2, pid, index, 9500, VALIDATOR_STAKE);
+        _validate(validator3, pid, index, 9500, VALIDATOR_STAKE);
+        _validate(validator4, pid, index, 9500, VALIDATOR_STAKE);
+        _validate(validator5, pid, index, 100, VALIDATOR_STAKE);
 
         engine.computeConsensus(pid, index);
 
@@ -2083,9 +2083,9 @@ contract QERemainingGapsTest is QECoverageBase {
 
         // validator1 does a validation to initialize reputation
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
-        _validate(validator1, pid, indices[0], 8000, uint128(VALIDATOR_STAKE));
-        _validate(validator2, pid, indices[0], 8500, uint128(VALIDATOR_STAKE));
-        _validate(validator3, pid, indices[0], 7500, uint128(VALIDATOR_STAKE));
+        _validate(validator1, pid, indices[0], 8000, VALIDATOR_STAKE);
+        _validate(validator2, pid, indices[0], 8500, VALIDATOR_STAKE);
+        _validate(validator3, pid, indices[0], 7500, VALIDATOR_STAKE);
         engine.computeConsensus(pid, indices[0]);
 
         // Warp to trigger decay
@@ -2104,9 +2104,9 @@ contract QERemainingGapsTest is QECoverageBase {
         vm.stopPrank();
 
         (, uint256[] memory indices2) = _claimAndSubmit(contributor1, pid2, 1);
-        _validate(validator1, pid2, indices2[0], 8000, uint128(VALIDATOR_STAKE));
-        _validate(validator2, pid2, indices2[0], 8500, uint128(VALIDATOR_STAKE));
-        _validate(validator3, pid2, indices2[0], 7500, uint128(VALIDATOR_STAKE));
+        _validate(validator1, pid2, indices2[0], 8000, VALIDATOR_STAKE);
+        _validate(validator2, pid2, indices2[0], 8500, VALIDATOR_STAKE);
+        _validate(validator3, pid2, indices2[0], 7500, VALIDATOR_STAKE);
 
         // computeConsensus uses _getReputationScoreCached with time gap
         engine.computeConsensus(pid2, indices2[0]);
@@ -2315,9 +2315,9 @@ contract QEExplicitBranchTest is QECoverageBase {
         uint256 index = indices[0];
 
         // Low scores → rejection
-        _validate(validator1, pid, index, 2000, uint128(VALIDATOR_STAKE));
-        _validate(validator2, pid, index, 1500, uint128(VALIDATOR_STAKE));
-        _validate(validator3, pid, index, 3000, uint128(VALIDATOR_STAKE));
+        _validate(validator1, pid, index, 2000, VALIDATOR_STAKE);
+        _validate(validator2, pid, index, 1500, VALIDATOR_STAKE);
+        _validate(validator3, pid, index, 3000, VALIDATOR_STAKE);
 
         engine.computeConsensus(pid, index);
 
@@ -2534,7 +2534,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
 
         _ensureStake(validator1, VALIDATOR_STAKE * 3);
         vm.startPrank(validator1);
-        engine.lockValidatorCapacity(uint128(VALIDATOR_STAKE));
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
         vm.expectRevert(); // InsufficientReputation
         {
             uint256[] memory _indices = new uint256[](1);
@@ -2592,7 +2592,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
 
         // Commit but don't reveal
         bytes32 salt = keccak256(abi.encodePacked("salt", validator1, pid, index));
-        bytes32 commitHash = keccak256(abi.encodePacked(uint16(8000), salt));
+        bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), salt));
         _ensureStake(validator1, VALIDATOR_STAKE * 3);
         vm.startPrank(validator1);
         {
@@ -2600,8 +2600,8 @@ contract QEFullPathCoverageTest is QECoverageBase {
             _indices[0] = index;
             engine.claimToValidate(pid, _indices);
         }
-        engine.lockValidatorCapacity(uint128(VALIDATOR_STAKE));
-        engine.commitValidation(pid, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        engine.commitValidation(pid, index, commitHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
 
         // Warp past commit + reveal deadline
@@ -2821,7 +2821,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
         // This will call commitValidation which checks minValidatorReputation > 0
         // and calls _getReputationScore
-        _validate(validator1, pid, indices[0], 8000, uint128(VALIDATOR_STAKE));
+        _validate(validator1, pid, indices[0], 8000, VALIDATOR_STAKE);
     }
 
     // ── _getReputationScoreCached with decay (lines 1295-1306) ──────
@@ -2857,7 +2857,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
 
         (, uint256[] memory indices2) = _claimAndSubmit(contributor2, pid2, 1);
         // This commit calls _getReputationScore → _getReputationScoreCached with decay
-        _validate(validator1, pid2, indices2[0], 8000, uint128(VALIDATOR_STAKE));
+        _validate(validator1, pid2, indices2[0], 8000, VALIDATOR_STAKE);
     }
 
     // ── initialize ZeroAddress for admin (line 190) ──────────────────
@@ -2892,7 +2892,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         uint256 index = indices[0];
 
         bytes32 salt = keccak256(abi.encodePacked("salt", validator1, pid, index));
-        bytes32 commitHash = keccak256(abi.encodePacked(uint16(8000), salt));
+        bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), salt));
         _ensureStake(validator1, VALIDATOR_STAKE * 3);
         vm.startPrank(validator1);
         {
@@ -2900,8 +2900,8 @@ contract QEFullPathCoverageTest is QECoverageBase {
             _indices[0] = index;
             engine.claimToValidate(pid, _indices);
         }
-        engine.lockValidatorCapacity(uint128(VALIDATOR_STAKE));
-        engine.commitValidation(pid, index, commitHash, uint128(VALIDATOR_STAKE), address(0));
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        engine.commitValidation(pid, index, commitHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
 
         // Try to cancel before expiry
@@ -2991,7 +2991,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         (, uint256[] memory indices2) = _claimAndSubmit(contributor2, pid2, 1);
         // commitValidation calls _getReputationScore on validator1
         // which calls _getReputationScoreCached with initialized rep + decay
-        _validate(validator1, pid2, indices2[0], 8000, uint128(VALIDATOR_STAKE));
+        _validate(validator1, pid2, indices2[0], 8000, VALIDATOR_STAKE);
     }
 
     // ── Initialize with zero admin via proxy (different approach for line 192) ──
@@ -3039,9 +3039,9 @@ contract QEFullPathCoverageTest is QECoverageBase {
     // ── getAdapterFees (line 1386 branch) ───────────────────────────
     function test_getAdapterFees() public view {
         (uint256 origBps, uint256 contribBps, uint256 valBps) = engine.getAdapterFees();
-        assertEq(origBps, 200);
-        assertEq(contribBps, 200);
-        assertEq(valBps, 200);
+        assertEq(origBps, 400);
+        assertEq(contribBps, 300);
+        assertEq(valBps, 300);
     }
 
     // ── initialize with zero treasury (line 190) ─────────────

@@ -1,49 +1,43 @@
 # Wagmi + React Implementation Guide
 
-This guide provides a comprehensive implementation reference for building a React frontend application using wagmi to interact with the Sapien PoQ Protocol. The guide is based on the complete protocol lifecycle and includes practical code examples for all major operations.
+This guide provides a comprehensive implementation reference for building a React frontend application using wagmi to interact with the Sapien PoQ v0.5 Protocol. All protocol operations are called on `SapienCore`. Staking deposit/withdrawal uses `SapienVault` (ERC-4626).
 
 ## Table of Contents
 
-1. [Setup & Configuration](#setup--configuration)
-2. [Staking Requirements (Prerequisite)](#staking-requirements-prerequisite)
+1. [Setup and Configuration](#setup-and-configuration)
+2. [Staking (Prerequisite)](#staking-prerequisite)
 3. [Phase 1: Project Setup (Originator)](#phase-1-project-setup-originator)
 4. [Phase 2: Contributor Workflow](#phase-2-contributor-workflow)
 5. [Phase 3: Validator Workflow](#phase-3-validator-workflow)
-6. [Phase 4: Consensus & Finalization](#phase-4-consensus--finalization)
+6. [Phase 4: Consensus and Finalization](#phase-4-consensus-and-finalization)
 7. [Phase 5: Reward Distribution](#phase-5-reward-distribution)
-8. [Phase 6: Reputation & Skills](#phase-6-reputation--skills)
-9. [Phase 7: Batch Operations](#phase-7-batch-operations)
-10. [Utilities & Helpers](#utilities--helpers)
+8. [Phase 6: Disputes](#phase-6-disputes)
+9. [Phase 7: Reputation](#phase-7-reputation)
+10. [Phase 8: Batch Operations](#phase-8-batch-operations)
+11. [Utilities and Helpers](#utilities-and-helpers)
 
 ---
 
-## Setup & Configuration
+## Setup and Configuration
 
 ### Install Dependencies
 
 ```bash
 npm install wagmi viem @tanstack/react-query
-# or
-yarn add wagmi viem @tanstack/react-query
 ```
 
 ### Configure Wagmi
 
 ```typescript
 // wagmi.config.ts
-import { defineConfig } from 'wagmi'
-import { baseSepolia } from 'wagmi/chains'
 import { createConfig, http } from 'wagmi'
+import { baseSepolia } from 'wagmi/chains'
 
-// Contract addresses (Base Sepolia)
 const CONTRACTS = {
-  SAPIEN_CORE: '0xba050696Ad19E1961485B300D3b0Cb3D35eB640b',
-  VALIDATION_ORACLE: '0x6c1Bb25b2eDcF7a970bD42F97d72676fAAF8a8D4',
-  SAPIEN_TRUST: '0x21d2391D6bB9A9928EC15b24f1efC8b9DFCEf7A9',
-  SAPIEN_VAULT: '0x1A7673226d6CD1634e7c78E2D48B351d9E306423',
-  REWARDS: '0xC8996Af3b3D8642dc231F06b6D5486CA3378ac88',
-  SAPIEN_TOKEN: '0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6',
-  USDC: '0x4d4394119CF096FbdbbD3Efb00d204c891C6Cd05',
+  SAPIEN_CORE: '0x...',
+  SAPIEN_VAULT: '0x...',
+  SAPIEN_TOKEN: '0x...',
+  USDC: '0x...',
 } as const
 
 export const config = createConfig({
@@ -79,40 +73,33 @@ function App() {
 
 ### Contract ABIs
 
-You'll need to import or generate ABIs for:
-- `SapienCore`
-- `ValidationOracle`
-- `SapienTrust`
-- `SapienVault`
-- `Rewards`
-- `IERC20` (for token approvals)
+You need ABIs for two protocol contracts and the ERC-20 standard:
+
+- `SapienCore` — all protocol operations
+- `SapienVault` — staking deposit/withdrawal and balance queries
+- `IERC20` — token approvals
 
 ---
 
-## Staking Requirements (Prerequisite)
+## Staking (Prerequisite)
 
-> **Important:** Users must stake tokens in the SapienVault before participating in the protocol. Contributors need stake to claim work, and validators need stake to commit validations. Without sufficient stake, protocol operations will fail.
+Users must deposit SAPIEN tokens into the `SapienVault` before participating. The vault is ERC-4626 compliant — users deposit the staking token and receive vault shares in return.
 
-The SapienVault is an ERC-4626 compliant vault where users deposit the staking token (SAPIEN) and receive vault shares (vSAPIEN) in return. When participating in the protocol, stake is locked to prevent withdrawals during active contributions or validations.
-
-### Stake Deposit (Required Before Contributing/Validating)
+### Deposit Stake
 
 ```typescript
 // hooks/useDepositStake.ts
-import { useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi'
+import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { useAccount } from 'wagmi'
 import { CONTRACTS } from '../wagmi.config'
 import { sapienVaultABI, erc20ABI } from '../abis'
-import { parseEther, formatEther } from 'viem'
+import { parseEther } from 'viem'
 
 export function useDepositStake() {
   const { address } = useAccount()
   const { writeContract, data: hash, isPending, error } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  })
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
-  // Step 1: Approve staking token
   const approveStakingToken = async (amount: string) => {
     const amountWei = parseEther(amount)
     await writeContract({
@@ -123,7 +110,6 @@ export function useDepositStake() {
     })
   }
 
-  // Step 2: Deposit tokens into vault
   const depositStake = async (amount: string) => {
     const amountWei = parseEther(amount)
     await writeContract({
@@ -134,24 +120,7 @@ export function useDepositStake() {
     })
   }
 
-  // Combined: Approve and deposit in sequence
-  const stakeTokens = async (amount: string) => {
-    // Note: In production, check existing allowance first
-    await approveStakingToken(amount)
-    // Wait for approval to confirm before depositing
-    await depositStake(amount)
-  }
-
-  return {
-    approveStakingToken,
-    depositStake,
-    stakeTokens,
-    isPending,
-    isConfirming,
-    isSuccess,
-    error,
-    hash,
-  }
+  return { approveStakingToken, depositStake, isPending, isConfirming, isSuccess, error, hash }
 }
 ```
 
@@ -168,53 +137,45 @@ import { formatEther } from 'viem'
 export function useStakeBalance() {
   const { address } = useAccount()
 
-  // Total staked balance (in underlying assets)
-  const { data: totalStake, isLoading: isLoadingTotal, refetch: refetchTotal } = useReadContract({
+  const { data: stakeAccount, isLoading, refetch } = useReadContract({
     address: CONTRACTS.SAPIEN_VAULT,
     abi: sapienVaultABI,
-    functionName: 'getStake',
+    functionName: 'getStakeAccount',
     args: address ? [address] : undefined,
-    query: {
-      enabled: !!address,
-    },
+    query: { enabled: !!address },
   })
 
-  // Available (unlocked) stake
-  const { data: availableStake, isLoading: isLoadingAvailable, refetch: refetchAvailable } = useReadContract({
+  const { data: available, refetch: refetchAvailable } = useReadContract({
     address: CONTRACTS.SAPIEN_VAULT,
     abi: sapienVaultABI,
-    functionName: 'getAvailableStake',
+    functionName: 'availableBalance',
     args: address ? [address] : undefined,
-    query: {
-      enabled: !!address,
-    },
+    query: { enabled: !!address },
   })
 
-  // Locked stake (committed to active contributions/validations)
-  const { data: lockedStake, isLoading: isLoadingLocked, refetch: refetchLocked } = useReadContract({
+  const { data: total, refetch: refetchTotal } = useReadContract({
     address: CONTRACTS.SAPIEN_VAULT,
     abi: sapienVaultABI,
-    functionName: 'getLockedStake',
+    functionName: 'totalStaked',
     args: address ? [address] : undefined,
-    query: {
-      enabled: !!address,
-    },
+    query: { enabled: !!address },
   })
 
   const refetchAll = () => {
-    refetchTotal()
+    refetch()
     refetchAvailable()
-    refetchLocked()
+    refetchTotal()
   }
 
   return {
-    totalStake: totalStake ? formatEther(totalStake) : '0',
-    totalStakeWei: totalStake ?? BigInt(0),
-    availableStake: availableStake ? formatEther(availableStake) : '0',
-    availableStakeWei: availableStake ?? BigInt(0),
-    lockedStake: lockedStake ? formatEther(lockedStake) : '0',
-    lockedStakeWei: lockedStake ?? BigInt(0),
-    isLoading: isLoadingTotal || isLoadingAvailable || isLoadingLocked,
+    contributorLock: stakeAccount ? formatEther(stakeAccount.contributorLock) : '0',
+    validatorCapacity: stakeAccount ? formatEther(stakeAccount.validatorCapacity) : '0',
+    inFlight: stakeAccount ? formatEther(stakeAccount.inFlight) : '0',
+    availableBalance: available ? formatEther(available) : '0',
+    availableBalanceWei: available ?? BigInt(0),
+    totalStaked: total ? formatEther(total) : '0',
+    totalStakedWei: total ?? BigInt(0),
+    isLoading,
     refetch: refetchAll,
   }
 }
@@ -233,11 +194,8 @@ import { parseEther } from 'viem'
 export function useWithdrawStake() {
   const { address } = useAccount()
   const { writeContract, data: hash, isPending, error } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  })
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
-  // Withdraw a specific amount of assets
   const withdrawStake = async (amount: string) => {
     const amountWei = parseEther(amount)
     await writeContract({
@@ -248,228 +206,7 @@ export function useWithdrawStake() {
     })
   }
 
-  return {
-    withdrawStake,
-    isPending,
-    isConfirming,
-    isSuccess,
-    error,
-    hash,
-  }
-}
-```
-
-### Check Token Allowance
-
-```typescript
-// hooks/useTokenAllowance.ts
-import { useReadContract } from 'wagmi'
-import { useAccount } from 'wagmi'
-import { CONTRACTS } from '../wagmi.config'
-import { erc20ABI } from '../abis'
-import { formatEther } from 'viem'
-
-export function useStakingTokenAllowance() {
-  const { address } = useAccount()
-
-  const { data: allowance, isLoading, refetch } = useReadContract({
-    address: CONTRACTS.SAPIEN_TOKEN,
-    abi: erc20ABI,
-    functionName: 'allowance',
-    args: address ? [address, CONTRACTS.SAPIEN_VAULT] : undefined,
-    query: {
-      enabled: !!address,
-    },
-  })
-
-  return {
-    allowance: allowance ? formatEther(allowance) : '0',
-    allowanceWei: allowance ?? BigInt(0),
-    isLoading,
-    refetch,
-  }
-}
-```
-
-**Usage:**
-
-```typescript
-// components/StakingPanel.tsx
-import { useDepositStake } from '../hooks/useDepositStake'
-import { useWithdrawStake } from '../hooks/useWithdrawStake'
-import { useStakeBalance } from '../hooks/useStakeBalance'
-import { useStakingTokenAllowance } from '../hooks/useTokenAllowance'
-import { useState } from 'react'
-import { parseEther } from 'viem'
-
-function StakingPanel() {
-  const [amount, setAmount] = useState('')
-  const { totalStake, availableStake, lockedStake, isLoading, refetch } = useStakeBalance()
-  const { allowanceWei, refetch: refetchAllowance } = useStakingTokenAllowance()
-  const { approveStakingToken, depositStake, isPending: isDepositing } = useDepositStake()
-  const { withdrawStake, isPending: isWithdrawing } = useWithdrawStake()
-
-  const handleDeposit = async () => {
-    const amountWei = parseEther(amount)
-    
-    // Check if approval is needed
-    if (allowanceWei < amountWei) {
-      await approveStakingToken(amount)
-      await refetchAllowance()
-    }
-    
-    await depositStake(amount)
-    refetch()
-    setAmount('')
-  }
-
-  const handleWithdraw = async () => {
-    await withdrawStake(amount)
-    refetch()
-    setAmount('')
-  }
-
-  return (
-    <div className="staking-panel">
-      <h2>Your Stake</h2>
-      
-      {isLoading ? (
-        <p>Loading...</p>
-      ) : (
-        <div className="stake-info">
-          <div className="stake-row">
-            <span>Total Staked:</span>
-            <span>{totalStake} SAPIEN</span>
-          </div>
-          <div className="stake-row">
-            <span>Available:</span>
-            <span>{availableStake} SAPIEN</span>
-          </div>
-          <div className="stake-row">
-            <span>Locked:</span>
-            <span>{lockedStake} SAPIEN</span>
-          </div>
-        </div>
-      )}
-
-      <div className="stake-actions">
-        <input
-          type="number"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="Amount to stake/withdraw"
-          min="0"
-          step="0.01"
-        />
-        
-        <div className="button-group">
-          <button 
-            onClick={handleDeposit} 
-            disabled={isDepositing || !amount}
-          >
-            {isDepositing ? 'Staking...' : 'Stake'}
-          </button>
-          
-          <button 
-            onClick={handleWithdraw} 
-            disabled={isWithdrawing || !amount || parseFloat(amount) > parseFloat(availableStake)}
-          >
-            {isWithdrawing ? 'Withdrawing...' : 'Withdraw'}
-          </button>
-        </div>
-        
-        {parseFloat(lockedStake) > 0 && (
-          <p className="warning">
-            Note: {lockedStake} SAPIEN is locked for active contributions/validations
-          </p>
-        )}
-      </div>
-    </div>
-  )
-}
-```
-
-### Check Stake Requirements Before Actions
-
-Use this hook to verify a user has sufficient stake before attempting protocol operations:
-
-```typescript
-// hooks/useStakeRequirements.ts
-import { useStakeBalance } from './useStakeBalance'
-import { useProject } from './useProject'
-import { parseEther } from 'viem'
-
-export function useStakeRequirements(projectId: `0x${string}` | undefined) {
-  const { availableStakeWei, totalStakeWei, isLoading: isLoadingStake } = useStakeBalance()
-  const { project, isLoading: isLoadingProject } = useProject(projectId)
-
-  const minStakeToClaim = project?.config.minStakeToClaim ?? BigInt(0)
-  const minStakeToContribute = project?.config.minStakeToContribute ?? BigInt(0)
-
-  const canClaim = availableStakeWei >= minStakeToClaim
-  const canContribute = availableStakeWei >= minStakeToContribute
-  const stakingShortfall = minStakeToClaim > availableStakeWei 
-    ? minStakeToClaim - availableStakeWei 
-    : BigInt(0)
-
-  return {
-    canClaim,
-    canContribute,
-    minStakeToClaim,
-    minStakeToContribute,
-    availableStakeWei,
-    totalStakeWei,
-    stakingShortfall,
-    isLoading: isLoadingStake || isLoadingProject,
-  }
-}
-```
-
-**Usage with Action Buttons:**
-
-```typescript
-// components/ClaimButton.tsx
-import { useStakeRequirements } from '../hooks/useStakeRequirements'
-import { useClaimToContribute } from '../hooks/useClaimToContribute'
-import { formatEther } from 'viem'
-
-function ClaimButton({ projectId }: { projectId: `0x${string}` }) {
-  const { 
-    canClaim, 
-    minStakeToClaim, 
-    stakingShortfall, 
-    isLoading 
-  } = useStakeRequirements(projectId)
-  const { claimToContribute, isPending } = useClaimToContribute()
-
-  const handleClaim = async () => {
-    if (!canClaim) {
-      alert(`Insufficient stake. Please stake at least ${formatEther(stakingShortfall)} more SAPIEN.`)
-      return
-    }
-    
-    await claimToContribute({ projectId, quantity: 1 })
-  }
-
-  if (isLoading) return <button disabled>Loading...</button>
-
-  return (
-    <div>
-      <button 
-        onClick={handleClaim} 
-        disabled={!canClaim || isPending}
-      >
-        {isPending ? 'Claiming...' : 'Claim to Contribute'}
-      </button>
-      
-      {!canClaim && (
-        <p className="error">
-          Requires {formatEther(minStakeToClaim)} SAPIEN staked. 
-          You need {formatEther(stakingShortfall)} more.
-        </p>
-      )}
-    </div>
-  )
+  return { withdrawStake, isPending, isConfirming, isSuccess, error, hash }
 }
 ```
 
@@ -477,19 +214,11 @@ function ClaimButton({ projectId }: { projectId: `0x${string}` }) {
 
 | Concept | Description |
 |---------|-------------|
-| **Total Stake** | Your entire position in the vault (shares converted to asset value) |
-| **Available Stake** | Stake that can be withdrawn or used for new claims |
-| **Locked Stake** | Stake committed to active contributions/validations (cannot be withdrawn) |
-| **minStakeToClaim** | Minimum stake required to claim a contribution slot (set per project) |
-| **minStakeToContribute** | Minimum stake required to submit contributions (set per project) |
-
-### Important Notes
-
-1. **Stake Before Acting**: Always deposit stake before attempting to claim contributions or validate
-2. **Locked Stake**: When you claim to contribute or commit a validation, stake is locked until finalization
-3. **Slashing Risk**: Bad behavior (invalid contributions, wrong validations) can result in stake being slashed
-4. **Unlocking**: Stake is automatically unlocked when contributions are finalized or validations complete
-5. **Withdrawal Limits**: You can only withdraw your available (unlocked) stake
+| **Available Balance** | Stake not locked in any bucket — can be withdrawn or locked |
+| **Contributor Lock** | Stake locked as collateral for active contribution claims |
+| **Validator Capacity** | Stake locked as a pool for validation commits |
+| **In-Flight** | Stake committed to active validations (drawn from capacity) |
+| **Total Staked** | Sum of all buckets (available + contributor lock + capacity + in-flight) |
 
 ---
 
@@ -501,94 +230,67 @@ function ClaimButton({ projectId }: { projectId: `0x${string}` }) {
 // hooks/useCreateProject.ts
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { CONTRACTS } from '../wagmi.config'
-import { encodeFunctionData } from 'viem'
 import { sapienCoreABI } from '../abis'
+import { parseEther } from 'viem'
 
 export function useCreateProject() {
   const { writeContract, data: hash, isPending, error } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  })
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
   const createProject = async ({
     projectId,
+    metadataCid,
     rewardToken,
     minStakeToClaim,
-    minStakeToContribute,
-    minValidations,
-    validatorRewardBasisPoints,
+    minValidationStake,
+    consensusThreshold,
+    validatorRewardBps,
+    numberOfValidations,
     requiredSkill,
+    minValidatorReputation,
   }: {
     projectId: `0x${string}`
+    metadataCid: string
     rewardToken: `0x${string}`
     minStakeToClaim: bigint
-    minStakeToContribute: bigint
-    minValidations: number
-    validatorRewardBasisPoints: number
-    requiredSkill: string
+    minValidationStake: bigint
+    consensusThreshold: number
+    validatorRewardBps: number
+    numberOfValidations: number
+    requiredSkill: `0x${string}`
+    minValidatorReputation: number
   }) => {
+    const emptyAddress = '0x0000000000000000000000000000000000000000' as `0x${string}`
+
     writeContract({
       address: CONTRACTS.SAPIEN_CORE,
       abi: sapienCoreABI,
       functionName: 'createProject',
       args: [
         projectId,
-        rewardToken,
-        minStakeToClaim,
-        minStakeToContribute,
-        minValidations,
-        validatorRewardBasisPoints,
-        requiredSkill,
+        metadataCid,
+        {
+          originator: emptyAddress,
+          rewardToken,
+          totalRewards: BigInt(0),
+          totalQuantity: BigInt(0),
+          availableSlots: BigInt(0),
+          minStakeToClaim,
+          minValidationStake,
+          requiredSkill,
+          consensusThreshold: BigInt(consensusThreshold),
+          validatorRewardBps: BigInt(validatorRewardBps),
+          numberOfValidations: BigInt(numberOfValidations),
+          minValidatorReputation: BigInt(minValidatorReputation),
+          status: 0,
+          activatedAt: BigInt(0),
+          completedAt: BigInt(0),
+        },
       ],
     })
   }
 
-  return {
-    createProject,
-    isPending,
-    isConfirming,
-    isSuccess,
-    error,
-    hash,
-  }
-}
-```
-
-**Usage:**
-
-```typescript
-// components/CreateProjectForm.tsx
-import { useCreateProject } from '../hooks/useCreateProject'
-import { keccak256, toBytes, stringToBytes } from 'viem'
-
-function CreateProjectForm() {
-  const { createProject, isPending, isSuccess } = useCreateProject()
-
-  const handleSubmit = async (formData: FormData) => {
-    const projectId = keccak256(
-      toBytes(`${formData.name}-${Date.now()}`)
-    ) as `0x${string}`
-
-    await createProject({
-      projectId,
-      rewardToken: CONTRACTS.USDC,
-      minStakeToClaim: parseEther('100'),
-      minStakeToContribute: parseEther('50'),
-      minValidations: 3,
-      validatorRewardBasisPoints: 1000, // 10%
-      requiredSkill: 'Data Annotation',
-    })
-  }
-
-  return (
-    <form onSubmit={handleSubmit}>
-      {/* Form fields */}
-      <button type="submit" disabled={isPending}>
-        {isPending ? 'Creating...' : 'Create Project'}
-      </button>
-      {isSuccess && <p>Project created successfully!</p>}
-    </form>
-  )
+  return { createProject, isPending, isConfirming, isSuccess, error, hash }
 }
 ```
 
@@ -597,59 +299,55 @@ function CreateProjectForm() {
 ```typescript
 // hooks/useFundProject.ts
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
-import { useAccount } from 'wagmi'
 import { CONTRACTS } from '../wagmi.config'
 import { sapienCoreABI, erc20ABI } from '../abis'
 import { parseUnits } from 'viem'
 
 export function useFundProject() {
-  const { address } = useAccount()
-  const { writeContract: writeCore, data: hash, isPending } = useWriteContract()
-  const { writeContract: writeToken } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  })
+  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
-  const fundProject = async ({
-    projectId,
+  const approveRewardToken = async ({
     rewardToken,
-    rewardAmount,
-    quantity,
+    amount,
     decimals = 18,
   }: {
-    projectId: `0x${string}`
     rewardToken: `0x${string}`
-    rewardAmount: string
-    quantity: number
+    amount: string
     decimals?: number
   }) => {
-    const amount = parseUnits(rewardAmount, decimals)
-
-    // Step 1: Approve token spending
-    await writeToken({
+    const amountWei = parseUnits(amount, decimals)
+    await writeContract({
       address: rewardToken,
       abi: erc20ABI,
       functionName: 'approve',
-      args: [CONTRACTS.SAPIEN_CORE, amount],
+      args: [CONTRACTS.SAPIEN_CORE, amountWei],
     })
+  }
 
-    // Step 2: Fund project
-    await writeCore({
+  const fundProject = async ({
+    projectId,
+    amount,
+    quantity,
+    adapter = '0x0000000000000000000000000000000000000000',
+    decimals = 18,
+  }: {
+    projectId: `0x${string}`
+    amount: string
+    quantity: number
+    adapter?: `0x${string}`
+    decimals?: number
+  }) => {
+    const amountWei = parseUnits(amount, decimals)
+    await writeContract({
       address: CONTRACTS.SAPIEN_CORE,
       abi: sapienCoreABI,
       functionName: 'fundProject',
-      args: [projectId, amount, BigInt(quantity)],
+      args: [projectId, amountWei, BigInt(quantity), adapter],
     })
   }
 
-  return {
-    fundProject,
-    isPending,
-    isConfirming,
-    isSuccess,
-    error,
-    hash,
-  }
+  return { approveRewardToken, fundProject, isPending, isConfirming, isSuccess, error, hash }
 }
 ```
 
@@ -667,16 +365,44 @@ export function useProject(projectId: `0x${string}` | undefined) {
     abi: sapienCoreABI,
     functionName: 'getProject',
     args: projectId ? [projectId] : undefined,
-    query: {
-      enabled: !!projectId,
-    },
+    query: { enabled: !!projectId },
   })
 
-  return {
-    project,
-    isLoading,
-    error,
+  return { project, isLoading, error }
+}
+```
+
+### 1.4 Complete Project and Refund
+
+```typescript
+// hooks/useCompleteProject.ts
+import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { CONTRACTS } from '../wagmi.config'
+import { sapienCoreABI } from '../abis'
+
+export function useCompleteProject() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+
+  const completeProject = async (projectId: `0x${string}`) => {
+    await writeContract({
+      address: CONTRACTS.SAPIEN_CORE,
+      abi: sapienCoreABI,
+      functionName: 'completeProject',
+      args: [projectId],
+    })
   }
+
+  const refundEscrow = async (projectId: `0x${string}`) => {
+    await writeContract({
+      address: CONTRACTS.SAPIEN_CORE,
+      abi: sapienCoreABI,
+      functionName: 'refundEscrow',
+      args: [projectId],
+    })
+  }
+
+  return { completeProject, refundEscrow, isPending, isConfirming, isSuccess, error, hash }
 }
 ```
 
@@ -693,35 +419,27 @@ import { CONTRACTS } from '../wagmi.config'
 import { sapienCoreABI } from '../abis'
 
 export function useClaimToContribute() {
-  const { writeContract, data: hash, isPending } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  })
+  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
   const claimToContribute = async ({
     projectId,
     quantity,
+    adapter = '0x0000000000000000000000000000000000000000',
   }: {
     projectId: `0x${string}`
     quantity: number
+    adapter?: `0x${string}`
   }) => {
-    const result = await writeContract({
+    await writeContract({
       address: CONTRACTS.SAPIEN_CORE,
       abi: sapienCoreABI,
       functionName: 'claimToContribute',
-      args: [projectId, BigInt(quantity)],
+      args: [projectId, BigInt(quantity), adapter],
     })
-
-    return result
   }
 
-  return {
-    claimToContribute,
-    isPending,
-    isConfirming,
-    isSuccess,
-    hash,
-  }
+  return { claimToContribute, isPending, isConfirming, isSuccess, error, hash }
 }
 ```
 
@@ -735,43 +453,33 @@ import { sapienCoreABI } from '../abis'
 import { keccak256, toBytes } from 'viem'
 
 export function useContribute() {
-  const { writeContract, data: hash, isPending } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  })
+  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
   const contribute = async ({
-    projectId,
     claimId,
-    contributionIndex,
-    submissionHash, // IPFS CID or hash of work
+    index,
+    submissionHash,
+    dataCid,
   }: {
-    projectId: `0x${string}`
     claimId: bigint
-    contributionIndex: number
+    index: bigint
     submissionHash: `0x${string}`
+    dataCid: string
   }) => {
     await writeContract({
       address: CONTRACTS.SAPIEN_CORE,
       abi: sapienCoreABI,
       functionName: 'contribute',
-      args: [projectId, claimId, BigInt(contributionIndex), submissionHash],
+      args: [claimId, index, submissionHash, dataCid],
     })
   }
 
-  // Helper to hash IPFS CID or content
   const hashSubmission = (content: string): `0x${string}` => {
     return keccak256(toBytes(content))
   }
 
-  return {
-    contribute,
-    hashSubmission,
-    isPending,
-    isConfirming,
-    isSuccess,
-    hash,
-  }
+  return { contribute, hashSubmission, isPending, isConfirming, isSuccess, error, hash }
 }
 ```
 
@@ -782,31 +490,21 @@ export function useContribute() {
 import { useContribute } from '../hooks/useContribute'
 import { useState } from 'react'
 
-function SubmitContribution({ projectId, claimId, contributionIndex }: Props) {
+function SubmitContribution({ claimId, index }: { claimId: bigint; index: bigint }) {
   const { contribute, hashSubmission, isPending } = useContribute()
-  const [submissionContent, setSubmissionContent] = useState('')
+  const [dataCid, setDataCid] = useState('')
 
   const handleSubmit = async () => {
-    // Upload to IPFS first (using your IPFS client)
-    // const ipfsHash = await uploadToIPFS(submissionContent)
-    
-    // Or hash the content directly
-    const submissionHash = hashSubmission(submissionContent)
-
-    await contribute({
-      projectId,
-      claimId,
-      contributionIndex,
-      submissionHash,
-    })
+    const submissionHash = hashSubmission(dataCid)
+    await contribute({ claimId, index, submissionHash, dataCid })
   }
 
   return (
     <div>
-      <textarea
-        value={submissionContent}
-        onChange={(e) => setSubmissionContent(e.target.value)}
-        placeholder="Enter your contribution..."
+      <input
+        value={dataCid}
+        onChange={(e) => setDataCid(e.target.value)}
+        placeholder="IPFS CID of your contribution"
       />
       <button onClick={handleSubmit} disabled={isPending}>
         {isPending ? 'Submitting...' : 'Submit Contribution'}
@@ -816,7 +514,38 @@ function SubmitContribution({ projectId, claimId, contributionIndex }: Props) {
 }
 ```
 
-### 2.3 Get Claim Details
+### 2.3 Expire Claim
+
+```typescript
+// hooks/useExpireClaim.ts
+import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { CONTRACTS } from '../wagmi.config'
+import { sapienCoreABI } from '../abis'
+
+export function useExpireClaim() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+
+  const expireClaim = async ({
+    claimId,
+    indices,
+  }: {
+    claimId: bigint
+    indices: bigint[]
+  }) => {
+    await writeContract({
+      address: CONTRACTS.SAPIEN_CORE,
+      abi: sapienCoreABI,
+      functionName: 'expireClaim',
+      args: [claimId, indices],
+    })
+  }
+
+  return { expireClaim, isPending, isConfirming, isSuccess, error, hash }
+}
+```
+
+### 2.4 Get Claim Details
 
 ```typescript
 // hooks/useClaim.ts
@@ -824,28 +553,16 @@ import { useReadContract } from 'wagmi'
 import { CONTRACTS } from '../wagmi.config'
 import { sapienCoreABI } from '../abis'
 
-export function useClaim(
-  projectId: `0x${string}` | undefined,
-  claimId: bigint | undefined
-) {
+export function useClaim(claimId: bigint | undefined) {
   const { data: claim, isLoading, error } = useReadContract({
     address: CONTRACTS.SAPIEN_CORE,
     abi: sapienCoreABI,
     functionName: 'getClaim',
-    args:
-      projectId && claimId !== undefined
-        ? [projectId, claimId]
-        : undefined,
-    query: {
-      enabled: !!projectId && claimId !== undefined,
-    },
+    args: claimId !== undefined ? [claimId] : undefined,
+    query: { enabled: claimId !== undefined },
   })
 
-  return {
-    claim,
-    isLoading,
-    error,
-  }
+  return { claim, isLoading, error }
 }
 ```
 
@@ -853,152 +570,112 @@ export function useClaim(
 
 ## Phase 3: Validator Workflow
 
-### 3.1 Set Validator Capacity
+### 3.1 Lock Validator Capacity
 
 ```typescript
-// hooks/useSetValidatorCapacity.ts
+// hooks/useValidatorCapacity.ts
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { CONTRACTS } from '../wagmi.config'
-import { validationOracleABI } from '../abis'
+import { sapienCoreABI } from '../abis'
 import { parseEther } from 'viem'
 
-export function useSetValidatorCapacity() {
-  const { writeContract, data: hash, isPending } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  })
+export function useValidatorCapacity() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
-  const setCapacity = async (amount: string) => {
+  const lockCapacity = async (amount: string) => {
     await writeContract({
-      address: CONTRACTS.VALIDATION_ORACLE,
-      abi: validationOracleABI,
-      functionName: 'setValidatorCapacity',
+      address: CONTRACTS.SAPIEN_CORE,
+      abi: sapienCoreABI,
+      functionName: 'lockValidatorCapacity',
       args: [parseEther(amount)],
     })
   }
 
-  return {
-    setCapacity,
-    isPending,
-    isConfirming,
-    isSuccess,
-    hash,
+  const unlockCapacity = async (amount: string) => {
+    await writeContract({
+      address: CONTRACTS.SAPIEN_CORE,
+      abi: sapienCoreABI,
+      functionName: 'unlockValidatorCapacity',
+      args: [parseEther(amount)],
+    })
   }
+
+  return { lockCapacity, unlockCapacity, isPending, isConfirming, isSuccess, error, hash }
 }
 ```
 
-### 3.2 Get Available Capacity
-
-```typescript
-// hooks/useValidatorCapacity.ts
-import { useReadContract } from 'wagmi'
-import { useAccount } from 'wagmi'
-import { CONTRACTS } from '../wagmi.config'
-import { validationOracleABI } from '../abis'
-import { formatEther } from 'viem'
-
-export function useValidatorCapacity() {
-  const { address } = useAccount()
-  const { data: capacity, isLoading } = useReadContract({
-    address: CONTRACTS.VALIDATION_ORACLE,
-    abi: validationOracleABI,
-    functionName: 'getAvailableCapacity',
-    args: address ? [address] : undefined,
-    query: {
-      enabled: !!address,
-    },
-  })
-
-  return {
-    capacity: capacity ? formatEther(capacity) : '0',
-    capacityWei: capacity,
-    isLoading,
-  }
-}
-```
-
-### 3.3 Claim to Validate
+### 3.2 Claim to Validate
 
 ```typescript
 // hooks/useClaimToValidate.ts
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { CONTRACTS } from '../wagmi.config'
-import { validationOracleABI } from '../abis'
+import { sapienCoreABI } from '../abis'
 
 export function useClaimToValidate() {
-  const { writeContract, data: hash, isPending } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  })
+  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
-  const claimToValidate = async (projectId: `0x${string}`) => {
-    const result = await writeContract({
-      address: CONTRACTS.VALIDATION_ORACLE,
-      abi: validationOracleABI,
+  const claimToValidate = async ({
+    projectId,
+    indices,
+  }: {
+    projectId: `0x${string}`
+    indices: bigint[]
+  }) => {
+    await writeContract({
+      address: CONTRACTS.SAPIEN_CORE,
+      abi: sapienCoreABI,
       functionName: 'claimToValidate',
-      args: [projectId],
+      args: [projectId, indices],
     })
-
-    return result
   }
 
-  return {
-    claimToValidate,
-    isPending,
-    isConfirming,
-    isSuccess,
-    hash,
-  }
+  return { claimToValidate, isPending, isConfirming, isSuccess, error, hash }
 }
 ```
 
-### 3.4 Commit Validation
+### 3.3 Commit Validation
 
 ```typescript
 // hooks/useCommitValidation.ts
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { CONTRACTS } from '../wagmi.config'
-import { validationOracleABI } from '../abis'
-import { keccak256, toBytes, encodePacked } from 'viem'
+import { sapienCoreABI } from '../abis'
+import { keccak256, encodePacked, parseEther } from 'viem'
 
 export function useCommitValidation() {
-  const { writeContract, data: hash, isPending } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  })
+  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
   const commitValidation = async ({
     projectId,
-    claimId,
-    contributionIndex,
+    index,
     score,
     stakeAmount,
     salt,
+    adapter = '0x0000000000000000000000000000000000000000',
   }: {
     projectId: `0x${string}`
-    claimId: bigint
-    contributionIndex: number
-    score: number // 0-10000
+    index: bigint
+    score: number
     stakeAmount: bigint
     salt: `0x${string}`
+    adapter?: `0x${string}`
   }) => {
-    // Calculate commit hash: keccak256(score, stakeAmount, salt)
     const commitHash = keccak256(
-      encodePacked(
-        ['uint256', 'uint256', 'bytes32'],
-        [BigInt(score), stakeAmount, salt]
-      )
+      encodePacked(['uint16', 'bytes32'], [score, salt])
     )
 
     await writeContract({
-      address: CONTRACTS.VALIDATION_ORACLE,
-      abi: validationOracleABI,
+      address: CONTRACTS.SAPIEN_CORE,
+      abi: sapienCoreABI,
       functionName: 'commitValidation',
-      args: [projectId, claimId, BigInt(contributionIndex), commitHash],
+      args: [projectId, index, commitHash, stakeAmount, adapter],
     })
   }
 
-  // Helper to generate random salt
   const generateSalt = (): `0x${string}` => {
     const randomBytes = crypto.getRandomValues(new Uint8Array(32))
     return `0x${Array.from(randomBytes)
@@ -1006,14 +683,7 @@ export function useCommitValidation() {
       .join('')}` as `0x${string}`
   }
 
-  return {
-    commitValidation,
-    generateSalt,
-    isPending,
-    isConfirming,
-    isSuccess,
-    hash,
-  }
+  return { commitValidation, generateSalt, isPending, isConfirming, isSuccess, error, hash }
 }
 ```
 
@@ -1023,30 +693,25 @@ export function useCommitValidation() {
 // components/CommitValidation.tsx
 import { useCommitValidation } from '../hooks/useCommitValidation'
 import { useState } from 'react'
+import { parseEther } from 'viem'
 
-function CommitValidation({
-  projectId,
-  claimId,
-  contributionIndex,
-}: Props) {
+function CommitValidation({ projectId, index }: { projectId: `0x${string}`; index: bigint }) {
   const { commitValidation, generateSalt, isPending } = useCommitValidation()
-  const [score, setScore] = useState(8000) // 0-10000
-  const [stakeAmount] = useState(parseEther('100'))
+  const [score, setScore] = useState(8000)
   const [salt] = useState(() => generateSalt())
 
   const handleCommit = async () => {
     await commitValidation({
       projectId,
-      claimId,
-      contributionIndex,
+      index,
       score,
-      stakeAmount,
+      stakeAmount: parseEther('100'),
       salt,
     })
 
-    // Store salt locally for reveal (e.g., localStorage)
+    // Store salt locally for reveal phase
     localStorage.setItem(
-      `commit-${projectId}-${contributionIndex}`,
+      `commit-${projectId}-${index}`,
       JSON.stringify({ score, salt })
     )
   }
@@ -1060,7 +725,7 @@ function CommitValidation({
         value={score}
         onChange={(e) => setScore(Number(e.target.value))}
       />
-      <p>Score: {score / 100}%</p>
+      <p>Score: {(score / 100).toFixed(2)}%</p>
       <button onClick={handleCommit} disabled={isPending}>
         {isPending ? 'Committing...' : 'Commit Validation'}
       </button>
@@ -1069,46 +734,38 @@ function CommitValidation({
 }
 ```
 
-### 3.5 Reveal Validation
+### 3.4 Reveal Validation
 
 ```typescript
 // hooks/useRevealValidation.ts
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { CONTRACTS } from '../wagmi.config'
-import { validationOracleABI } from '../abis'
+import { sapienCoreABI } from '../abis'
 
 export function useRevealValidation() {
-  const { writeContract, data: hash, isPending } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  })
+  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
   const revealValidation = async ({
     projectId,
-    contributionIndex,
+    index,
     score,
     salt,
   }: {
     projectId: `0x${string}`
-    contributionIndex: number
+    index: bigint
     score: number
     salt: `0x${string}`
   }) => {
     await writeContract({
-      address: CONTRACTS.VALIDATION_ORACLE,
-      abi: validationOracleABI,
+      address: CONTRACTS.SAPIEN_CORE,
+      abi: sapienCoreABI,
       functionName: 'revealValidation',
-      args: [projectId, BigInt(contributionIndex), BigInt(score), salt],
+      args: [projectId, index, BigInt(score), salt],
     })
   }
 
-  return {
-    revealValidation,
-    isPending,
-    isConfirming,
-    isSuccess,
-    hash,
-  }
+  return { revealValidation, isPending, isConfirming, isSuccess, error, hash }
 }
 ```
 
@@ -1119,10 +776,7 @@ export function useRevealValidation() {
 import { useRevealValidation } from '../hooks/useRevealValidation'
 import { useEffect, useState } from 'react'
 
-function RevealValidation({
-  projectId,
-  contributionIndex,
-}: Props) {
+function RevealValidation({ projectId, index }: { projectId: `0x${string}`; index: bigint }) {
   const { revealValidation, isPending } = useRevealValidation()
   const [commitData, setCommitData] = useState<{
     score: number
@@ -1130,36 +784,26 @@ function RevealValidation({
   } | null>(null)
 
   useEffect(() => {
-    // Retrieve stored commit data
-    const stored = localStorage.getItem(
-      `commit-${projectId}-${contributionIndex}`
-    )
-    if (stored) {
-      setCommitData(JSON.parse(stored))
-    }
-  }, [projectId, contributionIndex])
+    const stored = localStorage.getItem(`commit-${projectId}-${index}`)
+    if (stored) setCommitData(JSON.parse(stored))
+  }, [projectId, index])
 
   const handleReveal = async () => {
     if (!commitData) return
-
     await revealValidation({
       projectId,
-      contributionIndex,
+      index,
       score: commitData.score,
       salt: commitData.salt,
     })
-
-    // Clean up stored data
-    localStorage.removeItem(`commit-${projectId}-${contributionIndex}`)
+    localStorage.removeItem(`commit-${projectId}-${index}`)
   }
 
-  if (!commitData) {
-    return <p>No commit found for this contribution</p>
-  }
+  if (!commitData) return <p>No commit found for this contribution</p>
 
   return (
     <div>
-      <p>Score: {commitData.score / 100}%</p>
+      <p>Score: {(commitData.score / 100).toFixed(2)}%</p>
       <button onClick={handleReveal} disabled={isPending}>
         {isPending ? 'Revealing...' : 'Reveal Validation'}
       </button>
@@ -1170,129 +814,143 @@ function RevealValidation({
 
 ---
 
-## Phase 4: Consensus & Finalization
+## Phase 4: Consensus and Finalization
 
-### 4.1 Get Consensus Report
-
-```typescript
-// hooks/useConsensus.ts
-import { useReadContract } from 'wagmi'
-import { CONTRACTS } from '../wagmi.config'
-import { validationOracleABI } from '../abis'
-
-export function useConsensus(
-  projectId: `0x${string}` | undefined,
-  contributionIndex: number | undefined,
-  minValidations: number = 3
-) {
-  const { data: consensus, isLoading, error } = useReadContract({
-    address: CONTRACTS.VALIDATION_ORACLE,
-    abi: validationOracleABI,
-    functionName: 'getConsensus',
-    args:
-      projectId !== undefined && contributionIndex !== undefined
-        ? [projectId, BigInt(contributionIndex), BigInt(minValidations)]
-        : undefined,
-    query: {
-      enabled: projectId !== undefined && contributionIndex !== undefined,
-    },
-  })
-
-  return {
-    consensus,
-    isLoading,
-    error,
-    isReady: consensus?.isReady ?? false,
-    weightedAverage: consensus?.weightedAverage,
-    validatorCount: consensus?.validatorCount,
-  }
-}
-```
-
-### 4.2 Finalize Contribution
+### 4.1 Compute Consensus
 
 ```typescript
-// hooks/useFinalizeContribution.ts
+// hooks/useComputeConsensus.ts
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { CONTRACTS } from '../wagmi.config'
 import { sapienCoreABI } from '../abis'
 
-export function useFinalizeContribution() {
-  const { writeContract, data: hash, isPending } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  })
+export function useComputeConsensus() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
-  const finalizeContribution = async ({
+  const computeConsensus = async ({
     projectId,
-    contributionIndex,
+    index,
   }: {
     projectId: `0x${string}`
-    contributionIndex: number
+    index: bigint
   }) => {
     await writeContract({
       address: CONTRACTS.SAPIEN_CORE,
       abi: sapienCoreABI,
-      functionName: 'finalizeContribution',
-      args: [projectId, BigInt(contributionIndex)],
+      functionName: 'computeConsensus',
+      args: [projectId, index],
     })
   }
 
-  return {
-    finalizeContribution,
-    isPending,
-    isConfirming,
-    isSuccess,
-    hash,
-  }
+  return { computeConsensus, isPending, isConfirming, isSuccess, error, hash }
 }
 ```
 
-**Usage:**
+### 4.2 Settle Validator
 
 ```typescript
-// components/FinalizeContribution.tsx
-import { useConsensus } from '../hooks/useConsensus'
-import { useFinalizeContribution } from '../hooks/useFinalizeContribution'
+// hooks/useSettleValidator.ts
+import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { CONTRACTS } from '../wagmi.config'
+import { sapienCoreABI } from '../abis'
 
-function FinalizeContribution({
-  projectId,
-  contributionIndex,
-  minValidations = 3,
-}: Props) {
-  const { consensus, isReady, weightedAverage } = useConsensus(
+export function useSettleValidator() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+
+  const settleValidator = async ({
     projectId,
-    contributionIndex,
-    minValidations
-  )
-  const { finalizeContribution, isPending } = useFinalizeContribution()
-
-  const handleFinalize = async () => {
-    if (!isReady) {
-      alert('Consensus not ready yet')
-      return
-    }
-
-    await finalizeContribution({
-      projectId,
-      contributionIndex,
+    index,
+    nonce,
+  }: {
+    projectId: `0x${string}`
+    index: bigint
+    nonce: bigint
+  }) => {
+    await writeContract({
+      address: CONTRACTS.SAPIEN_CORE,
+      abi: sapienCoreABI,
+      functionName: 'settleValidator',
+      args: [projectId, index, nonce],
     })
   }
 
-  return (
-    <div>
-      <p>Consensus Ready: {isReady ? 'Yes' : 'No'}</p>
-      {weightedAverage !== undefined && (
-        <p>Weighted Average: {(Number(weightedAverage) / 100).toFixed(2)}%</p>
-      )}
-      <button
-        onClick={handleFinalize}
-        disabled={!isReady || isPending}
-      >
-        {isPending ? 'Finalizing...' : 'Finalize Contribution'}
-      </button>
-    </div>
-  )
+  const forceSettleValidator = async ({
+    projectId,
+    index,
+    nonce,
+    validator,
+  }: {
+    projectId: `0x${string}`
+    index: bigint
+    nonce: bigint
+    validator: `0x${string}`
+  }) => {
+    await writeContract({
+      address: CONTRACTS.SAPIEN_CORE,
+      abi: sapienCoreABI,
+      functionName: 'forceSettleValidator',
+      args: [projectId, index, nonce, validator],
+    })
+  }
+
+  return { settleValidator, forceSettleValidator, isPending, isConfirming, isSuccess, error, hash }
+}
+```
+
+### 4.3 Release Contributor Reward
+
+```typescript
+// hooks/useReleaseContributorReward.ts
+import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { CONTRACTS } from '../wagmi.config'
+import { sapienCoreABI } from '../abis'
+
+export function useReleaseContributorReward() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+
+  const releaseContributorReward = async ({
+    projectId,
+    index,
+  }: {
+    projectId: `0x${string}`
+    index: bigint
+  }) => {
+    await writeContract({
+      address: CONTRACTS.SAPIEN_CORE,
+      abi: sapienCoreABI,
+      functionName: 'releaseContributorReward',
+      args: [projectId, index],
+    })
+  }
+
+  return { releaseContributorReward, isPending, isConfirming, isSuccess, error, hash }
+}
+```
+
+### 4.4 Get Contribution Details
+
+```typescript
+// hooks/useContribution.ts
+import { useReadContract } from 'wagmi'
+import { CONTRACTS } from '../wagmi.config'
+import { sapienCoreABI } from '../abis'
+
+export function useContribution(
+  projectId: `0x${string}` | undefined,
+  index: bigint | undefined
+) {
+  const { data: contribution, isLoading, error } = useReadContract({
+    address: CONTRACTS.SAPIEN_CORE,
+    abi: sapienCoreABI,
+    functionName: 'getContribution',
+    args: projectId !== undefined && index !== undefined ? [projectId, index] : undefined,
+    query: { enabled: projectId !== undefined && index !== undefined },
+  })
+
+  return { contribution, isLoading, error }
 }
 ```
 
@@ -1300,135 +958,60 @@ function FinalizeContribution({
 
 ## Phase 5: Reward Distribution
 
-### 5.1 Get Available Rewards
+### 5.1 Get Pending Rewards
 
 ```typescript
-// hooks/useRewards.ts
+// hooks/usePendingRewards.ts
 import { useReadContract } from 'wagmi'
 import { useAccount } from 'wagmi'
 import { CONTRACTS } from '../wagmi.config'
-import { rewardsABI } from '../abis'
+import { sapienCoreABI } from '../abis'
 import { formatUnits } from 'viem'
 
-export function useAvailableRewards(
-  projectId: `0x${string}` | undefined,
+export function usePendingRewards(
   token: `0x${string}` | undefined,
   decimals: number = 18
 ) {
   const { address } = useAccount()
-  const { data: rewards, isLoading } = useReadContract({
-    address: CONTRACTS.REWARDS,
-    abi: rewardsABI,
-    functionName: 'getAvailableRewards',
-    args:
-      address && projectId && token
-        ? [address, projectId, token]
-        : undefined,
-    query: {
-      enabled: !!address && !!projectId && !!token,
-    },
+  const { data: rewards, isLoading, refetch } = useReadContract({
+    address: CONTRACTS.SAPIEN_CORE,
+    abi: sapienCoreABI,
+    functionName: 'getPendingRewards',
+    args: address && token ? [address, token] : undefined,
+    query: { enabled: !!address && !!token },
   })
 
   return {
     rewards: rewards ? formatUnits(rewards, decimals) : '0',
-    rewardsWei: rewards,
+    rewardsWei: rewards ?? BigInt(0),
     isLoading,
-  }
-}
-
-export function useAvailableValidatorRewards(
-  projectId: `0x${string}` | undefined,
-  token: `0x${string}` | undefined,
-  decimals: number = 18
-) {
-  const { address } = useAccount()
-  const { data: rewards, isLoading } = useReadContract({
-    address: CONTRACTS.REWARDS,
-    abi: rewardsABI,
-    functionName: 'getAvailableValidatorRewards',
-    args:
-      address && projectId && token
-        ? [address, projectId, token]
-        : undefined,
-    query: {
-      enabled: !!address && !!projectId && !!token,
-    },
-  })
-
-  return {
-    rewards: rewards ? formatUnits(rewards, decimals) : '0',
-    rewardsWei: rewards,
-    isLoading,
+    refetch,
   }
 }
 ```
 
-### 5.2 Claim Rewards
+### 5.2 Claim Reward
 
 ```typescript
-// hooks/useClaimRewards.ts
+// hooks/useClaimReward.ts
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { CONTRACTS } from '../wagmi.config'
-import { rewardsABI } from '../abis'
+import { sapienCoreABI } from '../abis'
 
-export function useClaimRewards() {
-  const { writeContract, data: hash, isPending } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  })
+export function useClaimReward() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
-  const claimRewards = async ({
-    projectId,
-    token,
-  }: {
-    projectId: `0x${string}`
-    token: `0x${string}`
-  }) => {
+  const claimReward = async (token: `0x${string}`) => {
     await writeContract({
-      address: CONTRACTS.REWARDS,
-      abi: rewardsABI,
-      functionName: 'claimRewards',
-      args: [projectId, token],
+      address: CONTRACTS.SAPIEN_CORE,
+      abi: sapienCoreABI,
+      functionName: 'claimReward',
+      args: [token],
     })
   }
 
-  return {
-    claimRewards,
-    isPending,
-    isConfirming,
-    isSuccess,
-    hash,
-  }
-}
-
-export function useClaimValidatorRewards() {
-  const { writeContract, data: hash, isPending } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  })
-
-  const claimValidatorRewards = async ({
-    projectId,
-    token,
-  }: {
-    projectId: `0x${string}`
-    token: `0x${string}`
-  }) => {
-    await writeContract({
-      address: CONTRACTS.REWARDS,
-      abi: rewardsABI,
-      functionName: 'claimValidatorRewards',
-      args: [projectId, token],
-    })
-  }
-
-  return {
-    claimValidatorRewards,
-    isPending,
-    isConfirming,
-    isSuccess,
-    hash,
-  }
+  return { claimReward, isPending, isConfirming, isSuccess, error, hash }
 }
 ```
 
@@ -1436,28 +1019,22 @@ export function useClaimValidatorRewards() {
 
 ```typescript
 // components/ClaimRewards.tsx
-import { useAvailableRewards } from '../hooks/useRewards'
-import { useClaimRewards } from '../hooks/useClaimRewards'
+import { usePendingRewards } from '../hooks/usePendingRewards'
+import { useClaimReward } from '../hooks/useClaimReward'
 import { CONTRACTS } from '../wagmi.config'
 
-function ClaimRewards({ projectId }: { projectId: `0x${string}` }) {
-  const { rewards, isLoading } = useAvailableRewards(
-    projectId,
-    CONTRACTS.USDC,
-    6 // USDC has 6 decimals
-  )
-  const { claimRewards, isPending } = useClaimRewards()
+function ClaimRewards() {
+  const { rewards, isLoading, refetch } = usePendingRewards(CONTRACTS.USDC, 6)
+  const { claimReward, isPending } = useClaimReward()
 
   const handleClaim = async () => {
-    await claimRewards({
-      projectId,
-      token: CONTRACTS.USDC,
-    })
+    await claimReward(CONTRACTS.USDC)
+    refetch()
   }
 
   return (
     <div>
-      <p>Available Rewards: {rewards} USDC</p>
+      <p>Pending Rewards: {rewards} USDC</p>
       <button
         onClick={handleClaim}
         disabled={rewards === '0' || isPending || isLoading}
@@ -1471,72 +1048,167 @@ function ClaimRewards({ projectId }: { projectId: `0x${string}` }) {
 
 ---
 
-## Phase 6: Reputation & Skills
+## Phase 6: Disputes
 
-### 6.1 Get Trust Score
+### 6.1 Open Dispute
 
 ```typescript
-// hooks/useTrustScore.ts
-import { useReadContract } from 'wagmi'
+// hooks/useDispute.ts
+import { useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi'
 import { CONTRACTS } from '../wagmi.config'
-import { sapienTrustABI } from '../abis'
-import { CONTRIBUTOR_ROLE, VALIDATOR_ROLE } from '../constants'
+import { sapienCoreABI } from '../abis'
 
-export function useTrustScore(
-  address: `0x${string}` | undefined,
-  role: typeof CONTRIBUTOR_ROLE | typeof VALIDATOR_ROLE
-) {
-  const { data: score, isLoading } = useReadContract({
-    address: CONTRACTS.SAPIEN_TRUST,
-    abi: sapienTrustABI,
-    functionName: 'getTrustScore',
-    args: address && role ? [address, role] : undefined,
-    query: {
-      enabled: !!address && !!role,
-    },
-  })
+export function useOpenDispute() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
-  return {
-    score: score ? Number(score) : 0,
-    isLoading,
+  const openDispute = async ({
+    projectId,
+    index,
+    evidenceHash,
+    evidenceCid,
+  }: {
+    projectId: `0x${string}`
+    index: bigint
+    evidenceHash: `0x${string}`
+    evidenceCid: string
+  }) => {
+    await writeContract({
+      address: CONTRACTS.SAPIEN_CORE,
+      abi: sapienCoreABI,
+      functionName: 'openDispute',
+      args: [projectId, index, evidenceHash, evidenceCid],
+    })
   }
+
+  return { openDispute, isPending, isConfirming, isSuccess, error, hash }
+}
+
+export function useEscalateDispute() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+
+  const escalateDispute = async ({
+    projectId,
+    index,
+  }: {
+    projectId: `0x${string}`
+    index: bigint
+  }) => {
+    await writeContract({
+      address: CONTRACTS.SAPIEN_CORE,
+      abi: sapienCoreABI,
+      functionName: 'escalateDispute',
+      args: [projectId, index],
+    })
+  }
+
+  return { escalateDispute, isPending, isConfirming, isSuccess, error, hash }
 }
 ```
 
-### 6.2 Check Skill
+### 6.2 Get Dispute Details
 
 ```typescript
-// hooks/useSkill.ts
+// hooks/useDisputeDetails.ts
 import { useReadContract } from 'wagmi'
 import { CONTRACTS } from '../wagmi.config'
-import { sapienTrustABI } from '../abis'
+import { sapienCoreABI } from '../abis'
 
-export function useHasSkill(
-  address: `0x${string}` | undefined,
-  skill: string | undefined
+export function useDispute(
+  projectId: `0x${string}` | undefined,
+  index: bigint | undefined
 ) {
-  const { data: hasSkill, isLoading } = useReadContract({
-    address: CONTRACTS.SAPIEN_TRUST,
-    abi: sapienTrustABI,
-    functionName: 'hasValidatedSkill',
-    args: address && skill ? [address, skill] : undefined,
-    query: {
-      enabled: !!address && !!skill,
-    },
+  const { data: dispute, isLoading, error } = useReadContract({
+    address: CONTRACTS.SAPIEN_CORE,
+    abi: sapienCoreABI,
+    functionName: 'getDispute',
+    args: projectId !== undefined && index !== undefined ? [projectId, index] : undefined,
+    query: { enabled: projectId !== undefined && index !== undefined },
   })
 
-  return {
-    hasSkill: hasSkill ?? false,
-    isLoading,
-  }
+  return { dispute, isLoading, error }
 }
 ```
 
 ---
 
-## Phase 7: Batch Operations
+## Phase 7: Reputation
 
-### 7.1 Batch Contribute
+### 7.1 Get Reputation
+
+```typescript
+// hooks/useReputation.ts
+import { useReadContract } from 'wagmi'
+import { CONTRACTS } from '../wagmi.config'
+import { sapienCoreABI } from '../abis'
+import { keccak256, toBytes } from 'viem'
+
+const ROLE_KEYS = {
+  ORIGINATOR: keccak256(toBytes('ORIGINATOR')),
+  CONTRIBUTOR: keccak256(toBytes('CONTRIBUTOR')),
+  VALIDATOR: keccak256(toBytes('VALIDATOR')),
+} as const
+
+export function useReputation(
+  address: `0x${string}` | undefined,
+  role: keyof typeof ROLE_KEYS
+) {
+  const roleKey = ROLE_KEYS[role]
+
+  const { data: reputation, isLoading, error } = useReadContract({
+    address: CONTRACTS.SAPIEN_CORE,
+    abi: sapienCoreABI,
+    functionName: 'getReputation',
+    args: address ? [address, roleKey] : undefined,
+    query: { enabled: !!address },
+  })
+
+  return {
+    score: reputation ? Number(reputation.score) : 5000,
+    totalActions: reputation ? Number(reputation.totalActions) : 0,
+    successfulActions: reputation ? Number(reputation.successfulActions) : 0,
+    lastUpdated: reputation ? Number(reputation.lastUpdated) : 0,
+    isLoading,
+    error,
+  }
+}
+```
+
+**Usage:**
+
+```typescript
+// components/ReputationBadge.tsx
+import { useReputation } from '../hooks/useReputation'
+import { useAccount } from 'wagmi'
+
+function ReputationBadge() {
+  const { address } = useAccount()
+  const contributor = useReputation(address, 'CONTRIBUTOR')
+  const validator = useReputation(address, 'VALIDATOR')
+
+  return (
+    <div>
+      <div>
+        <span>Contributor Reputation: </span>
+        <span>{contributor.score} / 10000</span>
+        <span> ({contributor.successfulActions}/{contributor.totalActions} success rate)</span>
+      </div>
+      <div>
+        <span>Validator Reputation: </span>
+        <span>{validator.score} / 10000</span>
+        <span> ({validator.successfulActions}/{validator.totalActions} success rate)</span>
+      </div>
+    </div>
+  )
+}
+```
+
+---
+
+## Phase 8: Batch Operations
+
+### 8.1 Batch Contribute
 
 ```typescript
 // hooks/useBatchContribute.ts
@@ -1545,113 +1217,143 @@ import { CONTRACTS } from '../wagmi.config'
 import { sapienCoreABI } from '../abis'
 
 export function useBatchContribute() {
-  const { writeContract, data: hash, isPending } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  })
+  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
   const batchContribute = async ({
-    projectId,
     claimId,
-    contributionIndices,
+    indices,
     submissionHashes,
+    dataCids,
   }: {
-    projectId: `0x${string}`
     claimId: bigint
-    contributionIndices: number[]
+    indices: bigint[]
     submissionHashes: `0x${string}`[]
+    dataCids: string[]
   }) => {
     await writeContract({
       address: CONTRACTS.SAPIEN_CORE,
       abi: sapienCoreABI,
       functionName: 'batchContribute',
-      args: [
-        projectId,
-        claimId,
-        contributionIndices.map((i) => BigInt(i)),
-        submissionHashes,
-      ],
+      args: [claimId, indices, submissionHashes, dataCids],
     })
   }
 
-  return {
-    batchContribute,
-    isPending,
-    isConfirming,
-    isSuccess,
-    hash,
-  }
+  return { batchContribute, isPending, isConfirming, isSuccess, error, hash }
 }
 ```
 
-### 7.2 Batch Finalize
+### 8.2 Batch Commit Validations
 
 ```typescript
-// hooks/useBatchFinalize.ts
+// hooks/useBatchCommitValidations.ts
+import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { CONTRACTS } from '../wagmi.config'
+import { sapienCoreABI } from '../abis'
+import { keccak256, encodePacked } from 'viem'
+
+export function useBatchCommitValidations() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
+
+  const batchCommitValidations = async ({
+    projectId,
+    indices,
+    scores,
+    stakeAmounts,
+    salts,
+    adapter = '0x0000000000000000000000000000000000000000',
+  }: {
+    projectId: `0x${string}`
+    indices: bigint[]
+    scores: number[]
+    stakeAmounts: bigint[]
+    salts: `0x${string}`[]
+    adapter?: `0x${string}`
+  }) => {
+    const commitHashes = scores.map((score, i) =>
+      keccak256(encodePacked(['uint16', 'bytes32'], [score, salts[i]]))
+    )
+
+    await writeContract({
+      address: CONTRACTS.SAPIEN_CORE,
+      abi: sapienCoreABI,
+      functionName: 'batchCommitValidations',
+      args: [projectId, indices, commitHashes, stakeAmounts, adapter],
+    })
+  }
+
+  return { batchCommitValidations, isPending, isConfirming, isSuccess, error, hash }
+}
+```
+
+### 8.3 Batch Reveal Validations
+
+```typescript
+// hooks/useBatchRevealValidations.ts
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { CONTRACTS } from '../wagmi.config'
 import { sapienCoreABI } from '../abis'
 
-export function useBatchFinalize() {
-  const { writeContract, data: hash, isPending } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  })
+export function useBatchRevealValidations() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
-  const batchFinalize = async ({
+  const batchRevealValidations = async ({
     projectId,
-    contributionIndices,
+    indices,
+    scores,
+    salts,
   }: {
     projectId: `0x${string}`
-    contributionIndices: number[]
+    indices: bigint[]
+    scores: number[]
+    salts: `0x${string}`[]
   }) => {
     await writeContract({
       address: CONTRACTS.SAPIEN_CORE,
       abi: sapienCoreABI,
-      functionName: 'batchFinalizeContributions',
-      args: [projectId, contributionIndices.map((i) => BigInt(i))],
+      functionName: 'batchRevealValidations',
+      args: [
+        projectId,
+        indices,
+        scores.map((s) => BigInt(s)),
+        salts,
+      ],
     })
   }
 
-  return {
-    batchFinalize,
-    isPending,
-    isConfirming,
-    isSuccess,
-    hash,
-  }
+  return { batchRevealValidations, isPending, isConfirming, isSuccess, error, hash }
 }
 ```
 
 ---
 
-## Utilities & Helpers
+## Utilities and Helpers
 
 ### Contract Addresses
 
 ```typescript
 // constants/contracts.ts
 export const CONTRACTS = {
-  SAPIEN_CORE: '0xba050696Ad19E1961485B300D3b0Cb3D35eB640b',
-  VALIDATION_ORACLE: '0x6c1Bb25b2eDcF7a970bD42F97d72676fAAF8a8D4',
-  SAPIEN_TRUST: '0x21d2391D6bB9A9928EC15b24f1efC8b9DFCEf7A9',
-  SAPIEN_VAULT: '0x1A7673226d6CD1634e7c78E2D48B351d9E306423',
-  REWARDS: '0xC8996Af3b3D8642dc231F06b6D5486CA3378ac88',
-  SAPIEN_TOKEN: '0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6',
-  USDC: '0x4d4394119CF096FbdbbD3Efb00d204c891C6Cd05',
+  SAPIEN_CORE: '0x...',
+  SAPIEN_VAULT: '0x...',
+  SAPIEN_TOKEN: '0x...',
+  USDC: '0x...',
 } as const
 ```
 
-### Role Constants
+### Role Keys
 
 ```typescript
 // constants/roles.ts
-export const CONTRIBUTOR_ROLE =
-  '0x0000000000000000000000000000000000000000000000000000000000000001'
-export const VALIDATOR_ROLE =
-  '0x0000000000000000000000000000000000000000000000000000000000000002'
-export const ORIGINATOR_ROLE =
-  '0x0000000000000000000000000000000000000000000000000000000000000003'
+import { keccak256, toBytes } from 'viem'
+
+export const ROLE_KEYS = {
+  ORIGINATOR: keccak256(toBytes('ORIGINATOR')),
+  CONTRIBUTOR: keccak256(toBytes('CONTRIBUTOR')),
+  VALIDATOR: keccak256(toBytes('VALIDATOR')),
+} as const
 ```
 
 ### Helper Functions
@@ -1661,14 +1363,19 @@ export const ORIGINATOR_ROLE =
 import { keccak256, toBytes } from 'viem'
 
 export function generateProjectId(name: string, timestamp?: number): `0x${string}` {
-  const id = timestamp
-    ? `${name}-${timestamp}`
-    : `${name}-${Date.now()}`
+  const id = timestamp ? `${name}-${timestamp}` : `${name}-${Date.now()}`
   return keccak256(toBytes(id))
 }
 
 export function hashSubmission(content: string): `0x${string}` {
   return keccak256(toBytes(content))
+}
+
+export function generateSalt(): `0x${string}` {
+  const randomBytes = crypto.getRandomValues(new Uint8Array(32))
+  return `0x${Array.from(randomBytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')}` as `0x${string}`
 }
 ```
 
@@ -1681,29 +1388,53 @@ import { CONTRACTS } from '../wagmi.config'
 import { sapienCoreABI } from '../abis'
 
 export function useProjectEvents(projectId: `0x${string}`) {
-  // Listen for contribution submissions
   useWatchContractEvent({
     address: CONTRACTS.SAPIEN_CORE,
     abi: sapienCoreABI,
     eventName: 'ContributionSubmitted',
-    args: {
-      projectId,
-    },
+    args: { projectId },
     onLogs(logs) {
-      console.log('New contribution submitted:', logs)
+      console.log('Contribution submitted:', logs)
     },
   })
 
-  // Listen for finalizations
   useWatchContractEvent({
     address: CONTRACTS.SAPIEN_CORE,
     abi: sapienCoreABI,
-    eventName: 'ContributionFinalized',
-    args: {
-      projectId,
-    },
+    eventName: 'ConsensusReached',
+    args: { projectId },
     onLogs(logs) {
-      console.log('Contribution finalized:', logs)
+      console.log('Consensus reached:', logs)
+    },
+  })
+
+  useWatchContractEvent({
+    address: CONTRACTS.SAPIEN_CORE,
+    abi: sapienCoreABI,
+    eventName: 'ValidatorSettled',
+    args: { projectId },
+    onLogs(logs) {
+      console.log('Validator settled:', logs)
+    },
+  })
+
+  useWatchContractEvent({
+    address: CONTRACTS.SAPIEN_CORE,
+    abi: sapienCoreABI,
+    eventName: 'ContributorRewardReleased',
+    args: { projectId },
+    onLogs(logs) {
+      console.log('Contributor reward released:', logs)
+    },
+  })
+
+  useWatchContractEvent({
+    address: CONTRACTS.SAPIEN_CORE,
+    abi: sapienCoreABI,
+    eventName: 'DisputeOpened',
+    args: { projectId },
+    onLogs(logs) {
+      console.log('Dispute opened:', logs)
     },
   })
 }
@@ -1719,49 +1450,45 @@ import { useAccount } from 'wagmi'
 import { useProject } from '../hooks/useProject'
 import { useClaimToContribute } from '../hooks/useClaimToContribute'
 import { useContribute } from '../hooks/useContribute'
-import { useFinalizeContribution } from '../hooks/useFinalizeContribution'
-import { useClaimRewards } from '../hooks/useClaimRewards'
+import { useReleaseContributorReward } from '../hooks/useReleaseContributorReward'
+import { useClaimReward } from '../hooks/useClaimReward'
+import { usePendingRewards } from '../hooks/usePendingRewards'
 import { useState } from 'react'
+import { CONTRACTS } from '../wagmi.config'
 
 function ContributorDashboard({ projectId }: { projectId: `0x${string}` }) {
   const { address } = useAccount()
   const { project } = useProject(projectId)
   const { claimToContribute } = useClaimToContribute()
   const { contribute, hashSubmission } = useContribute()
-  const { finalizeContribution } = useFinalizeContribution()
-  const { claimRewards } = useClaimRewards()
+  const { releaseContributorReward } = useReleaseContributorReward()
+  const { claimReward } = useClaimReward()
+  const { rewards } = usePendingRewards(CONTRACTS.USDC, 6)
 
   const [claimId, setClaimId] = useState<bigint | null>(null)
-  const [contributionIndex, setContributionIndex] = useState<number | null>(
-    null
-  )
+  const [indices, setIndices] = useState<bigint[]>([])
 
   const handleClaim = async () => {
-    const result = await claimToContribute({
-      projectId,
-      quantity: 1,
-    })
-    // Extract claimId from transaction receipt or event
-    setClaimId(result)
+    await claimToContribute({ projectId, quantity: 1 })
+    // Extract claimId and indices from transaction receipt events
   }
 
-  const handleSubmit = async (submissionContent: string) => {
-    if (!claimId || contributionIndex === null) return
+  const handleSubmit = async (dataCid: string) => {
+    if (!claimId || indices.length === 0) return
+    const submissionHash = hashSubmission(dataCid)
+    await contribute({ claimId, index: indices[0], submissionHash, dataCid })
+  }
 
-    const submissionHash = hashSubmission(submissionContent)
-    await contribute({
-      projectId,
-      claimId,
-      contributionIndex,
-      submissionHash,
-    })
+  const handleClaimRewards = async () => {
+    await claimReward(CONTRACTS.USDC)
   }
 
   return (
     <div>
       <h2>Contributor Dashboard</h2>
       <p>Project: {projectId}</p>
-      <p>Available Quantity: {project?.state.totalQuantityAvailable}</p>
+      <p>Available Slots: {project?.availableSlots?.toString()}</p>
+      <p>Pending Rewards: {rewards} USDC</p>
 
       {!claimId && (
         <button onClick={handleClaim}>Claim Contribution Slot</button>
@@ -1770,8 +1497,12 @@ function ContributorDashboard({ projectId }: { projectId: `0x${string}` }) {
       {claimId && (
         <div>
           <p>Claim ID: {claimId.toString()}</p>
-          {/* Contribution form */}
+          <p>Assigned Indices: {indices.map((i) => i.toString()).join(', ')}</p>
         </div>
+      )}
+
+      {parseFloat(rewards) > 0 && (
+        <button onClick={handleClaimRewards}>Withdraw Rewards</button>
       )}
     </div>
   )
@@ -1782,14 +1513,15 @@ function ContributorDashboard({ projectId }: { projectId: `0x${string}` }) {
 
 ## Best Practices
 
-1. **Error Handling**: Always wrap contract calls in try-catch blocks and provide user-friendly error messages
-2. **Loading States**: Show loading indicators during pending transactions
-3. **Transaction Confirmation**: Wait for transaction receipts before updating UI state
-4. **Event Listening**: Use `useWatchContractEvent` to listen for onchain events and update UI reactively
-5. **Gas Estimation**: Use `useEstimateGas` before submitting transactions to show gas costs
-6. **Token Approvals**: Always check and handle token approvals before calling functions that require them
-7. **Salt Storage**: Store commit salts securely (localStorage or encrypted storage) for reveal phase
-8. **Deadline Management**: Track claim deadlines and reveal deadlines to prevent expired operations
+1. **Error handling**: Wrap contract calls in try-catch blocks and provide user-friendly error messages. Parse custom error types from the ABI for specific error handling.
+2. **Loading states**: Show loading indicators during pending transactions using `isPending` and `isConfirming` flags.
+3. **Transaction confirmation**: Wait for transaction receipts before updating UI state.
+4. **Event listening**: Use `useWatchContractEvent` to reactively update UI when on-chain state changes.
+5. **Gas estimation**: Use `useEstimateGas` before submitting transactions to show gas costs to users.
+6. **Token approvals**: Always check and handle ERC-20 approvals before calling functions that transfer tokens (e.g., `fundProject`, `deposit`).
+7. **Salt storage**: Store commit salts securely (localStorage or encrypted storage) — losing the salt means you cannot reveal and your stake will be slashed.
+8. **Deadline management**: Track claim deadlines, commit deadlines, and reveal deadlines to prevent expired operations and stake slashing.
+9. **Multi-step finalization**: The reward flow is `computeConsensus` -> `settleValidator` -> `releaseContributorReward` -> `claimReward`. Build UI that guides users through each step.
 
 ---
 

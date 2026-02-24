@@ -15,7 +15,7 @@ contract SEC_L_02_RedundantZeroCheck is BaseTest {
         uint256 idx = indices[0];
 
         bytes32 salt = keccak256(abi.encodePacked("salt", validator1, idx));
-        bytes32 commitHash = keccak256(abi.encodePacked(uint16(8000), salt));
+        bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), salt));
 
         vm.startPrank(validator1);
         {

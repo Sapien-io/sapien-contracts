@@ -29,9 +29,9 @@ contract SEC_H_01_PrematureCompletion is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
         engine.computeConsensus(projectId, idx);
 
         // Wait for challenge period and release contributor reward
@@ -52,9 +52,9 @@ contract SEC_H_01_PrematureCompletion is BaseTest {
         uint256 idx = indices[0];
 
         // Validators reject
-        _commitAndReveal(validator1, projectId, idx, 3000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, projectId, idx, 3000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, projectId, idx, 3000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, projectId, idx, 3000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, projectId, idx, 3000, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, projectId, idx, 3000, VALIDATOR_STAKE);
         engine.computeConsensus(projectId, idx);
 
         // Rejection decrements pendingContributions, so completeProject succeeds
@@ -70,9 +70,9 @@ contract SEC_H_01_PrematureCompletion is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator2, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
-        _commitAndReveal(validator3, projectId, idx, 8000, uint128(VALIDATOR_STAKE));
+        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
         engine.computeConsensus(projectId, idx);
 
         vm.warp(block.timestamp + C.DEFAULT_CHALLENGE_PERIOD + 1);

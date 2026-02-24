@@ -14,19 +14,25 @@ This skill guides a systematic security review of Solidity smart contracts. When
 
 **Target**: All contracts in `src/` directory.
 
-**Architecture Reference**: `docs/v0.5-contracs.md` — QualityEngine, StakeVault, ConsensusLib, Types, interfaces.
+**Architecture Reference**: Sapien PoQ v0.5 -- SapienCore, SapienVault, 7 libraries (OriginationLib, ContributionLib, ValidationLib, ConsensusLib, FinalizationLib, DisputeLib, ReputationLib), Types.sol, Constants.sol, interfaces.
 
 ---
 
 ## v0.5 Contract Topology
 
-| Contract | Role | Key Dependencies |
-|----------|------|-----------------|
-| `QualityEngine` | Core protocol (projects, claims, contributions, validations, consensus, reputation, rewards, disputes) | IStakeVault, ConsensusLib, Types |
-| `StakeVault` | ERC-4626 vault with typed locks (contributor, validator, in-flight) | IERC20, StakeAccount |
-| `ConsensusLib` | Pure library for weighted average, stddev, outlier detection, tiered slash | ValidationInput, ConsensusResult |
+| Contract/Library | Role | Key Dependencies |
+|------------------|------|-----------------|
+| `SapienCore` | Core protocol (projects, claims, contributions, validations, consensus, reputation, rewards, disputes) | ISapienVault, all 7 libraries via DELEGATECALL |
+| `SapienVault` | ERC-4626 vault with typed locks (contributor, validator capacity, in-flight) | IERC20, StakeAccount |
+| `OriginationLib` | Project creation, funding, removal | EngineStorage, ISapienVault |
+| `ContributionLib` | Claim-to-contribute, submission, expiry | EngineStorage, ISapienVault |
+| `ValidationLib` | Commit-reveal lifecycle, consensus computation | EngineStorage, ISapienVault, ConsensusLib |
+| `ConsensusLib` | Pure math: sqrt(stake) x reputation weighting, outlier detection, tiered slashing | ValidationInput, ConsensusResult |
+| `FinalizationLib` | Validator settlement, reward release, escrow management | EngineStorage, ISapienVault, ReputationLib |
+| `DisputeLib` | Dispute bonds, originator reports, escalation | EngineStorage, ISapienVault, ReputationLib |
+| `ReputationLib` | Per-role reputation scoring with time-based decay | EngineStorage, Constants |
 
-**Trust boundary**: QualityEngine holds ENGINE_ROLE on StakeVault; Engine calls vault for stake ops only.
+**Trust boundary**: SapienCore holds ENGINE_ROLE on SapienVault; Core calls Vault for stake ops only. All libraries run via DELEGATECALL in Core's storage context.
 
 ---
 
@@ -37,24 +43,25 @@ This skill guides a systematic security review of Solidity smart contracts. When
 Before hunting for vulnerabilities, build context:
 
 1. **Contract Relationships**
-   - QualityEngine: AccessControl, Pausable, ReentrancyGuard, UUPS
-   - StakeVault: ERC4626Upgradeable, AccessControl, Pausable, UUPS
-   - ConsensusLib: internal pure functions, delegatecall from Engine
+   - SapienCore: AccessControlUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable
+   - SapienVault: ERC4626Upgradeable, AccessControlUpgradeable, PausableUpgradeable, UUPSUpgradeable
+   - Libraries: DELEGATECALL from SapienCore, operate on EngineStorage via ERC-7201
 
 2. **State Variable Mapping**
-   - ERC-7201 namespaced storage: `sapien.storage.QualityEngine`, `sapien.storage.StakeVault`
-   - EngineStorage: projects, claims, indexStates, contributions, validation state, consensus reports, reputation, rewards, disputes
-   - StakeVaultStorage: accounts (contributorLock, validatorCapacity, inFlight)
+   - ERC-7201 namespaced storage: `sapien.storage.SapienCore`, `sapien.storage.StakeVault`
+   - EngineStorage: projects, claims, indexRange, returnStack, contributions, validatorCommits, revealedValidators, validationCounters, consensusReports, validatorConsensus, reputation, pendingRewards, projectEscrow, disputes, originatorReports, originatorLockedStake, pendingContributions, configurable deadlines, validation claims
+   - SapienVaultStorage: accounts (contributorLock, validatorCapacity, inFlight)
 
 3. **Actor Identification**
    - Originator, Contributor, Validator, Admin, Operator
-   - Adapters (origination, contribution, validation) — receive fees
-   - Treasury — protocol fees
-   - Keeper — permissionless: expireClaim, computeConsensus, cancelExpiredCommitment, escalateDispute
+   - Adapters (origination, contribution, validation) -- receive fees
+   - Treasury -- protocol fees
+   - Keeper -- permissionless: expireClaim, computeConsensus, cancelExpiredCommitment, cancelExpiredValidationClaim, escalateDispute, escalateOriginatorReport, forceSettleValidator, completeProject, refundEscrow
 
 4. **Entry Points**
-   - Public/external: createProject, fundProject, claimToContribute, contribute, expireClaim, setValidatorCapacity, commitValidation, revealValidation, computeConsensus, settleValidator, releaseContributorReward, claimReward, openDispute, resolveDispute, escalateDispute, reportOriginator, resolveOriginatorReport, escalateOriginatorReport, cancelExpiredCommitment
-   - Admin: setProtocolFee, setOriginationFee, setContributionFee, setValidationFee, setDecayRate, setDisputeBondBps, setOriginatorStakeRequirement, setOriginatorReportBondBps, setConsensusAlgorithm, setTreasury, pause, unpause
+   - Public/external: createProject, fundProject, claimToContribute, contribute, batchContribute, expireClaim, lockValidatorCapacity, unlockValidatorCapacity, claimToValidate, commitValidation, batchCommitValidations, revealValidation, batchRevealValidations, computeConsensus, settleValidator, forceSettleValidator, releaseContributorReward, claimReward, openDispute, resolveDispute, escalateDispute, reportOriginator, resolveOriginatorReport, escalateOriginatorReport, cancelExpiredCommitment, cancelExpiredValidationClaim, completeProject, refundEscrow
+   - Admin: setProtocolFee, setOriginationFee, setContributionFee, setValidationFee, setDecayRate, setDisputeBondBps, setOriginatorStakeRequirement, setOriginatorReportBondBps, setMinValidationStake, setTreasury, setMinClaimAmount, setClaimCooldown, setClaimDeadline, setChallengePeriod, setCommitDeadline, setRevealDeadline, setForceSettleDelay, pause, unpause
+   - Operator: resolveDispute, resolveOriginatorReport, removeProject
 
 ---
 
@@ -63,73 +70,84 @@ Before hunting for vulnerabilities, build context:
 For each contract, systematically check:
 
 #### Access Control
-- [ ] ENGINE_ROLE: only Engine can call vault stake ops
-- [ ] OPERATOR_ROLE: resolveDispute, resolveOriginatorReport
-- [ ] DEFAULT_ADMIN_ROLE: fee config, pause, upgrade
-- [ ] No tx.origin (ERC-4337 Smart Account native)
+- [ ] ENGINE_ROLE: only SapienCore can call SapienVault stake ops
+- [ ] OPERATOR_ROLE: resolveDispute, resolveOriginatorReport, removeProject
+- [ ] DEFAULT_ADMIN_ROLE: fee/deadline config, pause, upgrade
+- [ ] No tx.origin usage
 
 #### Reentrancy
-- [ ] nonReentrant on fundProject, claimToContribute, contribute, expireClaim, commitValidation, revealValidation, computeConsensus, settleValidator, releaseContributorReward, claimReward, openDispute, resolveDispute, escalateDispute, reportOriginator, resolveOriginatorReport, escalateOriginatorReport, cancelExpiredCommitment
-- [ ] External calls: vault (trusted), token transfer (SafeERC20), treasury/adapter
+- [ ] nonReentrant on fundProject, claimToContribute, expireClaim, commitValidation, batchCommitValidations, revealValidation, batchRevealValidations, computeConsensus, settleValidator, forceSettleValidator, releaseContributorReward, claimReward, openDispute, resolveDispute, escalateDispute, reportOriginator, resolveOriginatorReport, escalateOriginatorReport, cancelExpiredCommitment, cancelExpiredValidationClaim, completeProject, refundEscrow, claimToValidate, removeProject
+- [ ] External calls: SapienVault (trusted), token transfer (SafeERC20), treasury/adapter
 
 #### Arithmetic
 - [ ] Overflow/underflow (Solidity 0.8.x)
 - [ ] Division by zero (totalWeight, totalAccurateWeight)
-- [ ] Precision: ConsensusLib PRECISION (1e18), BPS (10000)
+- [ ] Precision: ConsensusLib PRECISION (1e18), BPS (10,000)
 - [ ] Rounding: reward distribution, fee deductions
+- [ ] Overflow protection in ConsensusLib variance calculation
 
 #### Input Validation
-- [ ] Zero address: admin, vault, treasury, consensusAlgorithm
+- [ ] Zero address: admin, vault, treasury
 - [ ] Zero amount: stake ops, fund amounts
-- [ ] Score bounds: 0–10000
-- [ ] Config bounds: consensusThreshold, validatorRewardBps
+- [ ] Score bounds: 0-10,000
+- [ ] Config bounds: consensusThreshold, validatorRewardBps, fee caps, deadline caps
 
 #### State Management
 - [ ] Initialization: _disableInitializers, initializer modifier
 - [ ] Storage: ERC-7201 namespaces avoid collision
 - [ ] Nonce: submissionNonce invalidates stale validation data on rejection
+- [ ] Consensus nonce: disputes keyed by nonce to prevent cross-nonce poisoning
 - [ ] Event emission for state changes
 
 #### External Interactions
 - [ ] SafeERC20 for all token transfers
-- [ ] ConsensusLib: internal delegatecall, no external calls during consensus
-- [ ] IConsensusAlgorithm: staticcall target (pluggable, currently unused in src)
+- [ ] Libraries: DELEGATECALL, operate on Core's storage -- no external calls during consensus
+- [ ] SapienVault: ENGINE_ROLE gated
 
-#### Gas & DoS
-- [ ] Loops: revealedValidators length bounded by numberOfValidations
+#### Gas and DoS
+- [ ] Loops: revealedValidators length bounded by numberOfValidations (max 10)
 - [ ] Index stack: O(1) push/pop
+- [ ] Batch operations: bounded by MAX_CLAIM_QUANTITY (20)
 - [ ] No unbounded iteration over all users
 
 #### Upgradeability
 - [ ] UUPS: _authorizeUpgrade onlyRole(DEFAULT_ADMIN_ROLE)
 - [ ] Storage layout: ERC-7201 per contract
-- [ ] No __gap (namespaced storage isolates)
+- [ ] No __gap needed (namespaced storage isolates)
+- [ ] Library upgrades: libraries linked at deploy time; new library = new SapienCore implementation
 
 #### Protocol-Specific
-- [ ] ERC-4626: StakeVault _decimalsOffset (inflation attack mitigation)
-- [ ] Commit-reveal: keccak256(score, salt), committedStakes stored separately
-- [ ] Dispute bond: sufficient escrow for overturned rejections
+- [ ] ERC-4626: SapienVault _decimalsOffset = 3 (inflation attack mitigation)
+- [ ] Commit-reveal: keccak256(score, salt); committed stake stored in ValidatorCommit.stakedAmount
+- [ ] Tiered slashing: 1.5sigma->10%, 2sigma->25%, 3sigma->50%, 5sigma->100%
+- [ ] Dispute bond: from challenger's contributor lock; rewards from project escrow
 - [ ] Originator stake: slash path when report upheld
+- [ ] Transfer guard: _update override blocks share transfers breaching locked amounts
+- [ ] Withdrawal guard: maxRedeem/maxWithdraw exclude locked amounts
+- [ ] Paused vault: maxDeposit/maxMint/maxRedeem/maxWithdraw return 0
 
 ---
 
 ### Phase 3: Cross-Contract Analysis
 
 1. **Call Flow Tracing**
-   - Engine → Vault: lockContributor, unlockContributor, slashContributor, lockValidatorCapacity, unlockValidatorCapacity, commitStake, releaseCommit, slashValidator
-   - Engine → Token: transferFrom (fund), transfer (claimReward, treasury, adapter)
-   - No Engine ← external callback
+   - SapienCore -> SapienVault: lockContributor, unlockContributor, slashContributor, slashAndUnlockContributor, lockValidatorCapacity, unlockValidatorCapacity, commitStake, releaseCommit, slashValidator
+   - SapienCore -> Token: transferFrom (fund), transfer (claimReward, treasury, adapter)
+   - No SapienCore <- external callback
 
 2. **Invariant Verification**
    - projectEscrow >= sum(pendingRewards for that project)
-   - vault.totalAssets() >= sum(user locks)
+   - vault.totalAssets() >= sum(user locks across all accounts)
    - availableSlots + indices in claims/submitted = totalQuantity per project
+   - pendingContributions tracks in-flight contribution count per project
 
 3. **Attack Scenario Modeling**
    - Flash loan stake inflation
    - Consensus collusion (51%+ validators)
    - Dispute escalation griefing
    - Originator report escalation
+   - Ghost validator DoS (commit without reveal)
+   - Nonce confusion across re-validation cycles
 
 ---
 
@@ -167,10 +185,11 @@ For each contract, systematically check:
 
 Before concluding the review:
 
-- [ ] QualityEngine: all lifecycle + dispute + admin functions
-- [ ] StakeVault: all lock/unlock/slash + ERC-4626 overrides
-- [ ] ConsensusLib: outlier tiers, slash computation
-- [ ] Cross-contract: Engine ↔ Vault trust boundary
+- [ ] SapienCore: all lifecycle + dispute + admin functions
+- [ ] SapienVault: all lock/unlock/slash + ERC-4626 overrides + transfer/withdrawal guards
+- [ ] All 7 libraries: OriginationLib, ContributionLib, ValidationLib, ConsensusLib, FinalizationLib, DisputeLib, ReputationLib
+- [ ] ConsensusLib: outlier tiers, slash computation, overflow protection
+- [ ] Cross-contract: SapienCore <-> SapienVault trust boundary
 - [ ] Upgradeability: ERC-7201 storage safety
 - [ ] Findings documented with severity
 - [ ] Recommendations provided for each finding
@@ -205,7 +224,7 @@ When invoked, perform the review in this order:
 
 ## Related Tools
 
-- **Slither** — `slither src/`
-- **Foundry tests** — `forge test`
-- **Fuzz tests** — Review `test/` coverage
-- **Solhint** — `.solhint.json` if present
+- **Slither** -- `slither src/`
+- **Foundry tests** -- `forge test`
+- **Fuzz tests** -- Review `test/` coverage
+- **Solhint** -- `.solhint.json` if present
