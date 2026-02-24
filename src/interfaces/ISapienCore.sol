@@ -7,6 +7,7 @@ import {
     Contribution,
     Reputation,
     ContributionStatus,
+    ConsensusReport,
     Dispute,
     OriginatorReport,
     ValidationClaim
@@ -796,6 +797,55 @@ interface ISapienCore {
         view
         returns (address);
 
+    /// @notice Retrieve the top of the return stack for a project (next slot to reclaim).
+    /// @param projectId Unique identifier for the project.
+    /// @return The current return stack top index.
+    function getReturnStackTop(bytes32 projectId) external view returns (uint256);
+
+    /// @notice Retrieve the current submission nonce for a contribution slot.
+    /// @param projectId Project the contribution belongs to.
+    /// @param index Contribution slot index.
+    /// @return The current submission nonce.
+    function getSubmissionNonce(bytes32 projectId, uint256 index) external view returns (uint256);
+
+    /// @notice Retrieve the consensus report for a contribution at its current nonce.
+    /// @param projectId Project the contribution belongs to.
+    /// @param index Contribution slot index.
+    /// @return The ConsensusReport struct.
+    function getConsensusReport(bytes32 projectId, uint256 index) external view returns (ConsensusReport memory);
+
+    /// @notice Check whether a validator was classified as an outlier for a contribution.
+    /// @param projectId Project the contribution belongs to.
+    /// @param index Contribution slot index.
+    /// @param validator Address of the validator.
+    /// @return True if the validator was an outlier.
+    function isValidatorOutlier(bytes32 projectId, uint256 index, address validator) external view returns (bool);
+
+    /// @notice Check whether a validator has been settled for a specific consensus nonce.
+    /// @param projectId Project the contribution belongs to.
+    /// @param index Contribution slot index.
+    /// @param nonce Consensus nonce.
+    /// @param validator Address of the validator.
+    /// @return True if the validator has been settled.
+    function isValidatorSettled(bytes32 projectId, uint256 index, uint256 nonce, address validator)
+        external
+        view
+        returns (bool);
+
+    /// @notice Retrieve the address of the SapienVault contract.
+    /// @return The vault address.
+    function vault() external view returns (address);
+
+    /// @notice Retrieve the protocol treasury address.
+    /// @return The treasury address.
+    function treasury() external view returns (address);
+
+    /// @notice Retrieve the remaining escrow balance for a project and token.
+    /// @param projectId Unique identifier for the project.
+    /// @param token Address of the reward token.
+    /// @return The escrowed amount.
+    function getProjectEscrow(bytes32 projectId, address token) external view returns (uint256);
+
     /// @notice Retrieve the dispute record for a contribution at its current nonce.
     /// @param projectId Project the contribution belongs to.
     /// @param index Contribution slot index.
@@ -806,6 +856,26 @@ interface ISapienCore {
     /// @param projectId Unique identifier for the project.
     /// @return The OriginatorReport struct.
     function getOriginatorReport(bytes32 projectId) external view returns (OriginatorReport memory);
+
+    /// @notice Retrieve the amount of originator stake locked for a project.
+    /// @param projectId Unique identifier for the project.
+    /// @return The locked stake amount.
+    function getOriginatorLockedStake(bytes32 projectId) external view returns (uint256);
+
+    /// @notice Retrieve the current dispute-related configuration parameters.
+    /// @return disputeBondBps_ Dispute bond in basis points of the contribution reward rate.
+    /// @return originatorStakeReq_ Per-slot originator stake requirement.
+    /// @return originatorReportBondBps_ Originator report bond in basis points of total project rewards.
+    function getDisputeConfig()
+        external
+        view
+        returns (uint256 disputeBondBps_, uint256 originatorStakeReq_, uint256 originatorReportBondBps_);
+
+    /// @notice Retrieve the number of validator reveals for a contribution at its current nonce.
+    /// @param projectId Project the contribution belongs to.
+    /// @param index Contribution slot index.
+    /// @return The reveal count.
+    function getRevealCount(bytes32 projectId, uint256 index) external view returns (uint256);
 
     // ── Configurable Deadline Getters ───────────────────────────────────
 
@@ -828,4 +898,8 @@ interface ISapienCore {
     /// @notice Additional delay after the challenge period before force-settle is allowed (in seconds).
     /// @return The current force-settle delay duration.
     function forceSettleDelay() external view returns (uint256);
+
+    /// @notice Current reputation decay rate in basis points per day.
+    /// @return The decay rate in basis points.
+    function decayRateBps() external view returns (uint256);
 }

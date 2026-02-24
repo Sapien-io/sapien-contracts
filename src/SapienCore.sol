@@ -518,6 +518,7 @@ contract SapienCore is
         return _getStorage().validationClaims[claimId];
     }
 
+    /// @inheritdoc ISapienCore
     function getReturnStackTop(bytes32 projectId) external view returns (uint256) {
         return _getStorage().returnStackTop[projectId];
     }
@@ -571,22 +572,26 @@ contract SapienCore is
         return _getStorage().validatorCommits[projectId][index][nonce][validator].adapter;
     }
 
+    /// @inheritdoc ISapienCore
     function getSubmissionNonce(bytes32 projectId, uint256 index) external view returns (uint256) {
         return _getStorage().submissionNonce[projectId][index];
     }
 
+    /// @inheritdoc ISapienCore
     function getConsensusReport(bytes32 projectId, uint256 index) external view returns (ConsensusReport memory) {
         EngineStorage storage $ = _getStorage();
         uint256 nonce = $.contributions[projectId][index].consensusNonce;
         return $.consensusReports[projectId][index][nonce];
     }
 
+    /// @inheritdoc ISapienCore
     function isValidatorOutlier(bytes32 projectId, uint256 index, address validator) external view returns (bool) {
         EngineStorage storage $ = _getStorage();
         uint256 nonce = $.contributions[projectId][index].consensusNonce;
         return $.validatorConsensus[projectId][index][nonce][validator].isOutlier;
     }
 
+    /// @inheritdoc ISapienCore
     function isValidatorSettled(bytes32 projectId, uint256 index, uint256 nonce, address validator)
         external
         view
@@ -595,14 +600,17 @@ contract SapienCore is
         return _getStorage().validatorCommits[projectId][index][nonce][validator].settled;
     }
 
+    /// @inheritdoc ISapienCore
     function vault() external view returns (address) {
         return address(_getStorage().vault);
     }
 
+    /// @inheritdoc ISapienCore
     function treasury() external view returns (address) {
         return _getStorage().treasury;
     }
 
+    /// @inheritdoc ISapienCore
     function getProjectEscrow(bytes32 projectId, address token) external view returns (uint256) {
         return _getStorage().projectEscrow[projectId][token];
     }
@@ -619,10 +627,12 @@ contract SapienCore is
         return _getStorage().originatorReports[projectId];
     }
 
+    /// @inheritdoc ISapienCore
     function getOriginatorLockedStake(bytes32 projectId) external view returns (uint256) {
         return _getStorage().originatorLockedStake[projectId];
     }
 
+    /// @inheritdoc ISapienCore
     function getDisputeConfig()
         external
         view
@@ -632,33 +642,39 @@ contract SapienCore is
         return ($.disputeBondBps, $.originatorStakeRequirement, $.originatorReportBondBps);
     }
 
+    /// @inheritdoc ISapienCore
     function getRevealCount(bytes32 projectId, uint256 index) external view returns (uint256) {
         EngineStorage storage $ = _getStorage();
         uint256 nonce = $.submissionNonce[projectId][index];
         return $.validationCounters[projectId][index][nonce].revealCount;
     }
 
-    // Configurable deadline getters
+    /// @inheritdoc ISapienCore
     function claimDeadline() external view returns (uint256) {
         return _getStorage().claimDeadline;
     }
 
+    /// @inheritdoc ISapienCore
     function challengePeriod() external view returns (uint256) {
         return _getStorage().challengePeriod;
     }
 
+    /// @inheritdoc ISapienCore
     function commitDeadline() external view returns (uint256) {
         return _getStorage().commitDeadline;
     }
 
+    /// @inheritdoc ISapienCore
     function revealDeadline() external view returns (uint256) {
         return _getStorage().revealDeadline;
     }
 
+    /// @inheritdoc ISapienCore
     function forceSettleDelay() external view returns (uint256) {
         return _getStorage().forceSettleDelay;
     }
 
+    /// @inheritdoc ISapienCore
     function decayRateBps() external view returns (uint256) {
         return _getStorage().decayRateBps;
     }
