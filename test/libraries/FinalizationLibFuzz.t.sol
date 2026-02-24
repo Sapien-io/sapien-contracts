@@ -280,12 +280,12 @@ contract FinalizationLibFuzz is Test {
 
         vm.prank(contributor);
         engine.claimReward(address(token));
-        
+
         uint256 claimedAt = block.timestamp;
 
         bytes32 proj2 = keccak256("cooldown-test-2");
         uint256 contribIdx2 = _createNewProjectWithAcceptedContributionFor(proj2, contributor);
-        
+
         vm.warp(claimedAt + engine.challengePeriod() + 1);
         engine.releaseContributorReward(proj2, contribIdx2);
 
@@ -508,7 +508,10 @@ contract FinalizationLibFuzz is Test {
         engine.contribute(newClaimId, contribIndex, keccak256("submission"), "");
     }
 
-    function _createNewProjectWithAcceptedContributionFor(bytes32 projectId, address contribUser) internal returns (uint256 contribIndex) {
+    function _createNewProjectWithAcceptedContributionFor(bytes32 projectId, address contribUser)
+        internal
+        returns (uint256 contribIndex)
+    {
         Project memory config = Project({
             originator: address(0),
             rewardToken: address(token),

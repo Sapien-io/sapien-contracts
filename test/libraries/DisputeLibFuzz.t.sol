@@ -8,7 +8,16 @@ import {SapienVault} from "src/SapienVault.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {Constants as C} from "src/Constants.sol";
 import {ISapienCore} from "src/interfaces/ISapienCore.sol";
-import {Project, ProjectStatus, Contribution, ContributionStatus, Dispute, DisputeStatus, OriginatorReport, OriginatorReportStatus} from "src/Types.sol";
+import {
+    Project,
+    ProjectStatus,
+    Contribution,
+    ContributionStatus,
+    Dispute,
+    DisputeStatus,
+    OriginatorReport,
+    OriginatorReportStatus
+} from "src/Types.sol";
 
 /// @title DisputeLibFuzz
 /// @notice Fuzz tests attempting to break DisputeLib with edge cases

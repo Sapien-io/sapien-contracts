@@ -42,7 +42,7 @@ contract ReputationLibFuzz is Test {
 
     function testFuzz_getScore_returnsDefaultForNewUser(address user, bytes32 role) public view {
         vm.assume(user != address(0));
-        
+
         Reputation memory rep = engine.getReputation(user, role);
         assertEq(rep.score, C.DEFAULT_REPUTATION, "New user should have default reputation");
     }
@@ -58,7 +58,7 @@ contract ReputationLibFuzz is Test {
         engine.createProject(projectId, "", config);
 
         Reputation memory repAfter = engine.getReputation(originator, C.ORIGINATOR_ROLE_KEY);
-        
+
         assertGe(repAfter.score, scoreBefore, "Score should increase or stay same after project creation");
         assertEq(repAfter.totalActions, repBefore.totalActions + 1, "Total actions should increment");
         assertEq(repAfter.successfulActions, repBefore.successfulActions + 1, "Successful actions should increment");
@@ -70,13 +70,13 @@ contract ReputationLibFuzz is Test {
         for (uint256 i; i < numProjects; ++i) {
             bytes32 projectId = keccak256(abi.encodePacked("project", i));
             Project memory config = _makeProjectConfig();
-            
+
             vm.prank(originator);
             engine.createProject(projectId, "", config);
         }
 
         Reputation memory rep = engine.getReputation(originator, C.ORIGINATOR_ROLE_KEY);
-        
+
         assertEq(rep.totalActions, numProjects, "Total actions should match project count");
         assertEq(rep.successfulActions, numProjects, "Successful actions should match project count");
         assertTrue(rep.score >= C.DEFAULT_REPUTATION, "Score should be at least default");
@@ -88,13 +88,13 @@ contract ReputationLibFuzz is Test {
         for (uint256 i; i < iterations; ++i) {
             bytes32 projectId = keccak256(abi.encodePacked("project", i));
             Project memory config = _makeProjectConfig();
-            
+
             vm.prank(originator);
             engine.createProject(projectId, "", config);
         }
 
         Reputation memory rep = engine.getReputation(originator, C.ORIGINATOR_ROLE_KEY);
-        
+
         uint256 maxPossibleScore = C.DEFAULT_REPUTATION + C.MAX_DAILY_GAIN;
         assertTrue(rep.score <= maxPossibleScore, "Score should be capped by daily gain");
         assertTrue(rep.score <= C.MAX_REPUTATION, "Score should never exceed max");
@@ -107,7 +107,7 @@ contract ReputationLibFuzz is Test {
             vm.prank(originator);
             engine.createProject(projectId, "", config);
         }
-        
+
         Reputation memory repDay1 = engine.getReputation(originator, C.ORIGINATOR_ROLE_KEY);
 
         vm.warp(block.timestamp + 1 days);
@@ -153,7 +153,7 @@ contract ReputationLibFuzz is Test {
         vm.warp(block.timestamp + uint256(daysElapsed) * 1 days);
 
         Reputation memory repDecayed = engine.getReputation(originator, C.ORIGINATOR_ROLE_KEY);
-        
+
         assertTrue(repDecayed.score <= initialScore, "Score should decay or stay same");
         assertTrue(repDecayed.score >= C.MIN_REPUTATION, "Score should never go below minimum");
     }
@@ -174,7 +174,7 @@ contract ReputationLibFuzz is Test {
         vm.warp(block.timestamp + uint256(daysElapsed) * 1 days);
 
         Reputation memory repLater = engine.getReputation(originator, C.ORIGINATOR_ROLE_KEY);
-        
+
         assertEq(repLater.score, repInitial.score, "No decay should occur with zero rate");
     }
 
@@ -183,7 +183,7 @@ contract ReputationLibFuzz is Test {
 
         for (uint256 i; i < iterations; ++i) {
             vm.warp(block.timestamp + 1 days);
-            
+
             bytes32 projectId = keccak256(abi.encodePacked("bounded-project", i));
             Project memory config = _makeProjectConfig();
             vm.prank(originator);
@@ -191,7 +191,7 @@ contract ReputationLibFuzz is Test {
         }
 
         Reputation memory rep = engine.getReputation(originator, C.ORIGINATOR_ROLE_KEY);
-        
+
         assertTrue(rep.score >= C.MIN_REPUTATION, "Score should never go below minimum");
         assertTrue(rep.score <= C.MAX_REPUTATION, "Score should never exceed maximum");
     }
@@ -200,26 +200,26 @@ contract ReputationLibFuzz is Test {
         vm.assume(projectId != bytes32(0));
 
         uint256 timestamp = block.timestamp;
-        
+
         Project memory config = _makeProjectConfig();
         vm.prank(originator);
         engine.createProject(projectId, "", config);
 
         Reputation memory rep = engine.getReputation(originator, C.ORIGINATOR_ROLE_KEY);
-        
+
         assertEq(rep.lastUpdated, timestamp, "lastUpdated should match block timestamp");
     }
 
     function testFuzz_reputation_dailyGainDateTracking() public {
         uint256 today = block.timestamp / 1 days;
-        
+
         bytes32 projectId = keccak256("daily-tracking-test");
         Project memory config = _makeProjectConfig();
         vm.prank(originator);
         engine.createProject(projectId, "", config);
 
         Reputation memory rep = engine.getReputation(originator, C.ORIGINATOR_ROLE_KEY);
-        
+
         assertEq(rep.dailyGainDate, today, "Daily gain date should match current day");
         assertTrue(rep.dailyGain > 0, "Daily gain should be positive");
     }

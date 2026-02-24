@@ -85,7 +85,7 @@ contract ContributionLibFuzz is Test {
 
     function testFuzz_claimToContribute_validQuantity(uint8 quantity) public {
         quantity = uint8(bound(quantity, 1, C.MAX_CLAIM_QUANTITY));
-        
+
         _ensureStake(contributor, STAKE_AMOUNT * quantity);
 
         vm.prank(contributor);
@@ -93,7 +93,7 @@ contract ContributionLibFuzz is Test {
 
         assertEq(indices.length, quantity);
         assertTrue(claimId > 0 || claimId == 0);
-        
+
         Claim memory claim = engine.getClaim(claimId);
         address claimant = claim.claimant;
         uint256 deadline = claim.deadline;
@@ -115,7 +115,9 @@ contract ContributionLibFuzz is Test {
         quantity = bound(quantity, C.MAX_CLAIM_QUANTITY + 1, type(uint128).max);
 
         vm.prank(contributor);
-        vm.expectRevert(abi.encodeWithSelector(ISapienCore.ClaimQuantityTooHigh.selector, quantity, C.MAX_CLAIM_QUANTITY));
+        vm.expectRevert(
+            abi.encodeWithSelector(ISapienCore.ClaimQuantityTooHigh.selector, quantity, C.MAX_CLAIM_QUANTITY)
+        );
         engine.claimToContribute(PROJECT_ID, quantity, address(0));
     }
 

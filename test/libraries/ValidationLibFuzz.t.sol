@@ -157,14 +157,14 @@ contract ValidationLibFuzz is Test {
         indices[0] = submittedIndex;
 
         address[4] memory validators = [validator1, validator2, validator3, makeAddr("validator4")];
-        
+
         for (uint256 i; i < 3; ++i) {
             vm.prank(validators[i]);
             engine.claimToValidate(PROJECT_ID, indices);
         }
 
         _setupValidator(validators[3]);
-        
+
         vm.prank(validators[3]);
         vm.expectRevert(abi.encodeWithSelector(ISapienCore.ConsensusNotReady.selector, 3, 3));
         engine.claimToValidate(PROJECT_ID, indices);
@@ -275,7 +275,7 @@ contract ValidationLibFuzz is Test {
         score = bound(score, 0, 10_000);
         bytes32 correctSalt = bytes32("correct_salt");
         vm.assume(wrongSalt != correctSalt);
-        
+
         bytes32 commitHash = keccak256(abi.encodePacked(score, correctSalt));
 
         _claimValidation(validator1, submittedIndex);
@@ -377,7 +377,7 @@ contract ValidationLibFuzz is Test {
 
     function testFuzz_batchCommitValidations_valid(uint8 batchSize) public {
         batchSize = uint8(bound(batchSize, 1, 5));
-        
+
         uint256[] memory contributedIndices = _submitMoreContributions(batchSize);
 
         bytes32[] memory hashes = new bytes32[](batchSize);

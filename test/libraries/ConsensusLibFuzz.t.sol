@@ -29,12 +29,8 @@ contract ConsensusLibFuzz is Test {
         reputation = bound(reputation, 0, type(uint128).max);
 
         ValidationInput[] memory inputs = new ValidationInput[](1);
-        inputs[0] = ValidationInput({
-            validator: validator,
-            score: score,
-            stakeAmount: stakeAmount,
-            reputation: reputation
-        });
+        inputs[0] =
+            ValidationInput({validator: validator, score: score, stakeAmount: stakeAmount, reputation: reputation});
 
         ConsensusResult memory result = ConsensusLib.calculate(inputs);
 
@@ -86,23 +82,15 @@ contract ConsensusLibFuzz is Test {
         stake2 = bound(stake2, 1e18, 100e18);
 
         ValidationInput[] memory inputs = new ValidationInput[](2);
-        inputs[0] = ValidationInput({
-            validator: address(1),
-            score: lowScore,
-            stakeAmount: stake1,
-            reputation: 5000
-        });
-        inputs[1] = ValidationInput({
-            validator: address(2),
-            score: highScore,
-            stakeAmount: stake2,
-            reputation: 5000
-        });
+        inputs[0] = ValidationInput({validator: address(1), score: lowScore, stakeAmount: stake1, reputation: 5000});
+        inputs[1] = ValidationInput({validator: address(2), score: highScore, stakeAmount: stake2, reputation: 5000});
 
         ConsensusResult memory result = ConsensusLib.calculate(inputs);
 
-        assertTrue(result.weightedAverage >= lowScore && result.weightedAverage <= highScore,
-            "Weighted average should be between scores");
+        assertTrue(
+            result.weightedAverage >= lowScore && result.weightedAverage <= highScore,
+            "Weighted average should be between scores"
+        );
         assertTrue(result.stdDeviation > 0, "Different scores should have non-zero stddev");
     }
 
@@ -111,15 +99,10 @@ contract ConsensusLibFuzz is Test {
         reputation = bound(reputation, 0, type(uint64).max);
 
         ValidationInput[] memory inputs = new ValidationInput[](1);
-        inputs[0] = ValidationInput({
-            validator: address(1),
-            score: score,
-            stakeAmount: 0,
-            reputation: reputation
-        });
+        inputs[0] = ValidationInput({validator: address(1), score: score, stakeAmount: 0, reputation: reputation});
 
         ConsensusResult memory result = ConsensusLib.calculate(inputs);
-        
+
         assertEq(result.weightedAverage, score);
         assertGt(result.weights[0], 0, "Weight should be at least 1 even with zero stake");
     }
@@ -129,24 +112,19 @@ contract ConsensusLibFuzz is Test {
         stakeAmount = bound(stakeAmount, 1, type(uint64).max);
 
         ValidationInput[] memory inputs = new ValidationInput[](1);
-        inputs[0] = ValidationInput({
-            validator: address(1),
-            score: score,
-            stakeAmount: stakeAmount,
-            reputation: 0
-        });
+        inputs[0] = ValidationInput({validator: address(1), score: score, stakeAmount: stakeAmount, reputation: 0});
 
         ConsensusResult memory result = ConsensusLib.calculate(inputs);
-        
+
         assertEq(result.weightedAverage, score);
         assertTrue(result.weights[0] > 0, "Zero reputation should still produce positive weight");
     }
 
     function testFuzz_calculate_manyValidatorsNoOverflow(uint8 numValidators, uint256 baseSeed) public {
         numValidators = uint8(bound(numValidators, 1, 50));
-        
+
         ValidationInput[] memory inputs = new ValidationInput[](numValidators);
-        
+
         for (uint256 i; i < numValidators; ++i) {
             uint256 seed = uint256(keccak256(abi.encodePacked(baseSeed, i)));
             inputs[i] = ValidationInput({
@@ -166,43 +144,31 @@ contract ConsensusLibFuzz is Test {
         assertEq(result.weights.length, numValidators);
     }
 
-    function testFuzz_calculate_outlierDetection(
-        uint256 consensusScore,
-        uint256 outlierScore,
-        uint256 stake
-    ) public {
+    function testFuzz_calculate_outlierDetection(uint256 consensusScore, uint256 outlierScore, uint256 stake) public {
         consensusScore = bound(consensusScore, 5000, 8000);
         stake = bound(stake, 1e18, 100e18);
-        
+
         outlierScore = bound(outlierScore, 0, 1000);
         if (consensusScore > 7000) {
             outlierScore = 10_000 - (consensusScore - 5000);
         }
 
         ValidationInput[] memory inputs = new ValidationInput[](4);
-        
+
         for (uint256 i; i < 3; ++i) {
             inputs[i] = ValidationInput({
-                validator: address(uint160(i + 1)),
-                score: consensusScore,
-                stakeAmount: stake,
-                reputation: 5000
+                validator: address(uint160(i + 1)), score: consensusScore, stakeAmount: stake, reputation: 5000
             });
         }
         inputs[3] = ValidationInput({
-            validator: address(uint160(100)),
-            score: outlierScore,
-            stakeAmount: stake,
-            reputation: 5000
+            validator: address(uint160(100)), score: outlierScore, stakeAmount: stake, reputation: 5000
         });
 
         ConsensusResult memory result = ConsensusLib.calculate(inputs);
 
         if (result.stdDeviation > 0) {
-            uint256 diff = consensusScore > outlierScore 
-                ? consensusScore - outlierScore 
-                : outlierScore - consensusScore;
-            
+            uint256 diff = consensusScore > outlierScore ? consensusScore - outlierScore : outlierScore - consensusScore;
+
             if (diff > 1000) {
                 assertTrue(result.isOutlier[3], "Large deviation should be detected as outlier");
                 assertTrue(result.slashAmounts[3] > 0, "Outliers should have non-zero slash");
@@ -218,20 +184,14 @@ contract ConsensusLibFuzz is Test {
         uint256 outlierScore = consensusScore > outlierDeviation ? consensusScore - outlierDeviation : 0;
 
         ValidationInput[] memory inputs = new ValidationInput[](10);
-        
+
         for (uint256 i; i < 9; ++i) {
             inputs[i] = ValidationInput({
-                validator: address(uint160(i + 1)),
-                score: consensusScore,
-                stakeAmount: stake,
-                reputation: 5000
+                validator: address(uint160(i + 1)), score: consensusScore, stakeAmount: stake, reputation: 5000
             });
         }
         inputs[9] = ValidationInput({
-            validator: address(uint160(100)),
-            score: outlierScore,
-            stakeAmount: stake,
-            reputation: 5000
+            validator: address(uint160(100)), score: outlierScore, stakeAmount: stake, reputation: 5000
         });
 
         ConsensusResult memory result = ConsensusLib.calculate(inputs);
@@ -239,12 +199,10 @@ contract ConsensusLibFuzz is Test {
         if (result.isOutlier[9]) {
             uint256 slashAmt = result.slashAmounts[9];
             assertTrue(slashAmt <= stake, "Slash cannot exceed staked amount");
-            
+
             assertTrue(
-                slashAmt == (stake * 1000) / 10_000 ||
-                slashAmt == (stake * 2500) / 10_000 ||
-                slashAmt == (stake * 5000) / 10_000 ||
-                slashAmt == stake,
+                slashAmt == (stake * 1000) / 10_000 || slashAmt == (stake * 2500) / 10_000
+                    || slashAmt == (stake * 5000) / 10_000 || slashAmt == stake,
                 "Slash should be one of the tiered amounts"
             );
         }
@@ -255,28 +213,19 @@ contract ConsensusLibFuzz is Test {
 
         ValidationInput[] memory inputs = new ValidationInput[](2);
         inputs[0] = ValidationInput({
-            validator: address(1),
-            score: score,
-            stakeAmount: type(uint128).max,
-            reputation: type(uint64).max
+            validator: address(1), score: score, stakeAmount: type(uint128).max, reputation: type(uint64).max
         });
         inputs[1] = ValidationInput({
-            validator: address(2),
-            score: score,
-            stakeAmount: type(uint128).max,
-            reputation: type(uint64).max
+            validator: address(2), score: score, stakeAmount: type(uint128).max, reputation: type(uint64).max
         });
 
         ConsensusResult memory result = ConsensusLib.calculate(inputs);
         assertEq(result.weightedAverage, score);
     }
 
-    function testFuzz_calculate_consistentWeightOrdering(
-        uint256 stake1,
-        uint256 stake2,
-        uint256 rep1,
-        uint256 rep2
-    ) public {
+    function testFuzz_calculate_consistentWeightOrdering(uint256 stake1, uint256 stake2, uint256 rep1, uint256 rep2)
+        public
+    {
         stake1 = bound(stake1, 1e18, 1000e18);
         stake2 = bound(stake2, 1e18, 1000e18);
         rep1 = bound(rep1, MIN_REPUTATION_FLOOR, 10_000);
@@ -295,25 +244,19 @@ contract ConsensusLibFuzz is Test {
     function testFuzz_calculate_accurateWeightTracking(uint8 numOutliers, uint8 numAccurate) public {
         numOutliers = uint8(bound(numOutliers, 0, 5));
         numAccurate = uint8(bound(numAccurate, 3, 20));
-        
+
         uint256 total = uint256(numOutliers) + uint256(numAccurate);
         ValidationInput[] memory inputs = new ValidationInput[](total);
-        
+
         for (uint256 i; i < numAccurate; ++i) {
             inputs[i] = ValidationInput({
-                validator: address(uint160(i + 1)),
-                score: 5000,
-                stakeAmount: 10e18,
-                reputation: 5000
+                validator: address(uint160(i + 1)), score: 5000, stakeAmount: 10e18, reputation: 5000
             });
         }
-        
+
         for (uint256 i; i < numOutliers; ++i) {
             inputs[numAccurate + i] = ValidationInput({
-                validator: address(uint160(numAccurate + i + 100)),
-                score: 100,
-                stakeAmount: 10e18,
-                reputation: 5000
+                validator: address(uint160(numAccurate + i + 100)), score: 100, stakeAmount: 10e18, reputation: 5000
             });
         }
 
@@ -325,7 +268,7 @@ contract ConsensusLibFuzz is Test {
                 computedAccurateWeight += result.weights[i];
             }
         }
-        
+
         assertEq(result.totalAccurateWeight, computedAccurateWeight, "totalAccurateWeight mismatch");
     }
 
@@ -334,14 +277,9 @@ contract ConsensusLibFuzz is Test {
         goodScore = bound(goodScore, 4000, 6000);
 
         ValidationInput[] memory inputs = new ValidationInput[](numValidators);
-        
-        inputs[0] = ValidationInput({
-            validator: address(1),
-            score: goodScore,
-            stakeAmount: 100e18,
-            reputation: 10_000
-        });
-        
+
+        inputs[0] = ValidationInput({validator: address(1), score: goodScore, stakeAmount: 100e18, reputation: 10_000});
+
         for (uint256 i = 1; i < numValidators; ++i) {
             inputs[i] = ValidationInput({
                 validator: address(uint160(i + 1)),
@@ -352,7 +290,7 @@ contract ConsensusLibFuzz is Test {
         }
 
         ConsensusResult memory result = ConsensusLib.calculate(inputs);
-        
+
         assertTrue(result.totalAccurateWeight > 0, "Should have at least one accurate validator");
     }
 
@@ -364,23 +302,17 @@ contract ConsensusLibFuzz is Test {
     ) public {
         ValidationInput[] memory inputs1 = new ValidationInput[](3);
         ValidationInput[] memory inputs2 = new ValidationInput[](3);
-        
+
         for (uint256 i; i < 3; ++i) {
             scores[i] = bound(scores[i], 0, 10_000);
             stakes[i] = bound(stakes[i], 1, type(uint64).max);
             reps[i] = bound(reps[i], 1, type(uint64).max);
-            
+
             inputs1[i] = ValidationInput({
-                validator: validators[i],
-                score: scores[i],
-                stakeAmount: stakes[i],
-                reputation: reps[i]
+                validator: validators[i], score: scores[i], stakeAmount: stakes[i], reputation: reps[i]
             });
             inputs2[i] = ValidationInput({
-                validator: validators[i],
-                score: scores[i],
-                stakeAmount: stakes[i],
-                reputation: reps[i]
+                validator: validators[i], score: scores[i], stakeAmount: stakes[i], reputation: reps[i]
             });
         }
 
@@ -399,21 +331,12 @@ contract ConsensusLibFuzz is Test {
         score = bound(score, 0, 10_000);
 
         ValidationInput[] memory inputs = new ValidationInput[](2);
-        inputs[0] = ValidationInput({
-            validator: address(1),
-            score: score,
-            stakeAmount: 1e18,
-            reputation: 1
-        });
-        inputs[1] = ValidationInput({
-            validator: address(2),
-            score: score,
-            stakeAmount: 1e18,
-            reputation: type(uint128).max
-        });
+        inputs[0] = ValidationInput({validator: address(1), score: score, stakeAmount: 1e18, reputation: 1});
+        inputs[1] =
+            ValidationInput({validator: address(2), score: score, stakeAmount: 1e18, reputation: type(uint128).max});
 
         ConsensusResult memory result = ConsensusLib.calculate(inputs);
-        
+
         assertEq(result.weightedAverage, score, "Same scores should produce exact average");
         assertTrue(result.weights[1] > result.weights[0], "Higher reputation should have higher weight");
     }

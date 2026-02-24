@@ -68,7 +68,7 @@ contract OriginationLibFuzz is Test {
         vm.assume(projectId != bytes32(0));
 
         Project memory config = _makeProjectConfig();
-        
+
         vm.prank(originator);
         engine.createProject(projectId, "", config);
 
@@ -96,7 +96,9 @@ contract OriginationLibFuzz is Test {
         config.consensusThreshold = threshold;
 
         vm.prank(originator);
-        vm.expectRevert(abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "consensusThreshold out of range"));
+        vm.expectRevert(
+            abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "consensusThreshold out of range")
+        );
         engine.createProject(projectId, "", config);
     }
 
@@ -107,7 +109,9 @@ contract OriginationLibFuzz is Test {
         config.consensusThreshold = 0;
 
         vm.prank(originator);
-        vm.expectRevert(abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "consensusThreshold out of range"));
+        vm.expectRevert(
+            abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "consensusThreshold out of range")
+        );
         engine.createProject(projectId, "", config);
     }
 
@@ -119,7 +123,9 @@ contract OriginationLibFuzz is Test {
         config.validatorRewardBps = rewardBps;
 
         vm.prank(originator);
-        vm.expectRevert(abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "validatorRewardBps too high"));
+        vm.expectRevert(
+            abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "validatorRewardBps too high")
+        );
         engine.createProject(projectId, "", config);
     }
 
@@ -131,7 +137,9 @@ contract OriginationLibFuzz is Test {
         config.numberOfValidations = validations;
 
         vm.prank(originator);
-        vm.expectRevert(abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "numberOfValidations out of range"));
+        vm.expectRevert(
+            abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "numberOfValidations out of range")
+        );
         engine.createProject(projectId, "", config);
     }
 
@@ -142,7 +150,9 @@ contract OriginationLibFuzz is Test {
         config.numberOfValidations = 0;
 
         vm.prank(originator);
-        vm.expectRevert(abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "numberOfValidations out of range"));
+        vm.expectRevert(
+            abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "numberOfValidations out of range")
+        );
         engine.createProject(projectId, "", config);
     }
 
@@ -154,15 +164,13 @@ contract OriginationLibFuzz is Test {
         config.originator = wrongOriginator;
 
         vm.prank(originator);
-        vm.expectRevert(abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "originator must be msg.sender or zero"));
+        vm.expectRevert(
+            abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "originator must be msg.sender or zero")
+        );
         engine.createProject(projectId, "", config);
     }
 
-    function testFuzz_fundProject_validFunding(
-        bytes32 projectId,
-        uint256 amount,
-        uint256 quantity
-    ) public {
+    function testFuzz_fundProject_validFunding(bytes32 projectId, uint256 amount, uint256 quantity) public {
         vm.assume(projectId != bytes32(0));
         amount = bound(amount, 1e18, 100_000e18);
         quantity = bound(quantity, 1, 100);
@@ -216,10 +224,7 @@ contract OriginationLibFuzz is Test {
         vm.stopPrank();
     }
 
-    function testFuzz_fundProject_multipleFundings(
-        bytes32 projectId,
-        uint8 fundingRounds
-    ) public {
+    function testFuzz_fundProject_multipleFundings(bytes32 projectId, uint8 fundingRounds) public {
         vm.assume(projectId != bytes32(0));
         fundingRounds = uint8(bound(fundingRounds, 1, 10));
 
@@ -229,7 +234,7 @@ contract OriginationLibFuzz is Test {
         for (uint256 i; i < fundingRounds; ++i) {
             uint256 amount = 1000e18;
             uint256 qty = 5;
-            
+
             vm.prank(originator);
             engine.fundProject(projectId, amount, qty, address(0));
             totalQuantity += qty;
@@ -257,7 +262,7 @@ contract OriginationLibFuzz is Test {
 
         uint256 treasuryBalanceAfter = token.balanceOf(treasury);
         uint256 expectedFee = (amount * feeBps) / C.BPS;
-        
+
         assertEq(treasuryBalanceAfter - treasuryBalanceBefore, expectedFee);
     }
 
@@ -280,11 +285,9 @@ contract OriginationLibFuzz is Test {
         assertTrue(adapterPending > 0, "Adapter should have pending rewards");
     }
 
-    function testFuzz_fundProject_withOriginatorStakeRequirement(
-        bytes32 projectId,
-        uint256 stakeReq,
-        uint256 quantity
-    ) public {
+    function testFuzz_fundProject_withOriginatorStakeRequirement(bytes32 projectId, uint256 stakeReq, uint256 quantity)
+        public
+    {
         vm.assume(projectId != bytes32(0));
         stakeReq = bound(stakeReq, 1e18, 100e18);
         quantity = bound(quantity, 1, 10);
