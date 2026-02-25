@@ -34,7 +34,7 @@ sequenceDiagram
     Note over O, SV: Phase 3: Validation (Commit-Reveal)
     V->>SC: lockValidatorCapacity(amount)
     SC->>SV: lockValidatorCapacity(validator, amount)
-    V->>SC: claimToValidate(projectId, indices[])
+    V->>SC: claimToValidate(projectId, quantity)
     Note right of SC: Reputation check, 1-hour deadline
     V->>SC: commitValidation(projectId, index, commitHash, stakeAmount, adapter)
     SC->>SV: commitStake(validator, stakeAmount)
@@ -104,7 +104,7 @@ Originators register a project with `createProject`, defining the reward token, 
 Contributors claim slots via `claimToContribute`, which locks their stake at `minStakeToClaim × quantity` and assigns slot indices using a range + return-stack hybrid allocator. The first claim on a `Funded` project transitions it to `Active`. Work is submitted via `contribute` with a submission hash and data CID.
 
 ### 3. Validation
-Validators pre-lock capacity via `lockValidatorCapacity`, then claim specific indices via `claimToValidate` (1-hour deadline, reputation check). The commit-reveal scheme uses `keccak256(abi.encodePacked(uint16(score), salt))` as the commit hash. Stake moves from `validatorCapacity` to `inFlight` on commit.
+Validators pre-lock capacity via `lockValidatorCapacity`, then request a quantity via `claimToValidate(projectId, quantity)` and receive randomly assigned pending contributions (1-hour deadline, reputation check). The commit-reveal scheme uses `keccak256(abi.encodePacked(uint16(score), salt))` as the commit hash. Stake moves from `validatorCapacity` to `inFlight` on commit.
 
 ### 4. Consensus
 `computeConsensus` calls `ConsensusLib.calculate()` which computes a stake-weighted average (`sqrt(stake) × reputation`), standard deviation, and classifies outliers using tiered thresholds. The contribution is set to `Accepted` (score ≥ threshold) or `Rejected` (score < threshold). Accepted contributions start the challenge period; rejected contributions return the slot to the pool and increment the submission nonce.

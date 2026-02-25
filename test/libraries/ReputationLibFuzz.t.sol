@@ -20,6 +20,8 @@ contract ReputationLibFuzz is Test {
     address public treasury = makeAddr("treasury");
     address public originator = makeAddr("originator");
 
+    bytes32 constant SKILL_ID = keccak256("DATA_ANNOTATION");
+
     function setUp() public {
         token = new MockERC20("Test", "TST");
 
@@ -33,6 +35,7 @@ contract ReputationLibFuzz is Test {
 
         vm.startPrank(admin);
         vault.grantRole(vault.ENGINE_ROLE(), address(engine));
+        engine.registerSkill("DATA_ANNOTATION");
         vm.stopPrank();
 
         token.mint(originator, 1_000_000e18);
@@ -128,8 +131,8 @@ contract ReputationLibFuzz is Test {
         vm.assume(user != address(0));
 
         Reputation memory repRole1 = engine.getReputation(user, C.ORIGINATOR_ROLE_KEY);
-        Reputation memory repRole2 = engine.getReputation(user, C.CONTRIBUTOR_ROLE_KEY);
-        Reputation memory repRole3 = engine.getReputation(user, C.VALIDATOR_ROLE_KEY);
+        Reputation memory repRole2 = engine.getReputation(user, SKILL_ID);
+        Reputation memory repRole3 = engine.getReputation(user, SKILL_ID);
 
         assertEq(repRole1.score, C.DEFAULT_REPUTATION);
         assertEq(repRole2.score, C.DEFAULT_REPUTATION);
@@ -235,7 +238,7 @@ contract ReputationLibFuzz is Test {
             minStakeToClaim: 100e18,
             validatorRewardBps: 2000,
             numberOfValidations: 3,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
             status: ProjectStatus.Created,

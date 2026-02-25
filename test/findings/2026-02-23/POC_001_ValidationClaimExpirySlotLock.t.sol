@@ -15,15 +15,12 @@ contract POC_001_ValidationClaimExpirySlotLock is BaseTest {
         (, uint256[] memory contribIndices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = contribIndices[0];
 
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = idx;
-
         vm.prank(validator1);
-        uint256 claim1 = engine.claimToValidate(projectId, indices);
+        uint256 claim1 = engine.claimToValidate(projectId, 1);
         vm.prank(validator2);
-        uint256 claim2 = engine.claimToValidate(projectId, indices);
+        uint256 claim2 = engine.claimToValidate(projectId, 1);
         vm.prank(validator3);
-        uint256 claim3 = engine.claimToValidate(projectId, indices);
+        uint256 claim3 = engine.claimToValidate(projectId, 1);
 
         vm.warp(block.timestamp + C.VALIDATION_CLAIM_DEADLINE + 1);
 
@@ -50,6 +47,6 @@ contract POC_001_ValidationClaimExpirySlotLock is BaseTest {
         // After fix: expired reservations are fully released — new validators can claim.
         address validator4 = makeAddr("validator4");
         vm.prank(validator4);
-        engine.claimToValidate(projectId, indices);
+        engine.claimToValidate(projectId, 1);
     }
 }

@@ -37,7 +37,7 @@ contract SecurityFindings_2026_02_24 is BaseTest {
             minStakeToClaim: 0,
             validatorRewardBps: 2000,
             numberOfValidations: 3,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
             status: ProjectStatus.Created,
@@ -74,9 +74,7 @@ contract SecurityFindings_2026_02_24 is BaseTest {
 
         vm.startPrank(val);
 
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = index;
-        engine.claimToValidate(pid, indices);
+        engine.claimToValidate(pid, 1);
         engine.lockValidatorCapacity(stakeAmt);
         engine.commitValidation(pid, index, commitHash, stakeAmt, address(0));
         engine.revealValidation(pid, index, score, salt);

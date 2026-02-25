@@ -33,6 +33,20 @@ Users interact with standard ERC-4626 functions:
 
 **Pause protection**: When paused, `maxDeposit`, `maxMint`, `maxRedeem`, and `maxWithdraw` all return 0, blocking all ERC-4626 operations.
 
+## Deposit Age Tracking (Flash Staking Prevention)
+
+To prevent flash staking (deposit-validate-withdraw in adjacent blocks), the vault tracks per-user deposit age:
+
+- **`lastDepositTimestamp`**: Recorded on each deposit; updated whenever the user deposits.
+- **`minDepositAge`**: Admin-configurable minimum age (in seconds) that deposits must reach before they can be used for validator capacity. Defaults to 0 (disabled).
+- **`lockValidatorCapacity`** checks that `block.timestamp - lastDepositTimestamp >= minDepositAge` before allowing capacity lock.
+- Admin sets via `setMinDepositAge(uint256 age)` (max 7 days).
+
+| Error | Description |
+|-------|-------------|
+| `DepositTooRecent(uint256 required, uint256 actual)` | User attempted to lock validator capacity before deposits aged past `minDepositAge` |
+| `MinDepositAgeTooHigh(uint256 requested, uint256 max)` | Admin attempted to set `minDepositAge` above 7 days |
+
 ## Contributor Operations
 
 Called by `SapienCore` (requires `ENGINE_ROLE`):
@@ -84,6 +98,7 @@ Share transfers between users are restricted: the sender must retain enough shar
 | `StakeCommitted(user, amount)` | Stake moved to in-flight |
 | `CommitReleased(user, amount)` | Stake returned from in-flight to capacity |
 | `ValidatorSlashed(user, amount)` | Validator shares burned |
+| `MinDepositAgeUpdated(uint256 newAge)` | Admin updated the minimum deposit age |
 
 ## View Functions
 
@@ -97,13 +112,20 @@ Share transfers between users are restricted: the sender must retain enough shar
 | `maxDeposit(address)` | `type(uint256).max` or 0 when paused |
 | `maxMint(address)` | `type(uint256).max` or 0 when paused |
 | `verifyStorageLocation()` | Validates ERC-7201 storage slot derivation |
+| `minDepositAge()` | Returns the minimum deposit age (seconds) required before locking validator capacity |
+
+### Admin Functions
+
+| Function | Description |
+|----------|-------------|
+| `setMinDepositAge(uint256 age)` | Sets the minimum deposit age (max 7 days). Default 0 (disabled). |
 
 ## Access Control
 
 | Role | Permissions |
 |------|------------|
 | `ENGINE_ROLE` | All lock/unlock/slash/commit/release operations (granted to `SapienCore`) |
-| `DEFAULT_ADMIN_ROLE` | Pause/unpause, upgrades |
+| `DEFAULT_ADMIN_ROLE` | Pause/unpause, upgrades, `setMinDepositAge` |
 
 ## Slashing Economics
 

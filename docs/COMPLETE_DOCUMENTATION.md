@@ -47,7 +47,7 @@ Sapien PoQ is an open protocol for verifiable, consensus-based quality signals i
 
 ### System Architecture Overview
 
-Sapien PoQ v0.5 consolidates the protocol into **two deployable contracts** with **seven libraries**, dramatically simplifying the contract topology from v0.3's five-contract architecture.
+Sapien PoQ v0.5 consists of **two deployable contracts** with **seven libraries**.
 
 ```
 SapienCore (UUPS Proxy)
@@ -97,7 +97,7 @@ Contributors claim slots via `claimToContribute` (locks contributor stake), then
 
 **Phase 3: Validation (Commit-Reveal)**
 1. **Capacity Setup**: Validators pre-lock tokens as capacity via `lockValidatorCapacity`.
-2. **Claim**: Validators claim specific indices via `claimToValidate` (1-hour deadline to commit).
+2. **Claim**: Validators request a quantity via `claimToValidate(projectId, quantity)` and receive randomly assigned pending contributions (1-hour deadline to commit).
 3. **Commit**: Validators submit `keccak256(abi.encodePacked(uint16(score), salt))` with a stake amount via `commitValidation`. Stake moves from capacity to in-flight.
 4. **Reveal**: After committing, validators reveal `score` and `salt` via `revealValidation` within the reveal window.
 
@@ -141,7 +141,7 @@ sequenceDiagram
     Note over O, SV: Phase 3: Validation (Commit-Reveal)
     V->>SC: lockValidatorCapacity(amount)
     SC->>SV: lockValidatorCapacity(validator, amount)
-    V->>SC: claimToValidate(projectId, indices)
+    V->>SC: claimToValidate(projectId, quantity)
     V->>SC: commitValidation(projectId, index, commitHash, stakeAmount, adapter)
     SC->>SV: commitStake(validator, stakeAmount)
     V->>SC: revealValidation(projectId, index, score, salt)
@@ -203,7 +203,7 @@ Deployed behind an **ERC-1967 UUPS proxy** with **ERC-7201 namespaced storage**.
 #### Validation
 
 - **`lockValidatorCapacity(amount)` / `unlockValidatorCapacity(amount)`** — Pre-lock capacity.
-- **`claimToValidate(projectId, indices)`** — Reserve indices for validation. 1-hour deadline.
+- **`claimToValidate(projectId, quantity)`** — Request quantity of validations; receive randomly assigned pending contributions. 1-hour deadline.
 - **`commitValidation(projectId, index, commitHash, stakeAmount, adapter)`** — Seal score. Capacity → in-flight.
 - **`revealValidation(projectId, index, score, salt)`** — Reveal within window. Score 0–10,000.
 - Batch versions: `batchCommitValidations`, `batchRevealValidations`.
@@ -256,6 +256,10 @@ ERC-4626 vault for SAPIEN token staking with **typed lock categories**.
 - Validator: `lockValidatorCapacity`, `unlockValidatorCapacity`, `commitStake`, `releaseCommit`, `slashValidator`
 - All stake operations restricted to `ENGINE_ROLE` (granted to SapienCore)
 
+**Minimum Deposit Age (Anti-Flash-Staking):**
+- `lockValidatorCapacity` enforces a minimum deposit age before capacity can be locked.
+- Admin-configurable via `setMinDepositAge`; default 0 (disabled).
+
 **Security Features:**
 - ERC-4626 inflation attack mitigation via 3-decimal offset
 - Transfer guard: prevents transfers below locked amounts
@@ -285,13 +289,13 @@ Implements the Proof of Quality (PoQ) reputation system with lazy decay and dail
 
 **ValidationLib** manages the full validation lifecycle:
 1. **Capacity**: Lock/unlock validator capacity in SapienVault
-2. **Claims**: Reserve specific indices (1-hour deadline, reputation check)
+2. **Claims**: Request quantity; receive randomly assigned pending contributions (1-hour deadline, reputation check)
 3. **Commit**: Seal `keccak256(uint16(score) || salt)` with stake. Must meet project + global minimum stake
 4. **Reveal**: Verify hash, record score. Window: commit timestamp + commit deadline + reveal deadline
 5. **Consensus**: Build `ValidationInput[]` from reveals, call `ConsensusLib.calculate()`
 
 **ConsensusLib** implements the consensus algorithm:
-- **Weight**: `sqrt(stake) × max(reputation, 1000)`
+- **Weight**: `sqrt(stake) × max(reputation, 100)`
 - **Weighted average**: `Σ(score × weight) / Σ(weight)` with high-precision arithmetic
 - **Standard deviation**: Weighted variance, square root
 - **Outlier detection**: Tiered by σ (1.5σ → 10%, 2σ → 25%, 3σ → 50%, 5σ → 100%)
@@ -333,13 +337,13 @@ Manages two accountability mechanisms:
 
 ## Consensus Algorithm
 
-v0.5 uses a single, unified consensus algorithm in `ConsensusLib` that combines the best properties of v0.3's pluggable algorithms.
+The protocol uses a single, unified consensus algorithm in `ConsensusLib`.
 
 ### Weight Calculation
 
 ```
 weight = sqrt(stake) × effectiveReputation
-effectiveReputation = max(reputation, MIN_REPUTATION_FLOOR=1000)
+effectiveReputation = max(reputation, MIN_REPUTATION_FLOOR=100)
 ```
 
 Using `sqrt(stake)` provides whale resistance (sublinear scaling), while incorporating reputation rewards consistent, high-quality participation.
@@ -479,11 +483,12 @@ Call `SapienCore.claimReward(token)` to withdraw accumulated rewards.
 
 #### 2. The Validation Process
 
-**Step 1: Claim Indices**
+**Step 1: Request Validation Assignments**
 
-Call `SapienCore.claimToValidate(projectId, indices)`:
-- `indices`: Specific contribution indices you want to validate
-- 1-hour deadline to commit all indices
+Call `SapienCore.claimToValidate(projectId, quantity)`:
+- `quantity`: Number of validations to request
+- You receive randomly assigned pending contributions
+- 1-hour deadline to commit all assigned indices
 - Cannot validate your own contributions
 
 **Step 2: Commit Scores**
@@ -552,7 +557,7 @@ Adapters are the integration points between external tools and the Sapien protoc
 1. Monitor `ContributionSubmitted` events for new work
 2. Present work and TDS to human reviewers
 3. Manage the commit-reveal lifecycle (store salt locally until reveal)
-4. Call `claimToValidate`, `commitValidation`, `revealValidation`
+4. Call `claimToValidate(projectId, quantity)`, `commitValidation`, `revealValidation`
 5. Set `adapter = yourAddress` during `commitValidation` to earn fees
 
 #### Consuming Quality Signals
@@ -566,7 +571,7 @@ Adapters are the integration points between external tools and the Sapien protoc
 Use **Foundry** for integration testing:
 1. Fork the Sapien deployment
 2. Deploy your adapter
-3. Simulate the full lifecycle: `createProject` → `fundProject` → `claimToContribute` → `contribute` → `claimToValidate` → `commitValidation` → `revealValidation` → `computeConsensus` → `settleValidator` → `releaseContributorReward` → `claimReward`
+3. Simulate the full lifecycle: `createProject` → `fundProject` → `claimToContribute` → `contribute` → `claimToValidate(projectId, quantity)` → `commitValidation` → `revealValidation` → `computeConsensus` → `settleValidator` → `releaseContributorReward` → `claimReward`
 
 ---
 

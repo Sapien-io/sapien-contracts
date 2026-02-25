@@ -17,15 +17,12 @@ contract FIX_2026_02_23_ExpectedBehavior is BaseTest {
         (, uint256[] memory contribIndices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = contribIndices[0];
 
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = idx;
-
         vm.prank(validator1);
-        uint256 c1 = engine.claimToValidate(projectId, indices);
+        uint256 c1 = engine.claimToValidate(projectId, 1);
         vm.prank(validator2);
-        uint256 c2 = engine.claimToValidate(projectId, indices);
+        uint256 c2 = engine.claimToValidate(projectId, 1);
         vm.prank(validator3);
-        uint256 c3 = engine.claimToValidate(projectId, indices);
+        uint256 c3 = engine.claimToValidate(projectId, 1);
 
         vm.warp(block.timestamp + C.VALIDATION_CLAIM_DEADLINE + 1);
         engine.cancelExpiredValidationClaim(c1);
@@ -35,7 +32,7 @@ contract FIX_2026_02_23_ExpectedBehavior is BaseTest {
         // Expected after fix: all expired reservations are fully released.
         address validator4 = makeAddr("validator4");
         vm.prank(validator4);
-        engine.claimToValidate(projectId, indices);
+        engine.claimToValidate(projectId, 1);
     }
 
     function testFIX_cannotCommitAfterValidationClaimExpiry() public {
@@ -43,11 +40,8 @@ contract FIX_2026_02_23_ExpectedBehavior is BaseTest {
         (, uint256[] memory contribIndices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = contribIndices[0];
 
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = idx;
-
         vm.prank(validator3);
-        uint256 claimId = engine.claimToValidate(projectId, indices);
+        uint256 claimId = engine.claimToValidate(projectId, 1);
 
         _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
         _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
@@ -123,9 +117,7 @@ contract FIX_2026_02_23_ExpectedBehavior is BaseTest {
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt)); // 32-byte score packing
 
         vm.startPrank(validator1);
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = idx;
-        engine.claimToValidate(projectId, indices);
+        engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projectId, idx, commitHash, VALIDATOR_STAKE, address(0));
 

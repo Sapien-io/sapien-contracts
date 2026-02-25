@@ -123,9 +123,9 @@ sequenceDiagram
     Note over VLD,SC: Phase 3 — Validation
     VLD->>SC: lockValidatorCapacity(amount)
     SC->>SV: lockValidatorCapacity(validator, amount)
-    VLD->>SC: claimToValidate(projectId, indices[])
+    VLD->>SC: claimToValidate(projectId, quantity)
     SC-->>VLD: validationClaimId
-    Note right of SC: ValidationClaimStatus.Active<br/>deadline = now + 1hr<br/>Reserves claimCount slots per index
+    Note right of SC: ValidationClaimStatus.Active<br/>deadline = now + 1hr<br/>Randomly assigns quantity pending contributions via Fisher-Yates shuffle
     VLD->>SC: commitValidation(projectId, index, commitHash, stakeAmount, adapter)
     SC->>SV: commitStake(validator, stakeAmount)
     Note right of SC: commitHash = keccak256(abi.encodePacked(score, salt))<br/>stakeAmount >= max(project.minValidationStake, global.minValidationStake)<br/>validationClaim.committedCount++ — Fulfilled when all committed
@@ -210,7 +210,7 @@ sequenceDiagram
     participant ANY as Anyone
     participant SC as SapienCore
 
-    VLD->>SC: claimToValidate(projectId, indices[])
+    VLD->>SC: claimToValidate(projectId, quantity)
     SC-->>VLD: validationClaimId
     Note over VLD,SC: 1-hour VALIDATION_CLAIM_DEADLINE passes without commitValidation()
 
@@ -424,7 +424,7 @@ sequenceDiagram
 | `ClaimCreated` | `claimToContribute()` | `claimId`, `projectId`, `claimant`, `indices` |
 | `ClaimExpired` | `expireClaim()` | `claimId`, `unsubmittedCount` |
 | `ContributionSubmitted` | `contribute()` | `projectId`, `index`, `contributor`, `submissionHash`, `dataCid` |
-| `ValidationClaimCreated` | `claimToValidate()` | `validationClaimId`, `projectId`, `validator`, `indices` |
+| `ValidationClaimCreated` | `claimToValidate()` | `validationClaimId`, `projectId`, `validator`, `quantity`, `assignedIndices` |
 | `ValidationClaimExpired` | `cancelExpiredValidationClaim()` | `validationClaimId`, `releasedCount` |
 | `ValidationCommitted` | `commitValidation()` | `projectId`, `index`, `validator` |
 | `ValidationRevealed` | `revealValidation()` | `projectId`, `index`, `validator`, `score` |

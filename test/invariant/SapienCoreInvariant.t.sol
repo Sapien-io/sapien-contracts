@@ -16,6 +16,8 @@ import {SapienCoreHandler} from "./handlers/SapienCoreHandler.sol";
 /// @dev Tests solvency, reputation bounds, slot accounting, and token conservation
 ///      across the full protocol lifecycle driven by the SapienCoreHandler.
 contract SapienCoreInvariantTest is Test {
+    bytes32 constant SKILL_ID = keccak256("DATA_ANNOTATION");
+
     SapienCore public engine;
     SapienVault public vault;
     MockERC20 public token;
@@ -47,6 +49,7 @@ contract SapienCoreInvariantTest is Test {
         // Grant ENGINE_ROLE to SapienCore on the vault
         vm.startPrank(admin);
         vault.grantRole(vault.ENGINE_ROLE(), address(engine));
+        engine.registerSkill("DATA_ANNOTATION");
         vm.stopPrank();
 
         // Create actors
@@ -126,7 +129,7 @@ contract SapienCoreInvariantTest is Test {
         uint256 maxRep = C.MAX_REPUTATION;
         uint256 defaultRep = C.DEFAULT_REPUTATION;
 
-        bytes32[3] memory roles = [C.ORIGINATOR_ROLE_KEY, C.CONTRIBUTOR_ROLE_KEY, C.VALIDATOR_ROLE_KEY];
+        bytes32[2] memory roles = [C.ORIGINATOR_ROLE_KEY, SKILL_ID];
 
         for (uint256 i; i < allParticipants.length; ++i) {
             for (uint256 r; r < roles.length; ++r) {
@@ -263,7 +266,7 @@ contract SapienCoreInvariantTest is Test {
 
     function invariant_reputationDailyGainCap() public view {
         uint256 maxDailyGain = C.MAX_DAILY_GAIN;
-        bytes32[3] memory roles = [C.ORIGINATOR_ROLE_KEY, C.CONTRIBUTOR_ROLE_KEY, C.VALIDATOR_ROLE_KEY];
+        bytes32[2] memory roles = [C.ORIGINATOR_ROLE_KEY, SKILL_ID];
 
         for (uint256 i; i < allParticipants.length; ++i) {
             for (uint256 r; r < roles.length; ++r) {

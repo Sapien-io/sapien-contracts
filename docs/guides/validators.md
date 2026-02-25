@@ -5,7 +5,7 @@ Validators provide the human intelligence layer of the Sapien protocol. By reach
 ## 1. Prerequisites
 
 - **Stake SAPIEN**: Deposit SAPIEN tokens into the `SapienVault` via its ERC-4626 `deposit` function. Your stake weight directly influences your consensus impact through the `sqrt(stake) * reputation` weighting formula.
-- **Reputation**: Your reputation score (default 5000, range 500-10,000) affects your consensus weight. Honest participation increases reputation; outlier behavior decreases it.
+- **Reputation**: Your reputation is tracked per skill (e.g., `DATA_ANNOTATION`, `BOUNDING_BOX`). New skills start at 5,000 (range 500-10,000). Your skill-specific reputation affects your consensus weight via `sqrt(stake) * reputation`. Honest participation increases your skill reputation; outlier behavior decreases it.
 
 ## 2. Lock Validator Capacity
 
@@ -25,15 +25,15 @@ core.unlockValidatorCapacity(amount);
 
 Check your capacity with `SapienVault.getStakeAccount(address)`, which returns a `StakeAccount` containing `contributorLock`, `validatorCapacity`, and `inFlight` balances.
 
-## 3. Claim Contribution Indices
+## 3. Claim Contributions to Validate
 
-Claim specific contribution indices for validation. Unlike the old capacity-based system, you select which contributions to validate.
+Request a quantity of contributions to validate. The protocol randomly assigns indices from pending contributions — you do not select specific indices. This quantity-based random assignment is an anti-collusion measure that prevents cartels from coordinating co-assignment.
 
 ```solidity
-uint256 claimId = core.claimToValidate(projectId, indices);
+uint256 claimId = core.claimToValidate(projectId, quantity);
 ```
 
-- `indices`: Array of contribution slot indices you want to validate (must be in `Pending` status).
+- `quantity`: Number of contributions you want to validate. The protocol randomly assigns indices from pending contributions using a Fisher-Yates shuffle seeded with blockhash, projectId, your address, and timestamp.
 - Returns a `claimId` for the validation claim.
 - **Deadline**: You must commit scores within 1 hour of claiming. If you fail to commit, anyone can call `cancelExpiredValidationClaim(claimId)` to release the slots.
 
@@ -117,12 +117,12 @@ core.settleValidator(projectId, index, nonce);
 **If you are accurate** (within 1.5 standard deviations of the weighted average):
 - Your committed stake is returned to your validator capacity.
 - You receive a share of the validator reward pool proportional to your weight (`sqrt(stake) * reputation`).
-- Your reputation increases (+10, capped at 100/day gain, max 10,000).
+- Your skill-specific reputation increases (+10, capped at 100/day gain, max 10,000).
 
 **If you are an outlier** (beyond 1.5 standard deviations):
 - A portion of your committed stake is slashed based on the tiered schedule (see below).
 - You receive no reward for this validation.
-- Your reputation decreases (-50, min 500).
+- Your skill-specific reputation decreases (-50, min 500).
 
 ### Force Settle
 

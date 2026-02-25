@@ -86,6 +86,13 @@ struct EngineStorage {
     // ── Validation Claims ─────────────────────────────────────────
     uint256 nextValidationClaimId;
     mapping(uint256 => ValidationClaim) validationClaims;
+
+    // ── Pending Contribution Index Set (for random validator assignment) ──
+    mapping(bytes32 => uint256[]) pendingIndices;
+    mapping(bytes32 => mapping(uint256 => uint256)) pendingIndexPos; // index => position+1 (0 = absent)
+
+    // ── Skill Registry ──────────────────────────────────────────────────
+    mapping(bytes32 => bool) registeredSkills;
 }
 
 // ============================================

@@ -40,7 +40,7 @@ Transfer and withdrawal guards enforce that locked shares cannot be moved or red
 
 Reputation is a functional component of the consensus engine. Each participant has per-role reputation (originator, contributor, validator) scored 0--10,000 basis points with time-based decay.
 
-In `ConsensusLib`, validator weight is calculated as `sqrt(stake) * effectiveReputation`, where `effectiveReputation` is clamped to a minimum floor of 1,000. This makes historical accuracy a direct multiplier on voting power.
+In `ConsensusLib`, validator weight is calculated as `sqrt(stake) * effectiveReputation`, where `effectiveReputation` is clamped to a minimum floor of 100. This makes historical accuracy a direct multiplier on voting power.
 
 ### 3. Commit-Reveal
 
@@ -99,6 +99,7 @@ Large token holders are prevented from dominating consensus through:
 ### Sybil Resistance
 
 Attacking the protocol with multiple small accounts is mitigated by:
+- **Random validator assignment**: Validators request a quantity via `claimToValidate(projectId, quantity)` and receive randomly assigned pending contributions, preventing index cherry-picking and coordination attacks.
 - **Minimum Entry Stake**: Configurable per-project `minStakeToClaim` and `minValidationStake` barriers.
 - **Reputation Maturity**: High validator weight requires a history of successful actions (reputation earned over time with daily gain caps).
 - **Reputation Decay**: Inactive participants lose reputation over time, preventing one-time reputation farming.

@@ -1,6 +1,6 @@
 # ReputationLib
 
-`ReputationLib` implements the Proof of Quality (PoQ) reputation system. It is a library that operates on `SapienCore`'s ERC-7201 namespaced storage via `DELEGATECALL`, keeping all reputation logic internal to the core contract. It tracks the historical performance of all participants — originators, contributors, and validators — using role-specific scores with lazy decay and daily gain caps.
+`ReputationLib` implements the Proof of Quality (PoQ) reputation system. It is a library that operates on `SapienCore`'s ERC-7201 namespaced storage via `DELEGATECALL`, keeping all reputation logic internal to the core contract. It tracks the historical performance of all participants using scores with lazy decay and daily gain caps.
 
 ## Reputation Model
 
@@ -12,15 +12,29 @@
 | Minimum | 500 |
 | Maximum | 10,000 |
 
-### Role Keys
+### Reputation Keys
 
-Reputation is tracked per-role using `bytes32` keys:
+Reputation is stored in `mapping(address => mapping(bytes32 => Reputation))`. The `bytes32` key determines what the reputation is tracked against.
 
-- `keccak256("ORIGINATOR")` — Originator reputation
-- `keccak256("CONTRIBUTOR")` — Contributor reputation
-- `keccak256("VALIDATOR")` — Validator reputation
+**Skill-based reputation (contributors and validators):**
 
-Projects can also specify a `requiredSkill` hash, in which case validator reputation is tracked under that skill key instead of the generic validator role.
+Every project requires a registered skill (e.g., `keccak256("DATA_ANNOTATION")`). All contributor and validator reputation accrues against the project's skill hash. This means a user's performance on `DATA_ANNOTATION` tasks is tracked independently from their performance on `BOUNDING_BOX` tasks. Contributors and validators share the same reputation bucket for a given skill — good work on a skill builds a single reputation score regardless of role.
+
+Users who have never worked on a particular skill start at `DEFAULT_REPUTATION` (5,000) and can participate in any project whose `minValidatorReputation` threshold is at or below that level.
+
+**Originator reputation:**
+
+Originator reputation uses a fixed key `keccak256("ORIGINATOR")` and is not skill-specific. It reflects operational reliability across all projects.
+
+### Skill Registry
+
+Skills are managed by the protocol admin via `SapienCore`:
+
+- `registerSkill(string name)` — Hashes the name via `keccak256` and registers it. Emits `SkillRegistered(bytes32 indexed skillId, string name)`.
+- `deregisterSkill(string name)` — Removes the skill from the registry. Does not affect in-flight projects.
+- `isSkillRegistered(bytes32 skillId)` — View function to check registration status.
+
+Every project must specify a registered skill in its `requiredSkill` field. Projects cannot be created with an unregistered or zero skill.
 
 ### Reputation Struct
 
@@ -53,20 +67,20 @@ Called internally by the protocol libraries at key lifecycle points:
 
 ### When Reputation Updates
 
-| Event | Role | Success? | Bonus |
-|-------|------|----------|-------|
-| Project created | Originator | Yes | 0 |
-| Contribution accepted | Contributor | Yes | Quality bonus based on consensus score |
-| Contribution rejected | Contributor | No | — |
-| Claim expired (unsubmitted slots) | Contributor | No | — |
-| Validator settled (accurate) | Validator | Yes | 0 |
-| Validator settled (outlier) | Validator | No | — |
-| Validation claim expired (uncommitted) | Validator | No | — |
-| Expired commitment cancelled | Validator | No | — |
-| Dispute upheld (accepted contribution) | Contributor | No | — |
-| Dispute upheld (rejected contribution) | Contributor | Yes | 0 |
-| Originator report upheld | Originator | No | — |
-| Project removed by operator | Originator | No | — |
+| Event | Key | Success? | Bonus |
+|-------|-----|----------|-------|
+| Project created | `ORIGINATOR_ROLE_KEY` | Yes | 0 |
+| Contribution accepted | `proj.requiredSkill` | Yes | Quality bonus based on consensus score |
+| Contribution rejected | `proj.requiredSkill` | No | — |
+| Claim expired (unsubmitted slots) | `proj.requiredSkill` | No | — |
+| Validator settled (accurate) | `proj.requiredSkill` | Yes | 0 |
+| Validator settled (outlier) | `proj.requiredSkill` | No | — |
+| Validation claim expired (uncommitted) | `proj.requiredSkill` | No | — |
+| Expired commitment cancelled | `proj.requiredSkill` | No | — |
+| Dispute upheld (accepted contribution) | `proj.requiredSkill` | No | — |
+| Dispute upheld (rejected contribution) | `proj.requiredSkill` | Yes | 0 |
+| Originator report upheld | `ORIGINATOR_ROLE_KEY` | No | — |
+| Project removed by operator | `ORIGINATOR_ROLE_KEY` | No | — |
 
 ## Lazy Decay
 
@@ -90,13 +104,17 @@ newScore = max(score - decayAmount, MIN_REPUTATION)
 
 ## Query Functions
 
-### `getScore(address user, bytes32 role) → uint256`
+### `getScore(address user, bytes32 key) → uint256`
 
-Returns the user's current reputation score with lazy decay applied. Uses the stored `decayRateBps`.
+Returns the user's current reputation score with lazy decay applied. The `key` is a skill hash for contributors/validators (e.g., `keccak256("DATA_ANNOTATION")`) or `ORIGINATOR_ROLE_KEY` for originators.
 
-### `getScoreCached(address user, bytes32 role, uint256 cachedDecayBps) → uint256`
+### `getScoreCached(address user, bytes32 key, uint256 cachedDecayBps) → uint256`
 
 Same as `getScore` but accepts a pre-cached decay rate to avoid redundant storage reads in loops (gas optimization).
+
+### Querying via SapienCore
+
+`SapienCore.getReputation(address user, bytes32 key)` returns the full `Reputation` struct. Pass a skill hash to query skill-specific reputation, or `keccak256("ORIGINATOR")` for originator reputation.
 
 ## Sybil Resistance
 

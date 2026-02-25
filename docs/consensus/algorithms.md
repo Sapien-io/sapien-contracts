@@ -1,6 +1,6 @@
 # Consensus Algorithm
 
-v0.5 uses a single, unified consensus algorithm implemented in `ConsensusLib`. This replaces the pluggable algorithm architecture of v0.3 (which offered Hybrid, Sqrt Stake, Capped Linear, and Linear algorithms) with a single algorithm that combines the best properties of all four.
+The protocol uses a single, unified consensus algorithm implemented in `ConsensusLib`.
 
 ## Algorithm: Stake-Weighted Consensus with Outlier Detection
 
@@ -10,13 +10,13 @@ v0.5 uses a single, unified consensus algorithm implemented in `ConsensusLib`. T
 
 ```
 weight = sqrt(stake) × effectiveReputation
-effectiveReputation = max(reputation, MIN_REPUTATION_FLOOR = 1000)
+effectiveReputation = max(reputation, MIN_REPUTATION_FLOOR = 100)
 ```
 
 This formula provides:
 - **Whale resistance**: `sqrt(stake)` ensures sublinear scaling — doubling your stake only increases weight by ~41%
 - **Quality alignment**: Reputation factor rewards consistent accuracy
-- **Newcomer inclusion**: Minimum reputation floor of 1,000 ensures new validators always have some influence
+- **Newcomer inclusion**: Minimum reputation floor of 100 ensures new validators always have some influence
 
 ### Algorithm Steps
 
@@ -106,12 +106,11 @@ Where `rewardRate = totalRewards / totalQuantity`.
 
 ## Why a Single Algorithm?
 
-v0.3 offered four pluggable algorithms, but in practice:
+A single consensus algorithm is the right design for the protocol:
 
-1. **Hybrid was always recommended** — it combined the best properties of all others
-2. **Algorithm selection added complexity** — originators had to make security trade-off decisions
-3. **Single algorithm is auditable** — one well-tested path reduces attack surface
-4. **v0.5's algorithm is strictly better** — it incorporates `sqrt(stake)` whale resistance, reputation weighting, and tiered slashing without needing a separate cap mechanism
+1. **Simplicity** — one well-tested path reduces attack surface and audit burden
+2. **No trade-off decisions** — originators don't need to reason about algorithm security properties
+3. **Comprehensive** — it incorporates `sqrt(stake)` whale resistance, reputation weighting, and tiered slashing in a single formula
 
 ## Security Properties
 

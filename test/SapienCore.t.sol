@@ -32,7 +32,7 @@ contract SapienCoreProjectTest is BaseTest {
             minStakeToClaim: STAKE_AMOUNT,
             validatorRewardBps: 2000,
             numberOfValidations: 3,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
             status: ProjectStatus.Created,
@@ -65,7 +65,7 @@ contract SapienCoreProjectTest is BaseTest {
             minStakeToClaim: STAKE_AMOUNT,
             validatorRewardBps: 2000,
             numberOfValidations: 3,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
             status: ProjectStatus.Created,
@@ -123,7 +123,7 @@ contract SapienCoreProjectTest is BaseTest {
             minStakeToClaim: STAKE_AMOUNT,
             validatorRewardBps: 2000,
             numberOfValidations: 3,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
             status: ProjectStatus.Created,
@@ -277,11 +277,7 @@ contract SapienCoreValidationTest is BaseTest {
         bytes32 commitHash = keccak256(abi.encodePacked(uint256(score), salt));
 
         vm.startPrank(validator1);
-        {
-            uint256[] memory _indices = new uint256[](1);
-            _indices[0] = index;
-            engine.claimToValidate(PROJECT_ID, _indices);
-        }
+        engine.claimToValidate(PROJECT_ID, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(PROJECT_ID, index, commitHash, VALIDATOR_STAKE, address(0));
         engine.revealValidation(PROJECT_ID, index, score, salt);
@@ -299,12 +295,8 @@ contract SapienCoreValidationTest is BaseTest {
 
         vm.startPrank(contributor1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
-        vm.expectRevert(ISapienCore.CannotValidateOwnContribution.selector);
-        {
-            uint256[] memory _indices = new uint256[](1);
-            _indices[0] = index;
-            engine.claimToValidate(PROJECT_ID, _indices);
-        }
+        vm.expectRevert(ISapienCore.NoEligibleContributions.selector);
+        engine.claimToValidate(PROJECT_ID, 1);
         vm.stopPrank();
     }
 
@@ -319,11 +311,7 @@ contract SapienCoreValidationTest is BaseTest {
         bytes32 commitHash = keccak256(abi.encodePacked(PROJECT_ID, index, nonce, validator1, uint256(score), salt));
 
         vm.startPrank(validator1);
-        {
-            uint256[] memory _indices = new uint256[](1);
-            _indices[0] = index;
-            engine.claimToValidate(PROJECT_ID, _indices);
-        }
+        engine.claimToValidate(PROJECT_ID, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(PROJECT_ID, index, commitHash, VALIDATOR_STAKE, address(0));
 
@@ -343,11 +331,7 @@ contract SapienCoreValidationTest is BaseTest {
             keccak256(abi.encodePacked(PROJECT_ID, index, nonce, validator1, uint256(8000), bytes32("salt")));
 
         vm.startPrank(validator1);
-        {
-            uint256[] memory _indices = new uint256[](1);
-            _indices[0] = index;
-            engine.claimToValidate(PROJECT_ID, _indices);
-        }
+        engine.claimToValidate(PROJECT_ID, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE * 2);
         engine.commitValidation(PROJECT_ID, index, commitHash, VALIDATOR_STAKE, address(0));
 
@@ -596,7 +580,7 @@ contract SapienCoreReputationTest is BaseTest {
             minStakeToClaim: STAKE_AMOUNT,
             validatorRewardBps: 2000,
             numberOfValidations: 3,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
             status: ProjectStatus.Created,
@@ -659,7 +643,7 @@ contract SapienCoreAdminTest is BaseTest {
                 minStakeToClaim: STAKE_AMOUNT,
                 validatorRewardBps: 2000,
                 numberOfValidations: 3,
-                requiredSkill: bytes32(0),
+                requiredSkill: SKILL_ID,
                 minValidatorReputation: 0,
                 minValidationStake: 0,
                 status: ProjectStatus.Created,

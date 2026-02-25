@@ -23,11 +23,7 @@ contract SEC_M_04_NoRevealDeadline is BaseTest {
         uint256 score = 8000;
         bytes32 commitHash = keccak256(abi.encodePacked(uint256(score), salt));
         vm.startPrank(validator3);
-        {
-            uint256[] memory _indices = new uint256[](1);
-            _indices[0] = idx;
-            engine.claimToValidate(projectId, _indices);
-        }
+        engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(uint256(VALIDATOR_STAKE));
         engine.commitValidation(projectId, idx, commitHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
@@ -54,11 +50,7 @@ contract SEC_M_04_NoRevealDeadline is BaseTest {
         uint256 score = 8000;
         bytes32 commitHash = keccak256(abi.encodePacked(uint256(score), salt));
         vm.startPrank(validator3);
-        {
-            uint256[] memory _indices = new uint256[](1);
-            _indices[0] = idx;
-            engine.claimToValidate(projectId, _indices);
-        }
+        engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(uint256(VALIDATOR_STAKE));
         engine.commitValidation(projectId, idx, commitHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
@@ -87,11 +79,7 @@ contract SEC_M_04_NoRevealDeadline is BaseTest {
         uint256 score = 8000;
         bytes32 commitHash = keccak256(abi.encodePacked(uint256(score), salt));
         vm.startPrank(validator3);
-        {
-            uint256[] memory _indices = new uint256[](1);
-            _indices[0] = idx;
-            engine.claimToValidate(projectId, _indices);
-        }
+        engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(uint256(VALIDATOR_STAKE));
         engine.commitValidation(projectId, idx, commitHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();

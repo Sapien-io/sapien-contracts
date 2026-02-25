@@ -154,6 +154,9 @@ interface ISapienCore {
     /// @dev The project still has contributions in the active pipeline.
     error ProjectHasActivePipeline();
 
+    /// @dev No pending contributions are eligible for this validator to claim.
+    error NoEligibleContributions();
+
     /// @dev The force-settle delay has not elapsed since the challenge period ended.
     error ForceSettleTooEarly();
 
@@ -196,6 +199,14 @@ interface ISapienCore {
     /// @param provided Bond basis points provided.
     /// @param max Maximum allowed basis points.
     error DisputeBondTooHigh(uint256 provided, uint256 max);
+
+    // ── Skill Registry Errors ───────────────────────────────────────────
+
+    /// @dev The specified skill is not registered in the skill registry.
+    error SkillNotRegistered();
+
+    /// @dev The skill is already registered.
+    error SkillAlreadyRegistered();
 
     // ── Originator Report Errors ────────────────────────────────────────
 
@@ -402,6 +413,18 @@ interface ISapienCore {
     /// @param projectId Project that was cancelled.
     event ProjectCancelled(bytes32 indexed projectId);
 
+    // ── Skill Registry ──────────────────────────────────────────────────
+
+    /// @notice Emitted when a new skill is registered by the admin.
+    /// @param skillId The bytes32 hash identifying the skill.
+    /// @param name The human-readable skill name that was hashed.
+    event SkillRegistered(bytes32 indexed skillId, string name);
+
+    /// @notice Emitted when a skill is deregistered by the admin.
+    /// @param skillId The bytes32 hash identifying the skill.
+    /// @param name The human-readable skill name that was hashed.
+    event SkillDeregistered(bytes32 indexed skillId, string name);
+
     // ── Admin ───────────────────────────────────────────────────────────
 
     /// @notice Emitted when the protocol fee is updated.
@@ -560,12 +583,12 @@ interface ISapienCore {
     function unlockValidatorCapacity(uint256 amount) external;
 
     /// @notice Claim one or more contribution indices for validation.
-    /// @dev Creates a validation claim that reserves the right to commit scores for the
-    ///      specified indices. The validator must commit before the claim deadline.
+    /// @dev Creates a validation claim by randomly assigning pending contributions from the
+    ///      project. The validator specifies how many they want; the protocol picks which ones.
     /// @param projectId Project containing the contributions.
-    /// @param indices Array of contribution slot indices to validate.
+    /// @param quantity Number of contributions the validator wants to be assigned.
     /// @return claimId Unique identifier for the new validation claim.
-    function claimToValidate(bytes32 projectId, uint256[] calldata indices) external returns (uint256 claimId);
+    function claimToValidate(bytes32 projectId, uint256 quantity) external returns (uint256 claimId);
 
     /// @notice Commit a sealed validation score for a contribution (commit phase of commit-reveal).
     /// @dev The commit hash should be `keccak256(abi.encodePacked(score, salt))`. The validator's
@@ -730,6 +753,24 @@ interface ISapienCore {
     ///      tokens from the project escrow to the originator's pending rewards.
     /// @param projectId Project to refund.
     function refundEscrow(bytes32 projectId) external;
+
+    // ── Skill Registry ─────────────────────────────────────────────────
+
+    /// @notice Register a new skill in the protocol skill registry. Admin-only.
+    /// @dev The skill name is hashed via keccak256 and stored as bytes32. The original name
+    ///      is emitted in the event for off-chain indexing.
+    /// @param name The human-readable skill name (e.g., "DATA_ANNOTATION").
+    function registerSkill(string calldata name) external;
+
+    /// @notice Remove a skill from the registry. Admin-only.
+    /// @dev Does not affect in-flight projects -- only prevents new projects from using this skill.
+    /// @param name The human-readable skill name to deregister.
+    function deregisterSkill(string calldata name) external;
+
+    /// @notice Check whether a skill is registered.
+    /// @param skillId The bytes32 hash identifying the skill.
+    /// @return True if the skill is registered.
+    function isSkillRegistered(bytes32 skillId) external view returns (bool);
 
     // ── Views ──────────────────────────────────────────────────────────
 

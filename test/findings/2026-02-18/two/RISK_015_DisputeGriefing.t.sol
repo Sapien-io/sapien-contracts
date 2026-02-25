@@ -22,7 +22,7 @@ contract RISK_015_DisputeGriefing is BaseTest {
             minStakeToClaim: 0,
             validatorRewardBps: 2000,
             numberOfValidations: 3,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
             status: ProjectStatus.Created,

@@ -35,7 +35,7 @@ Registers a new project in `Created` status. The caller becomes the originator. 
 | `validatorRewardBps` | Percentage of reward pool reserved for validators (max 2500 = 25%) |
 | `numberOfValidations` | Number of validator reveals required per contribution (1–10) |
 | `minValidatorReputation` | Minimum reputation score required for validators |
-| `requiredSkill` | Optional skill hash restricting validator participation |
+| `requiredSkill` | Registered skill hash (required) — reputation accrues against this key |
 
 ### `fundProject(bytes32 projectId, uint256 amount, uint256 quantity, address adapter)`
 
@@ -80,9 +80,9 @@ Permissionless. After the claim deadline passes, returns unsubmitted slots to th
 
 Validators pre-lock tokens as "capacity" in the vault. This capacity is drawn down when committing validations, eliminating per-commit lock/unlock gas costs.
 
-### `claimToValidate(bytes32 projectId, uint256[] indices) → claimId`
+### `claimToValidate(bytes32 projectId, uint256 quantity) → claimId`
 
-Reserves the right to validate specific contribution indices. Checks reputation requirements and prevents validators from validating their own contributions. Creates a `ValidationClaim` with a 1-hour deadline to commit.
+Requests a quantity of validations and receives randomly assigned pending contributions. Checks reputation requirements and prevents validators from validating their own contributions. Creates a `ValidationClaim` with a 1-hour deadline to commit.
 
 ### `commitValidation(projectId, index, commitHash, stakeAmount, adapter)`
 
@@ -177,6 +177,15 @@ Originator claims remaining escrow after `PROJECT_COMPLETION_DELAY` (30 days) po
 
 All require `DEFAULT_ADMIN_ROLE`:
 
+### Skill Registry
+
+| Function | Description |
+|----------|-------------|
+| `registerSkill(string name)` | Hashes `name` via keccak256, stores the hash, and emits `SkillRegistered(skillId, name)` |
+| `deregisterSkill(string name)` | Removes the skill from the registry. Does not affect in-flight projects |
+
+### Configuration
+
 | Function | Default | Max |
 |----------|---------|-----|
 | `setProtocolFee(bps)` | 100 (1%) | 1000 (10%) |
@@ -206,7 +215,8 @@ All require `DEFAULT_ADMIN_ROLE`:
 | `getClaim(claimId)` | `Claim` struct |
 | `getValidationClaim(claimId)` | `ValidationClaim` struct |
 | `getContribution(projectId, index)` | `Contribution` struct |
-| `getReputation(user, role)` | `Reputation` struct |
+| `getReputation(user, key)` | `Reputation` struct (pass skill hash or originator role key) |
+| `isSkillRegistered(skillId)` | `bool` — whether the skill hash is registered |
 | `getPendingRewards(user, token)` | `uint256` pending balance |
 | `getAdapterFees()` | Origination, contribution, validation BPS |
 | `getOriginationAdapter(projectId)` | Adapter address |

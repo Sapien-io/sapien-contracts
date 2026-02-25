@@ -22,9 +22,7 @@ contract RISK_009_GhostCommitments is BaseTest {
         _ensureStake(validator1, VALIDATOR_STAKE * 2);
 
         vm.startPrank(validator1);
-        uint256[] memory valIdx = new uint256[](1);
-        valIdx[0] = idx;
-        engine.claimToValidate(projectId, valIdx);
+        engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projectId, idx, ghostHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
@@ -63,9 +61,7 @@ contract RISK_009_GhostCommitments is BaseTest {
         _ensureStake(validator1, VALIDATOR_STAKE * 2);
 
         vm.startPrank(validator1);
-        uint256[] memory valIdx = new uint256[](1);
-        valIdx[0] = idx;
-        engine.claimToValidate(projectId, valIdx);
+        engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projectId, idx, ghostHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();

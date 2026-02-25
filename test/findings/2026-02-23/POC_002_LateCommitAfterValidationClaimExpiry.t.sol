@@ -14,12 +14,9 @@ contract POC_002_LateCommitAfterValidationClaimExpiry is BaseTest {
         (, uint256[] memory contribIndices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = contribIndices[0];
 
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = idx;
-
         // Validator3 reserves the slot but does not commit yet.
         vm.prank(validator3);
-        uint256 v3ClaimId = engine.claimToValidate(projectId, indices);
+        uint256 v3ClaimId = engine.claimToValidate(projectId, 1);
 
         // Honest validators reveal first.
         _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);

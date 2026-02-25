@@ -619,16 +619,16 @@ export function useClaimToValidate() {
 
   const claimToValidate = async ({
     projectId,
-    indices,
+    quantity,
   }: {
     projectId: `0x${string}`
-    indices: bigint[]
+    quantity: bigint
   }) => {
     await writeContract({
       address: CONTRACTS.SAPIEN_CORE,
       abi: sapienCoreABI,
       functionName: 'claimToValidate',
-      args: [projectId, indices],
+      args: [projectId, quantity],
     })
   }
 

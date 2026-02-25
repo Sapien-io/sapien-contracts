@@ -44,6 +44,8 @@ library OriginationLib {
         if (config.numberOfValidations == 0 || config.numberOfValidations > C.MAX_NUMBER_OF_VALIDATIONS) {
             revert ISapienCore.InvalidProjectConfig("numberOfValidations out of range");
         }
+        if (config.requiredSkill == bytes32(0)) revert ISapienCore.SkillNotRegistered();
+        if (!$.registeredSkills[config.requiredSkill]) revert ISapienCore.SkillNotRegistered();
 
         Project storage proj = $.projects[projectId];
         proj.originator = msg.sender;
@@ -159,8 +161,16 @@ library OriginationLib {
             }
         }
 
-        // Reset pending contributions counter
+        // Reset pending contributions counter and pending index set
         $.pendingContributions[projectId] = 0;
+        {
+            uint256[] storage arr = $.pendingIndices[projectId];
+            uint256 pLen = arr.length;
+            for (uint256 j; j < pLen; ++j) {
+                delete $.pendingIndexPos[projectId][arr[j]];
+            }
+            delete $.pendingIndices[projectId];
+        }
 
         proj.status = ProjectStatus.Cancelled;
         proj.cancelledAt = block.timestamp;

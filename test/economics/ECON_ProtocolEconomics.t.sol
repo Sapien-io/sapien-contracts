@@ -194,12 +194,10 @@ contract ECON_ProtocolEconomics is BaseTest {
         uint256 sharesBefore = vault.balanceOf(validator1);
         uint256 expectedShareLoss = vault.convertToShares(stakeAmount);
 
-        uint256[] memory validationIndices = new uint256[](1);
-        validationIndices[0] = index;
         bytes32 commitHash = keccak256(abi.encodePacked("economic-unrevealed", validator1, projectId, index));
 
         vm.startPrank(validator1);
-        engine.claimToValidate(projectId, validationIndices);
+        engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(stakeAmount);
         engine.commitValidation(projectId, index, commitHash, stakeAmount, address(0));
         vm.stopPrank();
@@ -314,11 +312,8 @@ contract ECON_ProtocolEconomics is BaseTest {
         bytes32 salt = keccak256(abi.encodePacked("econ-salt", validator, projectId, index, score));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = index;
-
         vm.startPrank(validator);
-        engine.claimToValidate(projectId, indices);
+        engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(stakeAmount);
         engine.commitValidation(projectId, index, commitHash, stakeAmount, validationAdapter);
         engine.revealValidation(projectId, index, score, salt);
@@ -382,13 +377,11 @@ contract ECON_ProtocolEconomics is BaseTest {
         uint256 nonRevealIndex = nonRevealIndices[0];
         uint256 validatorSharesBefore = vault.balanceOf(validator2);
 
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = nonRevealIndex;
         bytes32 commitHash =
             keccak256(abi.encodePacked("economic-unrevealed", validator2, nonRevealProjectId, nonRevealIndex));
 
         vm.startPrank(validator2);
-        engine.claimToValidate(nonRevealProjectId, indices);
+        engine.claimToValidate(nonRevealProjectId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(nonRevealProjectId, nonRevealIndex, commitHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();

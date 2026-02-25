@@ -21,6 +21,8 @@ contract OriginationLibFuzz is Test {
     address public treasury = makeAddr("treasury");
     address public originator = makeAddr("originator");
 
+    bytes32 constant SKILL_ID = keccak256("DATA_ANNOTATION");
+
     function setUp() public {
         token = new MockERC20("Test", "TST");
 
@@ -34,6 +36,7 @@ contract OriginationLibFuzz is Test {
 
         vm.startPrank(admin);
         vault.grantRole(vault.ENGINE_ROLE(), address(engine));
+        engine.registerSkill("DATA_ANNOTATION");
         vm.stopPrank();
 
         token.mint(originator, 1_000_000e18);
@@ -382,7 +385,7 @@ contract OriginationLibFuzz is Test {
             minStakeToClaim: 100e18,
             validatorRewardBps: 2000,
             numberOfValidations: 3,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
             status: ProjectStatus.Created,

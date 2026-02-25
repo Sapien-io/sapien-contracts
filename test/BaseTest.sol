@@ -33,6 +33,7 @@ contract BaseTest is Test {
     address public adapter = makeAddr("adapter");
 
     bytes32 public constant PROJECT_ID = keccak256("test-project-1");
+    bytes32 public constant SKILL_ID = keccak256("DATA_ANNOTATION");
     uint256 public constant FUND_AMOUNT = 10_000e18;
     uint256 public constant QUANTITY = 10;
     uint256 public constant STAKE_AMOUNT = 100e18;
@@ -51,6 +52,7 @@ contract BaseTest is Test {
 
         vm.startPrank(admin);
         vault.grantRole(vault.ENGINE_ROLE(), address(engine));
+        engine.registerSkill("DATA_ANNOTATION");
         vm.stopPrank();
 
         _setupBalances();
@@ -86,7 +88,7 @@ contract BaseTest is Test {
             minStakeToClaim: STAKE_AMOUNT,
             validatorRewardBps: 2000,
             numberOfValidations: 3,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
             status: ProjectStatus.Created,
@@ -143,9 +145,7 @@ contract BaseTest is Test {
 
         vm.startPrank(val);
 
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = index;
-        engine.claimToValidate(projectId, indices);
+        engine.claimToValidate(projectId, 1);
 
         engine.lockValidatorCapacity(stakeAmt);
 

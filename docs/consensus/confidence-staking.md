@@ -26,7 +26,7 @@ weight = sqrt(stake) × effectiveReputation
 | Component | Role |
 |-----------|------|
 | `sqrt(stake)` | Converts the raw stake into a sublinear influence factor. Doubling your stake increases your weight by only ~41%, not 2×. This prevents whales from dominating consensus while still rewarding higher conviction. |
-| `effectiveReputation` | The validator's on-chain reputation score, floored at 1,000 so that newcomers always have baseline influence. Reputation grows with accurate validations and decays with inaccurate ones. |
+| `effectiveReputation` | The validator's on-chain reputation score, floored at 100 so that newcomers always have baseline influence. Reputation grows with accurate validations and decays with inaccurate ones. |
 
 The final consensus score is a **weighted average** of all revealed scores, where each score is weighted by the formula above. Validators who stake more and have higher reputation pull the average more strongly toward their assessment.
 
@@ -119,7 +119,7 @@ Every validation is a risk-reward decision. Before committing, a validator impli
 
 **When to use:** The validator is less certain — perhaps the contribution is in an unfamiliar domain, or the quality is genuinely ambiguous.
 
-- **If correct:** Earns a smaller but non-zero share. The minimum reputation floor (1,000) ensures even low-stake validators contribute to consensus.
+- **If correct:** Earns a smaller but non-zero share. The minimum reputation floor (100) ensures even low-stake validators contribute to consensus.
 - **If outlier:** Loses a small absolute amount. A Tier 3 outlier at the minimum stake loses far less capital.
 
 ### The Optimal Play
@@ -140,10 +140,10 @@ Stake and reputation are **multiplicative** in the weight formula. This creates 
 |----------|------:|----------:|-------:|---------|
 | Expert, confident | 20,000 | 8,000 | 1,131,371 | Highest influence and reward share |
 | Expert, cautious | 2,000 | 8,000 | 357,771 | Moderate influence, protected downside |
-| Newcomer, confident | 20,000 | 1,000 (floor) | 141,421 | Influence limited by low reputation |
-| Newcomer, cautious | 2,000 | 1,000 (floor) | 44,721 | Low influence, low risk — reputation building phase |
+| Newcomer, confident | 20,000 | 100 (floor) | 14,142 | Influence limited by low reputation |
+| Newcomer, cautious | 2,000 | 100 (floor) | 4,472 | Low influence, low risk — reputation building phase |
 
-A newcomer who stakes aggressively still has limited influence because their reputation is at the floor (1,000). This protects the system from new entrants trying to sway consensus with capital alone. As they accumulate accurate validations and their reputation grows, the same stake level produces increasingly more weight.
+A newcomer who stakes aggressively still has limited influence because their reputation is at the floor (100). This protects the system from new entrants trying to sway consensus with capital alone. As they accumulate accurate validations and their reputation grows, the same stake level produces increasingly more weight.
 
 Conversely, a high-reputation validator who loses confidence in a particular assessment can reduce their stake without losing their accumulated reputation advantage on future validations.
 
@@ -157,7 +157,7 @@ The confidence-staking system maintains several protocol-level guarantees:
 
 2. **Rewards are zero-sum from the project escrow.** Validator rewards come from the project's pre-funded reward pool, split between contributors and validators via `validatorRewardBps`.
 
-3. **Weight cannot be zero.** Even at minimum stake and minimum reputation, `sqrt(minStake) × 1,000` produces a positive weight, ensuring every revealed score influences the outcome.
+3. **Weight cannot be zero.** Even at minimum stake and minimum reputation, `sqrt(minStake) × 100` produces a positive weight, ensuring every revealed score influences the outcome.
 
 4. **Reputation decays independently of stake.** A validator who stops participating sees their reputation decay over time (configurable `decayRateBps` per day), reducing their future weight even if they later return with a large stake. Consistent participation is rewarded.
 

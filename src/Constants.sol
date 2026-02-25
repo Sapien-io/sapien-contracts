@@ -54,6 +54,4 @@ library Constants {
     uint256 public constant MAX_DAILY_GAIN = 100;
 
     bytes32 public constant ORIGINATOR_ROLE_KEY = keccak256("ORIGINATOR");
-    bytes32 public constant CONTRIBUTOR_ROLE_KEY = keccak256("CONTRIBUTOR");
-    bytes32 public constant VALIDATOR_ROLE_KEY = keccak256("VALIDATOR");
 }

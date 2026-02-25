@@ -48,62 +48,72 @@ library ValidationLib {
     // Validation Claims
     // ════════════════════════════════════════════════════════════════════
 
-    function claimToValidate(bytes32 projectId, uint256[] calldata indices) public returns (uint256 claimId) {
-        if (indices.length == 0) revert ISapienCore.ZeroAmount();
+    function claimToValidate(bytes32 projectId, uint256 quantity) public returns (uint256 claimId) {
+        if (quantity == 0) revert ISapienCore.ZeroAmount();
 
         EngineStorage storage $ = _getStorage();
         Project storage proj = $.projects[projectId];
 
         if (proj.minValidatorReputation > 0) {
-            bytes32 skill = proj.requiredSkill;
-            uint256 rep = ReputationLib.getScore(msg.sender, skill != bytes32(0) ? skill : C.VALIDATOR_ROLE_KEY);
+            uint256 rep = ReputationLib.getScore(msg.sender, proj.requiredSkill);
             if (rep < proj.minValidatorReputation) {
                 revert ISapienCore.InsufficientReputation(uint256(proj.minValidatorReputation), rep);
             }
         }
 
-        uint256 len = indices.length;
-        for (uint256 i; i < len; ++i) {
-            uint256 idx = indices[i];
+        uint256[] storage pending = $.pendingIndices[projectId];
+        uint256 pendingLen = pending.length;
+
+        uint256[] memory eligible = new uint256[](pendingLen);
+        uint256 eligibleCount = 0;
+        for (uint256 i; i < pendingLen; ++i) {
+            uint256 idx = pending[i];
             Contribution storage contrib = $.contributions[projectId][idx];
-            if (contrib.status != ContributionStatus.Pending) revert ISapienCore.IndexNotSubmitted();
-            if (contrib.contributor == msg.sender) revert ISapienCore.CannotValidateOwnContribution();
-
+            if (contrib.contributor == msg.sender) continue;
             uint256 nonce = $.submissionNonce[projectId][idx];
+            if ($.validatorCommits[projectId][idx][nonce][msg.sender].claimed) continue;
+            if ($.validationCounters[projectId][idx][nonce].claimCount >= proj.numberOfValidations) continue;
+            eligible[eligibleCount++] = idx;
+        }
+        if (eligibleCount == 0) revert ISapienCore.NoEligibleContributions();
 
+        uint256 assignCount = quantity < eligibleCount ? quantity : eligibleCount;
+
+        // Fisher-Yates partial shuffle — only shuffle first `assignCount` positions
+        uint256 seed =
+            uint256(keccak256(abi.encodePacked(blockhash(block.number - 1), projectId, msg.sender, block.timestamp)));
+        for (uint256 i; i < assignCount; ++i) {
+            uint256 j = i + (seed % (eligibleCount - i));
+            (eligible[i], eligible[j]) = (eligible[j], eligible[i]);
+            seed = uint256(keccak256(abi.encodePacked(seed)));
+        }
+
+        // Assign the shuffled selections
+        uint256[] memory assigned = new uint256[](assignCount);
+        for (uint256 i; i < assignCount; ++i) {
+            uint256 idx = eligible[i];
+            uint256 nonce = $.submissionNonce[projectId][idx];
             ValidatorCommit storage vc = $.validatorCommits[projectId][idx][nonce][msg.sender];
-            if (vc.claimed) revert ISapienCore.AlreadyCommitted();
-
-            ValidationCounters storage counters = $.validationCounters[projectId][idx][nonce];
-            if (counters.claimCount >= proj.numberOfValidations) {
-                revert ISapienCore.ConsensusNotReady(counters.claimCount, proj.numberOfValidations);
-            }
-
             vc.claimed = true;
-            counters.claimCount++;
-
-            for (uint256 j; j < i; ++j) {
-                if (indices[j] == idx) revert ISapienCore.InvalidIndex();
-            }
+            $.validationCounters[projectId][idx][nonce].claimCount++;
+            assigned[i] = idx;
         }
 
         claimId = $.nextValidationClaimId++;
 
-        {
-            for (uint256 k; k < len; ++k) {
-                uint256 nonce = $.submissionNonce[projectId][indices[k]];
-                $.validatorCommits[projectId][indices[k]][nonce][msg.sender].validationClaimId = claimId;
-            }
+        for (uint256 k; k < assignCount; ++k) {
+            uint256 nonce = $.submissionNonce[projectId][assigned[k]];
+            $.validatorCommits[projectId][assigned[k]][nonce][msg.sender].validationClaimId = claimId;
         }
         ValidationClaim storage vclaim = $.validationClaims[claimId];
         vclaim.validator = msg.sender;
         vclaim.projectId = projectId;
-        vclaim.indices = indices;
+        vclaim.indices = assigned;
         vclaim.deadline = block.timestamp + C.VALIDATION_CLAIM_DEADLINE;
-        vclaim.totalCount = len;
+        vclaim.totalCount = assignCount;
         vclaim.status = ValidationClaimStatus.Active;
 
-        emit ISapienCore.ValidationClaimCreated(claimId, projectId, msg.sender, indices);
+        emit ISapienCore.ValidationClaimCreated(claimId, projectId, msg.sender, assigned);
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -257,7 +267,7 @@ library ValidationLib {
         vclaim.status = ValidationClaimStatus.Expired;
 
         if (released > 0) {
-            ReputationLib.update(vclaim.validator, C.VALIDATOR_ROLE_KEY, false, 0);
+            ReputationLib.update(vclaim.validator, $.projects[vclaim.projectId].requiredSkill, false, 0);
         }
 
         emit ISapienCore.ValidationClaimExpired(claimId, released);
@@ -300,6 +310,7 @@ library ValidationLib {
 
         Contribution storage contrib = $.contributions[projectId][index];
         contrib.consensusNonce = nonce;
+        _removePendingIndex($, projectId, index);
         ContributionStatus newStatus;
 
         uint256 challengePeriod_ = $.challengePeriod;
@@ -311,7 +322,7 @@ library ValidationLib {
             contrib.challengeEndsAt = block.timestamp + challengePeriod_;
 
             uint256 qualityBonus = (result.weightedAverage * 20) / C.BPS;
-            ReputationLib.update(contrib.contributor, C.CONTRIBUTOR_ROLE_KEY, true, qualityBonus);
+            ReputationLib.update(contrib.contributor, proj.requiredSkill, true, qualityBonus);
 
             uint256 minStake = proj.minStakeToClaim;
             if (minStake > 0) {
@@ -332,7 +343,7 @@ library ValidationLib {
             $.returnStackTop[projectId] = rsTop + 1;
             proj.availableSlots++;
 
-            ReputationLib.update(contrib.contributor, C.CONTRIBUTOR_ROLE_KEY, false, 0);
+            ReputationLib.update(contrib.contributor, proj.requiredSkill, false, 0);
 
             uint256 minStake = proj.minStakeToClaim;
             if (minStake > 0) {
@@ -347,6 +358,18 @@ library ValidationLib {
     // Internal Helpers
     // ════════════════════════════════════════════════════════════════════
 
+    function _removePendingIndex(EngineStorage storage $, bytes32 projectId, uint256 idx) internal {
+        uint256 pos = $.pendingIndexPos[projectId][idx];
+        if (pos == 0) return;
+        pos--;
+        uint256[] storage arr = $.pendingIndices[projectId];
+        uint256 last = arr[arr.length - 1];
+        arr[pos] = last;
+        $.pendingIndexPos[projectId][last] = pos + 1;
+        arr.pop();
+        delete $.pendingIndexPos[projectId][idx];
+    }
+
     function _buildAndCompute(
         EngineStorage storage $,
         bytes32 projectId,
@@ -358,14 +381,12 @@ library ValidationLib {
         uint256 n = validators.length;
         ValidationInput[] memory inputs = new ValidationInput[](n);
 
-        bytes32 roleKey = requiredSkill;
-        if (roleKey == bytes32(0)) roleKey = C.VALIDATOR_ROLE_KEY;
         uint256 cachedDecayBps = $.decayRateBps;
 
         for (uint256 i; i < n; ++i) {
             address validator = validators[i];
             ValidatorCommit storage vc_ = $.validatorCommits[projectId][index][nonce][validator];
-            uint256 rep = ReputationLib.getScoreCached(validator, roleKey, cachedDecayBps);
+            uint256 rep = ReputationLib.getScoreCached(validator, requiredSkill, cachedDecayBps);
             inputs[i] = ValidationInput({
                 validator: validator, score: vc_.score, stakeAmount: vc_.stakedAmount, reputation: rep
             });

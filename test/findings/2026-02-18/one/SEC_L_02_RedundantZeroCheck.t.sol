@@ -18,11 +18,7 @@ contract SEC_L_02_RedundantZeroCheck is BaseTest {
         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), salt));
 
         vm.startPrank(validator1);
-        {
-            uint256[] memory _indices = new uint256[](1);
-            _indices[0] = idx;
-            engine.claimToValidate(projectId, _indices);
-        }
+        engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
 
         // stakeAmount = 0 reverts with InsufficientStake(1, 0)

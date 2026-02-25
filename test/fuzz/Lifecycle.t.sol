@@ -77,15 +77,109 @@ contract LifecycleFuzzTest is BaseTest {
         _ensureStake(val, stakeAmt * 2);
 
         vm.startPrank(val);
-        {
-            uint256[] memory _indices = new uint256[](1);
-            _indices[0] = index;
-            engine.claimToValidate(projectId, _indices);
-        }
+        engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(stakeAmt);
         engine.commitValidation(projectId, index, commitHash, stakeAmt, address(0));
         engine.revealValidation(projectId, index, score, salt);
         vm.stopPrank();
+    }
+
+    /// @dev Batch validate multiple indices: each validator claims quantity, gets randomly assigned
+    ///      indices, then batch commits and reveals. Use when validators must validate multiple indices.
+    function _fuzzBatchValidateAll(
+        bytes32 projectId,
+        uint256[] memory indices,
+        uint256 score1,
+        uint256 score2,
+        uint256 score3,
+        uint256 stakeAmt
+    ) internal {
+        address[3] memory vals = [validator1, validator2, validator3];
+        uint256[3] memory scores = [score1, score2, score3];
+
+        for (uint256 v; v < 3; ++v) {
+            address val = vals[v];
+            uint256 score = scores[v];
+            _ensureStake(val, stakeAmt * indices.length * 2);
+
+            vm.startPrank(val);
+            uint256 vcClaimId = engine.claimToValidate(projectId, indices.length);
+            vm.stopPrank();
+
+            uint256[] memory assignedIndices = engine.getValidationClaim(vcClaimId).indices;
+
+            bytes32[] memory commitHashes = new bytes32[](assignedIndices.length);
+            bytes32[] memory salts = new bytes32[](assignedIndices.length);
+            uint256[] memory stakeAmts = new uint256[](assignedIndices.length);
+            uint256[] memory scoreArr = new uint256[](assignedIndices.length);
+
+            for (uint256 i; i < assignedIndices.length; ++i) {
+                salts[i] = keccak256(abi.encodePacked("fuzz-batch-salt", val, assignedIndices[i], score));
+                commitHashes[i] = keccak256(abi.encodePacked(score, salts[i]));
+                stakeAmts[i] = stakeAmt;
+                scoreArr[i] = score;
+            }
+
+            vm.startPrank(val);
+            engine.lockValidatorCapacity(stakeAmt * assignedIndices.length);
+            engine.batchCommitValidations(projectId, assignedIndices, commitHashes, stakeAmts, address(0));
+            engine.batchRevealValidations(projectId, assignedIndices, scoreArr, salts);
+            vm.stopPrank();
+        }
+    }
+
+    /// @dev Batch validate with per-index scores (all validators use same score per index).
+    ///      Use when different indices need different scores (e.g. mixed accept/reject).
+    function _fuzzBatchValidateAllWithScores(
+        bytes32 projectId,
+        uint256[] memory indices,
+        uint256[] memory scoresPerIndex,
+        uint256 stakeAmt
+    ) internal {
+        require(indices.length == scoresPerIndex.length, "length mismatch");
+        address[3] memory vals = [validator1, validator2, validator3];
+
+        for (uint256 v; v < 3; ++v) {
+            address val = vals[v];
+            _ensureStake(val, stakeAmt * indices.length * 2);
+
+            vm.startPrank(val);
+            uint256 vcClaimId = engine.claimToValidate(projectId, indices.length);
+            vm.stopPrank();
+
+            uint256[] memory assignedIndices = engine.getValidationClaim(vcClaimId).indices;
+
+            bytes32[] memory commitHashes = new bytes32[](assignedIndices.length);
+            bytes32[] memory salts = new bytes32[](assignedIndices.length);
+            uint256[] memory stakeAmts = new uint256[](assignedIndices.length);
+            uint256[] memory scoreArr = new uint256[](assignedIndices.length);
+
+            for (uint256 i; i < assignedIndices.length; ++i) {
+                uint256 idx = assignedIndices[i];
+                uint256 score = _scoreForIndex(idx, indices, scoresPerIndex);
+                salts[i] = keccak256(abi.encodePacked("fuzz-batch-salt", val, idx, score));
+                commitHashes[i] = keccak256(abi.encodePacked(score, salts[i]));
+                stakeAmts[i] = stakeAmt;
+                scoreArr[i] = score;
+            }
+
+            vm.startPrank(val);
+            engine.lockValidatorCapacity(stakeAmt * assignedIndices.length);
+            engine.batchCommitValidations(projectId, assignedIndices, commitHashes, stakeAmts, address(0));
+            engine.batchRevealValidations(projectId, assignedIndices, scoreArr, salts);
+            vm.stopPrank();
+        }
+    }
+
+    function _scoreForIndex(uint256 idx, uint256[] memory indices, uint256[] memory scoresPerIndex)
+        internal
+        pure
+        returns (uint256)
+    {
+        for (uint256 i; i < indices.length; ++i) {
+            if (indices[i] == idx) return scoresPerIndex[i];
+        }
+        revert("index not found");
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -133,7 +227,7 @@ contract LifecycleFuzzTest is BaseTest {
             minStakeToClaim: STAKE_AMOUNT,
             validatorRewardBps: 2000,
             numberOfValidations: 3,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
             status: ProjectStatus.Created,
@@ -271,7 +365,7 @@ contract LifecycleFuzzTest is BaseTest {
             minStakeToClaim: STAKE_AMOUNT,
             validatorRewardBps: 2000,
             numberOfValidations: 3,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
             status: ProjectStatus.Created,
@@ -349,7 +443,7 @@ contract LifecycleFuzzTest is BaseTest {
                 minStakeToClaim: STAKE_AMOUNT,
                 validatorRewardBps: 2000,
                 numberOfValidations: 3,
-                requiredSkill: bytes32(0),
+                requiredSkill: SKILL_ID,
                 minValidatorReputation: 0,
                 minValidationStake: 0,
                 status: ProjectStatus.Created,
@@ -374,18 +468,16 @@ contract LifecycleFuzzTest is BaseTest {
             assertEq(uint256(claim.status), uint256(ClaimStatus.Completed));
         }
 
-        { // ── Validate each contribution ─────────────────────────────
+        { // ── Validate each contribution (batch: each validator claims all indices) ─
             uint256 valStake = _boundStake(validatorStakeSeed);
             uint256 score1 = bound(score1Raw, 7000, 10_000);
             uint256 score2 = bound(score2Raw, 7000, 10_000);
             uint256 score3 = bound(score3Raw, 7000, 10_000);
 
+            _fuzzBatchValidateAll(projId, indices, score1, score2, score3, valStake);
+
             for (uint256 i; i < indices.length; ++i) {
-                uint256 idx = indices[i];
-                _fuzzCommitAndReveal(validator1, projId, idx, score1, valStake);
-                _fuzzCommitAndReveal(validator2, projId, idx, score2, valStake);
-                _fuzzCommitAndReveal(validator3, projId, idx, score3, valStake);
-                engine.computeConsensus(projId, idx);
+                engine.computeConsensus(projId, indices[i]);
             }
         }
 
@@ -445,7 +537,7 @@ contract LifecycleFuzzTest is BaseTest {
                 minStakeToClaim: STAKE_AMOUNT,
                 validatorRewardBps: 2000,
                 numberOfValidations: 3,
-                requiredSkill: bytes32(0),
+                requiredSkill: SKILL_ID,
                 minValidatorReputation: 0,
                 minValidationStake: 0,
                 status: ProjectStatus.Created,
@@ -541,7 +633,7 @@ contract LifecycleFuzzTest is BaseTest {
                 minStakeToClaim: STAKE_AMOUNT,
                 validatorRewardBps: 2000,
                 numberOfValidations: 5,
-                requiredSkill: bytes32(0),
+                requiredSkill: SKILL_ID,
                 minValidatorReputation: 0,
                 minValidationStake: 0,
                 status: ProjectStatus.Created,
@@ -644,7 +736,7 @@ contract LifecycleFuzzTest is BaseTest {
                 minStakeToClaim: STAKE_AMOUNT,
                 validatorRewardBps: 2000,
                 numberOfValidations: 3,
-                requiredSkill: bytes32(0),
+                requiredSkill: SKILL_ID,
                 minValidatorReputation: 0,
                 minValidationStake: 0,
                 status: ProjectStatus.Created,
@@ -675,11 +767,7 @@ contract LifecycleFuzzTest is BaseTest {
             bytes32 commitHash = keccak256(abi.encodePacked(projId, index, nonce, validator1, uint256(8000), salt));
 
             vm.startPrank(validator1);
-            {
-                uint256[] memory _indices = new uint256[](1);
-                _indices[0] = index;
-                engine.claimToValidate(projId, _indices);
-            }
+            engine.claimToValidate(projId, 1);
             engine.lockValidatorCapacity(valStake);
             engine.commitValidation(projId, index, commitHash, valStake, address(0));
             vm.stopPrank();
@@ -735,7 +823,7 @@ contract LifecycleFuzzTest is BaseTest {
                 minStakeToClaim: STAKE_AMOUNT,
                 validatorRewardBps: 2000,
                 numberOfValidations: 3,
-                requiredSkill: bytes32(0),
+                requiredSkill: SKILL_ID,
                 minValidatorReputation: 0,
                 minValidationStake: 0,
                 status: ProjectStatus.Created,
@@ -858,7 +946,7 @@ contract LifecycleFuzzTest is BaseTest {
             minStakeToClaim: STAKE_AMOUNT,
             validatorRewardBps: 2000,
             numberOfValidations: 3,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
             status: ProjectStatus.Created,
@@ -953,7 +1041,7 @@ contract LifecycleFuzzTest is BaseTest {
                 minStakeToClaim: STAKE_AMOUNT,
                 validatorRewardBps: 2000,
                 numberOfValidations: 3,
-                requiredSkill: bytes32(0),
+                requiredSkill: SKILL_ID,
                 minValidatorReputation: 0,
                 minValidationStake: 0,
                 status: ProjectStatus.Created,
@@ -987,19 +1075,20 @@ contract LifecycleFuzzTest is BaseTest {
             vm.stopPrank();
         }
 
-        { // ── Validate both contributions ───────────────────────────
+        { // ── Validate both contributions (batch: goodScore for goodIndex, badScore for badIndex) ─
             uint256 valStake = _boundStake(validatorStakeSeed);
             uint256 goodScore = bound(goodScoreRaw, 7500, 10_000);
             uint256 badScore = bound(badScoreRaw, 0, 5000);
 
-            _fuzzCommitAndReveal(validator1, projId, goodIndex, goodScore, valStake);
-            _fuzzCommitAndReveal(validator2, projId, goodIndex, goodScore, valStake);
-            _fuzzCommitAndReveal(validator3, projId, goodIndex, goodScore, valStake);
-            engine.computeConsensus(projId, goodIndex);
+            uint256[] memory bothIndices = new uint256[](2);
+            bothIndices[0] = goodIndex;
+            bothIndices[1] = badIndex;
+            uint256[] memory scoresPerIndex = new uint256[](2);
+            scoresPerIndex[0] = goodScore;
+            scoresPerIndex[1] = badScore;
 
-            _fuzzCommitAndReveal(validator1, projId, badIndex, badScore, valStake);
-            _fuzzCommitAndReveal(validator2, projId, badIndex, badScore, valStake);
-            _fuzzCommitAndReveal(validator3, projId, badIndex, badScore, valStake);
+            _fuzzBatchValidateAllWithScores(projId, bothIndices, scoresPerIndex, valStake);
+            engine.computeConsensus(projId, goodIndex);
             engine.computeConsensus(projId, badIndex);
         }
 
@@ -1060,7 +1149,7 @@ contract LifecycleFuzzTest is BaseTest {
                 minStakeToClaim: STAKE_AMOUNT,
                 validatorRewardBps: 2000,
                 numberOfValidations: 3,
-                requiredSkill: bytes32(0),
+                requiredSkill: SKILL_ID,
                 minValidatorReputation: 0,
                 minValidationStake: 0,
                 status: ProjectStatus.Created,

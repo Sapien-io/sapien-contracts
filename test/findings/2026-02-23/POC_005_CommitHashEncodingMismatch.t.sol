@@ -18,9 +18,7 @@ contract POC_005_CommitHashEncodingMismatch is BaseTest {
         bytes32 documentedCommitHash = keccak256(abi.encodePacked(score, salt)); // 32-byte score packing
 
         vm.startPrank(validator1);
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = idx;
-        engine.claimToValidate(projectId, indices);
+        engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projectId, idx, documentedCommitHash, VALIDATOR_STAKE, address(0));
 
@@ -41,9 +39,7 @@ contract POC_005_CommitHashEncodingMismatch is BaseTest {
         bytes32 implCommitHash = keccak256(abi.encodePacked(score, salt)); // 2-byte score packing
 
         vm.startPrank(validator1);
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = idx;
-        engine.claimToValidate(projectId, indices);
+        engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projectId, idx, implCommitHash, VALIDATOR_STAKE, address(0));
 

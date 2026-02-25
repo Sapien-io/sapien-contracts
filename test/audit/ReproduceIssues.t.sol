@@ -15,11 +15,7 @@ contract ReproduceIssuesTest is BaseTest {
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
         vm.startPrank(val);
-        {
-            uint256[] memory _indices = new uint256[](1);
-            _indices[0] = index;
-            engine.claimToValidate(projectId, _indices);
-        }
+        engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(stakeAmt);
         engine.commitValidation(projectId, index, commitHash, stakeAmt, address(0));
         engine.revealValidation(projectId, index, score, salt);
@@ -80,7 +76,7 @@ contract ReproduceIssuesTest is BaseTest {
             minStakeToClaim: STAKE_AMOUNT,
             validatorRewardBps: 2500, // 25% to validators
             numberOfValidations: 4,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 50e18,
             status: ProjectStatus.Created,
@@ -110,11 +106,7 @@ contract ReproduceIssuesTest is BaseTest {
         _validate(validator3, projId, index, 7500, 50e18);
 
         vm.startPrank(validator4);
-        {
-            uint256[] memory _indices = new uint256[](1);
-            _indices[0] = index;
-            engine.claimToValidate(projId, _indices);
-        }
+        engine.claimToValidate(projId, 1);
         engine.lockValidatorCapacity(50e18);
         bytes32 salt4 = keccak256("validator4");
         engine.commitValidation(projId, index, keccak256(abi.encodePacked(uint256(8200), salt4)), 50e18, address(0));
@@ -196,7 +188,7 @@ contract ReproduceIssuesTest is BaseTest {
             minStakeToClaim: STAKE_AMOUNT,
             validatorRewardBps: 2000,
             numberOfValidations: 3,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0, // Allow zero stake
             status: ProjectStatus.Created,
@@ -218,11 +210,7 @@ contract ReproduceIssuesTest is BaseTest {
 
         // contributor2 tries zero-stake commit — should revert after RISK-007 fix
         vm.startPrank(contributor2);
-        {
-            uint256[] memory _indices = new uint256[](1);
-            _indices[0] = index;
-            engine.claimToValidate(projId, _indices);
-        }
+        engine.claimToValidate(projId, 1);
         bytes32 salt = keccak256("zero-stake");
         vm.expectRevert(abi.encodeWithSelector(ISapienCore.InsufficientStake.selector, 1, 0));
         engine.commitValidation(projId, index, keccak256(abi.encodePacked(uint256(1000), salt)), 0, address(0));

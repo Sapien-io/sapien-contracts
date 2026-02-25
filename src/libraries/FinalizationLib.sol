@@ -90,7 +90,7 @@ library FinalizationLib {
             } else if (committedStake > 0) {
                 $.vault.releaseCommit(validator, committedStake);
             }
-            ReputationLib.update(validator, C.VALIDATOR_ROLE_KEY, false, 0);
+            ReputationLib.update(validator, proj.requiredSkill, false, 0);
         } else {
             // Always release committed stake — validators must recover their stake
             // regardless of dispute outcome or contribution status
@@ -138,7 +138,7 @@ library FinalizationLib {
                     }
                 }
             }
-            ReputationLib.update(validator, C.VALIDATOR_ROLE_KEY, true, 0);
+            ReputationLib.update(validator, proj.requiredSkill, true, 0);
         }
 
         emit ISapienCore.ValidatorSettled(projectId, index, validator, outlier);
@@ -234,7 +234,7 @@ library FinalizationLib {
             $.validationCounters[projectId][index][nonce].claimCount--;
         }
 
-        ReputationLib.update(validator, C.VALIDATOR_ROLE_KEY, false, 0);
+        ReputationLib.update(validator, $.projects[projectId].requiredSkill, false, 0);
 
         emit ISapienCore.ValidatorCommitmentExpired(projectId, index, validator);
     }

@@ -8,7 +8,7 @@ import {SapienVault} from "src/SapienVault.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {Constants as C} from "src/Constants.sol";
 import {ISapienCore} from "src/interfaces/ISapienCore.sol";
-import {Project, ProjectStatus, Contribution, ContributionStatus} from "src/Types.sol";
+import {Project, ProjectStatus, Contribution, ContributionStatus, ValidationClaim} from "src/Types.sol";
 
 /// @title ValidationLibFuzz
 /// @notice Fuzz tests attempting to break ValidationLib with edge cases
@@ -26,6 +26,7 @@ contract ValidationLibFuzz is Test {
     address public validator3 = makeAddr("validator3");
 
     bytes32 public constant PROJECT_ID = keccak256("test-project");
+    bytes32 constant SKILL_ID = keccak256("DATA_ANNOTATION");
     uint256 public constant STAKE_AMOUNT = 100e18;
     uint256 public constant VALIDATOR_STAKE = 50e18;
 
@@ -45,6 +46,7 @@ contract ValidationLibFuzz is Test {
 
         vm.startPrank(admin);
         vault.grantRole(vault.ENGINE_ROLE(), address(engine));
+        engine.registerSkill("DATA_ANNOTATION");
         vm.stopPrank();
 
         _setupBalances();
@@ -78,7 +80,7 @@ contract ValidationLibFuzz is Test {
             minStakeToClaim: STAKE_AMOUNT,
             validatorRewardBps: 2000,
             numberOfValidations: 3,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
             status: ProjectStatus.Created,
@@ -104,70 +106,43 @@ contract ValidationLibFuzz is Test {
     }
 
     function testFuzz_claimToValidate_validClaim() public {
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = submittedIndex;
-
         vm.prank(validator1);
-        uint256 validationClaimId = engine.claimToValidate(PROJECT_ID, indices);
+        uint256 validationClaimId = engine.claimToValidate(PROJECT_ID, 1);
 
         assertTrue(validationClaimId >= 0);
     }
 
     function testFuzz_claimToValidate_revertsEmpty() public {
-        uint256[] memory indices = new uint256[](0);
-
         vm.prank(validator1);
         vm.expectRevert(ISapienCore.ZeroAmount.selector);
-        engine.claimToValidate(PROJECT_ID, indices);
-    }
-
-    function testFuzz_claimToValidate_revertsDuplicateIndices() public {
-        uint256[] memory contributedIndices = _submitMoreContributions(2);
-
-        uint256[] memory indices = new uint256[](3);
-        indices[0] = contributedIndices[0];
-        indices[1] = contributedIndices[1];
-        indices[2] = contributedIndices[0];
-
-        vm.prank(validator1);
-        vm.expectRevert();
-        engine.claimToValidate(PROJECT_ID, indices);
+        engine.claimToValidate(PROJECT_ID, 0);
     }
 
     function testFuzz_claimToValidate_revertsOwnContribution() public {
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = submittedIndex;
-
         vm.prank(contributor);
-        vm.expectRevert(ISapienCore.CannotValidateOwnContribution.selector);
-        engine.claimToValidate(PROJECT_ID, indices);
+        vm.expectRevert(ISapienCore.NoEligibleContributions.selector);
+        engine.claimToValidate(PROJECT_ID, 1);
     }
 
-    function testFuzz_claimToValidate_revertsUnsubmittedIndex() public {
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = 999;
-
+    function testFuzz_claimToValidate_validWithOneSubmitted() public {
         vm.prank(validator1);
-        vm.expectRevert(ISapienCore.IndexNotSubmitted.selector);
-        engine.claimToValidate(PROJECT_ID, indices);
+        uint256 validationClaimId = engine.claimToValidate(PROJECT_ID, 1);
+        assertTrue(validationClaimId >= 0);
     }
 
     function testFuzz_claimToValidate_revertsTooManyValidators() public {
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = submittedIndex;
-
         address[4] memory validators = [validator1, validator2, validator3, makeAddr("validator4")];
 
         for (uint256 i; i < 3; ++i) {
             vm.prank(validators[i]);
-            engine.claimToValidate(PROJECT_ID, indices);
+            engine.claimToValidate(PROJECT_ID, 1);
         }
 
         _setupValidator(validators[3]);
 
         vm.prank(validators[3]);
-        vm.expectRevert(abi.encodeWithSelector(ISapienCore.ConsensusNotReady.selector, 3, 3));
-        engine.claimToValidate(PROJECT_ID, indices);
+        vm.expectRevert(ISapienCore.NoEligibleContributions.selector);
+        engine.claimToValidate(PROJECT_ID, 1);
     }
 
     function testFuzz_commitValidation_validCommit(bytes32 salt, uint256 score, uint256 stakeAmount) public {
@@ -177,7 +152,7 @@ contract ValidationLibFuzz is Test {
 
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
-        _claimValidation(validator1, submittedIndex);
+        _claimValidation(validator1);
         _lockValidatorCapacity(validator1, stakeAmount);
 
         vm.prank(validator1);
@@ -185,7 +160,7 @@ contract ValidationLibFuzz is Test {
     }
 
     function testFuzz_commitValidation_revertsZeroHash() public {
-        _claimValidation(validator1, submittedIndex);
+        _claimValidation(validator1);
         _lockValidatorCapacity(validator1, VALIDATOR_STAKE);
 
         vm.prank(validator1);
@@ -206,7 +181,7 @@ contract ValidationLibFuzz is Test {
     function testFuzz_commitValidation_revertsDoubleCommit() public {
         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), bytes32("salt")));
 
-        _claimValidation(validator1, submittedIndex);
+        _claimValidation(validator1);
         _lockValidatorCapacity(validator1, VALIDATOR_STAKE * 2);
 
         vm.prank(validator1);
@@ -220,7 +195,7 @@ contract ValidationLibFuzz is Test {
     function testFuzz_commitValidation_revertsZeroStake() public {
         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), bytes32("salt")));
 
-        _claimValidation(validator1, submittedIndex);
+        _claimValidation(validator1);
 
         vm.prank(validator1);
         vm.expectRevert(abi.encodeWithSelector(ISapienCore.InsufficientStake.selector, 1, 0));
@@ -230,7 +205,7 @@ contract ValidationLibFuzz is Test {
     function testFuzz_commitValidation_revertsAfterClaimDeadline() public {
         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), bytes32("salt")));
 
-        _claimValidation(validator1, submittedIndex);
+        _claimValidation(validator1);
         _lockValidatorCapacity(validator1, VALIDATOR_STAKE);
 
         vm.warp(block.timestamp + C.VALIDATION_CLAIM_DEADLINE + 1);
@@ -245,7 +220,7 @@ contract ValidationLibFuzz is Test {
         bytes32 salt = bytes32("test_salt");
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
-        _claimValidation(validator1, submittedIndex);
+        _claimValidation(validator1);
         _lockValidatorCapacity(validator1, VALIDATOR_STAKE);
 
         vm.prank(validator1);
@@ -260,7 +235,7 @@ contract ValidationLibFuzz is Test {
         bytes32 salt = bytes32("test_salt");
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
-        _claimValidation(validator1, submittedIndex);
+        _claimValidation(validator1);
         _lockValidatorCapacity(validator1, VALIDATOR_STAKE);
 
         vm.prank(validator1);
@@ -278,7 +253,7 @@ contract ValidationLibFuzz is Test {
 
         bytes32 commitHash = keccak256(abi.encodePacked(score, correctSalt));
 
-        _claimValidation(validator1, submittedIndex);
+        _claimValidation(validator1);
         _lockValidatorCapacity(validator1, VALIDATOR_STAKE);
 
         vm.prank(validator1);
@@ -294,7 +269,7 @@ contract ValidationLibFuzz is Test {
         bytes32 salt = bytes32("test_salt");
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
-        _claimValidation(validator1, submittedIndex);
+        _claimValidation(validator1);
         _lockValidatorCapacity(validator1, VALIDATOR_STAKE);
 
         vm.prank(validator1);
@@ -313,7 +288,7 @@ contract ValidationLibFuzz is Test {
         bytes32 salt = bytes32("test_salt");
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
-        _claimValidation(validator1, submittedIndex);
+        _claimValidation(validator1);
         _lockValidatorCapacity(validator1, VALIDATOR_STAKE);
 
         vm.prank(validator1);
@@ -378,31 +353,31 @@ contract ValidationLibFuzz is Test {
     function testFuzz_batchCommitValidations_valid(uint8 batchSize) public {
         batchSize = uint8(bound(batchSize, 1, 5));
 
-        uint256[] memory contributedIndices = _submitMoreContributions(batchSize);
+        _submitMoreContributions(batchSize);
 
-        bytes32[] memory hashes = new bytes32[](batchSize);
-        uint256[] memory stakes = new uint256[](batchSize);
+        vm.prank(validator1);
+        uint256 vcClaimId = engine.claimToValidate(PROJECT_ID, batchSize);
 
-        for (uint256 i; i < batchSize; ++i) {
+        ValidationClaim memory vc = engine.getValidationClaim(vcClaimId);
+        uint256[] memory assignedIndices = vc.indices;
+
+        bytes32[] memory hashes = new bytes32[](assignedIndices.length);
+        uint256[] memory stakes = new uint256[](assignedIndices.length);
+
+        for (uint256 i; i < assignedIndices.length; ++i) {
             hashes[i] = keccak256(abi.encodePacked(uint256(8000), bytes32(bytes32(uint256(i)))));
             stakes[i] = VALIDATOR_STAKE;
         }
 
-        vm.prank(validator1);
-        engine.claimToValidate(PROJECT_ID, contributedIndices);
-
-        _lockValidatorCapacity(validator1, VALIDATOR_STAKE * batchSize);
+        _lockValidatorCapacity(validator1, VALIDATOR_STAKE * assignedIndices.length);
 
         vm.prank(validator1);
-        engine.batchCommitValidations(PROJECT_ID, contributedIndices, hashes, stakes, address(0));
+        engine.batchCommitValidations(PROJECT_ID, assignedIndices, hashes, stakes, address(0));
     }
 
     function testFuzz_cancelExpiredValidationClaim_afterDeadline() public {
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = submittedIndex;
-
         vm.prank(validator1);
-        uint256 validationClaimId = engine.claimToValidate(PROJECT_ID, indices);
+        uint256 validationClaimId = engine.claimToValidate(PROJECT_ID, 1);
 
         vm.warp(block.timestamp + C.VALIDATION_CLAIM_DEADLINE + 1);
 
@@ -410,21 +385,16 @@ contract ValidationLibFuzz is Test {
     }
 
     function testFuzz_cancelExpiredValidationClaim_revertsBeforeDeadline() public {
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = submittedIndex;
-
         vm.prank(validator1);
-        uint256 validationClaimId = engine.claimToValidate(PROJECT_ID, indices);
+        uint256 validationClaimId = engine.claimToValidate(PROJECT_ID, 1);
 
         vm.expectRevert(ISapienCore.ClaimDeadlineNotPassed.selector);
         engine.cancelExpiredValidationClaim(validationClaimId);
     }
 
-    function _claimValidation(address val, uint256 index) internal {
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = index;
+    function _claimValidation(address val) internal {
         vm.prank(val);
-        engine.claimToValidate(PROJECT_ID, indices);
+        engine.claimToValidate(PROJECT_ID, 1);
     }
 
     function _lockValidatorCapacity(address val, uint256 amount) internal {
@@ -436,7 +406,7 @@ contract ValidationLibFuzz is Test {
         bytes32 salt = keccak256(abi.encodePacked("salt", val, index));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
-        _claimValidation(val, index);
+        _claimValidation(val);
         _lockValidatorCapacity(val, VALIDATOR_STAKE);
 
         vm.prank(val);

@@ -98,7 +98,7 @@ library DisputeLib {
                 $.pendingRewards[dispute.challenger][rewardToken] += challengerReward;
                 $.projectEscrow[projectId][rewardToken] -= challengerReward;
             }
-            ReputationLib.update(contrib.contributor, C.CONTRIBUTOR_ROLE_KEY, false, 0);
+            ReputationLib.update(contrib.contributor, proj.requiredSkill, false, 0);
 
             // Mark this accepted contribution as lifecycle-complete from the pipeline
             // perspective so upheld disputes do not deadlock project completion.
@@ -116,7 +116,7 @@ library DisputeLib {
                 $.projectEscrow[projectId][rewardToken] -= compensation;
                 contrib.rewardReleased = true;
             }
-            ReputationLib.update(contrib.contributor, C.CONTRIBUTOR_ROLE_KEY, true, 0);
+            ReputationLib.update(contrib.contributor, proj.requiredSkill, true, 0);
 
             if (challengerReward > 0 && $.projectEscrow[projectId][rewardToken] >= challengerReward) {
                 $.pendingRewards[dispute.challenger][rewardToken] += challengerReward;

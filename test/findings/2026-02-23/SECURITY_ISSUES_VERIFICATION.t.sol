@@ -37,12 +37,9 @@ contract SecurityIssuesVerification is BaseTest {
         (, uint256[] memory contribIndices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = contribIndices[0];
 
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = idx;
-
         // First validator claims the slot
         vm.prank(validator1);
-        uint256 claim1 = engine.claimToValidate(projectId, indices);
+        uint256 claim1 = engine.claimToValidate(projectId, 1);
 
         // Advance time past claim deadline without committing
         vm.warp(block.timestamp + C.VALIDATION_CLAIM_DEADLINE + 1);
@@ -61,7 +58,7 @@ contract SecurityIssuesVerification is BaseTest {
         // After fix: This should succeed - validator4 can claim the freed slot
         address validator4 = makeAddr("validator4");
         vm.prank(validator4);
-        uint256 newClaim = engine.claimToValidate(projectId, indices);
+        uint256 newClaim = engine.claimToValidate(projectId, 1);
 
         // Verify new claim was successful
         assertTrue(newClaim > 0, "New validator should be able to claim released slot");
@@ -77,12 +74,9 @@ contract SecurityIssuesVerification is BaseTest {
         (, uint256[] memory contribIndices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = contribIndices[0];
 
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = idx;
-
         // Validator claims the slot
         vm.prank(validator1);
-        engine.claimToValidate(projectId, indices);
+        engine.claimToValidate(projectId, 1);
 
         // Advance time past claim deadline
         vm.warp(block.timestamp + C.VALIDATION_CLAIM_DEADLINE + 1);
@@ -269,7 +263,7 @@ contract SecurityIssuesVerification is BaseTest {
             minStakeToClaim: STAKE_AMOUNT,
             validatorRewardBps: 2000,
             numberOfValidations: 3,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
             status: ProjectStatus.Created,

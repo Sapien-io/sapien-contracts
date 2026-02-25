@@ -177,13 +177,13 @@ contract SapienCore is
     }
 
     /// @inheritdoc ISapienCore
-    function claimToValidate(bytes32 projectId, uint256[] calldata indices)
+    function claimToValidate(bytes32 projectId, uint256 quantity)
         external
         whenNotPaused
         nonReentrant
         returns (uint256 claimId)
     {
-        return ValidationLib.claimToValidate(projectId, indices);
+        return ValidationLib.claimToValidate(projectId, quantity);
     }
 
     /// @inheritdoc ISapienCore
@@ -489,6 +489,32 @@ contract SapienCore is
         if (delay > C.MAX_FORCE_SETTLE_DELAY) revert DeadlineTooLong(delay, C.MAX_FORCE_SETTLE_DELAY);
         _getStorage().forceSettleDelay = delay;
         emit ForceSettleDelayUpdated(delay);
+    }
+
+    // ── Skill Registry ──────────────────────────────────────────────────
+
+    /// @inheritdoc ISapienCore
+    function registerSkill(string calldata name) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (bytes(name).length == 0) revert ZeroAmount();
+        bytes32 skillId = keccak256(bytes(name));
+        EngineStorage storage $ = _getStorage();
+        if ($.registeredSkills[skillId]) revert SkillAlreadyRegistered();
+        $.registeredSkills[skillId] = true;
+        emit SkillRegistered(skillId, name);
+    }
+
+    /// @inheritdoc ISapienCore
+    function deregisterSkill(string calldata name) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        bytes32 skillId = keccak256(bytes(name));
+        EngineStorage storage $ = _getStorage();
+        if (!$.registeredSkills[skillId]) revert SkillNotRegistered();
+        $.registeredSkills[skillId] = false;
+        emit SkillDeregistered(skillId, name);
+    }
+
+    /// @inheritdoc ISapienCore
+    function isSkillRegistered(bytes32 skillId) external view returns (bool) {
+        return _getStorage().registeredSkills[skillId];
     }
 
     function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {

@@ -5,7 +5,7 @@ Contributors perform AI-related tasks and earn rewards based on the quality of t
 ## 1. Prerequisites
 
 - **Stake SAPIEN**: You must have SAPIEN tokens deposited in the `SapienVault`. Each project defines a `minStakeToClaim` threshold — your available stake must meet this requirement before claiming slots.
-- **Reputation**: Your on-chain reputation score (managed within `SapienCore`) affects your eligibility. Some projects set a minimum validator reputation or required skill hash.
+- **Reputation**: Your on-chain reputation is tracked per skill (e.g., `DATA_ANNOTATION`, `BOUNDING_BOX`). New users start at 5,000 for any skill they haven't worked on. Good work increases your skill-specific reputation; rejected contributions decrease it.
 
 ## 2. Claim Contribution Slots
 
@@ -97,7 +97,7 @@ This releases the unsubmitted slots back to the project and slashes your locked 
 
 ## Improving Your Earnings
 
-- **Focus on quality**: Consistently high consensus scores increase your reputation, potentially giving you access to projects with higher rewards or stricter skill requirements.
+- **Focus on quality**: Consistently high consensus scores increase your skill-specific reputation. Higher reputation in a skill makes you eligible for projects with stricter `minValidatorReputation` thresholds and gives validators working alongside you more confidence in the quality bar.
 - **Manage deadlines**: Always submit or release claims before they expire to avoid stake slashing.
 - **Batch submissions**: Use `batchContribute` to submit multiple contributions in a single transaction, saving gas.
 - **Choose adapters carefully**: The adapter you specify during `claimToContribute` receives a fee from your contribution reward. Some adapters may provide better tooling in exchange for this fee.

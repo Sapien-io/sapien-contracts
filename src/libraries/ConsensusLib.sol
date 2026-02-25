@@ -13,7 +13,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 library ConsensusLib {
     using Math for uint256;
 
-    uint256 internal constant MIN_REPUTATION_FLOOR = 1_000;
+    uint256 internal constant MIN_REPUTATION_FLOOR = 100;
     uint256 internal constant PRECISION = 1e18;
 
     // Tiered slash thresholds (in units of stddev * PRECISION)

@@ -67,7 +67,7 @@ A validator adapter provides a UI for human reviewers:
 
 **Key functions**:
 - `lockValidatorCapacity(amount)` — one-time setup for validator capacity
-- `claimToValidate(projectId, indices)` — claim specific indices for validation
+- `claimToValidate(projectId, quantity)` — request random assignment of pending contributions
 - `commitValidation(projectId, index, commitHash, stakeAmount, adapter)` — submit sealed score
 - `revealValidation(projectId, index, score, salt)` — reveal score
 - `settleValidator(projectId, index, nonce)` — settle position after consensus

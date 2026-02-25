@@ -148,6 +148,10 @@ library ContributionLib {
 
         $.pendingContributions[projectId]++;
 
+        // Track index for random validator assignment
+        $.pendingIndices[projectId].push(index);
+        $.pendingIndexPos[projectId][index] = $.pendingIndices[projectId].length; // 1-indexed
+
         claim.submittedCount++;
         if (claim.submittedCount == claim.totalCount) {
             claim.status = ClaimStatus.Completed;
@@ -230,7 +234,7 @@ library ContributionLib {
         claim.status = ClaimStatus.Expired;
 
         if (unsubmitted > 0) {
-            ReputationLib.update(claim.claimant, C.CONTRIBUTOR_ROLE_KEY, false, 0);
+            ReputationLib.update(claim.claimant, proj.requiredSkill, false, 0);
         }
 
         emit ISapienCore.ClaimExpired(claimId, unsubmitted);

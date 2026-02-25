@@ -98,7 +98,7 @@ For every step in the lifecycle, tests must verify three components:
   - **Commit**: `validatorCapacity` -> `inFlight` via `commitStake`; `ValidatorCommit` struct stored with commitHash, stakedAmount, commitTimestamp.
   - **Reveal**: `revealedValidators` populated; stake stays in-flight until settlement.
   - **Ghost**: `cancelExpiredCommitment` slashes committed-but-unrevealed validators.
-  - **Validation claims**: `claimToValidate` reserves indices with deadline; expired claims cancelled via `cancelExpiredValidationClaim`.
+  - **Validation claims**: `claimToValidate(projectId, quantity)` randomly assigns pending contributions; expired claims cancelled via `cancelExpiredValidationClaim`.
 - **Events**: `ValidationCommitted`, `ValidationRevealed`.
 - **Edge Cases**:
   - Ghost validators: `cancelExpiredCommitment` slashing and consensus unblocking.

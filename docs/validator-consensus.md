@@ -44,10 +44,12 @@ Validators use a **two-phase commit-reveal scheme** to prevent gaming:
 #### Step 0: Lock Capacity
 - Validators pre-lock tokens as capacity via `lockValidatorCapacity`
 - This capacity is drawn down when committing validations
+- Deposit age check: if `minDepositAge` is set (admin-configurable, default 0 = disabled, max 7 days), deposits must have aged past it before locking — anti-flash-staking protection
 
-#### Step 1: Claim Indices
-- Validator calls `claimToValidate(projectId, indices[])`
-- Claims specific contribution indices for validation
+#### Step 1: Claim Quantity (Random Assignment)
+- Validator calls `claimToValidate(projectId, quantity)`
+- Specifies how many contributions they want to validate; the protocol randomly assigns from pending contributions
+- Anti-collusion measure: validators cannot choose which contributions to validate
 - 1-hour deadline to commit
 - Cannot validate your own contributions
 - Must meet project's `minValidatorReputation`
@@ -73,14 +75,14 @@ Once all required validators have revealed, anyone can call `computeConsensus`:
 
 **Weight Formula:**
 ```
-weight = sqrt(stake) × max(reputation, 1000)
+weight = sqrt(stake) × max(reputation, 100)
 ```
 
 This means:
 - **Higher stake = More influence** (but sublinear — doubling stake only increases weight by ~41%)
 - **Higher reputation = More influence** (linearly — consistent accuracy pays off)
 - **Whale resistance** — large stakers can't dominate proportionally
-- **Newcomer inclusion** — minimum reputation floor of 1,000
+- **Newcomer inclusion** — minimum reputation floor of 100
 
 ### 5. Outcome Determination
 
@@ -161,11 +163,11 @@ sequenceDiagram
     V3->>Core: lockValidatorCapacity(amount)
 
     par Validators Claim
-        V1->>Core: claimToValidate(projectId, [index])
+        V1->>Core: claimToValidate(projectId, 1)
     and
-        V2->>Core: claimToValidate(projectId, [index])
+        V2->>Core: claimToValidate(projectId, 1)
     and
-        V3->>Core: claimToValidate(projectId, [index])
+        V3->>Core: claimToValidate(projectId, 1)
     end
 
     Note over V1,V3: Each validator privately evaluates the work
@@ -242,7 +244,7 @@ Notice that Validator A has 5× the stake of C, but only ~3.1× the weight. The 
 
 - **sqrt(stake)**: Based on quadratic voting research — provides ~22% reduction in whale power compared to linear weighting. Splitting stake across accounts doesn't increase total weight.
 - **reputation**: Linearly rewards historical accuracy. A validator with double the reputation has double the influence (all else equal).
-- **MIN_REPUTATION_FLOOR = 1,000**: Ensures new validators always have some influence, preventing zero-weight exclusion.
+- **MIN_REPUTATION_FLOOR = 100**: Ensures new validators always have some influence, preventing zero-weight exclusion.
 
 ### Tiered Slashing
 
@@ -353,6 +355,7 @@ When shares are burned via slashing, the underlying assets remain in the vault. 
 | Threat | Mitigation |
 |--------|------------|
 | **Validator copies others' scores** | Commit-reveal hides scores until all committed |
+| **Validator collusion** | Random assignment — validators specify quantity, protocol assigns from pending contributions; validators cannot choose which to validate |
 | **Whale controls consensus** | `sqrt(stake)` sublinear scaling |
 | **Sybil attack (many accounts)** | Weight = `sqrt(stake) × reputation` — expensive to build |
 | **Lazy validation (random scores)** | Tiered slashing (10%–100%) proportional to deviation |

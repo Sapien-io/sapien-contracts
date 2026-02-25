@@ -517,15 +517,15 @@ contract LifecycleSimulation is LifecycleBase {
         console2.log("");
         console2.log("--- REPUTATION SNAPSHOT ---");
         _printReputation(originator, "originator", C.ORIGINATOR_ROLE_KEY);
-        _printReputation(contributor1, "contributor1", C.CONTRIBUTOR_ROLE_KEY);
-        _printReputation(contributor2, "contributor2", C.CONTRIBUTOR_ROLE_KEY);
-        _printReputation(contributor3, "contributor3", C.CONTRIBUTOR_ROLE_KEY);
-        _printReputation(contributor4, "contributor4", C.CONTRIBUTOR_ROLE_KEY);
-        _printReputation(validator1, "validator1", C.VALIDATOR_ROLE_KEY);
-        _printReputation(validator2, "validator2", C.VALIDATOR_ROLE_KEY);
-        _printReputation(validator3, "validator3", C.VALIDATOR_ROLE_KEY);
-        _printReputation(validator4, "validator4", C.VALIDATOR_ROLE_KEY);
-        _printReputation(validator5, "validator5", C.VALIDATOR_ROLE_KEY);
+        _printReputation(contributor1, "contributor1", SKILL_ID);
+        _printReputation(contributor2, "contributor2", SKILL_ID);
+        _printReputation(contributor3, "contributor3", SKILL_ID);
+        _printReputation(contributor4, "contributor4", SKILL_ID);
+        _printReputation(validator1, "validator1", SKILL_ID);
+        _printReputation(validator2, "validator2", SKILL_ID);
+        _printReputation(validator3, "validator3", SKILL_ID);
+        _printReputation(validator4, "validator4", SKILL_ID);
+        _printReputation(validator5, "validator5", SKILL_ID);
 
         // ── Vault state ─────────────────────────────────────────────
         console2.log("");

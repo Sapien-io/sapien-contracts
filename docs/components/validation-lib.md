@@ -20,9 +20,9 @@ This capacity model eliminates per-commit lock/unlock transactions, significantl
 
 ### Validation Claims
 
-#### `claimToValidate(bytes32 projectId, uint256[] indices) → claimId`
+#### `claimToValidate(bytes32 projectId, uint256 quantity) → claimId`
 
-Validators claim the right to validate specific contribution indices. Guards:
+Validators request a quantity of contributions to validate. The protocol randomly assigns indices from pending contributions using a Fisher-Yates shuffle seeded with `blockhash`, `projectId`, `msg.sender`, and `timestamp`. The validator does not select specific indices — this is an anti-collusion measure preventing cartels from coordinating co-assignment. Guards:
 
 - Contribution must be in `Pending` status
 - Validator cannot validate their own contribution
@@ -31,7 +31,7 @@ Validators claim the right to validate specific contribution indices. Guards:
 - Cannot exceed the project's `numberOfValidations` per index
 - Deadline: **1 hour** (`VALIDATION_CLAIM_DEADLINE`)
 
-Creates a `ValidationClaim` struct tracking the validator, indices, deadline, and commitment progress.
+Creates a `ValidationClaim` struct tracking the validator, assigned `pendingIndices`, deadline, and commitment progress.
 
 #### `cancelExpiredValidationClaim(uint256 claimId)`
 
@@ -85,7 +85,7 @@ A pure library implementing stake-weighted consensus with outlier detection and 
 weight = sqrt(stake) × effectiveReputation
 ```
 
-Where `effectiveReputation = max(reputation, MIN_REPUTATION_FLOOR=1000)`.
+Where `effectiveReputation = max(reputation, MIN_REPUTATION_FLOOR=100)`.
 
 ### Algorithm
 

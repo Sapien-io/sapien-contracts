@@ -23,6 +23,7 @@ contract ContributionLibFuzz is Test {
     address public contributor = makeAddr("contributor");
 
     bytes32 public constant PROJECT_ID = keccak256("test-project");
+    bytes32 constant SKILL_ID = keccak256("DATA_ANNOTATION");
     uint256 public constant STAKE_AMOUNT = 100e18;
 
     function setUp() public {
@@ -38,6 +39,7 @@ contract ContributionLibFuzz is Test {
 
         vm.startPrank(admin);
         vault.grantRole(vault.ENGINE_ROLE(), address(engine));
+        engine.registerSkill("DATA_ANNOTATION");
         vm.stopPrank();
 
         _setupBalances();
@@ -67,7 +69,7 @@ contract ContributionLibFuzz is Test {
             minStakeToClaim: STAKE_AMOUNT,
             validatorRewardBps: 2000,
             numberOfValidations: 3,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
             status: ProjectStatus.Created,

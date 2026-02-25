@@ -119,10 +119,10 @@ function unlockValidatorCapacity(uint256 amount) external
 Lock/unlock tokens as validator capacity.
 
 ```solidity
-function claimToValidate(bytes32 projectId, uint256[] calldata indices)
+function claimToValidate(bytes32 projectId, uint256 quantity)
     external returns (uint256 claimId)
 ```
-Claim contribution indices for validation. 1-hour deadline to commit.
+Specify how many contributions to validate; the protocol randomly assigns from pending contributions. Anti-collusion: validators cannot choose which contributions to validate. 1-hour deadline to commit.
 
 ```solidity
 function commitValidation(
@@ -309,7 +309,7 @@ function forceSettleDelay() external view returns (uint256)
 
 **Inheritance:** `ERC4626Upgradeable`, `AccessControlUpgradeable`, `PausableUpgradeable`, `UUPSUpgradeable`, `ISapienVault`
 
-**Description:** ERC-4626 vault for SAPIEN token staking with typed lock categories (contributor locks, validator capacity, in-flight stakes). Uses ERC-7201 namespaced storage (`sapien.storage.StakeVault`).
+**Description:** ERC-4626 vault for SAPIEN token staking with typed lock categories (contributor locks, validator capacity, in-flight stakes). Tracks deposit timestamps for min-deposit-age checks (anti-flash-staking). Uses ERC-7201 namespaced storage (`sapien.storage.StakeVault`).
 
 #### `initialize`
 ```solidity
@@ -329,17 +329,24 @@ function slashAndUnlockContributor(address user, uint256 slashAmount, uint256 un
 #### Validator Operations (ENGINE_ROLE)
 
 ```solidity
-function lockValidatorCapacity(address user, uint256 amount) external
+function lockValidatorCapacity(address user, uint256 amount) external   // requires deposit age >= minDepositAge (if set)
 function unlockValidatorCapacity(address user, uint256 amount) external
 function commitStake(address user, uint256 amount) external
 function releaseCommit(address user, uint256 amount) external
 function slashValidator(address user, uint256 amount) external
 ```
 
+#### Admin Functions (DEFAULT_ADMIN_ROLE)
+
+```solidity
+function setMinDepositAge(uint256 age) external   // max 7 days; 0 = disabled
+```
+
 #### View Functions
 
 ```solidity
 function getStakeAccount(address user) external view returns (StakeAccount memory)
+function minDepositAge() external view returns (uint256)
 function availableBalance(address user) public view returns (uint256)
 function totalStaked(address user) external view returns (uint256)
 function maxRedeem(address owner) public view returns (uint256)
@@ -360,6 +367,7 @@ event ValidatorCapacityUnlocked(address indexed user, uint256 amount)
 event StakeCommitted(address indexed user, uint256 amount)
 event CommitReleased(address indexed user, uint256 amount)
 event ValidatorSlashed(address indexed user, uint256 amount)
+event MinDepositAgeUpdated(uint256 newAge)
 ```
 
 #### Errors
@@ -370,6 +378,8 @@ error InsufficientContributorLock(uint256 required, uint256 locked)
 error InsufficientValidatorCapacity(uint256 required, uint256 capacity)
 error InsufficientInFlight(uint256 required, uint256 inFlight)
 error TransferExceedsUnlockedShares()
+error DepositTooRecent(uint256 required, uint256 actual)
+error MinDepositAgeTooHigh(uint256 requested, uint256 max)
 error ZeroAmount()
 error ZeroAddress()
 ```
@@ -406,7 +416,7 @@ Manages validator capacity, validation claims, commit-reveal scoring, and consen
 
 **File:** `src/libraries/ConsensusLib.sol`
 
-Pure library implementing stake-weighted consensus with outlier detection and tiered slashing. Weight = `sqrt(stake) × max(reputation, 1000)`.
+Pure library implementing stake-weighted consensus with outlier detection and tiered slashing. Weight = `sqrt(stake) × max(reputation, 100)`.
 
 **Tiered Slashing:**
 
@@ -451,7 +461,7 @@ Implements PoQ reputation with lazy decay and daily gain caps. Scores range from
 
 **File:** `src/interfaces/ISapienCore.sol`
 
-Complete interface for SapienCore covering origination, contribution, validation, finalization, disputes, originator reports, project completion, admin, and view functions. Defines all protocol errors (60+) and events (40+).
+Complete interface for SapienCore covering origination, contribution, validation, finalization, disputes, originator reports, project completion, admin, and view functions. Defines all protocol errors (60+) and events (40+), including `NoEligibleContributions` (reverted when `claimToValidate` finds no eligible pending contributions for random assignment).
 
 ### ISapienVault
 
@@ -737,7 +747,7 @@ Both contracts use **ERC-7201 namespaced storage** to prevent storage collisions
 ### SapienVault
 - **Namespace:** `sapien.storage.StakeVault`
 - **Slot:** `0x0745d816f844b8d3ebe69904ebcd305a06dedec42070def1e397b29c2e74a900`
-- **Struct:** `SapienVaultStorage` containing `mapping(address => StakeAccount)`
+- **Struct:** `SapienVaultStorage` containing `mapping(address => StakeAccount)`, `mapping(address => uint256) lastDepositTimestamp` (for min-deposit-age checks), and `minDepositAge`
 
 ### Upgradeability
 - Both contracts use **UUPS proxy pattern** (OpenZeppelin `UUPSUpgradeable`)

@@ -32,6 +32,8 @@ contract SapienVault is
     error InsufficientValidatorCapacity(uint256 required, uint256 capacity);
     error InsufficientInFlight(uint256 required, uint256 inFlight);
     error TransferExceedsUnlockedShares();
+    error DepositTooRecent(uint256 required, uint256 actual);
+    error MinDepositAgeTooHigh(uint256 requested, uint256 max);
     error ZeroAmount();
     error ZeroAddress();
 
@@ -44,11 +46,16 @@ contract SapienVault is
     event StakeCommitted(address indexed user, uint256 amount);
     event CommitReleased(address indexed user, uint256 amount);
     event ValidatorSlashed(address indexed user, uint256 amount);
+    event MinDepositAgeUpdated(uint256 newAge);
+
+    uint256 public constant MAX_MIN_DEPOSIT_AGE = 7 days;
 
     // ── Storage (ERC-7201 namespaced) ──────────────────────────────────
     /// @custom:storage-location erc7201:sapien.storage.StakeVault
     struct SapienVaultStorage {
         mapping(address => StakeAccount) accounts;
+        mapping(address => uint256) lastDepositTimestamp;
+        uint256 minDepositAge;
     }
 
     // keccak256(abi.encode(uint256(keccak256("sapien.storage.StakeVault")) - 1)) & ~bytes32(uint256(0xff))
@@ -89,6 +96,13 @@ contract SapienVault is
         return 3;
     }
 
+    // ── Deposit timestamp tracking ──────────────────────────────────────
+
+    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
+        _getSapienVaultStorage().lastDepositTimestamp[receiver] = block.timestamp;
+        super._deposit(caller, receiver, assets, shares);
+    }
+
     // ── Contributor stake operations ───────────────────────────────────
 
     /// @inheritdoc ISapienVault
@@ -127,10 +141,19 @@ contract SapienVault is
     /// @inheritdoc ISapienVault
     function lockValidatorCapacity(address user, uint256 amount) external onlyRole(ENGINE_ROLE) {
         if (amount == 0) revert ZeroAmount();
+        SapienVaultStorage storage $ = _getSapienVaultStorage();
+        uint256 minAge = $.minDepositAge;
+        if (minAge > 0) {
+            uint256 depositTs = $.lastDepositTimestamp[user];
+            if (depositTs > 0) {
+                uint256 age = block.timestamp - depositTs;
+                if (age < minAge) revert DepositTooRecent(minAge, age);
+            }
+        }
         uint256 avail = availableBalance(user);
         if (avail < amount) revert InsufficientAvailableBalance(amount, avail);
 
-        _getSapienVaultStorage().accounts[user].validatorCapacity += amount;
+        $.accounts[user].validatorCapacity += amount;
         emit ValidatorCapacityLocked(user, amount);
     }
 
@@ -270,6 +293,18 @@ contract SapienVault is
         if (shares > 0) {
             _burn(user, shares);
         }
+    }
+
+    // ── Admin ──────────────────────────────────────────────────────────
+
+    function setMinDepositAge(uint256 age) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (age > MAX_MIN_DEPOSIT_AGE) revert MinDepositAgeTooHigh(age, MAX_MIN_DEPOSIT_AGE);
+        _getSapienVaultStorage().minDepositAge = age;
+        emit MinDepositAgeUpdated(age);
+    }
+
+    function minDepositAge() external view returns (uint256) {
+        return _getSapienVaultStorage().minDepositAge;
     }
 
     // ── Pausable hooks ─────────────────────────────────────────────────

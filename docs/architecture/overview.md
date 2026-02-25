@@ -31,11 +31,13 @@ Originators are the "buyers" of quality. They create projects, define quality cr
 Contributors are the workers who perform tasks (e.g., labeling an image, generating an AI response).
 - **Goal**: Earn rewards by providing high-quality work.
 - **Skin in the game**: Must lock stake when claiming contribution slots (`minStakeToClaim`).
+- **Reputation**: Tracked per skill — quality work on `BOUNDING_BOX` projects builds `BOUNDING_BOX` reputation, independent of other skills.
 
 ### 3. Validators
 Validators are the independent reviewers who assess the quality of contributions using a commit-reveal scheme.
 - **Goal**: Earn rewards by reaching consensus with other validators.
 - **Skin in the game**: Must pre-lock validator capacity and commit per-validation stakes.
+- **Reputation**: Tracked per skill — accurate validation on `DATA_ANNOTATION` projects builds `DATA_ANNOTATION` reputation, independent of other skills.
 
 ### 4. Adapters
 Adapters are the technical interface between the Sapien protocol and external tools.
@@ -48,14 +50,14 @@ Adapters are the technical interface between the Sapien protocol and external to
 The PoQ process follows six distinct phases. For detailed technical flows, see the [Protocol Lifecycle Diagram](./lifecycle.md). For information on how onchain indices map to offchain data, see the [Data Index Lifecycle](./index-lifecycle.md).
 
 ### Phase 1: Project Setup
-The originator creates a project via `createProject`, defining parameters like reward token, consensus threshold, number of validations, and validator reward share. They fund it via `fundProject`, which transfers tokens into escrow (after protocol and optional adapter fees) and creates contribution slots.
+The originator creates a project via `createProject`, defining parameters like reward token, consensus threshold, number of validations, validator reward share, and a **required skill** from the admin-managed skill registry. The skill determines which reputation bucket contributors and validators accrue reputation against. They fund it via `fundProject`, which transfers tokens into escrow (after protocol and optional adapter fees) and creates contribution slots.
 
 ### Phase 2: Contribution
 Contributors claim slots via `claimToContribute` (locks contributor stake) and submit work via `contribute` or `batchContribute` with a submission hash and data CID. Unsubmitted slots can be expired via `expireClaim` after the claim deadline.
 
 ### Phase 3: Validation (Commit-Reveal)
 1. **Capacity Setup**: Validators pre-lock tokens as capacity via `lockValidatorCapacity`.
-2. **Claim**: Validators claim specific indices via `claimToValidate` (1-hour deadline).
+2. **Claim**: Validators request a quantity via `claimToValidate(projectId, quantity)` and receive randomly assigned pending contributions (1-hour deadline).
 3. **Commit**: Validators submit `keccak256(abi.encodePacked(uint16(score), salt))` with a stake amount. Stake moves from capacity to in-flight.
 4. **Reveal**: Validators reveal `score` and `salt` within the reveal window.
 

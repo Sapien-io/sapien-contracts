@@ -24,9 +24,7 @@ contract RISK_010_FlashLoanConsensus is BaseTest {
         token.approve(address(vault), type(uint256).max);
         vault.deposit(VALIDATOR_STAKE * 2, newValidator);
 
-        uint256[] memory valIdx = new uint256[](1);
-        valIdx[0] = idx;
-        engine.claimToValidate(projectId, valIdx);
+        engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projectId, idx, commitHash, VALIDATOR_STAKE, address(0));
         engine.revealValidation(projectId, idx, score, salt);
@@ -55,9 +53,7 @@ contract RISK_010_FlashLoanConsensus is BaseTest {
         token.approve(address(vault), type(uint256).max);
         vault.deposit(VALIDATOR_STAKE * 2, instantVal);
 
-        uint256[] memory valIdx = new uint256[](1);
-        valIdx[0] = idx;
-        engine.claimToValidate(projectId, valIdx);
+        engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projectId, idx, commitHash, VALIDATOR_STAKE, address(0));
         engine.revealValidation(projectId, idx, rejectScore, salt);

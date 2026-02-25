@@ -36,6 +36,7 @@ contract DisputeLibFuzz is Test {
     address public validator3 = makeAddr("validator3");
 
     bytes32 public constant PROJECT_ID = keccak256("test-project");
+    bytes32 constant SKILL_ID = keccak256("DATA_ANNOTATION");
     uint256 public constant STAKE_AMOUNT = 100e18;
     uint256 public constant VALIDATOR_STAKE = 50e18;
 
@@ -54,6 +55,7 @@ contract DisputeLibFuzz is Test {
 
         vm.startPrank(admin);
         vault.grantRole(vault.ENGINE_ROLE(), address(engine));
+        engine.registerSkill("DATA_ANNOTATION");
         engine.setDisputeBondBps(500);
         vm.stopPrank();
 
@@ -87,7 +89,7 @@ contract DisputeLibFuzz is Test {
             minStakeToClaim: STAKE_AMOUNT,
             validatorRewardBps: 2000,
             numberOfValidations: 3,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
             status: ProjectStatus.Created,
@@ -123,10 +125,8 @@ contract DisputeLibFuzz is Test {
         bytes32 salt = keccak256(abi.encodePacked("salt", val, index));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = index;
         vm.prank(val);
-        engine.claimToValidate(PROJECT_ID, indices);
+        engine.claimToValidate(PROJECT_ID, 1);
 
         vm.prank(val);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
@@ -355,7 +355,7 @@ contract DisputeLibFuzz is Test {
             minStakeToClaim: STAKE_AMOUNT,
             validatorRewardBps: 2000,
             numberOfValidations: 3,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
             status: ProjectStatus.Created,
@@ -398,10 +398,8 @@ contract DisputeLibFuzz is Test {
         bytes32 salt = keccak256(abi.encodePacked("salt", val, projectId, index));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
-        uint256[] memory indices = new uint256[](1);
-        indices[0] = index;
         vm.prank(val);
-        engine.claimToValidate(projectId, indices);
+        engine.claimToValidate(projectId, 1);
 
         vm.prank(val);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);

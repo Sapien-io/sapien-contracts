@@ -13,7 +13,8 @@ import {
     Contribution,
     ContributionStatus,
     Reputation,
-    StakeAccount
+    StakeAccount,
+    ValidationClaim
 } from "src/Types.sol";
 
 /// @title SapienCoreHandler
@@ -23,6 +24,8 @@ import {
 ///      and only invokes the appropriate next operation. Ghost variables track token flows
 ///      for solvency invariants.
 contract SapienCoreHandler is Test {
+    bytes32 constant SKILL_ID = keccak256("DATA_ANNOTATION");
+
     // ── Contracts ────────────────────────────────────────────────────────
     SapienCore public engine;
     SapienVault public vault;
@@ -160,7 +163,7 @@ contract SapienCoreHandler is Test {
             minStakeToClaim: STAKE_AMOUNT,
             validatorRewardBps: 2000,
             numberOfValidations: NUM_VALIDATIONS,
-            requiredSkill: bytes32(0),
+            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
             status: ProjectStatus.Created,
@@ -246,20 +249,7 @@ contract SapienCoreHandler is Test {
         uint256 ci = contribSeed % pendingContributions.length;
         PendingContribution memory pc = pendingContributions[ci];
 
-        // Check we haven't exceeded required validations
-        if (commitCount[pc.projectId][pc.index] >= NUM_VALIDATIONS) return;
-
         address validator = _selectValidator(validatorSeed);
-
-        // Check validator is not the contributor
-        Contribution memory contrib = engine.getContribution(pc.projectId, pc.index);
-        if (contrib.contributor == validator) return;
-
-        // Check validator hasn't already committed
-        address[] storage committed = committedValidators[pc.projectId][pc.index];
-        for (uint256 i; i < committed.length; ++i) {
-            if (committed[i] == validator) return;
-        }
 
         // Ensure validator has enough capacity
         StakeAccount memory acct = vault.getStakeAccount(validator);
@@ -282,36 +272,62 @@ contract SapienCoreHandler is Test {
             vm.stopPrank();
         }
 
-        // Generate score (bounded)
-        uint256 score = bound(uint256(keccak256(abi.encodePacked(validatorSeed, pc.index))), 5000, 9000);
-        bytes32 salt = keccak256(abi.encodePacked("salt", validator, pc.index, block.timestamp));
+        vm.startPrank(validator);
+        uint256 claimId = engine.claimToValidate(pc.projectId, 1);
+        vm.stopPrank();
+
+        // With quantity-based claimToValidate, the protocol randomly assigns indices.
+        // Use the actually assigned index from the validation claim.
+        ValidationClaim memory vclaim = engine.getValidationClaim(claimId);
+        if (vclaim.indices.length == 0) return;
+        uint256 assignedIndex = vclaim.indices[0];
+
+        // Skip if this index already has enough validations
+        if (commitCount[pc.projectId][assignedIndex] >= NUM_VALIDATIONS) return;
+
+        // Skip if validator is the contributor for the assigned index
+        Contribution memory contribAssigned = engine.getContribution(pc.projectId, assignedIndex);
+        if (contribAssigned.contributor == validator) return;
+
+        // Skip if this validator already committed to this index (per our tracking)
+        address[] storage committedForAssigned = committedValidators[pc.projectId][assignedIndex];
+        for (uint256 i; i < committedForAssigned.length; ++i) {
+            if (committedForAssigned[i] == validator) return;
+        }
+
+        // Ensure we're tracking this index (should match pc or another pending)
+        uint256 score = bound(uint256(keccak256(abi.encodePacked(validatorSeed, assignedIndex))), 5000, 9000);
+        bytes32 salt = keccak256(abi.encodePacked("salt", validator, assignedIndex, block.timestamp));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
         vm.startPrank(validator);
-        {
-            uint256[] memory _indices = new uint256[](1);
-            _indices[0] = pc.index;
-            engine.claimToValidate(pc.projectId, _indices);
-        }
-        engine.commitValidation(pc.projectId, pc.index, commitHash, VALIDATOR_STAKE, address(0));
-        engine.revealValidation(pc.projectId, pc.index, score, salt);
+        engine.commitValidation(pc.projectId, assignedIndex, commitHash, VALIDATOR_STAKE, address(0));
+        engine.revealValidation(pc.projectId, assignedIndex, score, salt);
         vm.stopPrank();
 
-        committed.push(validator);
-        commitCount[pc.projectId][pc.index]++;
+        // Update tracking for the assigned index (may differ from pc.index with random assignment)
+        committedValidators[pc.projectId][assignedIndex].push(validator);
+        commitCount[pc.projectId][assignedIndex]++;
 
         // If we've reached required validations, move to validated list
-        if (commitCount[pc.projectId][pc.index] >= NUM_VALIDATIONS) {
-            validatedContributions.push(ValidatedContribution({projectId: pc.projectId, index: pc.index}));
+        if (commitCount[pc.projectId][assignedIndex] >= NUM_VALIDATIONS) {
+            validatedContributions.push(ValidatedContribution({projectId: pc.projectId, index: assignedIndex}));
 
             // Copy validators for settlement tracking
-            for (uint256 i; i < committed.length; ++i) {
-                validatorsToSettle[pc.projectId][pc.index].push(committed[i]);
+            address[] storage committedForIndex = committedValidators[pc.projectId][assignedIndex];
+            for (uint256 i; i < committedForIndex.length; ++i) {
+                validatorsToSettle[pc.projectId][assignedIndex].push(committedForIndex[i]);
             }
 
-            // Remove from pending (swap and pop)
-            pendingContributions[ci] = pendingContributions[pendingContributions.length - 1];
-            pendingContributions.pop();
+            // Remove the pending contribution that matches assignedIndex
+            for (uint256 i; i < pendingContributions.length; ++i) {
+                if (pendingContributions[i].projectId == pc.projectId && pendingContributions[i].index == assignedIndex)
+                {
+                    pendingContributions[i] = pendingContributions[pendingContributions.length - 1];
+                    pendingContributions.pop();
+                    break;
+                }
+            }
         }
 
         calls_commitValidation++;

@@ -20,7 +20,7 @@ Call `SapienCore.createProject()` with the following parameters:
 | `rewardToken` | `address` | Address of the ERC-20 reward token |
 | `minStakeToClaim` | `uint256` | Minimum SAPIEN stake required for a contributor to claim slots |
 | `minValidationStake` | `uint256` | Minimum stake per validation commit |
-| `requiredSkill` | `bytes32` | Skill hash contributors must hold (zero for none) |
+| `requiredSkill` | `bytes32` | Registered skill hash (required) — all reputation accrues against this key |
 | `consensusThreshold` | `uint256` | Score threshold in basis points for acceptance (e.g., 7000 = 70%) |
 | `validatorRewardBps` | `uint256` | Percentage of reward pool for validators (max 2500 = 25%) |
 | `numberOfValidations` | `uint256` | Minimum number of validators per contribution |
@@ -35,7 +35,7 @@ core.createProject(projectId, "bafybeigdyrzt...", Project({
     availableSlots: 0,        // managed by the contract
     minStakeToClaim: 100e18,
     minValidationStake: 50e18,
-    requiredSkill: bytes32(0),
+    requiredSkill: keccak256("DATA_ANNOTATION"),
     consensusThreshold: 7000,
     validatorRewardBps: 1000,
     numberOfValidations: 3,
@@ -113,6 +113,6 @@ The refunded amount is added to your pending rewards balance, which you can with
 
 - **Clear metadata**: Ensure your Task Definition Spec (referenced via `metadataCid`) is clear, objective, and detailed. Ambiguous instructions lead to high validator disagreement and slashing.
 - **Appropriate validator rewards**: Setting `validatorRewardBps` too low may discourage validators. The default 10% (1000 bps) works well for most projects.
-- **Skill gating**: Use `requiredSkill` to filter contributors for specialized tasks, improving output quality.
+- **Skill selection**: Every project must specify a registered skill (e.g., `keccak256("DATA_ANNOTATION")`). Contributor and validator reputation accrues against this skill, so participants build domain-specific track records. Set `minValidatorReputation` above the default (5000) to restrict validation to experienced participants in that skill.
 - **Monitor consensus outcomes**: If many validators are being slashed, your quality criteria may be too subjective or your instructions unclear.
 - **Choose adapters wisely**: Adapters (frontends/dapps) facilitate participation. The origination adapter fee is paid from your funding amount.
