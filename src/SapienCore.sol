@@ -136,7 +136,7 @@ contract SapienCore is
         nonReentrant
         returns (uint256 claimId, uint256[] memory indices)
     {
-        return ContributionLib.claimToContribute(projectId, quantity, adapter);
+        (claimId, indices) = ContributionLib.claimToContribute(projectId, quantity, adapter);
     }
 
     /// @inheritdoc ISapienCore

@@ -165,7 +165,7 @@ library FinalizationLib {
 
         address token = proj.rewardToken;
 
-        uint256 contributorShare = (contrib.rewardRate * (C.BPS - proj.validatorRewardBps)) / C.BPS;
+        uint256 contributorShare = Math.mulDiv(contrib.rewardRate, C.BPS - proj.validatorRewardBps, C.BPS);
 
         // Cap to available escrow before computing fees to prevent accounting debt
         uint256 availableEscrow = $.projectEscrow[projectId][token];
@@ -174,7 +174,7 @@ library FinalizationLib {
 
         address adapter = $.contributionAdapter[contrib.claimId];
         if (adapter != address(0) && $.contributionFeeBps > 0) {
-            uint256 fee = (actualContributorShare * $.contributionFeeBps) / C.BPS;
+            uint256 fee = Math.mulDiv(actualContributorShare, $.contributionFeeBps, C.BPS);
             $.pendingRewards[adapter][token] += fee;
             reward -= fee;
             emit ISapienCore.ContributionAdapterFeePaid(projectId, index, adapter, fee);

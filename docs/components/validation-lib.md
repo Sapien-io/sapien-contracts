@@ -22,7 +22,7 @@ This capacity model eliminates per-commit lock/unlock transactions, significantl
 
 #### `claimToValidate(bytes32 projectId, uint256 quantity) → claimId`
 
-Validators request a quantity of contributions to validate. The protocol randomly assigns indices from pending contributions using a Fisher-Yates shuffle seeded with `blockhash`, `projectId`, `msg.sender`, and `timestamp`. The validator does not select specific indices — this is an anti-collusion measure preventing cartels from coordinating co-assignment. Guards:
+Validators request a quantity of contributions to validate. The protocol randomly assigns indices from pending contributions using a Fisher-Yates shuffle seeded with `prevrandao`, `projectId`, `msg.sender`, and `timestamp`. The validator does not select specific indices — this is an anti-collusion measure preventing cartels from coordinating co-assignment. Guards:
 
 - Contribution must be in `Pending` status
 - Validator cannot validate their own contribution

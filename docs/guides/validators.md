@@ -33,7 +33,7 @@ Request a quantity of contributions to validate. The protocol randomly assigns i
 uint256 claimId = core.claimToValidate(projectId, quantity);
 ```
 
-- `quantity`: Number of contributions you want to validate. The protocol randomly assigns indices from pending contributions using a Fisher-Yates shuffle seeded with blockhash, projectId, your address, and timestamp.
+- `quantity`: Number of contributions you want to validate. The protocol randomly assigns indices from pending contributions using a Fisher-Yates shuffle seeded with `prevrandao`, `projectId`, your address, and timestamp.
 - Returns a `claimId` for the validation claim.
 - **Deadline**: You must commit scores within 1 hour of claiming. If you fail to commit, anyone can call `cancelExpiredValidationClaim(claimId)` to release the slots.
 

@@ -30,9 +30,9 @@ library ReputationLib {
         uint256 score = rep.score;
 
         if (cachedDecayBps > 0) {
-            uint256 daysSinceUpdate = (block.timestamp - rep.lastUpdated) / 1 days;
-            if (daysSinceUpdate > 0) {
-                uint256 decayAmount = Math.mulDiv(score * cachedDecayBps * daysSinceUpdate, 1, C.BPS);
+            uint256 elapsed = block.timestamp - rep.lastUpdated;
+            if (elapsed >= 1 days) {
+                uint256 decayAmount = Math.mulDiv(score * cachedDecayBps, elapsed / 1 days, C.BPS);
                 score = score > decayAmount + C.MIN_REPUTATION ? score - decayAmount : C.MIN_REPUTATION;
             }
         }
@@ -53,9 +53,9 @@ library ReputationLib {
         uint256 currentScore = rep.score;
 
         if ($.decayRateBps > 0) {
-            uint256 daysSinceUpdate = (block.timestamp - rep.lastUpdated) / 1 days;
-            if (daysSinceUpdate > 0) {
-                uint256 decayAmount = Math.mulDiv(currentScore * $.decayRateBps * daysSinceUpdate, 1, C.BPS);
+            uint256 elapsed = block.timestamp - rep.lastUpdated;
+            if (elapsed >= 1 days) {
+                uint256 decayAmount = Math.mulDiv(currentScore * $.decayRateBps, elapsed / 1 days, C.BPS);
                 currentScore =
                     currentScore > decayAmount + C.MIN_REPUTATION ? currentScore - decayAmount : C.MIN_REPUTATION;
             }

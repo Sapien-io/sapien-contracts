@@ -79,10 +79,14 @@ library ValidationLib {
 
         uint256 assignCount = quantity < eligibleCount ? quantity : eligibleCount;
 
-        // Fisher-Yates partial shuffle — only shuffle first `assignCount` positions
-        uint256 seed =
-            uint256(keccak256(abi.encodePacked(blockhash(block.number - 1), projectId, msg.sender, block.timestamp)));
+        // Fisher-Yates partial shuffle — only shuffle first `assignCount` positions.
+        // prevrandao is Beacon-Chain RANDAO; a proposer can bias it by at most 1 bit
+        // (forfeiting their slot reward), which is economically irrational for
+        // validator-assignment manipulation. Commit-reveal + staking provide the
+        // real anti-collusion guarantees.
+        uint256 seed = uint256(keccak256(abi.encodePacked(block.prevrandao, projectId, msg.sender, block.timestamp)));
         for (uint256 i; i < assignCount; ++i) {
+            // slither-disable-next-line weak-prng
             uint256 j = i + (seed % (eligibleCount - i));
             (eligible[i], eligible[j]) = (eligible[j], eligible[i]);
             seed = uint256(keccak256(abi.encodePacked(seed)));
