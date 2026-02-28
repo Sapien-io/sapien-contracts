@@ -41,9 +41,9 @@ library ReputationLib {
     }
 
     /// @notice Update reputation after an action (success or failure with optional bonus)
-    function update(address user, bytes32 role, bool success, uint256 bonus) public {
+    function update(address user, bytes32 skillId, bool success, uint256 bonus) public {
         EngineStorage storage $ = _getStorage();
-        Reputation storage rep = $.reputation[user][role];
+        Reputation storage rep = $.reputation[user][skillId];
 
         if (rep.lastUpdated == 0) {
             rep.score = C.DEFAULT_REPUTATION;
@@ -93,7 +93,7 @@ library ReputationLib {
         rep.lastUpdated = block.timestamp;
 
         if (currentScore != oldScore) {
-            emit ISapienCore.ReputationUpdated(user, role, oldScore, currentScore);
+            emit ISapienCore.ReputationUpdated(user, skillId, oldScore, currentScore);
         }
     }
 }

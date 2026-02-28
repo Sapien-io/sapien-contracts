@@ -58,10 +58,10 @@ contract SapienVault is
         uint256 minDepositAge;
     }
 
-    // keccak256(abi.encode(uint256(keccak256("sapien.storage.StakeVault")) - 1)) & ~bytes32(uint256(0xff))
+    // keccak256(abi.encode(uint256(keccak256("sapien.storage.SapienVault")) - 1)) & ~bytes32(uint256(0xff))
     function _getSapienVaultStorage() private pure returns (SapienVaultStorage storage $) {
         assembly {
-            $.slot := 0x0745d816f844b8d3ebe69904ebcd305a06dedec42070def1e397b29c2e74a900
+            $.slot := 0x4d6e6410717d1c28e2e2dce6e8ac53def1f84cd7244221b7a072c02c51460000
         }
     }
 
@@ -70,10 +70,10 @@ contract SapienVault is
         // SEC-M-06: Use Solidity-level keccak256 instead of inline assembly
         // to avoid incorrect string length issues (was 30 instead of 25)
         // solhint-disable-next-line solidity-formatting
-        bytes32 namespaceHash = keccak256("sapien.storage.StakeVault");
+        bytes32 namespaceHash = keccak256("sapien.storage.SapienVault");
         bytes32 derived = keccak256(abi.encode(uint256(namespaceHash) - 1));
         bytes32 expected = derived & ~bytes32(uint256(0xff));
-        return expected == bytes32(uint256(0x0745d816f844b8d3ebe69904ebcd305a06dedec42070def1e397b29c2e74a900));
+        return expected == bytes32(uint256(0x4d6e6410717d1c28e2e2dce6e8ac53def1f84cd7244221b7a072c02c51460000));
     }
 
     // ── Initializer ────────────────────────────────────────────────────

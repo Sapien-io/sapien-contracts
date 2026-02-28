@@ -1,14 +1,24 @@
 
-
+# ── Base Sepolia ────────────────────────────────────────────────────
+# Prerequisites:
+#   1. Import deployer key:  cast wallet import deployer --interactive
+#   2. Set env vars:         BASE_SEPOLIA_RPC_URL, BASESCAN_API_KEY
+#   3. (Optional)            SAPIEN_TOKEN=<addr>  to skip mock token deploy
+#   4. (Optional)            TREASURY=<addr>      defaults to deployer
 deploy-sepolia :;
 	forge script script/DeployBaseSepolia.s.sol:DeployBaseSepolia \
-	--account 0x09F4897735f3Ec9Af6C2dda49d97D454B7dD1e59 \
-	--rpc-url ${RPC_URL} \
-	--broadcast \
-	--verify
-	-vvvv
+		--account ${ACCOUNT} \
+		--rpc-url ${RPC_URL} \
+		--broadcast \
+		--verify \
+		-vvvv
 
-
+# Dry-run (simulate without broadcasting)
+deploy-sepolia-dry :;
+	forge script script/DeployBaseSepolia.s.sol:DeployBaseSepolia \
+		--account ${ACCOUNT} \
+		--rpc-url ${RPC_URL} \
+		-vvvv
 
 deploy-local :;
 	@./script/deploy-local.sh

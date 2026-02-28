@@ -555,9 +555,9 @@ contract SapienCore is
     }
 
     /// @inheritdoc ISapienCore
-    function getReputation(address user, bytes32 role) external view returns (Reputation memory) {
+    function getReputation(address user, bytes32 skillId) external view returns (Reputation memory) {
         EngineStorage storage $ = _getStorage();
-        Reputation memory rep = $.reputation[user][role];
+        Reputation memory rep = $.reputation[user][skillId];
         if (rep.lastUpdated == 0) {
             rep.score = C.DEFAULT_REPUTATION;
         }
