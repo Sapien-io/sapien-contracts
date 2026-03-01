@@ -44,3 +44,19 @@ build    :; forge build
 clean-modules :; git submodule update --init --recursive \
 	&& git submodule foreach --recursive git clean -fd \
 	&& git submodule foreach --recursive git checkout .
+
+# Phase 1: all immediate actions
+sepolia-test-phase1 :; forge script script/LiveSepoliaLifecycle.s.sol --sig "phase1()" \
+  --rpc-url ${RPC_URL} --account ${ACCOUNT} --sender ${ACCOUNT} --broadcast
+
+# Phase 2: time-dependent actions + cleanup (after 1+ hour)
+sepolia-test-phase2 :; forge script script/LiveSepoliaLifecycle.s.sol --sig "phase2()" \
+  --rpc-url ${RPC_URL} --account ${ACCOUNT} --sender ${ACCOUNT} --broadcast
+
+# Phase 1: all immediate actions
+sepolia-test-edge-phase1 :; forge script script/LiveSepoliaEdgeCases.s.sol --sig "phase1()" \
+  --rpc-url ${RPC_URL} --account ${ACCOUNT} --sender ${ACCOUNT} --broadcast
+
+# Phase 2: time-dependent actions + cleanup (after 1+ hour)
+sepolia-test-edge-phase2 :; forge script script/LiveSepoliaEdgeCases.s.sol --sig "phase2()" \
+  --rpc-url ${RPC_URL} --account ${ACCOUNT} --sender ${ACCOUNT} --broadcast
