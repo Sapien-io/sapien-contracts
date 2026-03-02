@@ -355,7 +355,10 @@ contract LifecycleSimulation is LifecycleBase {
 
             for (uint256 v; v < 3; ++v) {
                 _ensureStake(vals[v], VALIDATOR_STAKE * 4);
-                _validate(vals[v], pid, index, scores[v], VALIDATOR_STAKE);
+                _claimAndCommit(vals[v], pid, index, scores[v], VALIDATOR_STAKE);
+            }
+            for (uint256 v; v < 3; ++v) {
+                _reveal(vals[v], pid, index, scores[v]);
             }
 
             engine.computeConsensus(pid, index);
@@ -413,7 +416,10 @@ contract LifecycleSimulation is LifecycleBase {
 
             for (uint256 v; v < 3; ++v) {
                 _ensureStake(vals[v], VALIDATOR_STAKE * 4);
-                _validate(vals[v], pid, index, scores[v], VALIDATOR_STAKE);
+                _claimAndCommit(vals[v], pid, index, scores[v], VALIDATOR_STAKE);
+            }
+            for (uint256 v; v < 3; ++v) {
+                _reveal(vals[v], pid, index, scores[v]);
             }
 
             engine.computeConsensus(pid, index);

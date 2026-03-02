@@ -55,9 +55,12 @@ contract EconomicInvariants is LifecycleBase {
         _assertSolvent(pid, "after claim+submit");
 
         // Step 3: Validate
-        _validate(validator1, pid, idx, 8500, VALIDATOR_STAKE);
-        _validate(validator2, pid, idx, 8500, VALIDATOR_STAKE);
-        _validate(validator3, pid, idx, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, pid, idx, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, pid, idx, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, pid, idx, 8500, VALIDATOR_STAKE);
+        _reveal(validator1, pid, idx, 8500);
+        _reveal(validator2, pid, idx, 8500);
+        _reveal(validator3, pid, idx, 8500);
         _assertSolvent(pid, "after validation");
 
         // Step 4: Compute consensus
@@ -109,9 +112,12 @@ contract EconomicInvariants is LifecycleBase {
         for (uint256 i; i < 3; ++i) {
             (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
             uint256 idx = indices[0];
-            _validate(validator1, pid, idx, 8500, VALIDATOR_STAKE);
-            _validate(validator2, pid, idx, 8500, VALIDATOR_STAKE);
-            _validate(validator3, pid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator1, pid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator2, pid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator3, pid, idx, 8500, VALIDATOR_STAKE);
+            _reveal(validator1, pid, idx, 8500);
+            _reveal(validator2, pid, idx, 8500);
+            _reveal(validator3, pid, idx, 8500);
             engine.computeConsensus(pid, idx);
             _warpPastChallengePeriod();
             uint256 nonce = engine.getContribution(pid, idx).consensusNonce;
@@ -128,9 +134,12 @@ contract EconomicInvariants is LifecycleBase {
         for (uint256 i; i < 2; ++i) {
             (, uint256[] memory indices) = _claimAndSubmit(contributor2, pid, 1);
             uint256 idx = indices[0];
-            _validate(validator1, pid, idx, 3000, VALIDATOR_STAKE);
-            _validate(validator2, pid, idx, 3000, VALIDATOR_STAKE);
-            _validate(validator3, pid, idx, 3000, VALIDATOR_STAKE);
+            _claimAndCommit(validator1, pid, idx, 3000, VALIDATOR_STAKE);
+            _claimAndCommit(validator2, pid, idx, 3000, VALIDATOR_STAKE);
+            _claimAndCommit(validator3, pid, idx, 3000, VALIDATOR_STAKE);
+            _reveal(validator1, pid, idx, 3000);
+            _reveal(validator2, pid, idx, 3000);
+            _reveal(validator3, pid, idx, 3000);
             engine.computeConsensus(pid, idx);
         }
 
@@ -176,9 +185,12 @@ contract EconomicInvariants is LifecycleBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
         uint256 idx = indices[0];
 
-        _validate(validator1, pid, idx, 8500, VALIDATOR_STAKE);
-        _validate(validator2, pid, idx, 8500, VALIDATOR_STAKE);
-        _validate(validator3, pid, idx, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, pid, idx, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, pid, idx, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, pid, idx, 8500, VALIDATOR_STAKE);
+        _reveal(validator1, pid, idx, 8500);
+        _reveal(validator2, pid, idx, 8500);
+        _reveal(validator3, pid, idx, 8500);
         engine.computeConsensus(pid, idx);
 
         // Track individual validator reward increments

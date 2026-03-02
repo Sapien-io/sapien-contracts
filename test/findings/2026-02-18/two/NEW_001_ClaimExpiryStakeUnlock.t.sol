@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {BaseTest} from "test/BaseTest.sol";
 import {StakeAccount} from "src/Types.sol";
 import {ISapienCore} from "src/interfaces/ISapienCore.sol";
+import {ISapienVault} from "src/interfaces/ISapienVault.sol";
 import {SapienVault} from "src/SapienVault.sol";
 
 /// @title NEW-001 VERIFIED: Claim Expiry Premature Stake Unlock
@@ -43,12 +44,15 @@ contract NEW_001_ClaimExpiryStakeUnlock is BaseTest {
         engine.expireClaim(claimId, indices);
 
         // Validators reject the submitted contribution
-        _commitAndReveal(validator1, projectId, indices[0], 3000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, projectId, indices[0], 3000, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, projectId, indices[0], 3000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projectId, indices[0], 3000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, indices[0], 3000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, indices[0], 3000, VALIDATOR_STAKE);
+        _reveal(validator1, projectId, indices[0], 3000);
+        _reveal(validator2, projectId, indices[0], 3000);
+        _reveal(validator3, projectId, indices[0], 3000);
 
         // computeConsensus tries to slash contributor but lock is already 0
-        vm.expectRevert(abi.encodeWithSelector(SapienVault.InsufficientContributorLock.selector, STAKE_AMOUNT, 0));
+        vm.expectRevert(abi.encodeWithSelector(ISapienVault.InsufficientContributorLock.selector, STAKE_AMOUNT, 0));
         engine.computeConsensus(projectId, indices[0]);
     }
 
@@ -63,9 +67,12 @@ contract NEW_001_ClaimExpiryStakeUnlock is BaseTest {
         vm.warp(block.timestamp + engine.claimDeadline() + 1);
         engine.expireClaim(claimId, indices);
 
-        _commitAndReveal(validator1, projectId, indices[0], 3000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, projectId, indices[0], 3000, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, projectId, indices[0], 3000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projectId, indices[0], 3000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, indices[0], 3000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, indices[0], 3000, VALIDATOR_STAKE);
+        _reveal(validator1, projectId, indices[0], 3000);
+        _reveal(validator2, projectId, indices[0], 3000);
+        _reveal(validator3, projectId, indices[0], 3000);
 
         StakeAccount memory v1Before = vault.getStakeAccount(validator1);
         assertGt(v1Before.inFlight, 0, "validator has in-flight stake");

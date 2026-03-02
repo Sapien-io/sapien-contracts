@@ -33,6 +33,29 @@ deploy-anvil :;
 		--broadcast \
 		--private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 
+# ── Upgrades (2-step: deploy impl, then execute via Safe) ──────────
+# Step 1: Deploy new implementation & print Safe calldata
+upgrade-core :;
+	forge script script/upgrade/UpgradeBaseSepolia.s.sol --sig "deployCore()" \
+		--rpc-url ${RPC_URL} --account ${ACCOUNT} --broadcast --verify -vvvv
+
+upgrade-vault :;
+	forge script script/upgrade/UpgradeBaseSepolia.s.sol --sig "deployVault()" \
+		--rpc-url ${RPC_URL} --account ${ACCOUNT} --broadcast --verify -vvvv
+
+upgrade-core-dry :;
+	forge script script/upgrade/UpgradeBaseSepolia.s.sol --sig "deployCore()" \
+		--rpc-url ${RPC_URL} --account ${ACCOUNT} -vvvv
+
+upgrade-vault-dry :;
+	forge script script/upgrade/UpgradeBaseSepolia.s.sol --sig "deployVault()" \
+		--rpc-url ${RPC_URL} --account ${ACCOUNT} -vvvv
+
+# Simulate upgrade against live fork and verify storage preservation
+upgrade-test :;
+	forge test --match-contract SepoliaForkUpgradeTest \
+		--fork-url ${RPC_URL} -vvv
+
 coverage :; forge coverage --ir-minimum
 
 lint     :; forge lint src/
@@ -44,3 +67,19 @@ build    :; forge build
 clean-modules :; git submodule update --init --recursive \
 	&& git submodule foreach --recursive git clean -fd \
 	&& git submodule foreach --recursive git checkout .
+
+# Phase 1: all immediate actions
+sepolia-test-phase1 :; forge script script/LiveSepoliaLifecycle.s.sol --sig "phase1()" \
+  --rpc-url ${RPC_URL} --account ${ACCOUNT} --sender ${ACCOUNT} --broadcast
+
+# Phase 2: time-dependent actions + cleanup (after 1+ hour)
+sepolia-test-phase2 :; forge script script/LiveSepoliaLifecycle.s.sol --sig "phase2()" \
+  --rpc-url ${RPC_URL} --account ${ACCOUNT} --sender ${ACCOUNT} --broadcast
+
+# Phase 1: all immediate actions
+sepolia-test-edge-phase1 :; forge script script/LiveSepoliaEdgeCases.s.sol --sig "phase1()" \
+  --rpc-url ${RPC_URL} --account ${ACCOUNT} --sender ${ACCOUNT} --broadcast
+
+# Phase 2: time-dependent actions + cleanup (after 1+ hour)
+sepolia-test-edge-phase2 :; forge script script/LiveSepoliaEdgeCases.s.sol --sig "phase2()" \
+  --rpc-url ${RPC_URL} --account ${ACCOUNT} --sender ${ACCOUNT} --broadcast

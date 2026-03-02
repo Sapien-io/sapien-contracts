@@ -13,9 +13,12 @@ contract POC_003_UpheldDisputeDeadlock is BaseTest {
         (, uint256[] memory contribIndices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = contribIndices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        _reveal(validator1, projectId, idx, 8000);
+        _reveal(validator2, projectId, idx, 8000);
+        _reveal(validator3, projectId, idx, 8000);
         engine.computeConsensus(projectId, idx);
 
         vm.prank(contributor2);

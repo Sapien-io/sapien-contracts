@@ -21,10 +21,14 @@ contract POC_005_CommitHashEncodingMismatch is BaseTest {
         engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projectId, idx, documentedCommitHash, VALIDATOR_STAKE, address(0));
+        vm.stopPrank();
+
+        _claimAndCommit(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
 
         // After fix: uint256-encoded commit hash is the canonical format.
+        vm.prank(validator1);
         engine.revealValidation(projectId, idx, score, salt);
-        vm.stopPrank();
 
         assertEq(engine.getRevealCount(projectId, idx), 1, "uint256 encoding reveals successfully");
     }
@@ -42,10 +46,14 @@ contract POC_005_CommitHashEncodingMismatch is BaseTest {
         engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projectId, idx, implCommitHash, VALIDATOR_STAKE, address(0));
+        vm.stopPrank();
+
+        _claimAndCommit(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
 
         // After fix: uint16 (2-byte) packing does not match reveal verification.
+        vm.prank(validator1);
         vm.expectRevert(ISapienCore.InvalidReveal.selector);
         engine.revealValidation(projectId, idx, score, salt);
-        vm.stopPrank();
     }
 }

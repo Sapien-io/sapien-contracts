@@ -60,12 +60,17 @@ contract ReputationDynamics is LifecycleBase {
             uint256 idx = indices[0];
 
             // 4 accurate validators
-            _validate(validator1, pid, idx, 8500, VALIDATOR_STAKE);
-            _validate(validator2, pid, idx, 8500, VALIDATOR_STAKE);
-            _validate(validator3, pid, idx, 8500, VALIDATOR_STAKE);
-            _validate(validator4, pid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator1, pid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator2, pid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator3, pid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator4, pid, idx, 8500, VALIDATOR_STAKE);
             // 1 consistently inaccurate validator
-            _validate(validatorBad, pid, idx, 2000, VALIDATOR_STAKE);
+            _claimAndCommit(validatorBad, pid, idx, 2000, VALIDATOR_STAKE);
+            _reveal(validator1, pid, idx, 8500);
+            _reveal(validator2, pid, idx, 8500);
+            _reveal(validator3, pid, idx, 8500);
+            _reveal(validator4, pid, idx, 8500);
+            _reveal(validatorBad, pid, idx, 2000);
 
             engine.computeConsensus(pid, idx);
 
@@ -113,11 +118,16 @@ contract ReputationDynamics is LifecycleBase {
             (, uint256[] memory indices) = _claimAndSubmit(contributor1, degradePid, 1);
             uint256 idx = indices[0];
 
-            _validate(validator1, degradePid, idx, 8500, VALIDATOR_STAKE);
-            _validate(validator2, degradePid, idx, 8500, VALIDATOR_STAKE);
-            _validate(validator3, degradePid, idx, 8500, VALIDATOR_STAKE);
-            _validate(validator4, degradePid, idx, 8500, VALIDATOR_STAKE);
-            _validate(validatorBad, degradePid, idx, 2000, VALIDATOR_STAKE);
+            _claimAndCommit(validator1, degradePid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator2, degradePid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator3, degradePid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator4, degradePid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validatorBad, degradePid, idx, 2000, VALIDATOR_STAKE);
+            _reveal(validator1, degradePid, idx, 8500);
+            _reveal(validator2, degradePid, idx, 8500);
+            _reveal(validator3, degradePid, idx, 8500);
+            _reveal(validator4, degradePid, idx, 8500);
+            _reveal(validatorBad, degradePid, idx, 2000);
 
             engine.computeConsensus(degradePid, idx);
             _warpPastChallengePeriod();
@@ -171,9 +181,12 @@ contract ReputationDynamics is LifecycleBase {
         // Initialize validator1's reputation with one successful action
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
         uint256 idx = indices[0];
-        _validate(validator1, pid, idx, 8500, VALIDATOR_STAKE);
-        _validate(validator2, pid, idx, 8500, VALIDATOR_STAKE);
-        _validate(validator3, pid, idx, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, pid, idx, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, pid, idx, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, pid, idx, 8500, VALIDATOR_STAKE);
+        _reveal(validator1, pid, idx, 8500);
+        _reveal(validator2, pid, idx, 8500);
+        _reveal(validator3, pid, idx, 8500);
         engine.computeConsensus(pid, idx);
         _warpPastChallengePeriod();
         uint256 nonce = engine.getContribution(pid, idx).consensusNonce;
@@ -191,9 +204,12 @@ contract ReputationDynamics is LifecycleBase {
         // Trigger another reputation update so decay is persisted
         (, uint256[] memory indices2) = _claimAndSubmit(contributor1, pid, 1);
         uint256 idx2 = indices2[0];
-        _validate(validator1, pid, idx2, 8500, VALIDATOR_STAKE);
-        _validate(validator2, pid, idx2, 8500, VALIDATOR_STAKE);
-        _validate(validator3, pid, idx2, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, pid, idx2, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, pid, idx2, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, pid, idx2, 8500, VALIDATOR_STAKE);
+        _reveal(validator1, pid, idx2, 8500);
+        _reveal(validator2, pid, idx2, 8500);
+        _reveal(validator3, pid, idx2, 8500);
         engine.computeConsensus(pid, idx2);
         _warpPastChallengePeriod();
         uint256 nonce2 = engine.getContribution(pid, idx2).consensusNonce;

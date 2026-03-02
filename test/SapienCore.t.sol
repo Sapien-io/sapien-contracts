@@ -280,8 +280,13 @@ contract SapienCoreValidationTest is BaseTest {
         engine.claimToValidate(PROJECT_ID, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(PROJECT_ID, index, commitHash, VALIDATOR_STAKE, address(0));
-        engine.revealValidation(PROJECT_ID, index, score, salt);
         vm.stopPrank();
+
+        _claimAndCommit(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
+
+        vm.prank(validator1);
+        engine.revealValidation(PROJECT_ID, index, score, salt);
 
         uint256 reveals = engine.getRevealCount(PROJECT_ID, index);
         assertEq(reveals, 1);
@@ -290,8 +295,6 @@ contract SapienCoreValidationTest is BaseTest {
     function test_commitValidation_revertsOwnContribution() public {
         _createAndFundProject();
         (, uint256[] memory indices) = _claimAndContribute(contributor1, PROJECT_ID, 1);
-
-        uint256 index = indices[0];
 
         vm.startPrank(contributor1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
@@ -314,11 +317,15 @@ contract SapienCoreValidationTest is BaseTest {
         engine.claimToValidate(PROJECT_ID, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(PROJECT_ID, index, commitHash, VALIDATOR_STAKE, address(0));
+        vm.stopPrank();
+
+        _claimAndCommit(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
 
         // Try to reveal with wrong score
+        vm.prank(validator1);
         vm.expectRevert(ISapienCore.InvalidReveal.selector);
         engine.revealValidation(PROJECT_ID, index, 5000, salt);
-        vm.stopPrank();
     }
 
     function test_commitValidation_revertsAlreadyCommitted() public {
@@ -352,9 +359,12 @@ contract SapienCoreConsensusTest is BaseTest {
         uint256 index = indices[0];
 
         // 3 validators all score above threshold (70%)
-        _commitAndReveal(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
+        _reveal(validator1, PROJECT_ID, index, 8000);
+        _reveal(validator2, PROJECT_ID, index, 8500);
+        _reveal(validator3, PROJECT_ID, index, 7500);
 
         engine.computeConsensus(PROJECT_ID, index);
 
@@ -373,9 +383,12 @@ contract SapienCoreConsensusTest is BaseTest {
         uint256 index = indices[0];
 
         // 3 validators all score below threshold (70%)
-        _commitAndReveal(validator1, PROJECT_ID, index, 3000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, PROJECT_ID, index, 2500, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, PROJECT_ID, index, 4000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, PROJECT_ID, index, 3000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, PROJECT_ID, index, 2500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, PROJECT_ID, index, 4000, VALIDATOR_STAKE);
+        _reveal(validator1, PROJECT_ID, index, 3000);
+        _reveal(validator2, PROJECT_ID, index, 2500);
+        _reveal(validator3, PROJECT_ID, index, 4000);
 
         engine.computeConsensus(PROJECT_ID, index);
 
@@ -394,11 +407,11 @@ contract SapienCoreConsensusTest is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, PROJECT_ID, 1);
         uint256 index = indices[0];
 
-        // Only 2 of required 3 validations
-        _commitAndReveal(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
+        // Only 2 of required 3 validations — can't reveal (need all 3 commits first)
+        _claimAndCommit(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
 
-        vm.expectRevert(abi.encodeWithSelector(ISapienCore.ConsensusNotReady.selector, 2, 3));
+        vm.expectRevert(abi.encodeWithSelector(ISapienCore.ConsensusNotReady.selector, 0, 3));
         engine.computeConsensus(PROJECT_ID, index);
     }
 
@@ -407,9 +420,12 @@ contract SapienCoreConsensusTest is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, PROJECT_ID, 1);
         uint256 index = indices[0];
 
-        _commitAndReveal(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
+        _reveal(validator1, PROJECT_ID, index, 8000);
+        _reveal(validator2, PROJECT_ID, index, 8500);
+        _reveal(validator3, PROJECT_ID, index, 7500);
 
         engine.computeConsensus(PROJECT_ID, index);
 
@@ -422,9 +438,12 @@ contract SapienCoreConsensusTest is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, PROJECT_ID, 1);
         uint256 index = indices[0];
 
-        _commitAndReveal(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
+        _reveal(validator1, PROJECT_ID, index, 8000);
+        _reveal(validator2, PROJECT_ID, index, 8500);
+        _reveal(validator3, PROJECT_ID, index, 7500);
 
         engine.computeConsensus(PROJECT_ID, index);
         uint256 nonce = engine.getContribution(PROJECT_ID, index).consensusNonce;
@@ -448,9 +467,12 @@ contract SapienCoreConsensusTest is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, PROJECT_ID, 1);
         uint256 index = indices[0];
 
-        _commitAndReveal(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
+        _reveal(validator1, PROJECT_ID, index, 8000);
+        _reveal(validator2, PROJECT_ID, index, 8500);
+        _reveal(validator3, PROJECT_ID, index, 7500);
 
         engine.computeConsensus(PROJECT_ID, index);
         uint256 nonce = engine.getContribution(PROJECT_ID, index).consensusNonce;
@@ -476,9 +498,12 @@ contract SapienCoreRewardTest is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, PROJECT_ID, 1);
         uint256 index = indices[0];
 
-        _commitAndReveal(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
+        _reveal(validator1, PROJECT_ID, index, 8000);
+        _reveal(validator2, PROJECT_ID, index, 8500);
+        _reveal(validator3, PROJECT_ID, index, 7500);
 
         engine.computeConsensus(PROJECT_ID, index);
 
@@ -496,9 +521,12 @@ contract SapienCoreRewardTest is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, PROJECT_ID, 1);
         uint256 index = indices[0];
 
-        _commitAndReveal(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
+        _reveal(validator1, PROJECT_ID, index, 8000);
+        _reveal(validator2, PROJECT_ID, index, 8500);
+        _reveal(validator3, PROJECT_ID, index, 7500);
 
         engine.computeConsensus(PROJECT_ID, index);
 
@@ -512,9 +540,12 @@ contract SapienCoreRewardTest is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, PROJECT_ID, 1);
         uint256 index = indices[0];
 
-        _commitAndReveal(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, PROJECT_ID, index, 7500, VALIDATOR_STAKE);
+        _reveal(validator1, PROJECT_ID, index, 8000);
+        _reveal(validator2, PROJECT_ID, index, 8500);
+        _reveal(validator3, PROJECT_ID, index, 7500);
 
         engine.computeConsensus(PROJECT_ID, index);
         uint256 nonce = engine.getContribution(PROJECT_ID, index).consensusNonce;
@@ -599,6 +630,12 @@ contract SapienCoreAdminTest is BaseTest {
     // ═══════════════════════════════════════════════════════════════
     // Admin Functions
     // ═══════════════════════════════════════════════════════════════
+
+    function test_verifyStorageLocation() public view {
+        // Test that ERC-7201 storage location derivation is correct
+        bool result = engine.verifyStorageLocation();
+        assertTrue(result);
+    }
 
     function test_setProtocolFee() public {
         vm.prank(admin);

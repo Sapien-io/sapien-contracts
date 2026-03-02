@@ -151,10 +151,12 @@ contract LifecycleBase is BaseTest {
         vm.stopPrank();
     }
 
-    /// @dev Commit and reveal for a validator, ensuring capacity.
-    ///      With quantity-based claimToValidate, the validator gets randomly assigned.
-    ///      For single-index case, claim(1) assigns the only pending index.
-    function _validate(address val, bytes32 projectId, uint256 index, uint256 score, uint256 stakeAmt) internal {
+    /// @dev Claim, lock capacity, and commit for a validator (without revealing).
+    ///      The contract requires ALL validators to commit before ANY can reveal.
+    function _claimAndCommit(address val, bytes32 projectId, uint256 index, uint256 score, uint256 stakeAmt)
+        internal
+        override
+    {
         bytes32 salt = keccak256(abi.encodePacked("salt", val, projectId, index, score));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
@@ -164,22 +166,34 @@ contract LifecycleBase is BaseTest {
         engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(stakeAmt);
         engine.commitValidation(projectId, index, commitHash, stakeAmt, address(0));
-        engine.revealValidation(projectId, index, score, salt);
         vm.stopPrank();
+    }
+
+    /// @dev Reveal a previously committed validation score.
+    function _reveal(address val, bytes32 projectId, uint256 index, uint256 score) internal override {
+        bytes32 salt = keccak256(abi.encodePacked("salt", val, projectId, index, score));
+        vm.prank(val);
+        engine.revealValidation(projectId, index, score, salt);
     }
 
     /// @dev Run 3 validators above threshold on an index
     function _validateAboveThreshold(bytes32 projectId, uint256 index) internal {
-        _validate(validator1, projectId, index, 8000, VALIDATOR_STAKE);
-        _validate(validator2, projectId, index, 8500, VALIDATOR_STAKE);
-        _validate(validator3, projectId, index, 7500, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projectId, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, index, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, index, 7500, VALIDATOR_STAKE);
+        _reveal(validator1, projectId, index, 8000);
+        _reveal(validator2, projectId, index, 8500);
+        _reveal(validator3, projectId, index, 7500);
     }
 
     /// @dev Run 3 validators below threshold on an index
     function _validateBelowThreshold(bytes32 projectId, uint256 index) internal {
-        _validate(validator1, projectId, index, 3000, VALIDATOR_STAKE);
-        _validate(validator2, projectId, index, 2500, VALIDATOR_STAKE);
-        _validate(validator3, projectId, index, 4000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projectId, index, 3000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, index, 2500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, index, 4000, VALIDATOR_STAKE);
+        _reveal(validator1, projectId, index, 3000);
+        _reveal(validator2, projectId, index, 2500);
+        _reveal(validator3, projectId, index, 4000);
     }
 
     /// @dev When multiple indices are pending, validators get randomly assigned.
@@ -220,22 +234,26 @@ contract LifecycleBase is BaseTest {
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes1, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores1, salts1);
         vm.stopPrank();
 
         vm.startPrank(validator2);
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes2, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores2, salts2);
         vm.stopPrank();
 
         vm.startPrank(validator3);
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes3, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores3, salts3);
         vm.stopPrank();
+
+        vm.prank(validator1);
+        engine.batchRevealValidations(projectId, indices, scores1, salts1);
+        vm.prank(validator2);
+        engine.batchRevealValidations(projectId, indices, scores2, salts2);
+        vm.prank(validator3);
+        engine.batchRevealValidations(projectId, indices, scores3, salts3);
     }
 
     /// @dev Validate multiple indices with custom per-index scores (for mixed outcomes)
@@ -275,20 +293,24 @@ contract LifecycleBase is BaseTest {
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes1, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores1, salts1);
         vm.stopPrank();
         vm.startPrank(validator2);
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes2, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores2, salts2);
         vm.stopPrank();
         vm.startPrank(validator3);
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes3, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores3, salts3);
         vm.stopPrank();
+
+        vm.prank(validator1);
+        engine.batchRevealValidations(projectId, indices, scores1, salts1);
+        vm.prank(validator2);
+        engine.batchRevealValidations(projectId, indices, scores2, salts2);
+        vm.prank(validator3);
+        engine.batchRevealValidations(projectId, indices, scores3, salts3);
     }
 
     /// @dev Same as _validateAllAboveThreshold but with below-threshold scores
@@ -328,22 +350,26 @@ contract LifecycleBase is BaseTest {
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes1, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores1, salts1);
         vm.stopPrank();
 
         vm.startPrank(validator2);
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes2, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores2, salts2);
         vm.stopPrank();
 
         vm.startPrank(validator3);
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes3, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores3, salts3);
         vm.stopPrank();
+
+        vm.prank(validator1);
+        engine.batchRevealValidations(projectId, indices, scores1, salts1);
+        vm.prank(validator2);
+        engine.batchRevealValidations(projectId, indices, scores2, salts2);
+        vm.prank(validator3);
+        engine.batchRevealValidations(projectId, indices, scores3, salts3);
     }
 
     /// @dev Settle all 3 validators (warps past the challenge period first for accepted contributions)
@@ -685,20 +711,24 @@ contract LifecycleRejectionTest is LifecycleBase {
         engine.claimToValidate(projId, 2);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projId, both, commitHashes1, stakeAmounts, address(0));
-        engine.batchRevealValidations(projId, both, scores1, salts1);
         vm.stopPrank();
         vm.startPrank(validator2);
         engine.claimToValidate(projId, 2);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projId, both, commitHashes2, stakeAmounts, address(0));
-        engine.batchRevealValidations(projId, both, scores2, salts2);
         vm.stopPrank();
         vm.startPrank(validator3);
         engine.claimToValidate(projId, 2);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projId, both, commitHashes3, stakeAmounts, address(0));
-        engine.batchRevealValidations(projId, both, scores3, salts3);
         vm.stopPrank();
+
+        vm.prank(validator1);
+        engine.batchRevealValidations(projId, both, scores1, salts1);
+        vm.prank(validator2);
+        engine.batchRevealValidations(projId, both, scores2, salts2);
+        vm.prank(validator3);
+        engine.batchRevealValidations(projId, both, scores3, salts3);
 
         engine.computeConsensus(projId, goodIdx);
         assertEq(uint256(engine.getContribution(projId, goodIdx).status), uint256(ContributionStatus.Accepted));
@@ -1229,13 +1259,17 @@ contract LifecycleOriginatorReportTest is LifecycleBase {
         // Only the first 3 validators can actually participate (project requires 3)
         // But we test that higher stake gets higher rewards
         _ensureStake(validator1, VALIDATOR_STAKE * 2);
-        _validate(validator1, projId3, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projId3, index, 8000, VALIDATOR_STAKE);
 
         _ensureStake(validator2, VALIDATOR_STAKE * 2);
-        _validate(validator2, projId3, index, 8100, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projId3, index, 8100, VALIDATOR_STAKE);
 
         _ensureStake(validator3, VALIDATOR_STAKE * 2);
-        _validate(validator3, projId3, index, 8200, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projId3, index, 8200, VALIDATOR_STAKE);
+
+        _reveal(validator1, projId3, index, 8000);
+        _reveal(validator2, projId3, index, 8100);
+        _reveal(validator3, projId3, index, 8200);
 
         engine.computeConsensus(projId3, index);
 
@@ -1292,9 +1326,12 @@ contract LifecycleOriginatorReportTest is LifecycleBase {
         engine.cancelExpiredCommitment(expiryProjId, index, validator2);
 
         // Freed slots allow 3 new validators to claim and complete the full flow
-        _validate(validator1, expiryProjId, index, 8000, VALIDATOR_STAKE);
-        _validate(validator2, expiryProjId, index, 8100, VALIDATOR_STAKE);
-        _validate(validator3, expiryProjId, index, 8200, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, expiryProjId, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, expiryProjId, index, 8100, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, expiryProjId, index, 8200, VALIDATOR_STAKE);
+        _reveal(validator1, expiryProjId, index, 8000);
+        _reveal(validator2, expiryProjId, index, 8100);
+        _reveal(validator3, expiryProjId, index, 8200);
         engine.computeConsensus(expiryProjId, index);
 
         assertEq(uint256(engine.getContribution(expiryProjId, index).status), uint256(ContributionStatus.Accepted));
@@ -1421,7 +1458,6 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
     /// @notice Contributor cannot validate their own contribution
     function test_revert_selfValidation() public {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
-        uint256 index = indices[0];
 
         _ensureStake(contributor1, VALIDATOR_STAKE * 2);
         vm.startPrank(contributor1);
@@ -1437,8 +1473,11 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
         uint256 index = indices[0];
 
-        _validate(validator1, projId, index, 8000, VALIDATOR_STAKE);
-        _validate(validator2, projId, index, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projId, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projId, index, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projId, index, 7500, VALIDATOR_STAKE);
+        _reveal(validator1, projId, index, 8000);
+        _reveal(validator2, projId, index, 8500);
 
         vm.expectRevert(abi.encodeWithSelector(ISapienCore.ConsensusNotReady.selector, 2, 3));
         engine.computeConsensus(projId, index);
@@ -1469,10 +1508,14 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
         engine.claimToValidate(projId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projId, index, commitHash, VALIDATOR_STAKE, address(0));
+        vm.stopPrank();
 
+        _claimAndCommit(validator2, projId, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projId, index, 8000, VALIDATOR_STAKE);
+
+        vm.prank(validator1);
         vm.expectRevert(ISapienCore.InvalidReveal.selector);
         engine.revealValidation(projId, index, 5000, salt); // wrong score
-        vm.stopPrank();
     }
 
     /// @notice Cannot commit twice for same index
@@ -1762,11 +1805,16 @@ contract LifecycleOutlierTest is LifecycleBase {
         uint256 index = indices[0];
 
         // 4 validators score ~9000, outlier scores 1000
-        _validate(validator1, projId, index, 9000, VALIDATOR_STAKE);
-        _validate(validator2, projId, index, 9000, VALIDATOR_STAKE);
-        _validate(validator3, projId, index, 9000, VALIDATOR_STAKE);
-        _validate(validator4, projId, index, 9000, VALIDATOR_STAKE);
-        _validate(validator5, projId, index, 1000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projId, index, 9000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projId, index, 9000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projId, index, 9000, VALIDATOR_STAKE);
+        _claimAndCommit(validator4, projId, index, 9000, VALIDATOR_STAKE);
+        _claimAndCommit(validator5, projId, index, 1000, VALIDATOR_STAKE);
+        _reveal(validator1, projId, index, 9000);
+        _reveal(validator2, projId, index, 9000);
+        _reveal(validator3, projId, index, 9000);
+        _reveal(validator4, projId, index, 9000);
+        _reveal(validator5, projId, index, 1000);
 
         uint256 outlierSharesBefore = vault.balanceOf(validator5);
 
@@ -2083,7 +2131,6 @@ contract LifecycleMultiActorTest is LifecycleBase {
         vm.stopPrank();
 
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid2, 1);
-        uint256 index = indices[0];
 
         _ensureStake(validator1, VALIDATOR_STAKE * 2);
         vm.startPrank(validator1);
@@ -2103,9 +2150,12 @@ contract LifecycleMultiActorTest is LifecycleBase {
         uint256 lowStake = 10e18;
         uint256 highStake = 100e18;
 
-        _validate(validator1, projId, index, 8000, lowStake);
-        _validate(validator2, projId, index, 8000, highStake);
-        _validate(validator3, projId, index, 8000, highStake);
+        _claimAndCommit(validator1, projId, index, 8000, lowStake);
+        _claimAndCommit(validator2, projId, index, 8000, highStake);
+        _claimAndCommit(validator3, projId, index, 8000, highStake);
+        _reveal(validator1, projId, index, 8000);
+        _reveal(validator2, projId, index, 8000);
+        _reveal(validator3, projId, index, 8000);
 
         engine.computeConsensus(projId, index);
 
@@ -2313,8 +2363,10 @@ contract LifecycleExhaustiveWorkflowTest is LifecycleBase {
         _claimValidation(validator1, projId, index);
         _commitWithoutReveal(validator1, projId, index, 7900, VALIDATOR_STAKE);
 
-        _validate(validator2, projId, index, 8000, VALIDATOR_STAKE);
-        _validate(validator3, projId, index, 8200, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projId, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projId, index, 8200, VALIDATOR_STAKE);
+        _reveal(validator2, projId, index, 8000);
+        _reveal(validator3, projId, index, 8200);
 
         vm.expectRevert(abi.encodeWithSelector(ISapienCore.ConsensusNotReady.selector, 2, 3));
         engine.computeConsensus(projId, index);
@@ -2325,7 +2377,8 @@ contract LifecycleExhaustiveWorkflowTest is LifecycleBase {
         engine.cancelExpiredCommitment(projId, index, validator1);
 
         address validator4 = makeAddr("validator4-recovery");
-        _validate(validator4, projId, index, 8100, VALIDATOR_STAKE);
+        _claimAndCommit(validator4, projId, index, 8100, VALIDATOR_STAKE);
+        _reveal(validator4, projId, index, 8100);
 
         engine.computeConsensus(projId, index);
         assertEq(uint256(engine.getContribution(projId, index).status), uint256(ContributionStatus.Accepted));
@@ -2337,6 +2390,8 @@ contract LifecycleExhaustiveWorkflowTest is LifecycleBase {
 
         _claimValidation(validator1, projId, index);
         bytes32 salt = _commitWithoutReveal(validator1, projId, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projId, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projId, index, 8000, VALIDATOR_STAKE);
 
         vm.warp(block.timestamp + engine.commitDeadline() + engine.revealDeadline() + 1);
 
@@ -2397,7 +2452,6 @@ contract LifecycleExhaustiveWorkflowTest is LifecycleBase {
         engine.claimToValidate(projId, 2);
         engine.lockValidatorCapacity(VALIDATOR_STAKE * 2);
         engine.batchCommitValidations(projId, indices, commitHashes, stakeAmounts, address(0));
-        engine.batchRevealValidations(projId, indices, scores, salts);
         vm.stopPrank();
 
         // Validator2 and validator3 must also validate both indices (batch) since assignment is random
@@ -2423,14 +2477,19 @@ contract LifecycleExhaustiveWorkflowTest is LifecycleBase {
         engine.claimToValidate(projId, 2);
         engine.lockValidatorCapacity(VALIDATOR_STAKE * 2);
         engine.batchCommitValidations(projId, indices, commitHashes2, stakeAmounts, address(0));
-        engine.batchRevealValidations(projId, indices, scores2, salts2);
         vm.stopPrank();
         vm.startPrank(validator3);
         engine.claimToValidate(projId, 2);
         engine.lockValidatorCapacity(VALIDATOR_STAKE * 2);
         engine.batchCommitValidations(projId, indices, commitHashes3, stakeAmounts, address(0));
-        engine.batchRevealValidations(projId, indices, scores3, salts3);
         vm.stopPrank();
+
+        vm.prank(validator1);
+        engine.batchRevealValidations(projId, indices, scores, salts);
+        vm.prank(validator2);
+        engine.batchRevealValidations(projId, indices, scores2, salts2);
+        vm.prank(validator3);
+        engine.batchRevealValidations(projId, indices, scores3, salts3);
 
         engine.computeConsensus(projId, indices[0]);
         engine.computeConsensus(projId, indices[1]);
@@ -2536,8 +2595,8 @@ contract LifecycleKnownIssuesTest is LifecycleBase {
         vm.prank(validator3);
         uint256 claimId = engine.claimToValidate(projId, 1);
 
-        _validate(validator1, projId, index, 8000, VALIDATOR_STAKE);
-        _validate(validator2, projId, index, 8200, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projId, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projId, index, 8200, VALIDATOR_STAKE);
 
         vm.warp(block.timestamp + 2 hours);
         engine.cancelExpiredValidationClaim(claimId);
@@ -2614,13 +2673,19 @@ contract LifecycleKnownIssuesTest is LifecycleBase {
         bytes32 salt = keccak256(abi.encodePacked("doc-style", validator1, projId, index));
         bytes32 commitHash = keccak256(abi.encodePacked(uint256(score), salt));
 
-        // After fix: uint256-encoded commit hash is the canonical format and reveals successfully.
+        _ensureStake(validator1, VALIDATOR_STAKE * 2);
         vm.startPrank(validator1);
         engine.claimToValidate(projId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projId, index, commitHash, VALIDATOR_STAKE, address(0));
-        engine.revealValidation(projId, index, score, salt);
         vm.stopPrank();
+
+        _claimAndCommit(validator2, projId, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projId, index, 8000, VALIDATOR_STAKE);
+
+        // After fix: uint256-encoded commit hash is the canonical format and reveals successfully.
+        vm.prank(validator1);
+        engine.revealValidation(projId, index, score, salt);
 
         assertEq(engine.getRevealCount(projId, index), 1);
     }

@@ -144,9 +144,12 @@ struct IndexRange {
     uint256 count;
 }
 
+/// @notice Per-contribution counters for the validation pipeline (keyed by projectId × index × nonce).
 struct ValidationCounters {
     uint256 revealCount;
     uint256 claimCount;
+    /// @dev Reveals are gated on commitCount >= project.numberOfValidations.
+    uint256 commitCount;
 }
 
 // ============================================
@@ -200,12 +203,6 @@ struct Reputation {
     uint256 lastUpdated;
     uint256 dailyGain;
     uint256 dailyGainDate;
-}
-
-struct StakeAccount {
-    uint256 contributorLock;
-    uint256 validatorCapacity;
-    uint256 inFlight;
 }
 
 struct ValidationClaim {
@@ -285,4 +282,18 @@ struct ConsensusResult {
     uint256[] slashAmounts;
     uint256[] weights;
     uint256 totalAccurateWeight;
+}
+
+// ── Vault ──────────────────────────────────
+
+struct StakeAccount {
+    uint256 contributorLock;
+    uint256 validatorCapacity;
+    uint256 inFlight;
+}
+
+struct SapienVaultStorage {
+    mapping(address => StakeAccount) accounts;
+    mapping(address => uint256) lastDepositTimestamp;
+    uint256 minDepositAge;
 }

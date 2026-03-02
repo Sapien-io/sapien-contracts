@@ -47,11 +47,22 @@ contract SapienCore is
     // ERC-7201 Namespaced Storage
     // ════════════════════════════════════════════════════════════════════
 
-    // keccak256(abi.encode(uint256(keccak256("sapien.storage.SapienCore")) - 1)) & ~bytes32(uint256(0xff))
     function _getStorage() private pure returns (EngineStorage storage $) {
         assembly {
             $.slot := 0xb21037e32bd67da4126ec23c3d75228183c819f055709f5aa59aa33cc3fd2b00
         }
+    }
+
+    /// @notice Verify ERC-7201 storage location derivation
+    function verifyStorageLocation() external pure returns (bool) {
+        // SEC-M-06: Use Solidity-level keccak256 instead of inline assembly
+        // to avoid incorrect string length issues (was 30 instead of 25)
+        // keccak256(abi.encode(uint256(keccak256("sapien.storage.SapienCore")) - 1)) & ~bytes32(uint256(0xff))
+        // solhint-disable-next-line solidity-formatting
+        bytes32 namespaceHash = keccak256("sapien.storage.SapienCore");
+        bytes32 derived = keccak256(abi.encode(uint256(namespaceHash) - 1));
+        bytes32 expected = derived & ~bytes32(uint256(0xff));
+        return expected == bytes32(uint256(0xb21037e32bd67da4126ec23c3d75228183c819f055709f5aa59aa33cc3fd2b00));
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -673,6 +684,13 @@ contract SapienCore is
         EngineStorage storage $ = _getStorage();
         uint256 nonce = $.submissionNonce[projectId][index];
         return $.validationCounters[projectId][index][nonce].revealCount;
+    }
+
+    /// @inheritdoc ISapienCore
+    function getCommitCount(bytes32 projectId, uint256 index) external view returns (uint256) {
+        EngineStorage storage $ = _getStorage();
+        uint256 nonce = $.submissionNonce[projectId][index];
+        return $.validationCounters[projectId][index][nonce].commitCount;
     }
 
     /// @inheritdoc ISapienCore

@@ -8,7 +8,7 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ISapienVault} from "src/interfaces/ISapienVault.sol";
-import {StakeAccount} from "src/Types.sol";
+import {SapienVaultStorage, StakeAccount} from "src/Types.sol";
 
 /// @title SapienVault
 /// @notice ERC-4626 vault for SAPIEN token staking with typed lock categories
@@ -26,39 +26,8 @@ contract SapienVault is
     // ── Roles ──────────────────────────────────────────────────────────
     bytes32 public constant ENGINE_ROLE = keccak256("ENGINE_ROLE");
 
-    // ── Errors ─────────────────────────────────────────────────────────
-    error InsufficientAvailableBalance(uint256 required, uint256 available);
-    error InsufficientContributorLock(uint256 required, uint256 locked);
-    error InsufficientValidatorCapacity(uint256 required, uint256 capacity);
-    error InsufficientInFlight(uint256 required, uint256 inFlight);
-    error TransferExceedsUnlockedShares();
-    error DepositTooRecent(uint256 required, uint256 actual);
-    error MinDepositAgeTooHigh(uint256 requested, uint256 max);
-    error ZeroAmount();
-    error ZeroAddress();
-
-    // ── Events ─────────────────────────────────────────────────────────
-    event ContributorLocked(address indexed user, uint256 amount);
-    event ContributorUnlocked(address indexed user, uint256 amount);
-    event ContributorSlashed(address indexed user, uint256 amount);
-    event ValidatorCapacityLocked(address indexed user, uint256 amount);
-    event ValidatorCapacityUnlocked(address indexed user, uint256 amount);
-    event StakeCommitted(address indexed user, uint256 amount);
-    event CommitReleased(address indexed user, uint256 amount);
-    event ValidatorSlashed(address indexed user, uint256 amount);
-    event MinDepositAgeUpdated(uint256 newAge);
-
     uint256 public constant MAX_MIN_DEPOSIT_AGE = 7 days;
 
-    // ── Storage (ERC-7201 namespaced) ──────────────────────────────────
-    /// @custom:storage-location erc7201:sapien.storage.StakeVault
-    struct SapienVaultStorage {
-        mapping(address => StakeAccount) accounts;
-        mapping(address => uint256) lastDepositTimestamp;
-        uint256 minDepositAge;
-    }
-
-    // keccak256(abi.encode(uint256(keccak256("sapien.storage.SapienVault")) - 1)) & ~bytes32(uint256(0xff))
     function _getSapienVaultStorage() private pure returns (SapienVaultStorage storage $) {
         assembly {
             $.slot := 0x4d6e6410717d1c28e2e2dce6e8ac53def1f84cd7244221b7a072c02c51460000
@@ -69,6 +38,7 @@ contract SapienVault is
     function verifyStorageLocation() external pure returns (bool) {
         // SEC-M-06: Use Solidity-level keccak256 instead of inline assembly
         // to avoid incorrect string length issues (was 30 instead of 25)
+        // keccak256(abi.encode(uint256(keccak256("sapien.storage.SapienCore")) - 1)) & ~bytes32(uint256(0xff))
         // solhint-disable-next-line solidity-formatting
         bytes32 namespaceHash = keccak256("sapien.storage.SapienVault");
         bytes32 derived = keccak256(abi.encode(uint256(namespaceHash) - 1));

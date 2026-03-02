@@ -35,7 +35,6 @@ contract SecurityIssuesVerification is BaseTest {
     function test_HIGH_01_ValidationClaimExpiryLocksValidatorSlots() public {
         bytes32 projectId = _createAndFundProject();
         (, uint256[] memory contribIndices) = _claimAndContribute(contributor1, projectId, 1);
-        uint256 idx = contribIndices[0];
 
         // First validator claims the slot
         vm.prank(validator1);
@@ -100,9 +99,12 @@ contract SecurityIssuesVerification is BaseTest {
         uint256 idx = contribIndices[0];
 
         // Complete full validation cycle
-        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        _reveal(validator1, projectId, idx, 8000);
+        _reveal(validator2, projectId, idx, 8000);
+        _reveal(validator3, projectId, idx, 8000);
         engine.computeConsensus(projectId, idx);
 
         // Open and uphold a dispute

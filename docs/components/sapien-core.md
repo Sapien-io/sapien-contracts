@@ -94,7 +94,7 @@ Batch version of `commitValidation`.
 
 ### `revealValidation(projectId, index, score, salt)`
 
-Reveals the previously committed score. Verifies `hash(score, salt) == commitHash`. Must be called within the reveal window. Score range is 0–10,000.
+Reveals the previously committed score. Verifies `hash(score, salt) == commitHash`. Must be called within the reveal window. Score range is 0–10,000. **Reverts with `CommitPhaseIncomplete` if not all required validators have committed yet** — all validators must commit before any can reveal.
 
 ### `batchRevealValidations(projectId, indices[], scores[], salts[])`
 
@@ -230,6 +230,7 @@ All require `DEFAULT_ADMIN_ROLE`:
 | `getProjectEscrow(projectId, token)` | Escrow balance |
 | `getOriginatorLockedStake(projectId)` | Locked stake amount |
 | `getDisputeConfig()` | Bond BPS, stake req, report bond BPS |
+| `getCommitCount(projectId, index)` | Commit count for current nonce (reveals unlock when this equals `numberOfValidations`) |
 | `getRevealCount(projectId, index)` | Reveal count for current nonce |
 | `isValidatorOutlier(projectId, index, validator)` | `bool` |
 | `isValidatorSettled(projectId, index, nonce, validator)` | `bool` |

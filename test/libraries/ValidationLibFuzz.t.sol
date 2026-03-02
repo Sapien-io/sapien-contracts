@@ -217,17 +217,12 @@ contract ValidationLibFuzz is Test {
 
     function testFuzz_revealValidation_validReveal(uint256 score) public {
         score = bound(score, 0, 10_000);
-        bytes32 salt = bytes32("test_salt");
-        bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
-        _claimValidation(validator1);
-        _lockValidatorCapacity(validator1, VALIDATOR_STAKE);
+        _claimAndCommitValidation(validator1, submittedIndex, score);
+        _claimAndCommitValidation(validator2, submittedIndex, 8000);
+        _claimAndCommitValidation(validator3, submittedIndex, 8000);
 
-        vm.prank(validator1);
-        engine.commitValidation(PROJECT_ID, submittedIndex, commitHash, VALIDATOR_STAKE, address(0));
-
-        vm.prank(validator1);
-        engine.revealValidation(PROJECT_ID, submittedIndex, score, salt);
+        _revealValidation(validator1, submittedIndex, score);
     }
 
     function testFuzz_revealValidation_revertsScoreOutOfRange(uint256 score) public {
@@ -259,6 +254,9 @@ contract ValidationLibFuzz is Test {
         vm.prank(validator1);
         engine.commitValidation(PROJECT_ID, submittedIndex, commitHash, VALIDATOR_STAKE, address(0));
 
+        _claimAndCommitValidation(validator2, submittedIndex, 8000);
+        _claimAndCommitValidation(validator3, submittedIndex, 8000);
+
         vm.prank(validator1);
         vm.expectRevert(ISapienCore.InvalidReveal.selector);
         engine.revealValidation(PROJECT_ID, submittedIndex, score, wrongSalt);
@@ -266,18 +264,14 @@ contract ValidationLibFuzz is Test {
 
     function testFuzz_revealValidation_revertsDoubleReveal() public {
         uint256 score = 8000;
-        bytes32 salt = bytes32("test_salt");
-        bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
-        _claimValidation(validator1);
-        _lockValidatorCapacity(validator1, VALIDATOR_STAKE);
+        _claimAndCommitValidation(validator1, submittedIndex, score);
+        _claimAndCommitValidation(validator2, submittedIndex, 8000);
+        _claimAndCommitValidation(validator3, submittedIndex, 8000);
 
-        vm.prank(validator1);
-        engine.commitValidation(PROJECT_ID, submittedIndex, commitHash, VALIDATOR_STAKE, address(0));
+        _revealValidation(validator1, submittedIndex, score);
 
-        vm.prank(validator1);
-        engine.revealValidation(PROJECT_ID, submittedIndex, score, salt);
-
+        bytes32 salt = keccak256(abi.encodePacked("salt", validator1, submittedIndex));
         vm.prank(validator1);
         vm.expectRevert(ISapienCore.AlreadyRevealed.selector);
         engine.revealValidation(PROJECT_ID, submittedIndex, score, salt);
@@ -285,17 +279,14 @@ contract ValidationLibFuzz is Test {
 
     function testFuzz_revealValidation_revertsAfterWindow() public {
         uint256 score = 8000;
-        bytes32 salt = bytes32("test_salt");
-        bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
-        _claimValidation(validator1);
-        _lockValidatorCapacity(validator1, VALIDATOR_STAKE);
-
-        vm.prank(validator1);
-        engine.commitValidation(PROJECT_ID, submittedIndex, commitHash, VALIDATOR_STAKE, address(0));
+        _claimAndCommitValidation(validator1, submittedIndex, score);
+        _claimAndCommitValidation(validator2, submittedIndex, 8000);
+        _claimAndCommitValidation(validator3, submittedIndex, 8000);
 
         vm.warp(block.timestamp + engine.commitDeadline() + engine.revealDeadline() + 1);
 
+        bytes32 salt = keccak256(abi.encodePacked("salt", validator1, submittedIndex));
         vm.prank(validator1);
         vm.expectRevert(ISapienCore.RevealWindowClosed.selector);
         engine.revealValidation(PROJECT_ID, submittedIndex, score, salt);
@@ -306,9 +297,13 @@ contract ValidationLibFuzz is Test {
         score2 = bound(score2, 7500, 9500);
         score3 = bound(score3, 7500, 9500);
 
-        _fullValidation(validator1, submittedIndex, score1);
-        _fullValidation(validator2, submittedIndex, score2);
-        _fullValidation(validator3, submittedIndex, score3);
+        _claimAndCommitValidation(validator1, submittedIndex, score1);
+        _claimAndCommitValidation(validator2, submittedIndex, score2);
+        _claimAndCommitValidation(validator3, submittedIndex, score3);
+
+        _revealValidation(validator1, submittedIndex, score1);
+        _revealValidation(validator2, submittedIndex, score2);
+        _revealValidation(validator3, submittedIndex, score3);
 
         engine.computeConsensus(PROJECT_ID, submittedIndex);
 
@@ -321,9 +316,13 @@ contract ValidationLibFuzz is Test {
         score2 = bound(score2, 0, 5000);
         score3 = bound(score3, 0, 5000);
 
-        _fullValidation(validator1, submittedIndex, score1);
-        _fullValidation(validator2, submittedIndex, score2);
-        _fullValidation(validator3, submittedIndex, score3);
+        _claimAndCommitValidation(validator1, submittedIndex, score1);
+        _claimAndCommitValidation(validator2, submittedIndex, score2);
+        _claimAndCommitValidation(validator3, submittedIndex, score3);
+
+        _revealValidation(validator1, submittedIndex, score1);
+        _revealValidation(validator2, submittedIndex, score2);
+        _revealValidation(validator3, submittedIndex, score3);
 
         engine.computeConsensus(PROJECT_ID, submittedIndex);
 
@@ -332,17 +331,25 @@ contract ValidationLibFuzz is Test {
     }
 
     function testFuzz_computeConsensus_revertsNotEnoughReveals() public {
-        _fullValidation(validator1, submittedIndex, 8000);
-        _fullValidation(validator2, submittedIndex, 8000);
+        _claimAndCommitValidation(validator1, submittedIndex, 8000);
+        _claimAndCommitValidation(validator2, submittedIndex, 8000);
+        _claimAndCommitValidation(validator3, submittedIndex, 8000);
+
+        _revealValidation(validator1, submittedIndex, 8000);
+        _revealValidation(validator2, submittedIndex, 8000);
 
         vm.expectRevert(abi.encodeWithSelector(ISapienCore.ConsensusNotReady.selector, 2, 3));
         engine.computeConsensus(PROJECT_ID, submittedIndex);
     }
 
     function testFuzz_computeConsensus_revertsAlreadyComputed() public {
-        _fullValidation(validator1, submittedIndex, 8000);
-        _fullValidation(validator2, submittedIndex, 8000);
-        _fullValidation(validator3, submittedIndex, 8000);
+        _claimAndCommitValidation(validator1, submittedIndex, 8000);
+        _claimAndCommitValidation(validator2, submittedIndex, 8000);
+        _claimAndCommitValidation(validator3, submittedIndex, 8000);
+
+        _revealValidation(validator1, submittedIndex, 8000);
+        _revealValidation(validator2, submittedIndex, 8000);
+        _revealValidation(validator3, submittedIndex, 8000);
 
         engine.computeConsensus(PROJECT_ID, submittedIndex);
 
@@ -402,7 +409,7 @@ contract ValidationLibFuzz is Test {
         engine.lockValidatorCapacity(amount);
     }
 
-    function _fullValidation(address val, uint256 index, uint256 score) internal {
+    function _claimAndCommitValidation(address val, uint256 index, uint256 score) internal {
         bytes32 salt = keccak256(abi.encodePacked("salt", val, index));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
@@ -411,7 +418,10 @@ contract ValidationLibFuzz is Test {
 
         vm.prank(val);
         engine.commitValidation(PROJECT_ID, index, commitHash, VALIDATOR_STAKE, address(0));
+    }
 
+    function _revealValidation(address val, uint256 index, uint256 score) internal {
+        bytes32 salt = keccak256(abi.encodePacked("salt", val, index));
         vm.prank(val);
         engine.revealValidation(PROJECT_ID, index, score, salt);
     }

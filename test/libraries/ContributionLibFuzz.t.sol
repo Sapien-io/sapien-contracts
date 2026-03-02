@@ -202,7 +202,11 @@ contract ContributionLibFuzz is Test {
         engine.contribute(claimId, indices[0], keccak256("test"), "");
     }
 
-    function testFuzz_contribute_revertsIndexNotInClaim(uint256 wrongIndex) public {
+    function testFuzz_contribute_revertsIndexNotInClaim(
+        uint256 /* wrongIndex */
+    )
+        public
+    {
         _ensureStake(contributor, STAKE_AMOUNT * 2);
 
         vm.prank(contributor);
@@ -213,7 +217,7 @@ contract ContributionLibFuzz is Test {
         vm.startPrank(contributor2);
         token.approve(address(vault), type(uint256).max);
         vault.deposit(STAKE_AMOUNT * 5, contributor2);
-        (uint256 claimId2, uint256[] memory indices2) = engine.claimToContribute(PROJECT_ID, 1, address(0));
+        (, uint256[] memory indices2) = engine.claimToContribute(PROJECT_ID, 1, address(0));
         vm.stopPrank();
 
         vm.prank(contributor);

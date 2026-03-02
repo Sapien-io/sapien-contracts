@@ -15,8 +15,8 @@ contract SEC_M_04_NoRevealDeadline is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
 
         // validator3 commits but does NOT reveal yet
         bytes32 salt = keccak256(abi.encodePacked("salt", validator3, idx));
@@ -27,6 +27,10 @@ contract SEC_M_04_NoRevealDeadline is BaseTest {
         engine.lockValidatorCapacity(uint256(VALIDATOR_STAKE));
         engine.commitValidation(projectId, idx, commitHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
+
+        // All 3 committed — now reveal validator1 and validator2
+        _reveal(validator1, projectId, idx, 8000);
+        _reveal(validator2, projectId, idx, 8000);
 
         // Warp past the reveal deadline
         vm.warp(block.timestamp + C.DEFAULT_COMMIT_DEADLINE + C.DEFAULT_REVEAL_DEADLINE + 1);
@@ -43,8 +47,8 @@ contract SEC_M_04_NoRevealDeadline is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
 
         bytes32 salt = keccak256(abi.encodePacked("salt", validator3, idx));
         uint256 score = 8000;
@@ -54,6 +58,10 @@ contract SEC_M_04_NoRevealDeadline is BaseTest {
         engine.lockValidatorCapacity(uint256(VALIDATOR_STAKE));
         engine.commitValidation(projectId, idx, commitHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
+
+        // All 3 committed — now reveal validator1 and validator2
+        _reveal(validator1, projectId, idx, 8000);
+        _reveal(validator2, projectId, idx, 8000);
 
         // Warp to just before deadline
         vm.warp(block.timestamp + C.DEFAULT_COMMIT_DEADLINE + C.DEFAULT_REVEAL_DEADLINE);
@@ -72,8 +80,8 @@ contract SEC_M_04_NoRevealDeadline is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
 
         bytes32 salt = keccak256(abi.encodePacked("salt", validator3, idx));
         uint256 score = 8000;
@@ -83,6 +91,10 @@ contract SEC_M_04_NoRevealDeadline is BaseTest {
         engine.lockValidatorCapacity(uint256(VALIDATOR_STAKE));
         engine.commitValidation(projectId, idx, commitHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
+
+        // All 3 committed — now reveal validator1 and validator2
+        _reveal(validator1, projectId, idx, 8000);
+        _reveal(validator2, projectId, idx, 8000);
 
         // Warp past the cancellation threshold
         vm.warp(block.timestamp + C.DEFAULT_COMMIT_DEADLINE + C.DEFAULT_REVEAL_DEADLINE + 1);

@@ -159,9 +159,13 @@ contract ECON_ProtocolEconomics is BaseTest {
         StakeAccount memory contributorBefore = vault.getStakeAccount(contributor1);
         assertEq(contributorBefore.contributorLock, STAKE_AMOUNT, "contributor lock should be present pre-consensus");
 
-        _claimCommitReveal(validator1, projectId, index, 1000, VALIDATOR_STAKE, address(0));
-        _claimCommitReveal(validator2, projectId, index, 1000, VALIDATOR_STAKE, address(0));
-        _claimCommitReveal(validator3, projectId, index, 1000, VALIDATOR_STAKE, address(0));
+        _claimAndCommit(validator1, projectId, index, 1000, VALIDATOR_STAKE, address(0));
+        _claimAndCommit(validator2, projectId, index, 1000, VALIDATOR_STAKE, address(0));
+        _claimAndCommit(validator3, projectId, index, 1000, VALIDATOR_STAKE, address(0));
+
+        _reveal(validator1, projectId, index, 1000);
+        _reveal(validator2, projectId, index, 1000);
+        _reveal(validator3, projectId, index, 1000);
 
         engine.computeConsensus(projectId, index);
 
@@ -277,9 +281,13 @@ contract ECON_ProtocolEconomics is BaseTest {
         (, uint256[] memory contributedIndices) = _claimAndContribute(contributor1, projectId, 1);
         index = contributedIndices[0];
 
-        _claimCommitReveal(validator1, projectId, index, 8000, VALIDATOR_STAKE, adapter);
-        _claimCommitReveal(validator2, projectId, index, 8000, VALIDATOR_STAKE, adapter);
-        _claimCommitReveal(validator3, projectId, index, 8000, VALIDATOR_STAKE, adapter);
+        _claimAndCommit(validator1, projectId, index, 8000, VALIDATOR_STAKE, adapter);
+        _claimAndCommit(validator2, projectId, index, 8000, VALIDATOR_STAKE, adapter);
+        _claimAndCommit(validator3, projectId, index, 8000, VALIDATOR_STAKE, adapter);
+
+        _reveal(validator1, projectId, index, 8000);
+        _reveal(validator2, projectId, index, 8000);
+        _reveal(validator3, projectId, index, 8000);
 
         engine.computeConsensus(projectId, index);
 
@@ -301,7 +309,7 @@ contract ECON_ProtocolEconomics is BaseTest {
         engine.releaseContributorReward(projectId, index);
     }
 
-    function _claimCommitReveal(
+    function _claimAndCommit(
         address validator,
         bytes32 projectId,
         uint256 index,
@@ -316,8 +324,14 @@ contract ECON_ProtocolEconomics is BaseTest {
         engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(stakeAmount);
         engine.commitValidation(projectId, index, commitHash, stakeAmount, validationAdapter);
-        engine.revealValidation(projectId, index, score, salt);
         vm.stopPrank();
+    }
+
+    function _reveal(address validator, bytes32 projectId, uint256 index, uint256 score) internal override {
+        bytes32 salt = keccak256(abi.encodePacked("econ-salt", validator, projectId, index, score));
+
+        vm.prank(validator);
+        engine.revealValidation(projectId, index, score, salt);
     }
 
     function _runProtocolActivitySimulation() internal returns (ProtocolSimulation memory sim) {
@@ -360,9 +374,13 @@ contract ECON_ProtocolEconomics is BaseTest {
         uint256 rejectedIndex = rejectedIndices[0];
         uint256 contributorLockBefore = vault.getStakeAccount(contributor2).contributorLock;
 
-        _claimCommitReveal(validator1, rejectedProjectId, rejectedIndex, 1000, VALIDATOR_STAKE, address(0));
-        _claimCommitReveal(validator2, rejectedProjectId, rejectedIndex, 1000, VALIDATOR_STAKE, address(0));
-        _claimCommitReveal(validator3, rejectedProjectId, rejectedIndex, 1000, VALIDATOR_STAKE, address(0));
+        _claimAndCommit(validator1, rejectedProjectId, rejectedIndex, 1000, VALIDATOR_STAKE, address(0));
+        _claimAndCommit(validator2, rejectedProjectId, rejectedIndex, 1000, VALIDATOR_STAKE, address(0));
+        _claimAndCommit(validator3, rejectedProjectId, rejectedIndex, 1000, VALIDATOR_STAKE, address(0));
+
+        _reveal(validator1, rejectedProjectId, rejectedIndex, 1000);
+        _reveal(validator2, rejectedProjectId, rejectedIndex, 1000);
+        _reveal(validator3, rejectedProjectId, rejectedIndex, 1000);
         engine.computeConsensus(rejectedProjectId, rejectedIndex);
 
         sim.rejectedContributions = 1;

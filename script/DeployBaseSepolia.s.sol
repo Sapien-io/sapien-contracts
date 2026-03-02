@@ -12,7 +12,6 @@ import {SapienVault} from "src/SapienVault.sol";
 /// @dev    Uses `--account` keystore auth. Set SAPIEN_TOKEN env var to skip mock token deploy.
 ///         Output is written to deployments/base-sepolia.json.
 contract DeployBaseSepolia is Script {
-
     address public constant SAPIEN_TOKEN = 0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6;
     address public constant TREASURY = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
     address public constant DEFAULT_ADMIN = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
@@ -23,7 +22,6 @@ contract DeployBaseSepolia is Script {
 
         vm.startBroadcast();
         console.log("Using existing SAPIEN token:", SAPIEN_TOKEN);
-        
 
         SapienVault vaultImpl = new SapienVault();
         bytes memory vaultInit = abi.encodeCall(SapienVault.initialize, (IERC20(SAPIEN_TOKEN), DEPLOYER));
@@ -45,13 +43,11 @@ contract DeployBaseSepolia is Script {
 
         vault.revokeRole(vault.DEFAULT_ADMIN_ROLE(), DEPLOYER);
         console.log("DEFAULT_ADMIN_ROLE revoked from SapienVault");
-        
+
         core.revokeRole(core.DEFAULT_ADMIN_ROLE(), DEPLOYER);
         console.log("DEFAULT_ADMIN_ROLE revoked from SapienCore");
 
-
         console.log("ENGINE_ROLE granted to SapienCore");
-
 
         vm.stopBroadcast();
 

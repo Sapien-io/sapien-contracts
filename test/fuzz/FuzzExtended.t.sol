@@ -39,8 +39,11 @@ contract FuzzExtended is BaseTest {
         return bound(raw, 1e18, 200e18);
     }
 
-    /// @dev Commit and reveal for a validator (similar to LifecycleBase._validate)
-    function _validate(address val, bytes32 projectId, uint256 index, uint256 score, uint256 stakeAmt) internal {
+    /// @dev Claim, lock, and commit for a validator (phase 1 of commit-reveal)
+    function _claimAndCommit(address val, bytes32 projectId, uint256 index, uint256 score, uint256 stakeAmt)
+        internal
+        override
+    {
         bytes32 salt = keccak256(abi.encodePacked("fuzz-validate-salt", val, projectId, index, score));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
@@ -50,8 +53,15 @@ contract FuzzExtended is BaseTest {
         engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(stakeAmt);
         engine.commitValidation(projectId, index, commitHash, stakeAmt, address(0));
-        engine.revealValidation(projectId, index, score, salt);
         vm.stopPrank();
+    }
+
+    /// @dev Reveal for a validator (phase 2 of commit-reveal)
+    function _reveal(address val, bytes32 projectId, uint256 index, uint256 score) internal override {
+        bytes32 salt = keccak256(abi.encodePacked("fuzz-validate-salt", val, projectId, index, score));
+
+        vm.prank(val);
+        engine.revealValidation(projectId, index, score, salt);
     }
 
     function _projectId(uint256 seed) internal pure returns (bytes32) {
@@ -91,8 +101,8 @@ contract FuzzExtended is BaseTest {
         vm.stopPrank();
     }
 
-    /// @dev Commit and reveal for `val`, returning the salt used.
-    function _commitReveal(address val, bytes32 projId, uint256 index, uint256 score, uint256 stakeAmt)
+    /// @dev Claim, lock, and commit for `val`, returning the salt used.
+    function _claimAndCommitCR(address val, bytes32 projId, uint256 index, uint256 score, uint256 stakeAmt)
         internal
         returns (bytes32 salt)
     {
@@ -105,8 +115,15 @@ contract FuzzExtended is BaseTest {
         engine.claimToValidate(projId, 1);
         engine.lockValidatorCapacity(stakeAmt);
         engine.commitValidation(projId, index, commitHash, stakeAmt, address(0));
-        engine.revealValidation(projId, index, score, salt);
         vm.stopPrank();
+    }
+
+    /// @dev Reveal for `val` using the ext-salt derivation.
+    function _revealCR(address val, bytes32 projId, uint256 index, uint256 score) internal {
+        bytes32 salt = keccak256(abi.encodePacked("ext-salt", val, index, score));
+
+        vm.prank(val);
+        engine.revealValidation(projId, index, score, salt);
     }
 
     /// @dev Full setup: fund project, claim one slot, contribute, 3 validators
@@ -124,9 +141,12 @@ contract FuzzExtended is BaseTest {
         engine.contribute(claimId, index, keccak256(abi.encodePacked("sub", seed)), "");
         vm.stopPrank();
 
-        _commitReveal(validator1, projId, index, score, valStake);
-        _commitReveal(validator2, projId, index, score, valStake);
-        _commitReveal(validator3, projId, index, score, valStake);
+        _claimAndCommitCR(validator1, projId, index, score, valStake);
+        _claimAndCommitCR(validator2, projId, index, score, valStake);
+        _claimAndCommitCR(validator3, projId, index, score, valStake);
+        _revealCR(validator1, projId, index, score);
+        _revealCR(validator2, projId, index, score);
+        _revealCR(validator3, projId, index, score);
         engine.computeConsensus(projId, index);
 
         nonce = engine.getContribution(projId, index).consensusNonce;
@@ -147,9 +167,12 @@ contract FuzzExtended is BaseTest {
         vm.stopPrank();
 
         // Low scores — all below 7000 threshold
-        _commitReveal(validator1, projId, index, 2000, valStake);
-        _commitReveal(validator2, projId, index, 3000, valStake);
-        _commitReveal(validator3, projId, index, 2500, valStake);
+        _claimAndCommitCR(validator1, projId, index, 2000, valStake);
+        _claimAndCommitCR(validator2, projId, index, 3000, valStake);
+        _claimAndCommitCR(validator3, projId, index, 2500, valStake);
+        _revealCR(validator1, projId, index, 2000);
+        _revealCR(validator2, projId, index, 3000);
+        _revealCR(validator3, projId, index, 2500);
         engine.computeConsensus(projId, index);
 
         nonce = engine.getContribution(projId, index).consensusNonce;
@@ -415,12 +438,13 @@ contract FuzzExtended is BaseTest {
         assertEq(uint256(vcAfter.status), uint256(ValidationClaimStatus.Expired));
 
         // validator2 can now claim the same index and commit
-        _commitReveal(validator2, projId, index, 8500, valStake);
-        _commitReveal(validator3, projId, index, 8500, valStake);
-
-        // Need one more validator since only 2 committed so far; use a new address
         address validator4 = makeAddr("val4-ext60");
-        _commitReveal(validator4, projId, index, 8500, valStake);
+        _claimAndCommitCR(validator2, projId, index, 8500, valStake);
+        _claimAndCommitCR(validator3, projId, index, 8500, valStake);
+        _claimAndCommitCR(validator4, projId, index, 8500, valStake);
+        _revealCR(validator2, projId, index, 8500);
+        _revealCR(validator3, projId, index, 8500);
+        _revealCR(validator4, projId, index, 8500);
 
         engine.computeConsensus(projId, index);
         assertEq(uint256(engine.getContribution(projId, index).status), uint256(ContributionStatus.Accepted));
@@ -446,9 +470,12 @@ contract FuzzExtended is BaseTest {
         engine.contribute(claimId1, idxs1[0], keccak256("accepted-work"), "");
         vm.stopPrank();
 
-        _commitReveal(validator1, projId, idxs1[0], 9000, valStake);
-        _commitReveal(validator2, projId, idxs1[0], 8500, valStake);
-        _commitReveal(validator3, projId, idxs1[0], 8800, valStake);
+        _claimAndCommitCR(validator1, projId, idxs1[0], 9000, valStake);
+        _claimAndCommitCR(validator2, projId, idxs1[0], 8500, valStake);
+        _claimAndCommitCR(validator3, projId, idxs1[0], 8800, valStake);
+        _revealCR(validator1, projId, idxs1[0], 9000);
+        _revealCR(validator2, projId, idxs1[0], 8500);
+        _revealCR(validator3, projId, idxs1[0], 8800);
         engine.computeConsensus(projId, idxs1[0]);
 
         _warpPastChallengePeriod();
@@ -665,9 +692,13 @@ contract FuzzExtended is BaseTest {
             vm.stopPrank();
         }
 
-        // Each validator: claimToValidate(batchSize), get assigned indices, batchCommit, batchReveal
+        // Each validator: claimToValidate(batchSize), get assigned indices, batchCommit
         address[3] memory vals = [validator1, validator2, validator3];
         uint256 score = 8800;
+        uint256[][] memory allAssignedIndices = new uint256[][](3);
+        bytes32[][] memory allSalts = new bytes32[][](3);
+        uint256[][] memory allScores = new uint256[][](3);
+
         for (uint256 v; v < 3; ++v) {
             address val = vals[v];
             _ensureStake(val, valStake * 3);
@@ -691,8 +722,17 @@ contract FuzzExtended is BaseTest {
             }
 
             engine.batchCommitValidations(projId, assignedIndices, commitHashes, stakeAmts, address(0));
-            engine.batchRevealValidations(projId, assignedIndices, scores, salts);
             vm.stopPrank();
+
+            allAssignedIndices[v] = assignedIndices;
+            allSalts[v] = salts;
+            allScores[v] = scores;
+        }
+
+        // All validators committed — now reveal
+        for (uint256 v; v < 3; ++v) {
+            vm.prank(vals[v]);
+            engine.batchRevealValidations(projId, allAssignedIndices[v], allScores[v], allSalts[v]);
         }
 
         // Compute consensus and verify acceptance for each index
@@ -756,9 +796,12 @@ contract FuzzExtended is BaseTest {
         vm.stopPrank();
 
         // All three validators use the same score — weighted average == score
-        _commitReveal(validator1, projId, idxs[0], score, valStake);
-        _commitReveal(validator2, projId, idxs[0], score, valStake);
-        _commitReveal(validator3, projId, idxs[0], score, valStake);
+        _claimAndCommitCR(validator1, projId, idxs[0], score, valStake);
+        _claimAndCommitCR(validator2, projId, idxs[0], score, valStake);
+        _claimAndCommitCR(validator3, projId, idxs[0], score, valStake);
+        _revealCR(validator1, projId, idxs[0], score);
+        _revealCR(validator2, projId, idxs[0], score);
+        _revealCR(validator3, projId, idxs[0], score);
 
         engine.computeConsensus(projId, idxs[0]);
 
@@ -865,9 +908,12 @@ contract FuzzExtended is BaseTest {
             engine.contribute(cid, idxs[0], keccak256(abi.encodePacked("rep-sub", c)), "");
             vm.stopPrank();
 
-            _commitReveal(validator1, projId, idxs[0], score, valStake);
-            _commitReveal(validator2, projId, idxs[0], score, valStake);
-            _commitReveal(validator3, projId, idxs[0], score, valStake);
+            _claimAndCommitCR(validator1, projId, idxs[0], score, valStake);
+            _claimAndCommitCR(validator2, projId, idxs[0], score, valStake);
+            _claimAndCommitCR(validator3, projId, idxs[0], score, valStake);
+            _revealCR(validator1, projId, idxs[0], score);
+            _revealCR(validator2, projId, idxs[0], score);
+            _revealCR(validator3, projId, idxs[0], score);
             engine.computeConsensus(projId, idxs[0]);
         }
 
@@ -909,9 +955,12 @@ contract FuzzExtended is BaseTest {
         vm.prank(contributor1);
         engine.contribute(cid, idxs[0], keccak256("lock-test-sub"), "");
 
-        _commitReveal(validator1, projId, idxs[0], 8500, VALIDATOR_STAKE);
-        _commitReveal(validator2, projId, idxs[0], 8500, VALIDATOR_STAKE);
-        _commitReveal(validator3, projId, idxs[0], 8500, VALIDATOR_STAKE);
+        _claimAndCommitCR(validator1, projId, idxs[0], 8500, VALIDATOR_STAKE);
+        _claimAndCommitCR(validator2, projId, idxs[0], 8500, VALIDATOR_STAKE);
+        _claimAndCommitCR(validator3, projId, idxs[0], 8500, VALIDATOR_STAKE);
+        _revealCR(validator1, projId, idxs[0], 8500);
+        _revealCR(validator2, projId, idxs[0], 8500);
+        _revealCR(validator3, projId, idxs[0], 8500);
         engine.computeConsensus(projId, idxs[0]);
 
         _warpPastChallengePeriod();
@@ -979,14 +1028,19 @@ contract FuzzExtended is BaseTest {
         // All validators (attacker + normals) vote with same score
         uint256 consensusScore = 8000;
 
-        // Attacker commits with large stake
+        // All validators commit first
         _ensureStake(attacker, attackerStake * 2);
-        _validate(attacker, projId, index, consensusScore, attackerStake);
+        _claimAndCommit(attacker, projId, index, consensusScore, attackerStake);
 
-        // Normal validators commit
         for (uint256 i; i < normals.length; ++i) {
             _ensureStake(normals[i], normalStake * 2);
-            _validate(normals[i], projId, index, consensusScore, normalStake);
+            _claimAndCommit(normals[i], projId, index, consensusScore, normalStake);
+        }
+
+        // Then all validators reveal
+        _reveal(attacker, projId, index, consensusScore);
+        for (uint256 i; i < normals.length; ++i) {
+            _reveal(normals[i], projId, index, consensusScore);
         }
 
         engine.computeConsensus(projId, index);

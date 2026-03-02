@@ -33,9 +33,12 @@ contract QualitySeparation is LifecycleBase {
             (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
             uint256 idx = indices[0];
 
-            _validate(validator1, pid, idx, 8500, VALIDATOR_STAKE);
-            _validate(validator2, pid, idx, 8500, VALIDATOR_STAKE);
-            _validate(validator3, pid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator1, pid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator2, pid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator3, pid, idx, 8500, VALIDATOR_STAKE);
+            _reveal(validator1, pid, idx, 8500);
+            _reveal(validator2, pid, idx, 8500);
+            _reveal(validator3, pid, idx, 8500);
             engine.computeConsensus(pid, idx);
 
             _warpPastChallengePeriod();
@@ -53,9 +56,12 @@ contract QualitySeparation is LifecycleBase {
             (, uint256[] memory indices) = _claimAndSubmit(contributor2, pid, 1);
             uint256 idx = indices[0];
 
-            _validate(validator1, pid, idx, 3000, VALIDATOR_STAKE);
-            _validate(validator2, pid, idx, 3000, VALIDATOR_STAKE);
-            _validate(validator3, pid, idx, 3000, VALIDATOR_STAKE);
+            _claimAndCommit(validator1, pid, idx, 3000, VALIDATOR_STAKE);
+            _claimAndCommit(validator2, pid, idx, 3000, VALIDATOR_STAKE);
+            _claimAndCommit(validator3, pid, idx, 3000, VALIDATOR_STAKE);
+            _reveal(validator1, pid, idx, 3000);
+            _reveal(validator2, pid, idx, 3000);
+            _reveal(validator3, pid, idx, 3000);
             engine.computeConsensus(pid, idx);
         }
 
@@ -94,9 +100,12 @@ contract QualitySeparation is LifecycleBase {
         for (uint256 i; i < rejectRounds; ++i) {
             (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
             uint256 idx = indices[0];
-            _validate(validator1, pid, idx, 3000, VALIDATOR_STAKE);
-            _validate(validator2, pid, idx, 3000, VALIDATOR_STAKE);
-            _validate(validator3, pid, idx, 3000, VALIDATOR_STAKE);
+            _claimAndCommit(validator1, pid, idx, 3000, VALIDATOR_STAKE);
+            _claimAndCommit(validator2, pid, idx, 3000, VALIDATOR_STAKE);
+            _claimAndCommit(validator3, pid, idx, 3000, VALIDATOR_STAKE);
+            _reveal(validator1, pid, idx, 3000);
+            _reveal(validator2, pid, idx, 3000);
+            _reveal(validator3, pid, idx, 3000);
             engine.computeConsensus(pid, idx);
         }
 
@@ -111,9 +120,12 @@ contract QualitySeparation is LifecycleBase {
         for (uint256 i; i < acceptRounds; ++i) {
             (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
             uint256 idx = indices[0];
-            _validate(validator1, pid, idx, 8500, VALIDATOR_STAKE);
-            _validate(validator2, pid, idx, 8500, VALIDATOR_STAKE);
-            _validate(validator3, pid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator1, pid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator2, pid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator3, pid, idx, 8500, VALIDATOR_STAKE);
+            _reveal(validator1, pid, idx, 8500);
+            _reveal(validator2, pid, idx, 8500);
+            _reveal(validator3, pid, idx, 8500);
             engine.computeConsensus(pid, idx);
             _warpPastChallengePeriod();
             uint256 nonce = engine.getContribution(pid, idx).consensusNonce;
@@ -146,17 +158,23 @@ contract QualitySeparation is LifecycleBase {
         // Contributor 1: excellent quality (9500)
         (, uint256[] memory indicesA) = _claimAndSubmit(contributor1, pidBonus, 1);
         uint256 idxA = indicesA[0];
-        _validate(validator1, pidBonus, idxA, 9500, VALIDATOR_STAKE);
-        _validate(validator2, pidBonus, idxA, 9500, VALIDATOR_STAKE);
-        _validate(validator3, pidBonus, idxA, 9500, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, pidBonus, idxA, 9500, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, pidBonus, idxA, 9500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, pidBonus, idxA, 9500, VALIDATOR_STAKE);
+        _reveal(validator1, pidBonus, idxA, 9500);
+        _reveal(validator2, pidBonus, idxA, 9500);
+        _reveal(validator3, pidBonus, idxA, 9500);
         engine.computeConsensus(pidBonus, idxA);
 
         // Contributor 2: mediocre quality (7100)
         (, uint256[] memory indicesB) = _claimAndSubmit(contributor2, pidBonus, 1);
         uint256 idxB = indicesB[0];
-        _validate(validator1, pidBonus, idxB, 7100, VALIDATOR_STAKE);
-        _validate(validator2, pidBonus, idxB, 7100, VALIDATOR_STAKE);
-        _validate(validator3, pidBonus, idxB, 7100, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, pidBonus, idxB, 7100, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, pidBonus, idxB, 7100, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, pidBonus, idxB, 7100, VALIDATOR_STAKE);
+        _reveal(validator1, pidBonus, idxB, 7100);
+        _reveal(validator2, pidBonus, idxB, 7100);
+        _reveal(validator3, pidBonus, idxB, 7100);
         engine.computeConsensus(pidBonus, idxB);
 
         Reputation memory repExcellent = engine.getReputation(contributor1, SKILL_ID);

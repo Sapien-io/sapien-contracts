@@ -233,6 +233,9 @@ library FinalizationLib {
         if ($.validationCounters[projectId][index][nonce].claimCount > 0) {
             $.validationCounters[projectId][index][nonce].claimCount--;
         }
+        if ($.validationCounters[projectId][index][nonce].commitCount > 0) {
+            $.validationCounters[projectId][index][nonce].commitCount--;
+        }
 
         ReputationLib.update(validator, $.projects[projectId].requiredSkill, false, 0);
 

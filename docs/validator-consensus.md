@@ -62,12 +62,14 @@ Validators use a **two-phase commit-reveal scheme** to prevent gaming:
 - Must meet both project-level and global minimum validation stake
 
 #### Step 3: Reveal
+- **All validators must commit before any can reveal.** `revealValidation` reverts with `CommitPhaseIncomplete` until `commitCount >= numberOfValidations`.
 - Validator calls `revealValidation(projectId, index, score, salt)`
 - Contract verifies the reveal matches the original commit
 - Must reveal within the reveal window (commit timestamp + commit deadline + reveal deadline)
 - Score is recorded for consensus calculation
+- Use `getCommitCount(projectId, index)` to check whether the commit phase is complete before attempting a reveal.
 
-> **Why Commit-Reveal?** Without it, later validators could see early scores and copy them to avoid being outliers, undermining the system's integrity.
+> **Why Commit-Reveal?** Without it, later validators could see early scores and copy them to avoid being outliers, undermining the system's integrity. The commit-phase gate ensures no validator can see any revealed scores before committing their own.
 
 ### 4. Consensus Calculation
 
