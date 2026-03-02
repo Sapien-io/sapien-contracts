@@ -10,7 +10,10 @@ import {Project, ProjectStatus, Contribution, ContributionStatus} from "src/Type
 contract ReproduceIssuesTest is BaseTest {
     bytes32 internal projId = keccak256("audit-repro");
 
-    function _validate(address val, bytes32 projectId, uint256 index, uint256 score, uint256 stakeAmt) internal {
+    function _claimAndCommit(address val, bytes32 projectId, uint256 index, uint256 score, uint256 stakeAmt)
+        internal
+        override
+    {
         bytes32 salt = keccak256(abi.encodePacked("salt", val, projectId, index, score));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
@@ -18,14 +21,23 @@ contract ReproduceIssuesTest is BaseTest {
         engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(stakeAmt);
         engine.commitValidation(projectId, index, commitHash, stakeAmt, address(0));
-        engine.revealValidation(projectId, index, score, salt);
         vm.stopPrank();
     }
 
+    function _reveal(address val, bytes32 projectId, uint256 index, uint256 score) internal override {
+        bytes32 salt = keccak256(abi.encodePacked("salt", val, projectId, index, score));
+
+        vm.prank(val);
+        engine.revealValidation(projectId, index, score, salt);
+    }
+
     function _validateBelowThreshold(bytes32 projectId, uint256 index) internal {
-        _validate(validator1, projectId, index, 3000, VALIDATOR_STAKE);
-        _validate(validator2, projectId, index, 2500, VALIDATOR_STAKE);
-        _validate(validator3, projectId, index, 4000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projectId, index, 3000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, index, 2500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, index, 4000, VALIDATOR_STAKE);
+        _reveal(validator1, projectId, index, 3000);
+        _reveal(validator2, projectId, index, 2500);
+        _reveal(validator3, projectId, index, 4000);
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -100,18 +112,24 @@ contract ReproduceIssuesTest is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projId, 1);
         uint256 index = indices[0];
 
-        // 4 validators all participate
-        _validate(validator1, projId, index, 8000, 50e18);
-        _validate(validator2, projId, index, 8500, 50e18);
-        _validate(validator3, projId, index, 7500, 50e18);
+        // 4 validators all commit first
+        _claimAndCommit(validator1, projId, index, 8000, 50e18);
+        _claimAndCommit(validator2, projId, index, 8500, 50e18);
+        _claimAndCommit(validator3, projId, index, 7500, 50e18);
 
+        bytes32 salt4 = keccak256("validator4");
         vm.startPrank(validator4);
         engine.claimToValidate(projId, 1);
         engine.lockValidatorCapacity(50e18);
-        bytes32 salt4 = keccak256("validator4");
         engine.commitValidation(projId, index, keccak256(abi.encodePacked(uint256(8200), salt4)), 50e18, address(0));
-        engine.revealValidation(projId, index, 8200, salt4);
         vm.stopPrank();
+
+        // All 4 committed — now reveal
+        _reveal(validator1, projId, index, 8000);
+        _reveal(validator2, projId, index, 8500);
+        _reveal(validator3, projId, index, 7500);
+        vm.prank(validator4);
+        engine.revealValidation(projId, index, 8200, salt4);
 
         engine.computeConsensus(projId, index);
 
@@ -155,9 +173,12 @@ contract ReproduceIssuesTest is BaseTest {
         engine.contribute(claimId2, index, keccak256("resubmission"), "");
         vm.stopPrank();
 
-        _validate(validator1, PROJECT_ID, index, 9000, VALIDATOR_STAKE);
-        _validate(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
-        _validate(validator4, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, PROJECT_ID, index, 9000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, PROJECT_ID, index, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator4, PROJECT_ID, index, 8000, VALIDATOR_STAKE);
+        _reveal(validator1, PROJECT_ID, index, 9000);
+        _reveal(validator2, PROJECT_ID, index, 8500);
+        _reveal(validator4, PROJECT_ID, index, 8000);
         // validator3 does NOT participate in round 2
 
         engine.computeConsensus(PROJECT_ID, index);
@@ -204,9 +225,9 @@ contract ReproduceIssuesTest is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projId, 1);
         uint256 index = indices[0];
 
-        // validator1 and validator2 with real stake
-        _validate(validator1, projId, index, 8000, VALIDATOR_STAKE);
-        _validate(validator2, projId, index, 8500, VALIDATOR_STAKE);
+        // validator1 and validator2 with real stake (commit only — only 2/3 validators, no reveals needed)
+        _claimAndCommit(validator1, projId, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projId, index, 8500, VALIDATOR_STAKE);
 
         // contributor2 tries zero-stake commit — should revert after RISK-007 fix
         vm.startPrank(contributor2);

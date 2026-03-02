@@ -66,20 +66,24 @@ contract SecurityFindings_2026_02_24 is BaseTest {
         vm.stopPrank();
     }
 
-    function _commitAndRevealSimple(address val, bytes32 pid, uint256 index, uint256 score, uint256 stakeAmt) internal {
+    function _claimAndCommitSimple(address val, bytes32 pid, uint256 index, uint256 score, uint256 stakeAmt) internal {
         bytes32 salt = keccak256(abi.encodePacked("salt", val, index, score));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
         _ensureStake(val, stakeAmt * 2);
 
         vm.startPrank(val);
-
         engine.claimToValidate(pid, 1);
         engine.lockValidatorCapacity(stakeAmt);
         engine.commitValidation(pid, index, commitHash, stakeAmt, address(0));
-        engine.revealValidation(pid, index, score, salt);
-
         vm.stopPrank();
+    }
+
+    function _revealSimple(address val, bytes32 pid, uint256 index, uint256 score) internal {
+        bytes32 salt = keccak256(abi.encodePacked("salt", val, index, score));
+
+        vm.prank(val);
+        engine.revealValidation(pid, index, score, salt);
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -94,9 +98,12 @@ contract SecurityFindings_2026_02_24 is BaseTest {
         (, uint256[] memory indices) = _claimAndContributeSimple(contributor1, pid, 1);
         uint256 idx = indices[0];
 
-        _commitAndRevealSimple(validator1, pid, idx, 8000, VALIDATOR_STAKE);
-        _commitAndRevealSimple(validator2, pid, idx, 8000, VALIDATOR_STAKE);
-        _commitAndRevealSimple(validator3, pid, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommitSimple(validator1, pid, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommitSimple(validator2, pid, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommitSimple(validator3, pid, idx, 8000, VALIDATOR_STAKE);
+        _revealSimple(validator1, pid, idx, 8000);
+        _revealSimple(validator2, pid, idx, 8000);
+        _revealSimple(validator3, pid, idx, 8000);
         engine.computeConsensus(pid, idx);
 
         Contribution memory contrib = engine.getContribution(pid, idx);
@@ -144,9 +151,12 @@ contract SecurityFindings_2026_02_24 is BaseTest {
         (, uint256[] memory indices) = _claimAndContributeSimple(contributor1, pid, 1);
         uint256 idx = indices[0];
 
-        _commitAndRevealSimple(validator1, pid, idx, 5000, VALIDATOR_STAKE);
-        _commitAndRevealSimple(validator2, pid, idx, 5000, VALIDATOR_STAKE);
-        _commitAndRevealSimple(validator3, pid, idx, 5000, VALIDATOR_STAKE);
+        _claimAndCommitSimple(validator1, pid, idx, 5000, VALIDATOR_STAKE);
+        _claimAndCommitSimple(validator2, pid, idx, 5000, VALIDATOR_STAKE);
+        _claimAndCommitSimple(validator3, pid, idx, 5000, VALIDATOR_STAKE);
+        _revealSimple(validator1, pid, idx, 5000);
+        _revealSimple(validator2, pid, idx, 5000);
+        _revealSimple(validator3, pid, idx, 5000);
         engine.computeConsensus(pid, idx);
 
         assertEq(uint256(engine.getContribution(pid, idx).status), uint256(ContributionStatus.Rejected));
@@ -173,9 +183,12 @@ contract SecurityFindings_2026_02_24 is BaseTest {
         (, uint256[] memory newIndices) = _claimAndContributeSimple(contributor2, pid, 1);
         assertEq(newIndices[0], idx, "should reclaim the same index");
 
-        _commitAndRevealSimple(validator1, pid, idx, 8000, VALIDATOR_STAKE);
-        _commitAndRevealSimple(validator2, pid, idx, 8000, VALIDATOR_STAKE);
-        _commitAndRevealSimple(validator3, pid, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommitSimple(validator1, pid, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommitSimple(validator2, pid, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommitSimple(validator3, pid, idx, 8000, VALIDATOR_STAKE);
+        _revealSimple(validator1, pid, idx, 8000);
+        _revealSimple(validator2, pid, idx, 8000);
+        _revealSimple(validator3, pid, idx, 8000);
         engine.computeConsensus(pid, idx);
         assertEq(uint256(engine.getContribution(pid, idx).status), uint256(ContributionStatus.Accepted));
 
@@ -207,9 +220,12 @@ contract SecurityFindings_2026_02_24 is BaseTest {
         engine.contribute(claimId, idxA, keccak256("submission-a"), "");
 
         // Validate index A with low scores → rejected, slot recycled
-        _commitAndReveal(validator1, pid, idxA, 5000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, pid, idxA, 5000, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, pid, idxA, 5000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, pid, idxA, 5000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, pid, idxA, 5000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, pid, idxA, 5000, VALIDATOR_STAKE);
+        _reveal(validator1, pid, idxA, 5000);
+        _reveal(validator2, pid, idxA, 5000);
+        _reveal(validator3, pid, idxA, 5000);
         engine.computeConsensus(pid, idxA);
         assertEq(uint256(engine.getContribution(pid, idxA).status), uint256(ContributionStatus.Rejected));
 
@@ -247,9 +263,12 @@ contract SecurityFindings_2026_02_24 is BaseTest {
         (, uint256[] memory indices) = _claimAndContributeSimple(contributor1, pid, 1);
         uint256 idx = indices[0];
 
-        _commitAndRevealSimple(validator1, pid, idx, 8000, VALIDATOR_STAKE);
-        _commitAndRevealSimple(validator2, pid, idx, 8000, VALIDATOR_STAKE);
-        _commitAndRevealSimple(validator3, pid, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommitSimple(validator1, pid, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommitSimple(validator2, pid, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommitSimple(validator3, pid, idx, 8000, VALIDATOR_STAKE);
+        _revealSimple(validator1, pid, idx, 8000);
+        _revealSimple(validator2, pid, idx, 8000);
+        _revealSimple(validator3, pid, idx, 8000);
         engine.computeConsensus(pid, idx);
         assertEq(uint256(engine.getContribution(pid, idx).status), uint256(ContributionStatus.Accepted));
 
@@ -328,9 +347,12 @@ contract SecurityFindings_2026_02_24 is BaseTest {
         (, uint256[] memory indices) = _claimAndContributeSimple(contributor1, pid, 1);
         uint256 idx = indices[0];
 
-        _commitAndRevealSimple(validator1, pid, idx, 8000, VALIDATOR_STAKE);
-        _commitAndRevealSimple(validator2, pid, idx, 8000, VALIDATOR_STAKE);
-        _commitAndRevealSimple(validator3, pid, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommitSimple(validator1, pid, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommitSimple(validator2, pid, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommitSimple(validator3, pid, idx, 8000, VALIDATOR_STAKE);
+        _revealSimple(validator1, pid, idx, 8000);
+        _revealSimple(validator2, pid, idx, 8000);
+        _revealSimple(validator3, pid, idx, 8000);
         engine.computeConsensus(pid, idx);
 
         // Cancel the project

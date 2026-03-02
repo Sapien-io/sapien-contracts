@@ -114,28 +114,35 @@ contract DisputeLibFuzz is Test {
     }
 
     function _validateAndAccept(uint256 index, uint256 score) internal {
-        address[3] memory validators = [validator1, validator2, validator3];
+        address[3] memory vals = [validator1, validator2, validator3];
         for (uint256 i; i < 3; ++i) {
-            _fullValidation(validators[i], index, score);
+            _claimAndCommit(vals[i], PROJECT_ID, index, score);
+        }
+        for (uint256 i; i < 3; ++i) {
+            _revealValidation(vals[i], PROJECT_ID, index, score);
         }
         engine.computeConsensus(PROJECT_ID, index);
     }
 
-    function _fullValidation(address val, uint256 index, uint256 score) internal {
+    function _claimAndCommit(address val, bytes32 projectId, uint256 index, uint256 score) internal {
         bytes32 salt = keccak256(abi.encodePacked("salt", val, index));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
         vm.prank(val);
-        engine.claimToValidate(PROJECT_ID, 1);
+        engine.claimToValidate(projectId, 1);
 
         vm.prank(val);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
 
         vm.prank(val);
-        engine.commitValidation(PROJECT_ID, index, commitHash, VALIDATOR_STAKE, address(0));
+        engine.commitValidation(projectId, index, commitHash, VALIDATOR_STAKE, address(0));
+    }
+
+    function _revealValidation(address val, bytes32 projectId, uint256 index, uint256 score) internal {
+        bytes32 salt = keccak256(abi.encodePacked("salt", val, index));
 
         vm.prank(val);
-        engine.revealValidation(PROJECT_ID, index, score, salt);
+        engine.revealValidation(projectId, index, score, salt);
     }
 
     function testFuzz_openDispute_validDispute(bytes32 evidenceHash) public {
@@ -387,14 +394,17 @@ contract DisputeLibFuzz is Test {
     }
 
     function _validateContributionOnProject(bytes32 projectId, uint256 index, uint256 score) internal {
-        address[3] memory validators = [validator1, validator2, validator3];
+        address[3] memory vals = [validator1, validator2, validator3];
         for (uint256 i; i < 3; ++i) {
-            _fullValidationOnProject(validators[i], projectId, index, score);
+            _claimAndCommitOnProject(vals[i], projectId, index, score);
+        }
+        for (uint256 i; i < 3; ++i) {
+            _revealValidationOnProject(vals[i], projectId, index, score);
         }
         engine.computeConsensus(projectId, index);
     }
 
-    function _fullValidationOnProject(address val, bytes32 projectId, uint256 index, uint256 score) internal {
+    function _claimAndCommitOnProject(address val, bytes32 projectId, uint256 index, uint256 score) internal {
         bytes32 salt = keccak256(abi.encodePacked("salt", val, projectId, index));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
@@ -406,6 +416,10 @@ contract DisputeLibFuzz is Test {
 
         vm.prank(val);
         engine.commitValidation(projectId, index, commitHash, VALIDATOR_STAKE, address(0));
+    }
+
+    function _revealValidationOnProject(address val, bytes32 projectId, uint256 index, uint256 score) internal {
+        bytes32 salt = keccak256(abi.encodePacked("salt", val, projectId, index));
 
         vm.prank(val);
         engine.revealValidation(projectId, index, score, salt);

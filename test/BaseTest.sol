@@ -137,22 +137,25 @@ contract BaseTest is Test {
         vm.warp(block.timestamp + engine.challengePeriod() + 1);
     }
 
-    function _commitAndReveal(address val, bytes32 projectId, uint256 index, uint256 score, uint256 stakeAmt) internal {
+    function _claimAndCommit(address val, bytes32 projectId, uint256 index, uint256 score, uint256 stakeAmt)
+        internal
+        virtual
+    {
         bytes32 salt = keccak256(abi.encodePacked("salt", val, index));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
         _ensureStake(val, stakeAmt * 2);
 
         vm.startPrank(val);
-
         engine.claimToValidate(projectId, 1);
-
         engine.lockValidatorCapacity(stakeAmt);
-
         engine.commitValidation(projectId, index, commitHash, stakeAmt, address(0));
-
-        engine.revealValidation(projectId, index, score, salt);
-
         vm.stopPrank();
+    }
+
+    function _reveal(address val, bytes32 projectId, uint256 index, uint256 score) internal virtual {
+        bytes32 salt = keccak256(abi.encodePacked("salt", val, index));
+        vm.prank(val);
+        engine.revealValidation(projectId, index, score, salt);
     }
 }

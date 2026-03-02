@@ -66,26 +66,30 @@ contract LifecycleFuzzTest is BaseTest {
         return keccak256(abi.encodePacked("fuzz-project", seed));
     }
 
-    /// @dev Commit and reveal for a validator, ensuring they have capacity
-    function _fuzzCommitAndReveal(address val, bytes32 projectId, uint256 index, uint256 score, uint256 stakeAmt)
+    /// @dev Claim and commit for a validator (commit phase only — no reveal)
+    function _fuzzClaimAndCommit(address val, bytes32 projectId, uint256 index, uint256 score, uint256 stakeAmt)
         internal
     {
         bytes32 salt = keccak256(abi.encodePacked("fuzz-salt", val, index, score));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
-        // Ensure validator has enough staked
         _ensureStake(val, stakeAmt * 2);
 
         vm.startPrank(val);
         engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(stakeAmt);
         engine.commitValidation(projectId, index, commitHash, stakeAmt, address(0));
-        engine.revealValidation(projectId, index, score, salt);
         vm.stopPrank();
     }
 
-    /// @dev Batch validate multiple indices: each validator claims quantity, gets randomly assigned
-    ///      indices, then batch commits and reveals. Use when validators must validate multiple indices.
+    /// @dev Reveal for a validator (reveal phase only — all commits must be done first)
+    function _fuzzReveal(address val, bytes32 projectId, uint256 index, uint256 score) internal {
+        bytes32 salt = keccak256(abi.encodePacked("fuzz-salt", val, index, score));
+        vm.prank(val);
+        engine.revealValidation(projectId, index, score, salt);
+    }
+
+    /// @dev Batch validate multiple indices: all validators commit first, then all reveal.
     function _fuzzBatchValidateAll(
         bytes32 projectId,
         uint256[] memory indices,
@@ -97,6 +101,11 @@ contract LifecycleFuzzTest is BaseTest {
         address[3] memory vals = [validator1, validator2, validator3];
         uint256[3] memory scores = [score1, score2, score3];
 
+        uint256[][] memory allAssigned = new uint256[][](3);
+        bytes32[][] memory allSalts = new bytes32[][](3);
+        uint256[][] memory allScores = new uint256[][](3);
+
+        // Phase 1: all validators claim and commit
         for (uint256 v; v < 3; ++v) {
             address val = vals[v];
             uint256 score = scores[v];
@@ -107,6 +116,7 @@ contract LifecycleFuzzTest is BaseTest {
             vm.stopPrank();
 
             uint256[] memory assignedIndices = engine.getValidationClaim(vcClaimId).indices;
+            allAssigned[v] = assignedIndices;
 
             bytes32[] memory commitHashes = new bytes32[](assignedIndices.length);
             bytes32[] memory salts = new bytes32[](assignedIndices.length);
@@ -120,16 +130,24 @@ contract LifecycleFuzzTest is BaseTest {
                 scoreArr[i] = score;
             }
 
+            allSalts[v] = salts;
+            allScores[v] = scoreArr;
+
             vm.startPrank(val);
             engine.lockValidatorCapacity(stakeAmt * assignedIndices.length);
             engine.batchCommitValidations(projectId, assignedIndices, commitHashes, stakeAmts, address(0));
-            engine.batchRevealValidations(projectId, assignedIndices, scoreArr, salts);
+            vm.stopPrank();
+        }
+
+        // Phase 2: all validators reveal
+        for (uint256 v; v < 3; ++v) {
+            vm.startPrank(vals[v]);
+            engine.batchRevealValidations(projectId, allAssigned[v], allScores[v], allSalts[v]);
             vm.stopPrank();
         }
     }
 
-    /// @dev Batch validate with per-index scores (all validators use same score per index).
-    ///      Use when different indices need different scores (e.g. mixed accept/reject).
+    /// @dev Batch validate with per-index scores: all validators commit first, then all reveal.
     function _fuzzBatchValidateAllWithScores(
         bytes32 projectId,
         uint256[] memory indices,
@@ -139,6 +157,11 @@ contract LifecycleFuzzTest is BaseTest {
         require(indices.length == scoresPerIndex.length, "length mismatch");
         address[3] memory vals = [validator1, validator2, validator3];
 
+        uint256[][] memory allAssigned = new uint256[][](3);
+        bytes32[][] memory allSalts = new bytes32[][](3);
+        uint256[][] memory allScores = new uint256[][](3);
+
+        // Phase 1: all validators claim and commit
         for (uint256 v; v < 3; ++v) {
             address val = vals[v];
             _ensureStake(val, stakeAmt * indices.length * 2);
@@ -148,6 +171,7 @@ contract LifecycleFuzzTest is BaseTest {
             vm.stopPrank();
 
             uint256[] memory assignedIndices = engine.getValidationClaim(vcClaimId).indices;
+            allAssigned[v] = assignedIndices;
 
             bytes32[] memory commitHashes = new bytes32[](assignedIndices.length);
             bytes32[] memory salts = new bytes32[](assignedIndices.length);
@@ -163,10 +187,19 @@ contract LifecycleFuzzTest is BaseTest {
                 scoreArr[i] = score;
             }
 
+            allSalts[v] = salts;
+            allScores[v] = scoreArr;
+
             vm.startPrank(val);
             engine.lockValidatorCapacity(stakeAmt * assignedIndices.length);
             engine.batchCommitValidations(projectId, assignedIndices, commitHashes, stakeAmts, address(0));
-            engine.batchRevealValidations(projectId, assignedIndices, scoreArr, salts);
+            vm.stopPrank();
+        }
+
+        // Phase 2: all validators reveal
+        for (uint256 v; v < 3; ++v) {
+            vm.startPrank(vals[v]);
+            engine.batchRevealValidations(projectId, allAssigned[v], allScores[v], allSalts[v]);
             vm.stopPrank();
         }
     }
@@ -265,10 +298,13 @@ contract LifecycleFuzzTest is BaseTest {
             assertGt(contrib.rewardRate, 0);
         }
 
-        // Validate with 3 validators
-        _fuzzCommitAndReveal(validator1, projId, index, score1, valStake);
-        _fuzzCommitAndReveal(validator2, projId, index, score2, valStake);
-        _fuzzCommitAndReveal(validator3, projId, index, score3, valStake);
+        // Validate with 3 validators: all commit, then all reveal
+        _fuzzClaimAndCommit(validator1, projId, index, score1, valStake);
+        _fuzzClaimAndCommit(validator2, projId, index, score2, valStake);
+        _fuzzClaimAndCommit(validator3, projId, index, score3, valStake);
+        _fuzzReveal(validator1, projId, index, score1);
+        _fuzzReveal(validator2, projId, index, score2);
+        _fuzzReveal(validator3, projId, index, score3);
         assertEq(engine.getRevealCount(projId, index), 3);
 
         // Compute consensus
@@ -394,9 +430,12 @@ contract LifecycleFuzzTest is BaseTest {
         { // Validate, compute, and assert in scoped block
             uint256 sharesBefore = vault.balanceOf(contributor1);
 
-            _fuzzCommitAndReveal(validator1, projId, index, score1, valStake);
-            _fuzzCommitAndReveal(validator2, projId, index, score2, valStake);
-            _fuzzCommitAndReveal(validator3, projId, index, score3, valStake);
+            _fuzzClaimAndCommit(validator1, projId, index, score1, valStake);
+            _fuzzClaimAndCommit(validator2, projId, index, score2, valStake);
+            _fuzzClaimAndCommit(validator3, projId, index, score3, valStake);
+            _fuzzReveal(validator1, projId, index, score1);
+            _fuzzReveal(validator2, projId, index, score2);
+            _fuzzReveal(validator3, projId, index, score3);
 
             engine.computeConsensus(projId, index);
 
@@ -659,11 +698,16 @@ contract LifecycleFuzzTest is BaseTest {
 
         { // ── Validate + consensus ──────────────────────────────────
             uint256 valStake = _boundStake(validatorStakeSeed);
-            _fuzzCommitAndReveal(validator1, projId, index, goodScore, valStake);
-            _fuzzCommitAndReveal(validator2, projId, index, goodScore, valStake);
-            _fuzzCommitAndReveal(validator3, projId, index, goodScore, valStake);
-            _fuzzCommitAndReveal(validator4, projId, index, goodScore, valStake);
-            _fuzzCommitAndReveal(validator5, projId, index, outlierScore, valStake);
+            _fuzzClaimAndCommit(validator1, projId, index, goodScore, valStake);
+            _fuzzClaimAndCommit(validator2, projId, index, goodScore, valStake);
+            _fuzzClaimAndCommit(validator3, projId, index, goodScore, valStake);
+            _fuzzClaimAndCommit(validator4, projId, index, goodScore, valStake);
+            _fuzzClaimAndCommit(validator5, projId, index, outlierScore, valStake);
+            _fuzzReveal(validator1, projId, index, goodScore);
+            _fuzzReveal(validator2, projId, index, goodScore);
+            _fuzzReveal(validator3, projId, index, goodScore);
+            _fuzzReveal(validator4, projId, index, goodScore);
+            _fuzzReveal(validator5, projId, index, outlierScore);
         }
 
         uint256 outlierSharesBefore = vault.balanceOf(validator5);
@@ -856,9 +900,12 @@ contract LifecycleFuzzTest is BaseTest {
             uint256 score2 = bound(score2Raw, 7500, 10_000);
             uint256 score3 = bound(score3Raw, 7500, 10_000);
 
-            _fuzzCommitAndReveal(validator1, projId, idx, score1, valStake);
-            _fuzzCommitAndReveal(validator2, projId, idx, score2, valStake);
-            _fuzzCommitAndReveal(validator3, projId, idx, score3, valStake);
+            _fuzzClaimAndCommit(validator1, projId, idx, score1, valStake);
+            _fuzzClaimAndCommit(validator2, projId, idx, score2, valStake);
+            _fuzzClaimAndCommit(validator3, projId, idx, score3, valStake);
+            _fuzzReveal(validator1, projId, idx, score1);
+            _fuzzReveal(validator2, projId, idx, score2);
+            _fuzzReveal(validator3, projId, idx, score3);
 
             engine.computeConsensus(projId, idx);
 
@@ -968,9 +1015,12 @@ contract LifecycleFuzzTest is BaseTest {
             engine.contribute(claimId1, index, keccak256("bad-work"), "");
             vm.stopPrank();
 
-            _fuzzCommitAndReveal(validator1, projId, index, 2000, valStake);
-            _fuzzCommitAndReveal(validator2, projId, index, 3000, valStake);
-            _fuzzCommitAndReveal(validator3, projId, index, 2500, valStake);
+            _fuzzClaimAndCommit(validator1, projId, index, 2000, valStake);
+            _fuzzClaimAndCommit(validator2, projId, index, 3000, valStake);
+            _fuzzClaimAndCommit(validator3, projId, index, 2500, valStake);
+            _fuzzReveal(validator1, projId, index, 2000);
+            _fuzzReveal(validator2, projId, index, 3000);
+            _fuzzReveal(validator3, projId, index, 2500);
             engine.computeConsensus(projId, index);
 
             assertEq(uint256(engine.getContribution(projId, index).status), uint256(ContributionStatus.Rejected));
@@ -987,9 +1037,12 @@ contract LifecycleFuzzTest is BaseTest {
             engine.contribute(claimId2, index2, keccak256("good-work"), "");
             vm.stopPrank();
 
-            _fuzzCommitAndReveal(validator1, projId, index2, 9000, valStake);
-            _fuzzCommitAndReveal(validator2, projId, index2, 8500, valStake);
-            _fuzzCommitAndReveal(validator3, projId, index2, 9500, valStake);
+            _fuzzClaimAndCommit(validator1, projId, index2, 9000, valStake);
+            _fuzzClaimAndCommit(validator2, projId, index2, 8500, valStake);
+            _fuzzClaimAndCommit(validator3, projId, index2, 9500, valStake);
+            _fuzzReveal(validator1, projId, index2, 9000);
+            _fuzzReveal(validator2, projId, index2, 8500);
+            _fuzzReveal(validator3, projId, index2, 9500);
             engine.computeConsensus(projId, index2);
 
             assertEq(uint256(engine.getContribution(projId, index2).status), uint256(ContributionStatus.Accepted));
@@ -1179,9 +1232,12 @@ contract LifecycleFuzzTest is BaseTest {
             uint256 stake3 = _boundStake(stake3Seed);
             uint256 score = bound(scoreRaw, 8000, 9000);
 
-            _fuzzCommitAndReveal(validator1, projId, index, score, stake1);
-            _fuzzCommitAndReveal(validator2, projId, index, score, stake2);
-            _fuzzCommitAndReveal(validator3, projId, index, score, stake3);
+            _fuzzClaimAndCommit(validator1, projId, index, score, stake1);
+            _fuzzClaimAndCommit(validator2, projId, index, score, stake2);
+            _fuzzClaimAndCommit(validator3, projId, index, score, stake3);
+            _fuzzReveal(validator1, projId, index, score);
+            _fuzzReveal(validator2, projId, index, score);
+            _fuzzReveal(validator3, projId, index, score);
 
             engine.computeConsensus(projId, index);
 

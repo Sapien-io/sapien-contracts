@@ -8,6 +8,28 @@ import {StakeAccount} from "src/Types.sol";
 /// @dev Manages three stake buckets per user: contributor locks, validator capacity, and
 ///      in-flight (committed) validator stakes. Only callable by the authorized SapienCore contract.
 interface ISapienVault {
+    // ── Errors ─────────────────────────────────────────────────────────
+    error InsufficientAvailableBalance(uint256 required, uint256 available);
+    error InsufficientContributorLock(uint256 required, uint256 locked);
+    error InsufficientValidatorCapacity(uint256 required, uint256 capacity);
+    error InsufficientInFlight(uint256 required, uint256 inFlight);
+    error TransferExceedsUnlockedShares();
+    error DepositTooRecent(uint256 required, uint256 actual);
+    error MinDepositAgeTooHigh(uint256 requested, uint256 max);
+    error ZeroAmount();
+    error ZeroAddress();
+
+    // ── Events ─────────────────────────────────────────────────────────
+    event ContributorLocked(address indexed user, uint256 amount);
+    event ContributorUnlocked(address indexed user, uint256 amount);
+    event ContributorSlashed(address indexed user, uint256 amount);
+    event ValidatorCapacityLocked(address indexed user, uint256 amount);
+    event ValidatorCapacityUnlocked(address indexed user, uint256 amount);
+    event StakeCommitted(address indexed user, uint256 amount);
+    event CommitReleased(address indexed user, uint256 amount);
+    event ValidatorSlashed(address indexed user, uint256 amount);
+    event MinDepositAgeUpdated(uint256 newAge);
+
     // ── Contributor Stake ──────────────────────────────────────────────
 
     /// @notice Lock tokens from a contributor's available balance as collateral for claimed slots.

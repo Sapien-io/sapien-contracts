@@ -127,7 +127,7 @@ contract ReputationLibFuzz is Test {
         assertTrue(repDay2.score >= repDay1.score, "Score should accumulate across days");
     }
 
-    function testFuzz_reputation_differentRolesIndependent(address user) public {
+    function testFuzz_reputation_differentRolesIndependent(address user) public view {
         vm.assume(user != address(0));
 
         Reputation memory repRole1 = engine.getReputation(user, C.ORIGINATOR_ROLE_KEY);

@@ -128,10 +128,11 @@ sequenceDiagram
     Note right of SC: ValidationClaimStatus.Active<br/>deadline = now + 1hr<br/>Randomly assigns quantity pending contributions via Fisher-Yates shuffle
     VLD->>SC: commitValidation(projectId, index, commitHash, stakeAmount, adapter)
     SC->>SV: commitStake(validator, stakeAmount)
-    Note right of SC: commitHash = keccak256(abi.encodePacked(score, salt))<br/>stakeAmount >= max(project.minValidationStake, global.minValidationStake)<br/>validationClaim.committedCount++ — Fulfilled when all committed
+    Note right of SC: commitHash = keccak256(abi.encodePacked(score, salt))<br/>stakeAmount >= max(project.minValidationStake, global.minValidationStake)<br/>validationClaim.committedCount++ — Fulfilled when all committed<br/>commitCount++ per index
     Note over VLD: Store score + salt off-chain immediately
+    Note over VLD,SC: Reveals blocked until commitCount >= numberOfValidations
     VLD->>SC: revealValidation(projectId, index, score, salt)
-    Note right of SC: Verifies keccak256(abi.encodePacked(score, salt)) == commitHash<br/>score must be 0 to 10000 basis points<br/>revealCount++ per index
+    Note right of SC: Reverts with CommitPhaseIncomplete if not all validators have committed<br/>Verifies keccak256(abi.encodePacked(score, salt)) == commitHash<br/>score must be 0 to 10000 basis points<br/>revealCount++ per index
 
     Note over SC: Phase 4 — Consensus
     SC->>SC: computeConsensus(projectId, index)
@@ -405,6 +406,7 @@ sequenceDiagram
 | Validator settled | `isValidatorSettled(projectId, index, nonce, validator)` | `nonce = contribution.consensusNonce` |
 | Validator outlier | `isValidatorOutlier(projectId, index, validator)` | After consensus computed |
 | Available slots | `getProject(projectId).availableSlots` | How many more claims can be opened |
+| Commit count | `getCommitCount(projectId, index)` | Reveals unlock when this equals `project.numberOfValidations` |
 | Reveal count | `getRevealCount(projectId, index)` | Compare vs `project.numberOfValidations` |
 | Challenge period | `challengePeriod()` | Seconds; add to `computeConsensus()` block time |
 | Commit deadline | `commitDeadline()` | Seconds |
@@ -492,6 +494,7 @@ const commitHash: string = ethers.solidityPackedKeccak256(
 | `AlreadyCommitted` | Commit twice or `claimToValidate` twice on same index | Check `validatorCommits[...].commitHash != 0` |
 | `ValidationNotClaimed` | `commitValidation` before `claimToValidate` | Always claim first |
 | `NotCommitted` | `revealValidation` without a prior commit | Verify commit hash exists |
+| `CommitPhaseIncomplete` | `revealValidation` before all validators have committed | Wait until `getCommitCount == numberOfValidations` |
 | `AlreadyRevealed` | Reveal twice | Check `revealedAt != 0` |
 | `RevealWindowClosed` | `block.timestamp > commitTimestamp + commitDeadline + revealDeadline` | Reveal promptly |
 | `InvalidReveal` | score or salt do not match commitHash | Verify encoding — see §14 |

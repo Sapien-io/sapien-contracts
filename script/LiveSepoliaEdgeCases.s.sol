@@ -105,8 +105,7 @@ contract LiveSepoliaEdgeCases is Script {
         console2.log("Validator3 :", validator3Addr);
         console2.log("");
 
-        uint256 totalNeeded =
-            (FUND_AMOUNT * 4) + CONTRIBUTOR_TOKENS + CHALLENGER_TOKENS + (VALIDATOR_TOKENS * 3);
+        uint256 totalNeeded = (FUND_AMOUNT * 4) + CONTRIBUTOR_TOKENS + CHALLENGER_TOKENS + (VALIDATOR_TOKENS * 3);
         uint256 deployerBal = token.balanceOf(DEPLOYER);
         console2.log("Deployer SAPIEN balance:", deployerBal);
         console2.log("Total SAPIEN needed    :", totalNeeded);
@@ -157,18 +156,22 @@ contract LiveSepoliaEdgeCases is Script {
         uint256 indexA;
         vm.startBroadcast(CONTRIBUTOR_PK);
         {
-            (uint256 claimId, uint256[] memory indices) =
-                engine.claimToContribute(projRejection, 1, address(0));
+            (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(projRejection, 1, address(0));
             indexA = indices[0];
             engine.contribute(claimId, indexA, keccak256("rejection-submission"), "");
         }
         vm.stopBroadcast();
         console2.log("  Contributor submitted at index:", indexA);
 
-        // Validators score LOW (below 7000 threshold)
-        _validatorCommitReveal(VALIDATOR1_PK, validator1Addr, projRejection, indexA, 2500);
-        _validatorCommitReveal(VALIDATOR2_PK, validator2Addr, projRejection, indexA, 3000);
-        _validatorCommitReveal(VALIDATOR3_PK, validator3Addr, projRejection, indexA, 2000);
+        // Validators score LOW (below 7000 threshold) — commit all, then reveal all
+        _validatorClaimAndCommit(VALIDATOR1_PK, validator1Addr, projRejection, indexA, 2500);
+        _validatorClaimAndCommit(VALIDATOR2_PK, validator2Addr, projRejection, indexA, 3000);
+        _validatorClaimAndCommit(VALIDATOR3_PK, validator3Addr, projRejection, indexA, 2000);
+        console2.log("  [validators] All 3 committed");
+
+        _validatorReveal(VALIDATOR1_PK, validator1Addr, projRejection, indexA, 2500);
+        _validatorReveal(VALIDATOR2_PK, validator2Addr, projRejection, indexA, 3000);
+        _validatorReveal(VALIDATOR3_PK, validator3Addr, projRejection, indexA, 2000);
         console2.log("  Validators scored LOW (2500, 3000, 2000)");
 
         // Consensus: REJECTED
@@ -206,18 +209,22 @@ contract LiveSepoliaEdgeCases is Script {
         uint256 indexB;
         vm.startBroadcast(CONTRIBUTOR_PK);
         {
-            (uint256 claimId, uint256[] memory indices) =
-                engine.claimToContribute(projDispute, 1, address(0));
+            (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(projDispute, 1, address(0));
             indexB = indices[0];
             engine.contribute(claimId, indexB, keccak256("dispute-submission"), "");
         }
         vm.stopBroadcast();
         console2.log("  Contributor submitted at index:", indexB);
 
-        // Validators score HIGH (above threshold)
-        _validatorCommitReveal(VALIDATOR1_PK, validator1Addr, projDispute, indexB, 8000);
-        _validatorCommitReveal(VALIDATOR2_PK, validator2Addr, projDispute, indexB, 8500);
-        _validatorCommitReveal(VALIDATOR3_PK, validator3Addr, projDispute, indexB, 7500);
+        // Validators score HIGH (above threshold) — commit all, then reveal all
+        _validatorClaimAndCommit(VALIDATOR1_PK, validator1Addr, projDispute, indexB, 8000);
+        _validatorClaimAndCommit(VALIDATOR2_PK, validator2Addr, projDispute, indexB, 8500);
+        _validatorClaimAndCommit(VALIDATOR3_PK, validator3Addr, projDispute, indexB, 7500);
+        console2.log("  [validators] All 3 committed");
+
+        _validatorReveal(VALIDATOR1_PK, validator1Addr, projDispute, indexB, 8000);
+        _validatorReveal(VALIDATOR2_PK, validator2Addr, projDispute, indexB, 8500);
+        _validatorReveal(VALIDATOR3_PK, validator3Addr, projDispute, indexB, 7500);
         console2.log("  Validators scored HIGH (8000, 8500, 7500)");
 
         // Consensus: ACCEPTED
@@ -225,7 +232,9 @@ contract LiveSepoliaEdgeCases is Script {
         engine.computeConsensus(projDispute, indexB);
         vm.stopBroadcast();
 
-        console2.log("  Consensus: ACCEPTED (weighted avg:", engine.getConsensusReport(projDispute, indexB).weightedAverage, ")");
+        console2.log(
+            "  Consensus: ACCEPTED (weighted avg:", engine.getConsensusReport(projDispute, indexB).weightedAverage, ")"
+        );
 
         // Challenger opens dispute during challenge window
         vm.startBroadcast(CHALLENGER_PK);
@@ -237,7 +246,9 @@ contract LiveSepoliaEdgeCases is Script {
         console2.log("  Dispute opened! Status:", uint256(dispute.status), "(1=Open)");
         console2.log("  Bond amount locked:", dispute.bondAmount);
         console2.log("  Challenger available balance reduced by:", challengerAvailBefore - challengerAvailAfter);
-        console2.log("  NOTE: Resolution requires OPERATOR_ROLE (Safe). Validators cannot settle while dispute is open.");
+        console2.log(
+            "  NOTE: Resolution requires OPERATOR_ROLE (Safe). Validators cannot settle while dispute is open."
+        );
 
         // ══════════════════════════════════════════════════════════════════
         // Scenario C: Claim Expiration Setup (contributor claims but only partially submits)
@@ -247,8 +258,7 @@ contract LiveSepoliaEdgeCases is Script {
         vm.startBroadcast(CONTRIBUTOR_PK);
         {
             // Claim 2 slots but only submit 1
-            (uint256 claimId, uint256[] memory indices) =
-                engine.claimToContribute(projClaimExpiry, 2, address(0));
+            (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(projClaimExpiry, 2, address(0));
             console2.log("  Claimed 2 slots. Indices:", indices[0], indices[1]);
             console2.log("  Claim ID:", claimId);
 
@@ -272,8 +282,7 @@ contract LiveSepoliaEdgeCases is Script {
         uint256 indexD;
         vm.startBroadcast(CONTRIBUTOR_PK);
         {
-            (uint256 claimId, uint256[] memory indices) =
-                engine.claimToContribute(projValExpiry, 1, address(0));
+            (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(projValExpiry, 1, address(0));
             indexD = indices[0];
             engine.contribute(claimId, indexD, keccak256("val-expiry-submission"), "");
         }
@@ -467,13 +476,7 @@ contract LiveSepoliaEdgeCases is Script {
         vm.stopBroadcast();
     }
 
-    function _validatorCommitReveal(
-        uint256 pk,
-        address val,
-        bytes32 pid,
-        uint256 index,
-        uint256 score
-    ) internal {
+    function _validatorClaimAndCommit(uint256 pk, address val, bytes32 pid, uint256 index, uint256 score) internal {
         bytes32 salt = keccak256(abi.encodePacked("edge-salt", val, pid, index));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
@@ -481,6 +484,13 @@ contract LiveSepoliaEdgeCases is Script {
         engine.claimToValidate(pid, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(pid, index, commitHash, VALIDATOR_STAKE, address(0));
+        vm.stopBroadcast();
+    }
+
+    function _validatorReveal(uint256 pk, address val, bytes32 pid, uint256 index, uint256 score) internal {
+        bytes32 salt = keccak256(abi.encodePacked("edge-salt", val, pid, index));
+
+        vm.startBroadcast(pk);
         engine.revealValidation(pid, index, score, salt);
         vm.stopBroadcast();
     }

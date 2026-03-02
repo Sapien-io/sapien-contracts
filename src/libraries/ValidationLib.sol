@@ -170,6 +170,8 @@ library ValidationLib {
             }
         }
 
+        $.validationCounters[projectId][index][nonce].commitCount++;
+
         emit ISapienCore.ValidationCommitted(projectId, index, msg.sender);
     }
 
@@ -197,6 +199,12 @@ library ValidationLib {
 
         ValidatorCommit storage vc = $.validatorCommits[projectId][index][nonce][msg.sender];
         if (vc.commitHash == bytes32(0)) revert ISapienCore.NotCommitted();
+
+        {
+            uint256 commits = $.validationCounters[projectId][index][nonce].commitCount;
+            uint256 required = $.projects[projectId].numberOfValidations;
+            if (commits < required) revert ISapienCore.CommitPhaseIncomplete(commits, required);
+        }
 
         if (vc.revealedAt != 0) revert ISapienCore.AlreadyRevealed();
 

@@ -73,6 +73,14 @@ contract SapienCoreHandler is Test {
     mapping(bytes32 => mapping(uint256 => address[])) public committedValidators;
     mapping(bytes32 => mapping(uint256 => uint256)) public commitCount;
 
+    struct CommitData {
+        address validator;
+        uint256 score;
+        bytes32 salt;
+    }
+
+    mapping(bytes32 => mapping(uint256 => CommitData[])) public pendingCommits;
+
     // Track which validators need settlement per contribution
     mapping(bytes32 => mapping(uint256 => address[])) public validatorsToSettle;
 
@@ -300,17 +308,25 @@ contract SapienCoreHandler is Test {
         bytes32 salt = keccak256(abi.encodePacked("salt", validator, assignedIndex, block.timestamp));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
-        vm.startPrank(validator);
+        vm.prank(validator);
         engine.commitValidation(pc.projectId, assignedIndex, commitHash, VALIDATOR_STAKE, address(0));
-        engine.revealValidation(pc.projectId, assignedIndex, score, salt);
-        vm.stopPrank();
 
-        // Update tracking for the assigned index (may differ from pc.index with random assignment)
+        // Store commit data for deferred reveal
         committedValidators[pc.projectId][assignedIndex].push(validator);
+        pendingCommits[pc.projectId][assignedIndex].push(CommitData(validator, score, salt));
         commitCount[pc.projectId][assignedIndex]++;
 
-        // If we've reached required validations, move to validated list
+        calls_commitValidation++;
+
+        // When all validators have committed, reveal all at once
         if (commitCount[pc.projectId][assignedIndex] >= NUM_VALIDATIONS) {
+            CommitData[] storage commits = pendingCommits[pc.projectId][assignedIndex];
+            for (uint256 i; i < commits.length; ++i) {
+                vm.prank(commits[i].validator);
+                engine.revealValidation(pc.projectId, assignedIndex, commits[i].score, commits[i].salt);
+                calls_revealValidation++;
+            }
+
             validatedContributions.push(ValidatedContribution({projectId: pc.projectId, index: assignedIndex}));
 
             // Copy validators for settlement tracking
@@ -329,9 +345,6 @@ contract SapienCoreHandler is Test {
                 }
             }
         }
-
-        calls_commitValidation++;
-        calls_revealValidation++;
     }
 
     // ── Phase 3: Compute Consensus ──────────────────────────────────────

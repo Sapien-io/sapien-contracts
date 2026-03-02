@@ -49,11 +49,16 @@ contract ValidatorAlignment is LifecycleBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
         uint256 idx = indices[0];
 
-        _validate(validator1, pid, idx, 8500, VALIDATOR_STAKE);
-        _validate(validator2, pid, idx, 8500, VALIDATOR_STAKE);
-        _validate(validator3, pid, idx, 8500, VALIDATOR_STAKE);
-        _validate(validator4, pid, idx, 8500, VALIDATOR_STAKE);
-        _validate(validator5, pid, idx, 2000, VALIDATOR_STAKE); // outlier
+        _claimAndCommit(validator1, pid, idx, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, pid, idx, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, pid, idx, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator4, pid, idx, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator5, pid, idx, 2000, VALIDATOR_STAKE); // outlier
+        _reveal(validator1, pid, idx, 8500);
+        _reveal(validator2, pid, idx, 8500);
+        _reveal(validator3, pid, idx, 8500);
+        _reveal(validator4, pid, idx, 8500);
+        _reveal(validator5, pid, idx, 2000);
 
         uint256 outlierSharesBefore = vault.balanceOf(validator5);
 
@@ -119,9 +124,12 @@ contract ValidatorAlignment is LifecycleBase {
         uint256 highStake = 500e18;
         uint256 lowStake = 1e18;
 
-        _validate(validator1, pid, idx, 8500, highStake); // honest
-        _validate(sybil1, pid, idx, 1000, lowStake); // sybil
-        _validate(sybil2, pid, idx, 1000, lowStake); // sybil
+        _claimAndCommit(validator1, pid, idx, 8500, highStake); // honest
+        _claimAndCommit(sybil1, pid, idx, 1000, lowStake); // sybil
+        _claimAndCommit(sybil2, pid, idx, 1000, lowStake); // sybil
+        _reveal(validator1, pid, idx, 8500);
+        _reveal(sybil1, pid, idx, 1000);
+        _reveal(sybil2, pid, idx, 1000);
 
         engine.computeConsensus(pid, idx);
 
@@ -167,9 +175,12 @@ contract ValidatorAlignment is LifecycleBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
         uint256 idx = indices[0];
 
-        _validate(validator1, pid, idx, 7200, VALIDATOR_STAKE);
-        _validate(validator2, pid, idx, 6800, VALIDATOR_STAKE);
-        _validate(validator3, pid, idx, 7000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, pid, idx, 7200, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, pid, idx, 6800, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, pid, idx, 7000, VALIDATOR_STAKE);
+        _reveal(validator1, pid, idx, 7200);
+        _reveal(validator2, pid, idx, 6800);
+        _reveal(validator3, pid, idx, 7000);
 
         engine.computeConsensus(pid, idx);
 
@@ -200,12 +211,17 @@ contract ValidatorAlignment is LifecycleBase {
             uint256 idx = indices[0];
 
             // 4 honest validators score accurately
-            _validate(validator1, pid, idx, 8500, VALIDATOR_STAKE);
-            _validate(validator2, pid, idx, 8500, VALIDATOR_STAKE);
-            _validate(validator3, pid, idx, 8500, VALIDATOR_STAKE);
-            _validate(validator4, pid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator1, pid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator2, pid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator3, pid, idx, 8500, VALIDATOR_STAKE);
+            _claimAndCommit(validator4, pid, idx, 8500, VALIDATOR_STAKE);
             // 1 dishonest validator scores wildly wrong
-            _validate(validator5, pid, idx, 2000, VALIDATOR_STAKE);
+            _claimAndCommit(validator5, pid, idx, 2000, VALIDATOR_STAKE);
+            _reveal(validator1, pid, idx, 8500);
+            _reveal(validator2, pid, idx, 8500);
+            _reveal(validator3, pid, idx, 8500);
+            _reveal(validator4, pid, idx, 8500);
+            _reveal(validator5, pid, idx, 2000);
 
             engine.computeConsensus(pid, idx);
 

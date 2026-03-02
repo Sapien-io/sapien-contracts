@@ -15,7 +15,6 @@ contract FIX_2026_02_23_ExpectedBehavior is BaseTest {
     function testFIX_expiredValidationClaimsReleaseSlots() public {
         bytes32 projectId = _createAndFundProject();
         (, uint256[] memory contribIndices) = _claimAndContribute(contributor1, projectId, 1);
-        uint256 idx = contribIndices[0];
 
         vm.prank(validator1);
         uint256 c1 = engine.claimToValidate(projectId, 1);
@@ -43,8 +42,8 @@ contract FIX_2026_02_23_ExpectedBehavior is BaseTest {
         vm.prank(validator3);
         uint256 claimId = engine.claimToValidate(projectId, 1);
 
-        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
 
         vm.warp(block.timestamp + C.VALIDATION_CLAIM_DEADLINE + 1);
         engine.cancelExpiredValidationClaim(claimId);
@@ -66,9 +65,12 @@ contract FIX_2026_02_23_ExpectedBehavior is BaseTest {
         (, uint256[] memory contribIndices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = contribIndices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        _reveal(validator1, projectId, idx, 8000);
+        _reveal(validator2, projectId, idx, 8000);
+        _reveal(validator3, projectId, idx, 8000);
         engine.computeConsensus(projectId, idx);
 
         vm.prank(contributor2);
@@ -120,9 +122,13 @@ contract FIX_2026_02_23_ExpectedBehavior is BaseTest {
         engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projectId, idx, commitHash, VALIDATOR_STAKE, address(0));
+        vm.stopPrank();
+
+        _claimAndCommit(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
 
         // Expected after fix: hash validation aligns with interface guidance.
+        vm.prank(validator1);
         engine.revealValidation(projectId, idx, score, salt);
-        vm.stopPrank();
     }
 }

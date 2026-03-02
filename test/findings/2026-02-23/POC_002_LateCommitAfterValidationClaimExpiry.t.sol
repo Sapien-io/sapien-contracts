@@ -18,10 +18,9 @@ contract POC_002_LateCommitAfterValidationClaimExpiry is BaseTest {
         vm.prank(validator3);
         uint256 v3ClaimId = engine.claimToValidate(projectId, 1);
 
-        // Honest validators reveal first.
-        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
-        assertEq(engine.getRevealCount(projectId, idx), 2, "honest reveals should be visible");
+        // Honest validators commit (cannot reveal — not all validators have committed).
+        _claimAndCommit(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
 
         // Validation claim expires and is cancelled.
         vm.warp(block.timestamp + C.VALIDATION_CLAIM_DEADLINE + 1);
@@ -44,6 +43,6 @@ contract POC_002_LateCommitAfterValidationClaimExpiry is BaseTest {
         engine.commitValidation(projectId, idx, commitHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
 
-        assertEq(engine.getRevealCount(projectId, idx), 2, "late commit+reveal is blocked");
+        assertEq(engine.getRevealCount(projectId, idx), 0, "no reveals occurred - 3rd validator blocked");
     }
 }

@@ -143,7 +143,7 @@ Batch version of `commitValidation`.
 ```solidity
 function revealValidation(bytes32 projectId, uint256 index, uint256 score, bytes32 salt) external
 ```
-Reveal a committed score. Score range: 0–10,000.
+Reveal a committed score. Score range: 0–10,000. Reverts with `CommitPhaseIncomplete` until all required validators have committed.
 
 ```solidity
 function batchRevealValidations(

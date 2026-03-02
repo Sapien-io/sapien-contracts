@@ -55,6 +55,11 @@ interface ISapienCore {
     /// @param need Number of reveals required.
     error ConsensusNotReady(uint256 have, uint256 need);
 
+    /// @dev Not all validators have committed yet; reveals are blocked until the commit phase completes.
+    /// @param have Number of commits received.
+    /// @param need Number of commits required.
+    error CommitPhaseIncomplete(uint256 have, uint256 need);
+
     /// @dev Consensus has already been computed for this contribution nonce.
     error ConsensusAlreadyComputed();
 
@@ -338,10 +343,10 @@ interface ISapienCore {
 
     /// @notice Emitted when a user's reputation score changes.
     /// @param user Address of the user.
-    /// @param role Role identifier (e.g., contributor or validator skill hash).
+    /// @param skillId Role identifier (e.g., contributor or validator skill hash).
     /// @param oldScore Previous reputation score.
     /// @param newScore Updated reputation score.
-    event ReputationUpdated(address indexed user, bytes32 indexed role, uint256 oldScore, uint256 newScore);
+    event ReputationUpdated(address indexed user, bytes32 indexed skillId, uint256 oldScore, uint256 newScore);
 
     // ── Adapter Fees ────────────────────────────────────────────────────
 
@@ -624,6 +629,8 @@ interface ISapienCore {
     /// @notice Reveal a previously committed validation score (reveal phase of commit-reveal).
     /// @dev The provided score and salt must hash to the stored commit hash. Must be called
     ///      within the reveal window (after commit deadline, before reveal deadline).
+    ///      Reverts with `CommitPhaseIncomplete` if fewer than `numberOfValidations` validators
+    ///      have committed for this contribution — all validators must commit before any can reveal.
     /// @param projectId Project containing the contribution.
     /// @param index Contribution slot index.
     /// @param score The quality score (must be within the valid range).
@@ -795,12 +802,12 @@ interface ISapienCore {
     /// @return The Contribution struct.
     function getContribution(bytes32 projectId, uint256 index) external view returns (Contribution memory);
 
-    /// @notice Retrieve a user's reputation for a given role.
+    /// @notice Retrieve a user's reputation for a given skill.
     /// @dev Returns default reputation values if the user has no recorded history.
     /// @param user Address of the user.
-    /// @param role Role identifier (skill hash).
+    /// @param skillId Skill identifier (skill hash).
     /// @return The Reputation struct.
-    function getReputation(address user, bytes32 role) external view returns (Reputation memory);
+    function getReputation(address user, bytes32 skillId) external view returns (Reputation memory);
 
     /// @notice Retrieve the amount of pending (unclaimed) rewards for a user and token.
     /// @param user Address of the user.
@@ -917,6 +924,13 @@ interface ISapienCore {
     /// @param index Contribution slot index.
     /// @return The reveal count.
     function getRevealCount(bytes32 projectId, uint256 index) external view returns (uint256);
+
+    /// @notice Retrieve the number of validator commits for a contribution at its current nonce.
+    /// @dev Reveals are blocked until commitCount >= project.numberOfValidations.
+    /// @param projectId Project the contribution belongs to.
+    /// @param index Contribution slot index.
+    /// @return The commit count.
+    function getCommitCount(bytes32 projectId, uint256 index) external view returns (uint256);
 
     // ── Configurable Deadline Getters ───────────────────────────────────
 

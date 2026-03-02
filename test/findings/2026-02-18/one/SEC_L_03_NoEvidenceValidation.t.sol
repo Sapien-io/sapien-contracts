@@ -26,9 +26,12 @@ contract SEC_L_03_NoEvidenceValidation is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        _reveal(validator1, projectId, idx, 8000);
+        _reveal(validator2, projectId, idx, 8000);
+        _reveal(validator3, projectId, idx, 8000);
         engine.computeConsensus(projectId, idx);
 
         // FIX VERIFIED: empty evidence hash is now rejected
@@ -53,9 +56,12 @@ contract SEC_L_03_NoEvidenceValidation is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        _reveal(validator1, projectId, idx, 8000);
+        _reveal(validator2, projectId, idx, 8000);
+        _reveal(validator3, projectId, idx, 8000);
         engine.computeConsensus(projectId, idx);
 
         // Non-zero evidence hash still works

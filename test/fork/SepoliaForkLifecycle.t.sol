@@ -119,10 +119,14 @@ contract SepoliaForkLifecycleTest is Test {
         Claim memory claim = engine.getClaim(claimId);
         assertEq(uint256(claim.status), uint256(ClaimStatus.Completed));
 
-        // ── Phase 3: Validation (3x commit-reveal) ──────────────────────
-        _commitAndReveal(validator1, projectId, index, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, projectId, index, 8500, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, projectId, index, 7500, VALIDATOR_STAKE);
+        // ── Phase 3: Validation (commit-all, then reveal-all) ──────────
+        _claimAndCommit(validator1, projectId, index, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, index, 8500, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, index, 7500, VALIDATOR_STAKE);
+
+        _reveal(validator1, projectId, index, 8000);
+        _reveal(validator2, projectId, index, 8500);
+        _reveal(validator3, projectId, index, 7500);
 
         assertEq(engine.getRevealCount(projectId, index), 3, "all 3 validators should have revealed");
 
@@ -238,9 +242,7 @@ contract SepoliaForkLifecycleTest is Test {
         vm.stopPrank();
     }
 
-    function _commitAndReveal(address val, bytes32 projectId, uint256 index, uint256 score, uint256 stakeAmt)
-        internal
-    {
+    function _claimAndCommit(address val, bytes32 projectId, uint256 index, uint256 score, uint256 stakeAmt) internal {
         bytes32 salt = keccak256(abi.encodePacked("salt", val, index));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
@@ -250,7 +252,13 @@ contract SepoliaForkLifecycleTest is Test {
         engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(stakeAmt);
         engine.commitValidation(projectId, index, commitHash, stakeAmt, address(0));
-        engine.revealValidation(projectId, index, score, salt);
         vm.stopPrank();
+    }
+
+    function _reveal(address val, bytes32 projectId, uint256 index, uint256 score) internal {
+        bytes32 salt = keccak256(abi.encodePacked("salt", val, index));
+
+        vm.prank(val);
+        engine.revealValidation(projectId, index, score, salt);
     }
 }

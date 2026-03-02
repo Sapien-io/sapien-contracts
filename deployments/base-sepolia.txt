@@ -1,0 +1,86 @@
+== Logs == 2026-03-01 #2
+  === SapienVault Upgrade ===
+  Proxy:               0xf0E3C676b277Ce31C2E72Cd473684FA4C8866029
+  Old implementation:  0x072Fe09fD7dE825f0dCDaCDE1ce8EF0829EC2A06
+  Safe admin:          0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC
+
+  New implementation:  0x321cAB8BBB07D7bfD4bb18ba6b6E41286Ee7DC97
+
+  ============================================================
+    SAFE TRANSACTION - paste into app.safe.global
+  ============================================================
+
+    To:     0xf0E3C676b277Ce31C2E72Cd473684FA4C8866029
+    Value: 0
+    Data:
+  0x4f1ef286000000000000000000000000321cab8bbb07d7bfd4bb18ba6b6e41286ee7dc9700000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000
+
+  ============================================================
+  Updated deployments/base-sepolia.json
+
+== Logs == 2026-03-01 #2
+  === SapienCore Upgrade ===
+  Proxy:               0xDFFEc0D8F9DF05bf3DecbdFefD650779D6481077
+  Old implementation:  0x2F6f4E987D3f5d4BD7DCf8ac3C8C307C4e0fa5aC
+  Safe admin:          0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC
+
+  New implementation:  0x492dC73D7471146ce0BF5569D8e8d1898AE70610
+
+  ============================================================
+    SAFE TRANSACTION - paste into app.safe.global
+  ============================================================
+
+    To:     0xDFFEc0D8F9DF05bf3DecbdFefD650779D6481077
+    Value: 0
+    Data:
+  0x4f1ef286000000000000000000000000492dc73d7471146ce0bf5569d8e8d1898ae7061000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000
+
+  ============================================================
+  Updated deployments/base-sepolia.json
+
+
+
+
+
+
+
+
+== Logs == 2026-03-01
+  === SapienCore Upgrade ===
+  Proxy:               0xDFFEc0D8F9DF05bf3DecbdFefD650779D6481077
+  Old implementation:  0x5800578781440999EF366f19607DBC1451952EFB
+  Safe admin:          0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC
+
+  New implementation:  0x2F6f4E987D3f5d4BD7DCf8ac3C8C307C4e0fa5aC
+
+  ============================================================
+    SAFE TRANSACTION - paste into app.safe.global
+  ============================================================
+
+    To:     0xDFFEc0D8F9DF05bf3DecbdFefD650779D6481077
+    Value: 0
+    Data:
+  0x4f1ef2860000000000000000000000002f6f4e987d3f5d4bd7dcf8ac3c8c307c4e0fa5ac00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000
+
+  ============================================================
+  Updated deployments/base-sepolia.json
+
+== Logs == 2026-03-01
+  === SapienVault Upgrade ===
+  Proxy:               0xf0E3C676b277Ce31C2E72Cd473684FA4C8866029
+  Old implementation:  0xd7F71220dad3350dc1eC398A16b297EEC4ef81b3
+  Safe admin:          0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC
+
+  New implementation:  0x072Fe09fD7dE825f0dCDaCDE1ce8EF0829EC2A06
+
+  ============================================================
+    SAFE TRANSACTION - paste into app.safe.global
+  ============================================================
+
+    To:     0xf0E3C676b277Ce31C2E72Cd473684FA4C8866029
+    Value: 0
+    Data:
+  0x4f1ef286000000000000000000000000072fe09fd7de825f0dcdacde1ce8ef0829ec2a0600000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000
+
+  ============================================================
+  Updated deployments/base-sepolia.json

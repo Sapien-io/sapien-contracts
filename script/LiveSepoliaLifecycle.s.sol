@@ -5,14 +5,7 @@ import {Script, console2} from "forge-std/Script.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SapienCore} from "src/SapienCore.sol";
 import {SapienVault} from "src/SapienVault.sol";
-import {
-    Project,
-    ProjectStatus,
-    Contribution,
-    ContributionStatus,
-    ConsensusReport,
-    StakeAccount
-} from "src/Types.sol";
+import {Project, ProjectStatus, Contribution, ContributionStatus, ConsensusReport, StakeAccount} from "src/Types.sol";
 
 /// @title LiveSepoliaLifecycle
 /// @notice Runs a complete PoQ lifecycle against deployed Base Sepolia contracts.
@@ -136,15 +129,16 @@ contract LiveSepoliaLifecycle is Script {
 
         vm.stopBroadcast();
 
-        // ── 1c. Validators: deposit, lock capacity, commit-reveal ────────
-        _validatorCommitReveal(VALIDATOR1_PK, validator1Addr, index, 8000);
-        console2.log("[validator1] Committed and revealed (score: 8000)");
+        // ── 1c. Validators: deposit, lock capacity, commit then reveal ──
+        _validatorClaimAndCommit(VALIDATOR1_PK, validator1Addr, index, 8000);
+        _validatorClaimAndCommit(VALIDATOR2_PK, validator2Addr, index, 8500);
+        _validatorClaimAndCommit(VALIDATOR3_PK, validator3Addr, index, 7500);
+        console2.log("[validators] All 3 committed");
 
-        _validatorCommitReveal(VALIDATOR2_PK, validator2Addr, index, 8500);
-        console2.log("[validator2] Committed and revealed (score: 8500)");
-
-        _validatorCommitReveal(VALIDATOR3_PK, validator3Addr, index, 7500);
-        console2.log("[validator3] Committed and revealed (score: 7500)");
+        _validatorReveal(VALIDATOR1_PK, validator1Addr, index, 8000);
+        _validatorReveal(VALIDATOR2_PK, validator2Addr, index, 8500);
+        _validatorReveal(VALIDATOR3_PK, validator3Addr, index, 7500);
+        console2.log("[validators] All 3 revealed");
 
         // ── 1d. Compute consensus ────────────────────────────────────────
         vm.startBroadcast(); // deployer
@@ -273,7 +267,7 @@ contract LiveSepoliaLifecycle is Script {
         require(ok, "ETH transfer failed");
     }
 
-    function _validatorCommitReveal(uint256 pk, address val, uint256 index, uint256 score) internal {
+    function _validatorClaimAndCommit(uint256 pk, address val, uint256 index, uint256 score) internal {
         bytes32 salt = keccak256(abi.encodePacked("salt", val, index));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
@@ -285,8 +279,15 @@ contract LiveSepoliaLifecycle is Script {
         engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projectId, index, commitHash, VALIDATOR_STAKE, address(0));
-        engine.revealValidation(projectId, index, score, salt);
 
+        vm.stopBroadcast();
+    }
+
+    function _validatorReveal(uint256 pk, address val, uint256 index, uint256 score) internal {
+        bytes32 salt = keccak256(abi.encodePacked("salt", val, index));
+
+        vm.startBroadcast(pk);
+        engine.revealValidation(projectId, index, score, salt);
         vm.stopBroadcast();
     }
 

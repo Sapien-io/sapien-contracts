@@ -27,9 +27,13 @@ contract RISK_009_GhostCommitments is BaseTest {
         engine.commitValidation(projectId, idx, ghostHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
 
-        // Honest validators commit and reveal — scores now visible on-chain
-        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        // Honest validators commit — all 3 validators have now committed
+        _claimAndCommit(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+
+        // Honest validators reveal — scores now visible on-chain
+        _reveal(validator2, projectId, idx, 8000);
+        _reveal(validator3, projectId, idx, 8000);
 
         assertEq(engine.getRevealCount(projectId, idx), 2, "only 2 reveals, ghost withheld");
 
@@ -66,8 +70,10 @@ contract RISK_009_GhostCommitments is BaseTest {
         engine.commitValidation(projectId, idx, ghostHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
 
-        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        _reveal(validator2, projectId, idx, 8000);
+        _reveal(validator3, projectId, idx, 8000);
 
         // Ghost sees scores, waits almost until deadline, then reveals
         vm.warp(block.timestamp + engine.commitDeadline() + engine.revealDeadline() - 1);

@@ -23,7 +23,7 @@ contract ConsensusLibFuzz is Test {
         uint256 score,
         uint256 stakeAmount,
         uint256 reputation
-    ) public {
+    ) public pure {
         score = bound(score, 0, 10_000);
         stakeAmount = bound(stakeAmount, 1, type(uint128).max);
         reputation = bound(reputation, 0, type(uint128).max);
@@ -75,7 +75,7 @@ contract ConsensusLibFuzz is Test {
         uint256 highScore,
         uint256 stake1,
         uint256 stake2
-    ) public {
+    ) public pure {
         lowScore = bound(lowScore, 0, 1000);
         highScore = bound(highScore, 9000, 10_000);
         stake1 = bound(stake1, 1e18, 100e18);
@@ -94,7 +94,7 @@ contract ConsensusLibFuzz is Test {
         assertTrue(result.stdDeviation > 0, "Different scores should have non-zero stddev");
     }
 
-    function testFuzz_calculate_zeroStakeHandled(uint256 score, uint256 reputation) public {
+    function testFuzz_calculate_zeroStakeHandled(uint256 score, uint256 reputation) public pure {
         score = bound(score, 0, 10_000);
         reputation = bound(reputation, 0, type(uint64).max);
 
@@ -107,7 +107,7 @@ contract ConsensusLibFuzz is Test {
         assertGt(result.weights[0], 0, "Weight should be at least 1 even with zero stake");
     }
 
-    function testFuzz_calculate_zeroReputationUsesFloor(uint256 score, uint256 stakeAmount) public {
+    function testFuzz_calculate_zeroReputationUsesFloor(uint256 score, uint256 stakeAmount) public pure {
         score = bound(score, 0, 10_000);
         stakeAmount = bound(stakeAmount, 1, type(uint64).max);
 
@@ -120,7 +120,7 @@ contract ConsensusLibFuzz is Test {
         assertTrue(result.weights[0] > 0, "Zero reputation should still produce positive weight");
     }
 
-    function testFuzz_calculate_manyValidatorsNoOverflow(uint8 numValidators, uint256 baseSeed) public {
+    function testFuzz_calculate_manyValidatorsNoOverflow(uint8 numValidators, uint256 baseSeed) public pure {
         numValidators = uint8(bound(numValidators, 1, 50));
 
         ValidationInput[] memory inputs = new ValidationInput[](numValidators);
@@ -144,7 +144,10 @@ contract ConsensusLibFuzz is Test {
         assertEq(result.weights.length, numValidators);
     }
 
-    function testFuzz_calculate_outlierDetection(uint256 consensusScore, uint256 outlierScore, uint256 stake) public {
+    function testFuzz_calculate_outlierDetection(uint256 consensusScore, uint256 outlierScore, uint256 stake)
+        public
+        pure
+    {
         consensusScore = bound(consensusScore, 5000, 8000);
         stake = bound(stake, 1e18, 100e18);
 
@@ -176,7 +179,7 @@ contract ConsensusLibFuzz is Test {
         }
     }
 
-    function testFuzz_calculate_tieredSlashing(uint256 outlierDeviation, uint256 stake) public {
+    function testFuzz_calculate_tieredSlashing(uint256 outlierDeviation, uint256 stake) public pure {
         stake = bound(stake, 1e18, 100e18);
         outlierDeviation = bound(outlierDeviation, 2000, 10_000);
 
@@ -208,7 +211,7 @@ contract ConsensusLibFuzz is Test {
         }
     }
 
-    function testFuzz_calculate_maxStakeNoOverflow(uint256 score) public {
+    function testFuzz_calculate_maxStakeNoOverflow(uint256 score) public pure {
         score = bound(score, 0, 10_000);
 
         ValidationInput[] memory inputs = new ValidationInput[](2);
@@ -225,6 +228,7 @@ contract ConsensusLibFuzz is Test {
 
     function testFuzz_calculate_consistentWeightOrdering(uint256 stake1, uint256 stake2, uint256 rep1, uint256 rep2)
         public
+        pure
     {
         stake1 = bound(stake1, 1e18, 1000e18);
         stake2 = bound(stake2, 1e18, 1000e18);
@@ -241,7 +245,7 @@ contract ConsensusLibFuzz is Test {
         assertGt(result.weights[1], 0);
     }
 
-    function testFuzz_calculate_accurateWeightTracking(uint8 numOutliers, uint8 numAccurate) public {
+    function testFuzz_calculate_accurateWeightTracking(uint8 numOutliers, uint8 numAccurate) public pure {
         numOutliers = uint8(bound(numOutliers, 0, 5));
         numAccurate = uint8(bound(numAccurate, 3, 20));
 
@@ -272,7 +276,7 @@ contract ConsensusLibFuzz is Test {
         assertEq(result.totalAccurateWeight, computedAccurateWeight, "totalAccurateWeight mismatch");
     }
 
-    function testFuzz_calculate_allOutliersExceptOne(uint8 numValidators, uint256 goodScore) public {
+    function testFuzz_calculate_allOutliersExceptOne(uint8 numValidators, uint256 goodScore) public pure {
         numValidators = uint8(bound(numValidators, 2, 20));
         goodScore = bound(goodScore, 4000, 6000);
 
@@ -299,7 +303,7 @@ contract ConsensusLibFuzz is Test {
         uint256[3] memory scores,
         uint256[3] memory stakes,
         uint256[3] memory reps
-    ) public {
+    ) public pure {
         ValidationInput[] memory inputs1 = new ValidationInput[](3);
         ValidationInput[] memory inputs2 = new ValidationInput[](3);
 
@@ -327,7 +331,7 @@ contract ConsensusLibFuzz is Test {
         }
     }
 
-    function testFuzz_calculate_extremeReputationValues(uint256 score) public {
+    function testFuzz_calculate_extremeReputationValues(uint256 score) public pure {
         score = bound(score, 0, 10_000);
 
         ValidationInput[] memory inputs = new ValidationInput[](2);

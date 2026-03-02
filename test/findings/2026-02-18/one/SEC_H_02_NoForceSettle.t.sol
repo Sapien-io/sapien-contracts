@@ -15,9 +15,12 @@ contract SEC_H_02_NoForceSettle is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        _reveal(validator1, projectId, idx, 8000);
+        _reveal(validator2, projectId, idx, 8000);
+        _reveal(validator3, projectId, idx, 8000);
         engine.computeConsensus(projectId, idx);
 
         uint256 inFlightBefore = vault.getStakeAccount(validator3).inFlight;
@@ -41,9 +44,12 @@ contract SEC_H_02_NoForceSettle is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        _reveal(validator1, projectId, idx, 8000);
+        _reveal(validator2, projectId, idx, 8000);
+        _reveal(validator3, projectId, idx, 8000);
         engine.computeConsensus(projectId, idx);
 
         // Try to force-settle too early
@@ -59,9 +65,12 @@ contract SEC_H_02_NoForceSettle is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        _reveal(validator1, projectId, idx, 8000);
+        _reveal(validator2, projectId, idx, 8000);
+        _reveal(validator3, projectId, idx, 8000);
         engine.computeConsensus(projectId, idx);
 
         _warpPastChallengePeriod();
@@ -79,9 +88,12 @@ contract SEC_H_02_NoForceSettle is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
         uint256 idx = indices[0];
 
-        _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, projectId, idx, 1000, 1e18);
+        _claimAndCommit(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, projectId, idx, 1000, 1e18);
+        _reveal(validator1, projectId, idx, 8000);
+        _reveal(validator2, projectId, idx, 8000);
+        _reveal(validator3, projectId, idx, 1000);
         engine.computeConsensus(projectId, idx);
 
         assertTrue(engine.isValidatorOutlier(projectId, idx, validator3), "validator3 should be outlier");

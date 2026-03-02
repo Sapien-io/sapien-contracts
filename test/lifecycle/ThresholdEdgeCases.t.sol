@@ -23,9 +23,12 @@ contract ThresholdEdgeCases is LifecycleBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
         uint256 idx = indices[0];
 
-        _validate(validator1, pid, idx, 7000, VALIDATOR_STAKE);
-        _validate(validator2, pid, idx, 7000, VALIDATOR_STAKE);
-        _validate(validator3, pid, idx, 7000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, pid, idx, 7000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, pid, idx, 7000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, pid, idx, 7000, VALIDATOR_STAKE);
+        _reveal(validator1, pid, idx, 7000);
+        _reveal(validator2, pid, idx, 7000);
+        _reveal(validator3, pid, idx, 7000);
 
         engine.computeConsensus(pid, idx);
 
@@ -41,9 +44,12 @@ contract ThresholdEdgeCases is LifecycleBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
         uint256 idx = indices[0];
 
-        _validate(validator1, pid, idx, 6999, VALIDATOR_STAKE);
-        _validate(validator2, pid, idx, 6999, VALIDATOR_STAKE);
-        _validate(validator3, pid, idx, 6999, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, pid, idx, 6999, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, pid, idx, 6999, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, pid, idx, 6999, VALIDATOR_STAKE);
+        _reveal(validator1, pid, idx, 6999);
+        _reveal(validator2, pid, idx, 6999);
+        _reveal(validator3, pid, idx, 6999);
 
         engine.computeConsensus(pid, idx);
 
@@ -59,9 +65,12 @@ contract ThresholdEdgeCases is LifecycleBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
         uint256 idx = indices[0];
 
-        _validate(validator1, pid, idx, 7001, VALIDATOR_STAKE);
-        _validate(validator2, pid, idx, 7001, VALIDATOR_STAKE);
-        _validate(validator3, pid, idx, 7001, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, pid, idx, 7001, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, pid, idx, 7001, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, pid, idx, 7001, VALIDATOR_STAKE);
+        _reveal(validator1, pid, idx, 7001);
+        _reveal(validator2, pid, idx, 7001);
+        _reveal(validator3, pid, idx, 7001);
 
         engine.computeConsensus(pid, idx);
 
@@ -74,9 +83,12 @@ contract ThresholdEdgeCases is LifecycleBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
         uint256 idx = indices[0];
 
-        _validate(validator1, pid, idx, 10_000, VALIDATOR_STAKE);
-        _validate(validator2, pid, idx, 10_000, VALIDATOR_STAKE);
-        _validate(validator3, pid, idx, 10_000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, pid, idx, 10_000, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, pid, idx, 10_000, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, pid, idx, 10_000, VALIDATOR_STAKE);
+        _reveal(validator1, pid, idx, 10_000);
+        _reveal(validator2, pid, idx, 10_000);
+        _reveal(validator3, pid, idx, 10_000);
 
         engine.computeConsensus(pid, idx);
 
@@ -103,9 +115,12 @@ contract ThresholdEdgeCases is LifecycleBase {
         uint256 highStake = 500e18;
         uint256 lowStake = 1e18;
 
-        _validate(validator1, pid, idx, 8000, highStake);
-        _validate(validator2, pid, idx, 4000, lowStake);
-        _validate(validator3, pid, idx, 4000, lowStake);
+        _claimAndCommit(validator1, pid, idx, 8000, highStake);
+        _claimAndCommit(validator2, pid, idx, 4000, lowStake);
+        _claimAndCommit(validator3, pid, idx, 4000, lowStake);
+        _reveal(validator1, pid, idx, 8000);
+        _reveal(validator2, pid, idx, 4000);
+        _reveal(validator3, pid, idx, 4000);
 
         engine.computeConsensus(pid, idx);
 
@@ -134,9 +149,12 @@ contract ThresholdEdgeCases is LifecycleBase {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
         uint256 idx = indices[0];
 
-        _validate(validator1, pid, idx, 7200, VALIDATOR_STAKE);
-        _validate(validator2, pid, idx, 6800, VALIDATOR_STAKE);
-        _validate(validator3, pid, idx, 7000, VALIDATOR_STAKE);
+        _claimAndCommit(validator1, pid, idx, 7200, VALIDATOR_STAKE);
+        _claimAndCommit(validator2, pid, idx, 6800, VALIDATOR_STAKE);
+        _claimAndCommit(validator3, pid, idx, 7000, VALIDATOR_STAKE);
+        _reveal(validator1, pid, idx, 7200);
+        _reveal(validator2, pid, idx, 6800);
+        _reveal(validator3, pid, idx, 7000);
 
         engine.computeConsensus(pid, idx);
 

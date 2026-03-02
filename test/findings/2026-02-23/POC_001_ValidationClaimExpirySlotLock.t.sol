@@ -13,7 +13,6 @@ contract POC_001_ValidationClaimExpirySlotLock is BaseTest {
     function test_expiredValidationClaimsPermanentlyBlockNewValidators() public {
         bytes32 projectId = _createAndFundProject();
         (, uint256[] memory contribIndices) = _claimAndContribute(contributor1, projectId, 1);
-        uint256 idx = contribIndices[0];
 
         vm.prank(validator1);
         uint256 claim1 = engine.claimToValidate(projectId, 1);
