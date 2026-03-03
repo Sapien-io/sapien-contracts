@@ -159,6 +159,7 @@ Detailed documentation lives in [`docs/`](docs/):
 - [SapienVault reference](docs/components/sapien-vault.md) — ERC-4626 vault, lock categories, slashing
 - [ReputationLib](docs/components/reputation-lib.md) — skill-based reputation, decay, update triggers
 - [Protocol lifecycle](docs/guides/protocol-lifecycle.md) — frontend integration guide with state machines
+- [Engineering onboarding](docs/guides/engineering-onboarding-solidity-foundry.md) — technical training plan for new Solidity + Foundry contributors
 - Role guides: [Originators](docs/guides/originators.md) | [Contributors](docs/guides/contributors.md) | [Validators](docs/guides/validators.md)
 
 ## License
