@@ -57,6 +57,7 @@ Step-by-step instructions for different protocol participants:
 - [Contributors](./guides/contributors.md) — Submitting work and earning rewards.
 - [Validators](./guides/validators.md) — Verifying work and reaching consensus.
 - [Developers](./guides/developers.md) — Building integrations with PoQ.
+- [Engineering Onboarding (Solidity + Foundry)](./guides/engineering-onboarding-solidity-foundry.md) — Internal training plan for new smart contract contributors.
 - [Fees](./guides/fees.md) — Protocol fees, adapter fees, and the fee waterfall.
 - [Wagmi/React](./guides/wagmi-react-implementation.md) — Frontend integration guide.
 

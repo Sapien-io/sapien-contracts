@@ -2,6 +2,8 @@
 
 Developers can extend the Sapien PoQ ecosystem by building **adapters** that connect external AI tools and workflows to the protocol. In v0.5, the protocol consists of two contracts — `SapienCore` and `SapienVault` — with all user-facing operations called on `SapienCore`.
 
+> New engineering teammates onboarding to this repository should start with the [Smart Contract Engineering Onboarding (Solidity + Foundry)](./engineering-onboarding-solidity-foundry.md) guide first, then return here for adapter-specific integration details.
+
 ## Architecture
 
 An adapter typically consists of two parts:
