@@ -1,0 +1,1502 @@
+Compiling 65 files with Solc 0.8.30
+Solc 0.8.30 finished in 187.89s
+Compiler run successful with warnings:
+Warning (2072): Unused local variable.
+   --> test/SapienCore.t.sol:297:12:
+    |
+297 |         (, uint256[] memory indices) = _claimAndContribute(contributor1, PROJECT_ID, 1);
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+  --> test/findings/2026-02-23/POC_001_ValidationClaimExpirySlotLock.t.sol:15:12:
+   |
+15 |         (, uint256[] memory contribIndices) = _claimAndContribute(contributor1, projectId, 1);
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+  --> test/findings/2026-02-23/SECURITY_ISSUES_VERIFICATION.t.sol:37:12:
+   |
+37 |         (, uint256[] memory contribIndices) = _claimAndContribute(contributor1, projectId, 1);
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+  --> test/findings/2026-02-23/fixes/FIX_2026_02_23_ExpectedBehavior.t.sol:17:12:
+   |
+17 |         (, uint256[] memory contribIndices) = _claimAndContribute(contributor1, projectId, 1);
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+    --> test/lifecycle/Lifecycle.t.sol:1460:12:
+     |
+1460 |         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
+     |            ^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+    --> test/lifecycle/Lifecycle.t.sol:2133:12:
+     |
+2133 |         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid2, 1);
+     |            ^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2018): Function state mutability can be restricted to pure
+  --> test/libraries/ConsensusLibFuzz.t.sol:45:5:
+   |
+45 |     function testFuzz_calculate_twoValidatorsSameScore(
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+
+Ran 7 tests for test/ConsensusLib.t.sol:ConsensusLibTest
+[PASS] test_calculate_minReputationFloor() (gas: 21539)
+[PASS] test_calculate_outlierDetection() (gas: 37781)
+[PASS] test_calculate_reputationWeighting() (gas: 21723)
+[PASS] test_calculate_singleInput() (gas: 17231)
+[PASS] test_calculate_stakeWeighting() (gas: 21867)
+[PASS] test_calculate_uniformScores() (gas: 30110)
+[PASS] test_calculate_weightedAverage() (gas: 25979)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 27.39ms (12.03ms CPU time)
+
+Ran 14 tests for test/coverage/CoverageGaps.t.sol:QEProjectValidationTest
+[PASS] test_fundProject_additionalFunding() (gas: 877005)
+[PASS] test_fundProject_noAdapter() (gas: 673514)
+[PASS] test_revert_createProject_tooHighConsensusThreshold() (gas: 55034)
+[PASS] test_revert_createProject_tooHighNumberOfValidations() (gas: 54904)
+[PASS] test_revert_createProject_tooHighValidatorRewardBps() (gas: 54822)
+[PASS] test_revert_createProject_zeroConsensusThreshold() (gas: 54940)
+[PASS] test_revert_createProject_zeroNumberOfValidations() (gas: 54844)
+[PASS] test_revert_createProject_zeroRewardToken() (gas: 54402)
+[PASS] test_revert_fundProject_wrongStatus() (gas: 4219940)
+[PASS] test_revert_fundProject_zeroAmount() (gas: 382887)
+[PASS] test_revert_fundProject_zeroQuantity() (gas: 432429)
+[PASS] test_revert_initialize_zeroAdmin() (gas: 4475710)
+[PASS] test_revert_initialize_zeroTreasury() (gas: 4475564)
+[PASS] test_revert_initialize_zeroVault() (gas: 4475697)
+Suite result: ok. 14 passed; 0 failed; 0 skipped; finished in 31.09ms (14.76ms CPU time)
+
+Ran 2 tests for test/findings/2026-02-23/POC_004_CancelledProjectEscrowStranding.t.sol:POC_004_CancelledProjectEscrowStranding
+[PASS] test_originatorReportCancellationStrandsEscrow() (gas: 1160884)
+[PASS] test_removeProjectCancellationStrandsEscrow() (gas: 942711)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 29.36ms (2.22ms CPU time)
+
+Ran 12 tests for test/coverage/CoverageGaps.t.sol:QEClaimBranchTest
+[PASS] test_claimToContribute_noAdapter() (gas: 365029)
+[PASS] test_claimToContribute_noMinStake() (gas: 1098631)
+[PASS] test_expireClaim_allSubmitted() (gas: 945789)
+[PASS] test_expireClaim_noStake() (gas: 1097520)
+[PASS] test_revert_claimToContribute_exceedsMax() (gas: 56796)
+[PASS] test_revert_claimToContribute_wrongProjectStatus() (gas: 339221)
+[PASS] test_revert_claimToContribute_zeroQuantity() (gas: 56481)
+[PASS] test_revert_contribute_deadlinePassed() (gas: 733504)
+[PASS] test_revert_contribute_indexNotInClaim() (gas: 766301)
+[PASS] test_revert_contribute_indexNotReserved() (gas: 740962)
+[PASS] test_revert_expireClaim_indicesLengthMismatch() (gas: 495886)
+[PASS] test_revert_expireClaim_wrongClaimId() (gas: 776732)
+Suite result: ok. 12 passed; 0 failed; 0 skipped; finished in 31.73ms (15.42ms CPU time)
+
+Ran 1 test for test/coverage/CoverageGaps.t.sol:QEValidationAdapterFeeTest
+[PASS] test_contributionFee_zeroFeeBps() (gas: 4985281)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 6.96ms (2.05ms CPU time)
+
+Ran 9 tests for test/lifecycle/Lifecycle.t.sol:LifecycleExhaustiveWorkflowTest
+[PASS] test_batchCommitRevealMultiIndexLifecycle() (gas: 4851106)
+[PASS] test_failedRevealFlowRecoversAfterCancellingExpiredCommitment() (gas: 4324963)
+[PASS] test_forceSettlePathAfterDelay() (gas: 4246870)
+[PASS] test_fullLifecycleCompletionAndEscrowRefund() (gas: 5052218)
+[PASS] test_revert_completeProjectWithPendingContribution() (gas: 691433)
+[PASS] test_revert_refundEscrowBeforeCompletionDelay() (gas: 127240)
+[PASS] test_revert_revealAfterCommitAndRevealWindowElapsed() (gas: 2499841)
+[PASS] test_validationClaimExpiresAfterPartialCommit() (gas: 1789980)
+[PASS] test_validationClaimExpiresWithoutCommit() (gas: 1142200)
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 38.59ms (11.45ms CPU time)
+
+Ran 2 tests for test/findings/2026-02-23/POC_005_CommitHashEncodingMismatch.t.sol:POC_005_CommitHashEncodingMismatch
+[PASS] test_uint16PackedCommitHashFailsReveal() (gas: 3058548)
+[PASS] test_uint256PackedCommitHashSucceedsReveal() (gas: 3178628)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 8.64ms (4.20ms CPU time)
+
+Ran 3 tests for test/lifecycle/Lifecycle.t.sol:LifecycleFullProjectTest
+[PASS] test_feeBreakdownAccuracy() (gas: 95734)
+[PASS] test_processMultipleIndices() (gas: 6552157)
+[PASS] test_tokenConservation() (gas: 4349380)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 4.98ms (3.00ms CPU time)
+
+Ran 8 tests for test/coverage/CoverageGaps.t.sol:QEValidationBranchTest
+[PASS] test_commitValidation_zeroStake() (gas: 1528547)
+[PASS] test_revert_commitValidation_belowMinStake() (gas: 1154382)
+[PASS] test_revert_commitValidation_maxValidationsReached() (gas: 3031045)
+[PASS] test_revert_commitValidation_notSubmitted() (gas: 3449059)
+[PASS] test_revert_commitValidation_zeroHash() (gas: 1076306)
+[PASS] test_revert_revealValidation_alreadyRevealed() (gas: 2626459)
+[PASS] test_revert_revealValidation_invalidScore() (gas: 1292937)
+[PASS] test_revert_revealValidation_notCommitted() (gas: 688114)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 10.16ms (4.86ms CPU time)
+
+Ran 6 tests for test/lifecycle/Lifecycle.t.sol:LifecycleMultiActorTest
+[PASS] test_complexRejectionThenDisputeFlow() (gas: 7665064)
+[PASS] test_multipleSequentialClaims() (gas: 10912771)
+[PASS] test_partialExpiryThenNewClaim() (gas: 12809531)
+[PASS] test_revert_duplicateProject() (gas: 57123)
+[PASS] test_stakeWeightedRewardDistribution() (gas: 4203073)
+[PASS] test_validatorReputationGate() (gas: 1472787)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 52.81ms (33.73ms CPU time)
+
+Ran 10 tests for test/coverage/CoverageGaps.t.sol:QEDisputeBranchTest
+[PASS] test_escalateDispute_onAcceptedContribution() (gas: 3692039)
+[PASS] test_escalateDispute_onRejectedContribution() (gas: 3860502)
+[PASS] test_resolveDispute_rejectedRejected() (gas: 3718263)
+[PASS] test_resolveDispute_rejectedUpheld() (gas: 3780096)
+[PASS] test_revert_cancelExpiredCommitment_alreadyRevealed() (gas: 2624041)
+[PASS] test_revert_cancelExpiredCommitment_notCommitted() (gas: 688860)
+[PASS] test_revert_escalateDispute_notOpen() (gas: 51138)
+[PASS] test_revert_openDispute_consensusNotComputed() (gas: 692927)
+[PASS] test_revert_openDispute_noChallengeEndsAt() (gas: 60157)
+[PASS] test_revert_resolveDispute_notOpen() (gas: 56014)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 23.10ms (20.20ms CPU time)
+
+Ran 5 tests for test/lifecycle/Lifecycle.t.sol:LifecycleAdminTest
+[PASS] test_adminConfigChanges() (gas: 241174)
+[PASS] test_feeChangesApplyToNewProjects() (gas: 908739)
+[PASS] test_revert_feeLimits() (gas: 133683)
+[PASS] test_revert_nonAdminFeeChanges() (gas: 40717)
+[PASS] test_revert_zeroTreasury() (gas: 41481)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 2.23ms (483.71µs CPU time)
+
+Ran 15 tests for test/coverage/CoverageGaps.t.sol:QERemainingGapsTest
+[PASS] test_computeConsensus_noStakeToUnlock() (gas: 3893172)
+[PASS] test_computeConsensus_rejection_noStakeToSlash() (gas: 3911726)
+[PASS] test_computeConsensus_withRequiredSkill() (gas: 4061468)
+[PASS] test_extremeReputationDecay() (gas: 7782758)
+[PASS] test_getReputation_initialized() (gas: 4003478)
+[PASS] test_openDispute_zeroBondBps() (gas: 4295635)
+[PASS] test_reportOriginator_zeroBondBps() (gas: 1652231)
+[PASS] test_reputationDecay_duringValidation() (gas: 7848887)
+[PASS] test_reputationNoChange() (gas: 4330021)
+[PASS] test_resolveDispute_rejected_unfreezes() (gas: 4466544)
+[PASS] test_resolveDispute_upheld_accepted() (gas: 4394837)
+[PASS] test_resolveOriginatorReport_rejected() (gas: 1763848)
+[PASS] test_resolveOriginatorReport_upheld_withStake() (gas: 2192579)
+[PASS] test_settleValidator_outlier_partialSlash() (gas: 7097456)
+[PASS] test_settleValidator_outlier_zeroSlash_equalWeights() (gas: 5708166)
+Suite result: ok. 15 passed; 0 failed; 0 skipped; finished in 27.09ms (25.10ms CPU time)
+
+Ran 10 tests for test/coverage/CoverageGaps.t.sol:QEExplicitBranchTest
+[PASS] test_computeConsensus_rejection_explicitPath() (gas: 4043166)
+[PASS] test_engine_pause_blocks_operations() (gas: 1203950)
+[PASS] test_openDispute_onRejectedContribution() (gas: 4328644)
+[PASS] test_reputationDecay_inGetReputationScoreCached() (gas: 7699401)
+[PASS] test_resolveDispute_rejectedOnAccepted_explicit() (gas: 4379936)
+[PASS] test_resolveDispute_rejectedOnRejected_explicit() (gas: 4409705)
+[PASS] test_resolveOriginatorReport_rejected_explicit() (gas: 1726288)
+[PASS] test_revert_openDispute_challengeEndsAtZero() (gas: 1401638)
+[PASS] test_settleValidator_nonOutlier_explicit() (gas: 4320936)
+[PASS] test_vault_pause_unpause_explicit() (gas: 118201)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 61.39ms (34.07ms CPU time)
+
+Ran 28 tests for test/coverage/CoverageGaps.t.sol:SapienVaultCoverageTest
+[PASS] test_getStakeAccount() (gas: 23867)
+[PASS] test_maxRedeem_limitsToUnlocked() (gas: 163019)
+[PASS] test_revert_commitStake_insufficientCapacity() (gas: 45987)
+[PASS] test_revert_commitStake_zeroAmount() (gas: 42686)
+[PASS] test_revert_initializeZeroAddress() (gas: 2765224)
+[PASS] test_revert_lockContributor_insufficientBalance() (gas: 94269)
+[PASS] test_revert_lockContributor_zeroAmount() (gas: 42400)
+[PASS] test_revert_lockValidatorCapacity_insufficientBalance() (gas: 96113)
+[PASS] test_revert_lockValidatorCapacity_zeroAmount() (gas: 42950)
+[PASS] test_revert_releaseCommit_insufficientInFlight() (gas: 46026)
+[PASS] test_revert_releaseCommit_zeroAmount() (gas: 42554)
+[PASS] test_revert_slashAndUnlock_insufficientLock() (gas: 117325)
+[PASS] test_revert_slashContributor_insufficientLock() (gas: 45824)
+[PASS] test_revert_slashContributor_zeroAmount() (gas: 43409)
+[PASS] test_revert_slashValidator_insufficientInFlight() (gas: 45104)
+[PASS] test_revert_slashValidator_zeroAmount() (gas: 42265)
+[PASS] test_revert_unlockContributor_insufficientLock() (gas: 45868)
+[PASS] test_revert_unlockContributor_zeroAmount() (gas: 42752)
+[PASS] test_revert_unlockValidatorCapacity_insufficientCapacity() (gas: 46003)
+[PASS] test_revert_unlockValidatorCapacity_zeroAmount() (gas: 43629)
+[PASS] test_revert_vault_upgradeNonAdmin() (gas: 2653426)
+[PASS] test_slashAndUnlock_onlySlash() (gas: 147740)
+[PASS] test_slashAndUnlock_onlyUnlock() (gas: 126574)
+[PASS] test_totalStaked() (gas: 29319)
+[PASS] test_transferGuard_allowsUnlockedShares() (gas: 194562)
+[PASS] test_transferGuard_blocksLockedShares() (gas: 148581)
+[PASS] test_vault_authorizeUpgrade() (gas: 2661167)
+[PASS] test_vault_pauseUnpause() (gas: 116193)
+Suite result: ok. 28 passed; 0 failed; 0 skipped; finished in 15.27ms (1.41ms CPU time)
+
+Ran 7 tests for test/lifecycle/Lifecycle.t.sol:LifecycleDisputeTest
+[PASS] test_disputeEscalationAutoUpholds() (gas: 3769683)
+[PASS] test_disputeRejectedOnAcceptedContribution() (gas: 3832652)
+[PASS] test_disputeUpheldOnAcceptedContribution() (gas: 4001775)
+[PASS] test_disputeUpheldOnRejectedContribution() (gas: 3839281)
+[PASS] test_revert_contributorDisputesOwnAcceptance() (gas: 3367955)
+[PASS] test_revert_disputeAfterChallengePeriod() (gas: 4251072)
+[PASS] test_revert_duplicateDispute() (gas: 3585891)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 11.60ms (9.66ms CPU time)
+
+Ran 10 tests for test/lifecycle/Lifecycle.t.sol:LifecycleOriginatorReportTest
+[PASS] test_competingValidatorsDifferentStakes() (gas: 5333773)
+[PASS] test_completeProjectFailureAndRecovery() (gas: 7493031)
+[PASS] test_contributionExpiryDuringValidation() (gas: 5458511)
+[PASS] test_mixedContributionsPartialCompletion() (gas: 9366680)
+[PASS] test_originatorReportEscalation() (gas: 1153296)
+[PASS] test_originatorReportRejectedSlashesReporter() (gas: 1104722)
+[PASS] test_originatorReportUpheldCancelsProject() (gas: 1310648)
+[PASS] test_revert_duplicateOriginatorReport() (gas: 940189)
+[PASS] test_revert_originatorReportsSelf() (gas: 728646)
+[PASS] test_validatorSettlementTimingEdgeCases() (gas: 4253344)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 25.23ms (14.24ms CPU time)
+
+Ran 1 test for test/lifecycle/Lifecycle.t.sol:LifecycleOutlierTest
+[PASS] test_outlierDetectionAndSlashing() (gas: 6362519)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 3.79ms (1.65ms CPU time)
+
+Ran 19 tests for test/coverage/CoverageGaps.t.sol:QEReputationAdminBranchTest
+[PASS] test_getConsensusReport_empty() (gas: 33168)
+[PASS] test_getDisputeConfig() (gas: 22620)
+[PASS] test_getDispute_empty() (gas: 33364)
+[PASS] test_getOriginatorReport_empty() (gas: 29249)
+[PASS] test_getProjectEscrow() (gas: 21107)
+[PASS] test_getReputation_uninitialized() (gas: 33720)
+[PASS] test_getRevealCount() (gas: 21244)
+[PASS] test_getSubmissionNonce() (gas: 18314)
+[PASS] test_isValidatorOutlier_empty() (gas: 24767)
+[PASS] test_isValidatorSettled_empty() (gas: 21740)
+[PASS] test_reputationDailyGainCap() (gas: 18602054)
+[PASS] test_reputationDecay() (gas: 6427228)
+[PASS] test_reputationDecay_inConsensus() (gas: 3295543)
+[PASS] test_revert_setContributionFee_tooHigh() (gas: 41104)
+[PASS] test_revert_setDecayRate_tooHigh() (gas: 39890)
+[PASS] test_revert_setDisputeBondBps_tooHigh() (gas: 40906)
+[PASS] test_revert_setOriginatorReportBondBps_tooHigh() (gas: 40642)
+[PASS] test_revert_setOriginatorStakeRequirement_tooHigh() (gas: 62885)
+[PASS] test_revert_setValidationFee_tooHigh() (gas: 40906)
+Suite result: ok. 19 passed; 0 failed; 0 skipped; finished in 29.33ms (27.48ms CPU time)
+
+Ran 3 tests for test/lifecycle/QualitySeparation.t.sol:QualitySeparation
+[PASS] test_contributorRecoversReputationAfterRejections() (gas: 28103253)
+[PASS] test_goodContributorOutperformsBadContributor() (gas: 58053740)
+[PASS] test_higherQualityScoreYieldsHigherReputationBonus() (gas: 7028021)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 47.78ms (43.99ms CPU time)
+
+Ran 6 tests for test/lifecycle/Lifecycle.t.sol:LifecycleRejectionTest
+[PASS] test_claimExpirationPartialSubmission() (gas: 1548051)
+[PASS] test_claimExpirationZeroSubmissions() (gas: 881587)
+[PASS] test_mixedOutcomesSameProject() (gas: 6342900)
+[PASS] test_rejectionSlashesContributorAndReturnsIndex() (gas: 3476974)
+[PASS] test_rejectionThenResubmission() (gas: 7489565)
+[PASS] test_revert_expireClaimBeforeDeadline() (gas: 421210)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 7.15ms (5.19ms CPU time)
+
+Ran 2 tests for test/findings/2026-02-18/two/RISK_004_SybilConsensus.t.sol:RISK_004_SybilConsensus
+[PASS] test_sybilOverridesHonestConsensus() (gas: 59725)
+[PASS] test_sybilWeightAmplification() (gas: 71703)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 1.88ms (410.17µs CPU time)
+
+Ran 34 tests for test/coverage/CoverageGaps.t.sol:QEFullPathCoverageTest
+[PASS] test_cancelExpiredCommitment() (gas: 2090063)
+[PASS] test_claimReward() (gas: 5070488)
+[PASS] test_claimToContribute_fromReturnStack() (gas: 4513273)
+[PASS] test_escalateOriginatorReport() (gas: 1805934)
+[PASS] test_escalateOriginatorReport_withStake() (gas: 2145751)
+[PASS] test_event_cancelExpiredCommitment() (gas: 2093227)
+[PASS] test_event_rejectDispute() (gas: 4316979)
+[PASS] test_event_rejectOriginatorReport() (gas: 1030119)
+[PASS] test_event_upholdDispute() (gas: 4344506)
+[PASS] test_fullAcceptanceAndRelease() (gas: 4981405)
+[PASS] test_getAdapterFees() (gas: 21649)
+[PASS] test_getReputationScore_viaNonZeroMinReputation() (gas: 1990981)
+[PASS] test_reputationScoreCached_allPaths() (gas: 6738648)
+[PASS] test_reputationScoreCached_withDecay() (gas: 5867185)
+[PASS] test_revert_cancelExpiredCommitment_notExpired() (gas: 2015124)
+[PASS] test_revert_claimReward_noReward() (gas: 54235)
+[PASS] test_revert_claimToContribute_originatorReportOpen() (gas: 1020617)
+[PASS] test_revert_commitValidation_insufficientReputation() (gas: 1554403)
+[PASS] test_revert_contribute_claimCompleted() (gas: 1350606)
+[PASS] test_revert_escalateDispute_tooEarly() (gas: 4284208)
+[PASS] test_revert_escalateOriginatorReport_tooEarly() (gas: 1641493)
+[PASS] test_revert_initializeZeroAdmin_coveragePath() (gas: 4527066)
+[PASS] test_revert_initializeZeroAdmin_directProxy() (gas: 4470828)
+[PASS] test_revert_initialize_zeroTreasury() (gas: 4475872)
+[PASS] test_revert_openDispute_alreadyOpen() (gas: 4291634)
+[PASS] test_revert_openDispute_noConsensus_nonexistent() (gas: 764011)
+[PASS] test_revert_openDispute_ownContribution() (gas: 4074019)
+[PASS] test_revert_openDispute_windowClosed() (gas: 4958543)
+[PASS] test_revert_releaseContributorReward_alreadyReleased() (gas: 5012208)
+[PASS] test_revert_releaseReward_disputeUpheld() (gas: 4432913)
+[PASS] test_revert_reportOriginator_duplicate() (gas: 1648864)
+[PASS] test_revert_reportOriginator_ownProject() (gas: 1624398)
+[PASS] test_setValidationFee_success() (gas: 43183)
+[PASS] test_settleValidator_rewardCappedByEscrow() (gas: 4771924)
+Suite result: ok. 34 passed; 0 failed; 0 skipped; finished in 30.36ms (28.19ms CPU time)
+
+Ran 6 tests for test/coverage/CoverageGaps.t.sol:QEOriginatorReportBranchTest
+[PASS] test_reportOriginator_onFundedProject() (gas: 986656)
+[PASS] test_resolveOriginatorReport_upheld_noOriginatorStake() (gas: 1779250)
+[PASS] test_revert_escalateOriginatorReport_notOpen() (gas: 44916)
+[PASS] test_revert_reportOriginator_nonExistentProject() (gas: 52153)
+[PASS] test_revert_reportOriginator_wrongStatus() (gas: 4174155)
+[PASS] test_revert_resolveOriginatorReport_notOpen() (gas: 50354)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 4.44ms (1.73ms CPU time)
+
+Ran 8 tests for test/coverage/CoverageGaps.t.sol:QESettleBranchTest
+[PASS] test_releaseContributorReward_noAdapter() (gas: 4807691)
+[PASS] test_revert_releaseContributorReward_disputeOpen() (gas: 3586432)
+[PASS] test_revert_releaseContributorReward_notAccepted() (gas: 686240)
+[PASS] test_revert_settleValidator_consensusNotReady() (gas: 721284)
+[PASS] test_revert_settleValidator_notParticipated() (gas: 3352972)
+[PASS] test_settleValidator_accurate_zeroCommit() (gas: 2697985)
+[PASS] test_settleValidator_outlier_slashExceedsStake() (gas: 5728616)
+[PASS] test_settleValidator_outlier_zeroSlash_nonzeroCommit() (gas: 4822154)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 19.30ms (11.79ms CPU time)
+
+Ran 17 tests for test/coverage/CoverageGaps.t.sol:QEUncoveredFunctionsTest
+[PASS] test_completeProject_active() (gas: 3425772)
+[PASS] test_completeProject_funded() (gas: 127105)
+[PASS] test_completeProject_withOriginatorStake() (gas: 4330326)
+[PASS] test_engine_authorizeUpgrade() (gas: 4366999)
+[PASS] test_engine_pauseUnpause() (gas: 126238)
+[PASS] test_reduceValidatorCapacity() (gas: 177132)
+[PASS] test_refundEscrow() (gas: 191788)
+[PASS] test_revert_completeProject_notOriginator() (gas: 54001)
+[PASS] test_revert_completeProject_wrongStatus() (gas: 126445)
+[PASS] test_revert_engine_upgradeNonAdmin() (gas: 4359597)
+[PASS] test_revert_refundEscrow_notCompleted() (gas: 55114)
+[PASS] test_revert_refundEscrow_notOriginator() (gas: 124978)
+[PASS] test_revert_refundEscrow_tooEarly() (gas: 126912)
+[PASS] test_revert_refundEscrow_zeroRemaining() (gas: 748928)
+[PASS] test_revert_setMinValidationStake_tooHigh() (gas: 62110)
+[PASS] test_setMinValidationStake() (gas: 62634)
+[PASS] test_viewFunctions() (gas: 695704)
+Suite result: ok. 17 passed; 0 failed; 0 skipped; finished in 6.19ms (3.82ms CPU time)
+
+Ran 16 tests for test/lifecycle/Lifecycle.t.sol:LifecycleEdgeCaseTest
+[PASS] test_ghostValidatorSlash() (gas: 1424413)
+[PASS] test_revert_cancelCommitmentBeforeDeadline() (gas: 1305513)
+[PASS] test_revert_claimExceedsAvailableSlots() (gas: 228658)
+[PASS] test_revert_claimZeroReward() (gas: 54914)
+[PASS] test_revert_consensusInsufficientReveals() (gas: 2759871)
+[PASS] test_revert_contributeWrongClaim() (gas: 756110)
+[PASS] test_revert_doubleCommit() (gas: 1310612)
+[PASS] test_revert_doubleConsensus() (gas: 3316472)
+[PASS] test_revert_doubleRewardRelease() (gas: 4304744)
+[PASS] test_revert_doubleSettle() (gas: 3644257)
+[PASS] test_revert_fundProjectNotOriginator() (gas: 383531)
+[PASS] test_revert_invalidRevealHash() (gas: 2470483)
+[PASS] test_revert_operationsWhenPaused() (gas: 370855)
+[PASS] test_revert_originatorContributes() (gas: 279877)
+[PASS] test_revert_releaseBeforeChallengePeriod() (gas: 3315480)
+[PASS] test_revert_selfValidation() (gas: 824530)
+Suite result: ok. 16 passed; 0 failed; 0 skipped; finished in 45.77ms (33.33ms CPU time)
+
+Ran 1 test for test/findings/2026-02-23/POC_001_ValidationClaimExpirySlotLock.t.sol:POC_001_ValidationClaimExpirySlotLock
+[PASS] test_expiredValidationClaimsPermanentlyBlockNewValidators() (gas: 2861588)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.22ms (690.33µs CPU time)
+
+Ran 10 tests for test/lifecycle/Lifecycle.t.sol:LifecycleReputationAndFeesTest
+[PASS] test_contributionAdapterFeeOnRelease() (gas: 4294690)
+[PASS] test_contributorReputationDecreasesOnRejection() (gas: 3334814)
+[PASS] test_contributorReputationIncreasesOnAcceptance() (gas: 3319000)
+[PASS] test_escrowAccountingPerIndex() (gas: 4450480)
+[PASS] test_originationAdapterFeeCredited() (gas: 21429)
+[PASS] test_originatorReputationIncreases() (gas: 32280)
+[PASS] test_protocolFeeSentToTreasury() (gas: 12926)
+[PASS] test_rewardRateSnapshot() (gas: 715613)
+[PASS] test_validatorReputationIncreasesOnAccurateSettle() (gas: 3622840)
+[PASS] test_validatorRewardsBounded() (gas: 4293592)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 33.26ms (34.38ms CPU time)
+
+Ran 3 tests for test/lifecycle/Lifecycle.t.sol:LifecycleHappyPathTest
+[PASS] test_fullHappyPathLifecycle() (gas: 4890382)
+[PASS] test_multiContributionSingleClaim() (gas: 8500987)
+[PASS] test_twoContributorsDifferentIndices() (gas: 6831752)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 7.69ms (5.69ms CPU time)
+
+Ran 2 tests for test/findings/2026-02-18/two/RISK_005_EscrowUnderflow.t.sol:RISK_005_EscrowUnderflow
+[PASS] test_disputeHasCheckButSettlementDoesNot() (gas: 4976992)
+[PASS] test_settlementDeductsWithoutSufficiencyCheck() (gas: 4208906)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 36.41ms (34.95ms CPU time)
+
+Ran 1 test for test/findings/2026-02-23/POC_003_UpheldDisputeDeadlock.t.sol:POC_003_UpheldDisputeDeadlock
+[PASS] test_upheldDisputeOnAcceptedContributionBlocksProjectCompletion() (gas: 4996649)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 4.85ms (1.22ms CPU time)
+
+Ran 1 test for test/findings/2026-02-23/POC_002_LateCommitAfterValidationClaimExpiry.t.sol:POC_002_LateCommitAfterValidationClaimExpiry
+[PASS] test_validatorCanCommitAfterValidationClaimIsExpired() (gas: 3051919)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 13.09ms (720.33µs CPU time)
+
+Ran 2 tests for test/findings/2026-02-18/two/RISK_009_GhostCommitments.t.sol:RISK_009_GhostCommitments
+[PASS] test_ghostCanRevealLateWithinWindow() (gas: 3509435)
+[PASS] test_ghostValidatorFreeOption() (gas: 3641973)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 3.15ms (1.63ms CPU time)
+
+Ran 2 tests for test/findings/2026-02-18/two/RISK_010_FlashLoanConsensus.t.sol:RISK_010_FlashLoanConsensus
+[PASS] test_sameBlockDepositAndValidation() (gas: 3642976)
+[PASS] test_sameBlockInfluencesConsensusOutcome() (gas: 3649388)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 3.43ms (1.91ms CPU time)
+
+Ran 3 tests for test/findings/2026-02-18/two/NEW_001_ClaimExpiryStakeUnlock.t.sol:NEW_001_ClaimExpiryStakeUnlock
+[PASS] test_consensusRevertsAfterPrematureUnlock() (gas: 4139564)
+[PASS] test_expiryUnlocksInPipelineStake() (gas: 1852512)
+[PASS] test_validatorStakePermanentlyLocked() (gas: 4187021)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 4.97ms (3.12ms CPU time)
+
+Ran 5 tests for test/lifecycle/Lifecycle.t.sol:LifecycleKnownIssuesTest
+[PASS] test_issue_cancelledProjectEscrowStranding() (gas: 787852)
+[PASS] test_issue_lateCommitAllowedAfterValidationClaimExpiry() (gas: 2416196)
+[PASS] test_issue_uint256CommitHashEncodingMismatch() (gas: 2592325)
+[PASS] test_issue_upheldDisputeCanDeadlockProjectCompletion() (gas: 4476481)
+[PASS] test_issue_validationClaimExpiryLocksValidatorSlots() (gas: 2127640)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 10.31ms (4.63ms CPU time)
+
+Ran 4 tests for test/findings/2026-02-18/two/RISK_013_NoTimelockUpgrade.t.sol:RISK_013_NoTimelockUpgrade
+[PASS] test_instantCoreUpgrade() (gas: 4367407)
+[PASS] test_instantVaultUpgrade() (gas: 2660812)
+[PASS] test_nonAdminCannotUpgrade() (gas: 4359205)
+[PASS] test_upgradePreservesStateAcrossInstantUpgrade() (gas: 5102316)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 16.02ms (776.38µs CPU time)
+
+Ran 2 tests for test/findings/2026-02-18/two/RISK_015_DisputeGriefing.t.sol:RISK_015_DisputeGriefing
+[PASS] test_griefingDelaysRewardClaim() (gas: 4166264)
+[PASS] test_oneWeiBondForTinyContributions() (gas: 3854656)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 3.54ms (1.99ms CPU time)
+
+Ran 4 tests for test/audit/ReproduceIssues.t.sol:ReproduceIssuesTest
+[PASS] test_RISK003_settlementSucceedsOnRejection() (gas: 4500237)
+[PASS] test_RISK005_escrowInsufficientForAllValidators() (gas: 5777085)
+[PASS] test_RISK006_validatorLockedOutAfterResubmission() (gas: 6881812)
+[PASS] test_RISK007_zeroStakeGetsWeight() (gas: 2592934)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 6.33ms (4.73ms CPU time)
+
+Ran 3 tests for test/lifecycle/ReputationDynamics.t.sol:ReputationDynamics
+[PASS] test_inactivityDecayReducesReputation() (gas: 7613127)
+[PASS] test_reputationDivergesForAccurateVsOutlierValidators() (gas: 56661730)
+[PASS] test_reputationGateBlocksDegradedValidators() (gas: 17572911)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 94.13ms (92.04ms CPU time)
+
+Ran 1 test for test/lifecycle/LifecycleSimulation.t.sol:LifecycleSimulation
+[PASS] test_lifecycleSimulation_10Projects() (gas: 193996991)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 357.10ms (350.44ms CPU time)
+
+Ran 8 tests for test/coverage/CoverageGaps.t.sol:ConsensusLibCoverageTest
+[PASS] test_allAgree_noOutliers() (gas: 39476)
+[PASS] test_revert_emptyInput() (gas: 16802)
+[PASS] test_singleInput_noOutlier() (gas: 26590)
+[PASS] test_tier1Slash() (gas: 45154)
+[PASS] test_tier2Slash() (gas: 51257)
+[PASS] test_tier3Slash() (gas: 80435)
+[PASS] test_tier4Slash() (gas: 80639)
+[PASS] test_zeroWeight_fallbackToOne() (gas: 30788)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 1.36ms (996.83µs CPU time)
+
+Ran 4 tests for test/coverage/CoverageGaps.t.sol:DirectInitCoverageTest
+[PASS] test_QE_constructorDisablesInitializers() (gas: 4348038)
+[PASS] test_QE_fullInitialize() (gas: 4951575)
+[PASS] test_SV_constructorDisablesInitializers() (gas: 2642476)
+[PASS] test_SV_fullInitialize() (gas: 2910400)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 6.27ms (1.37ms CPU time)
+
+Ran 5 tests for test/findings/2026-02-23/fixes/FIX_2026_02_23_ExpectedBehavior.t.sol:FIX_2026_02_23_ExpectedBehavior
+[PASS] testFIX_cancelledFundedProjectCanRefundEscrow() (gas: 942187)
+[PASS] testFIX_cannotCommitAfterValidationClaimExpiry() (gas: 3002636)
+[PASS] testFIX_expiredValidationClaimsReleaseSlots() (gas: 2762311)
+[PASS] testFIX_uint256PackedCommitHashRevealsSuccessfully() (gas: 3164622)
+[PASS] testFIX_upheldDisputeOnAcceptedContributionDoesNotDeadlockCompletion() (gas: 5004151)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 5.20ms (3.57ms CPU time)
+
+Ran 15 tests for test/libraries/ConsensusLibFuzz.t.sol:ConsensusLibFuzz
+[PASS] testFuzz_calculate_accurateWeightTracking(uint8,uint8) (runs: 256, μ: 75312, ~: 67585)
+[PASS] testFuzz_calculate_allOutliersExceptOne(uint8,uint256) (runs: 256, μ: 59837, ~: 50903)
+[PASS] testFuzz_calculate_consistentWeightOrdering(uint256,uint256,uint256,uint256) (runs: 256, μ: 36492, ~: 36554)
+[PASS] testFuzz_calculate_deterministicResults(address[3],uint256[3],uint256[3],uint256[3]) (runs: 256, μ: 93268, ~: 93495)
+[PASS] testFuzz_calculate_extremeReputationValues(uint256) (runs: 256, μ: 25699, ~: 25858)
+[PASS] testFuzz_calculate_extremeScoreDifference(uint256,uint256,uint256,uint256) (runs: 256, μ: 38180, ~: 38196)
+[PASS] testFuzz_calculate_manyValidatorsNoOverflow(uint8,uint256) (runs: 256, μ: 98959, ~: 69880)
+[PASS] testFuzz_calculate_maxStakeNoOverflow(uint256) (runs: 256, μ: 24397, ~: 24537)
+[PASS] testFuzz_calculate_outlierDetection(uint256,uint256,uint256) (runs: 256, μ: 43151, ~: 44458)
+[PASS] testFuzz_calculate_singleValidator(address,uint256,uint256,uint256) (runs: 256, μ: 31399, ~: 31258)
+[PASS] testFuzz_calculate_tieredSlashing(uint256,uint256) (runs: 256, μ: 70135, ~: 70152)
+[PASS] testFuzz_calculate_twoValidatorsSameScore(address,address,uint256,uint256,uint256,uint256,uint256) (runs: 256, μ: 45024, ~: 45082)
+[PASS] testFuzz_calculate_zeroReputationUsesFloor(uint256,uint256) (runs: 256, μ: 24605, ~: 24556)
+[PASS] testFuzz_calculate_zeroStakeHandled(uint256,uint256) (runs: 256, μ: 23674, ~: 23608)
+[PASS] test_calculate_revertsOnEmptyInputs() (gas: 11096)
+Suite result: ok. 15 passed; 0 failed; 0 skipped; finished in 806.57ms (1.31s CPU time)
+
+Ran 1 test for test/findings/2026-02-18/one/SEC_L_02_RedundantZeroCheck.t.sol:SEC_L_02_RedundantZeroCheck
+[PASS] test_zeroStakeRevertsBeforeRedundantGuard() (gas: 1683596)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 1.98ms (368.75µs CPU time)
+
+Ran 3 tests for test/findings/2026-02-18/one/SEC_L_03_NoEvidenceValidation.t.sol:SEC_L_03_NoEvidenceValidation
+[PASS] test_nonZeroEvidenceHashAccepted() (gas: 4128939)
+[PASS] test_openDisputeRejectsZeroEvidenceHash() (gas: 3921755)
+[PASS] test_reportOriginatorRejectsZeroEvidenceHash() (gas: 1319224)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 6.02ms (4.14ms CPU time)
+
+Ran 25 tests for test/libraries/FinalizationLibFuzz.t.sol:FinalizationLibFuzz
+[PASS] testFuzz_cancelExpiredCommitment_afterRevealDeadline() (gas: 2178373)
+[PASS] testFuzz_cancelExpiredCommitment_revertsBeforeDeadline() (gas: 2074628)
+[PASS] testFuzz_claimReward_respectsCooldown(uint256) (runs: 256, μ: 4024601, ~: 4024606)
+[PASS] testFuzz_claimReward_revertsBelowMinimum(uint256) (runs: 256, μ: 236119, ~: 241456)
+[PASS] testFuzz_claimReward_revertsNoPending() (gas: 53862)
+[PASS] testFuzz_claimReward_validClaim() (gas: 201091)
+[PASS] testFuzz_completeProject_revertsNotOriginator(address) (runs: 256, μ: 159027, ~: 159027)
+[PASS] testFuzz_completeProject_revertsPendingContributions() (gas: 56856)
+[PASS] testFuzz_completeProject_validCompletion() (gas: 227478)
+[PASS] testFuzz_forceSettleValidator_afterDelay() (gas: 326894)
+[PASS] testFuzz_forceSettleValidator_revertsTooEarly() (gas: 75215)
+[PASS] testFuzz_multipleValidatorsSettle_correctRewardDistribution() (gas: 956135)
+[PASS] testFuzz_refundEscrow_afterCompletionDelay() (gas: 276433)
+[PASS] testFuzz_refundEscrow_revertsBeforeDelay() (gas: 228317)
+[PASS] testFuzz_refundEscrow_revertsNotCompleted() (gas: 53485)
+[PASS] testFuzz_refundEscrow_revertsNotOriginator(address) (runs: 256, μ: 230076, ~: 230076)
+[PASS] testFuzz_releaseContributorReward_afterChallengePeriod() (gas: 145319)
+[PASS] testFuzz_releaseContributorReward_revertsBeforeChallengePeriod() (gas: 56641)
+[PASS] testFuzz_releaseContributorReward_revertsDoubleRelease() (gas: 158106)
+[PASS] testFuzz_releaseContributorReward_revertsNotAccepted(uint256) (runs: 256, μ: 70742, ~: 70770)
+[PASS] testFuzz_settleValidator_afterChallengePeriod() (gas: 340021)
+[PASS] testFuzz_settleValidator_revertsBeforeChallengePeriod() (gas: 119085)
+[PASS] testFuzz_settleValidator_revertsDoubleSettle() (gas: 352310)
+[PASS] testFuzz_settleValidator_revertsNoConsensus(uint256) (runs: 256, μ: 72552, ~: 72580)
+[PASS] testFuzz_settleValidator_revertsNotCommitted(address) (runs: 256, μ: 82481, ~: 82481)
+Suite result: ok. 25 passed; 0 failed; 0 skipped; finished in 825.25ms (972.68ms CPU time)
+
+Ran 5 tests for test/findings/2026-02-18/one/SEC_M_01_VaultPauseBypass.t.sol:SEC_M_01_VaultPauseBypass
+[PASS] test_depositBlockedWhilePaused() (gas: 128186)
+[PASS] test_depositWorksAfterUnpause() (gas: 181868)
+[PASS] test_mintBlockedWhilePaused() (gas: 114594)
+[PASS] test_redeemBlockedWhilePaused() (gas: 77264)
+[PASS] test_withdrawBlockedWhilePaused() (gas: 77132)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 10.46ms (331.42µs CPU time)
+
+Ran 2 tests for test/findings/2026-02-18/one/SEC_M_02_MissingEvents.t.sol:SEC_M_02_MissingEvents
+[PASS] test_otherAdminSettersStillEmitEvents() (gas: 49543)
+[PASS] test_setTreasuryEmitsEvent() (gas: 64708)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 1.66ms (156.33µs CPU time)
+
+Ran 1 test for test/findings/2026-02-18/one/SEC_M_03_CancelledProjectContribution.t.sol:SEC_M_03_CancelledProjectContribution
+[PASS] test_contributeRevertsOnCancelledProject() (gas: 1768290)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 1.89ms (366.17µs CPU time)
+
+Ran 3 tests for test/findings/2026-02-18/one/SEC_M_04_NoRevealDeadline.t.sol:SEC_M_04_NoRevealDeadline
+[PASS] test_lateRevealCannotFrontRunCancelExpiredCommitment() (gas: 3500506)
+[PASS] test_lateRevealRejected() (gas: 3354515)
+[PASS] test_revealWithinWindowSucceeds() (gas: 3440889)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 12.55ms (4.22ms CPU time)
+
+Ran 2 tests for test/findings/2026-02-18/one/SEC_M_06_WrongHashLength.t.sol:SEC_M_06_WrongHashLength
+[PASS] test_correctHashDerivationMatches() (gas: 3674)
+[PASS] test_verifyStorageLocationSucceeds() (gas: 14257)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 1.61ms (52.21µs CPU time)
+
+Ran 9 tests for test/SapienCore.t.sol:SapienCoreAdminTest
+[PASS] test_pause_unpause() (gas: 127432)
+[PASS] test_setAdapterFees_revertsTooHigh() (gas: 41012)
+[PASS] test_setDecayRate() (gas: 44952)
+[PASS] test_setOriginationFee() (gas: 62147)
+[PASS] test_setProtocolFee() (gas: 45837)
+[PASS] test_setProtocolFee_revertsTooHigh() (gas: 41012)
+[PASS] test_setTreasury() (gas: 60768)
+[PASS] test_setTreasury_revertsZeroAddress() (gas: 41789)
+[PASS] test_verifyStorageLocation() (gas: 14411)
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 2.06ms (396.71µs CPU time)
+
+Ran 8 tests for test/SapienCore.t.sol:SapienCoreClaimTest
+[PASS] test_claimToContribute() (gas: 1228090)
+[PASS] test_claimToContribute_revertsNoSlots() (gas: 729907)
+[PASS] test_claimToContribute_revertsOriginatorCantContribute() (gas: 725289)
+[PASS] test_contribute() (gas: 1382770)
+[PASS] test_contribute_completeClaim() (gas: 1562019)
+[PASS] test_contribute_revertsNotOwner() (gas: 1051791)
+[PASS] test_expireClaim() (gas: 1698150)
+[PASS] test_expireClaim_revertsNotExpired() (gas: 1056024)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 9.46ms (7.80ms CPU time)
+
+Ran 6 tests for test/SapienCore.t.sol:SapienCoreConsensusTest
+[PASS] test_computeConsensus_accepted() (gas: 3953785)
+[PASS] test_computeConsensus_rejected() (gas: 4012616)
+[PASS] test_computeConsensus_revertsAlreadyComputed() (gas: 3945881)
+[PASS] test_computeConsensus_revertsInsufficientReveals() (gas: 2511782)
+[PASS] test_settleValidator_accurate() (gas: 4272353)
+[PASS] test_settleValidator_revertsAlreadySettled() (gas: 4272208)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 7.03ms (5.45ms CPU time)
+
+Ran 6 tests for test/SapienCore.t.sol:SapienCoreProjectTest
+[PASS] test_createProject() (gas: 391419)
+[PASS] test_createProject_revertsDuplicate() (gas: 381633)
+[PASS] test_fundProject() (gas: 741920)
+[PASS] test_fundProject_adapterFee() (gas: 690741)
+[PASS] test_fundProject_protocolFee() (gas: 687030)
+[PASS] test_fundProject_revertsNotOriginator() (gas: 384580)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 7.95ms (1.87ms CPU time)
+
+Ran 2 tests for test/SapienCore.t.sol:SapienCoreReputationTest
+[PASS] test_defaultReputation() (gas: 30968)
+[PASS] test_reputationIncreasesOnProjectCreate() (gas: 363395)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 1.70ms (111.58µs CPU time)
+
+Ran 5 tests for test/SapienCore.t.sol:SapienCoreRewardTest
+[PASS] test_adapterClaimReward() (gas: 784929)
+[PASS] test_claimReward() (gas: 4963422)
+[PASS] test_claimReward_revertsNoReward() (gas: 54089)
+[PASS] test_releaseContributorReward() (gas: 4012368)
+[PASS] test_releaseContributorReward_revertsChallengeNotElapsed() (gas: 3945312)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 5.36ms (3.66ms CPU time)
+
+Ran 4 tests for test/SapienCore.t.sol:SapienCoreValidationTest
+[PASS] test_commitAndReveal() (gas: 3178713)
+[PASS] test_commitValidation_revertsAlreadyCommitted() (gas: 1920599)
+[PASS] test_commitValidation_revertsOwnContribution() (gas: 1418303)
+[PASS] test_revealValidation_revertsInvalidHash() (gas: 3076705)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 8.48ms (6.92ms CPU time)
+
+Ran 16 tests for test/SapienVault.t.sol:SapienVaultTest
+[PASS] test_adminCanPause() (gas: 117997)
+[PASS] test_cannotWithdrawLockedFunds() (gas: 274083)
+[PASS] test_commitStake() (gas: 300988)
+[PASS] test_decimalsOffset() (gas: 16324)
+[PASS] test_deposit() (gas: 185069)
+[PASS] test_lockContributor() (gas: 268942)
+[PASS] test_lockContributor_revertsInsufficientBalance() (gas: 201362)
+[PASS] test_lockValidatorCapacity() (gas: 240694)
+[PASS] test_nonAdminCannotPause() (gas: 40269)
+[PASS] test_onlyEngineCanLock() (gas: 180432)
+[PASS] test_releaseCommit() (gas: 333392)
+[PASS] test_slashContributor() (gas: 328004)
+[PASS] test_slashValidator() (gas: 389276)
+[PASS] test_unlockContributor() (gas: 275824)
+[PASS] test_unlockValidatorCapacity() (gas: 279138)
+[PASS] test_withdraw() (gas: 221376)
+Suite result: ok. 16 passed; 0 failed; 0 skipped; finished in 2.17ms (1.29ms CPU time)
+
+Ran 10 tests for test/lifecycle/SkillReputation.t.sol:SkillReputation
+[PASS] test_builtSkillRepShiftsConsensusInNextRound() (gas: 41367082)
+[PASS] test_contributorRejectionPenaltyIsSkillSpecific() (gas: 4091764)
+[PASS] test_crossSkillRepDoesNotInfluenceConsensus() (gas: 23502268)
+[PASS] test_crossSkillReputationIsolation() (gas: 4476553)
+[PASS] test_defaultRepAllowsNewSkillParticipation() (gas: 1704070)
+[PASS] test_highSkillRepDominatesConsensus() (gas: 49108786)
+[PASS] test_multiSkillDivergentReputation() (gas: 30000414)
+[PASS] test_reputationAccruesUnderProjectSkill() (gas: 4456910)
+[PASS] test_skillRepGateBlocksDegradedValidator() (gas: 18796110)
+[PASS] test_skillReputationInfluencesConsensusWeight() (gas: 19654166)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 121.35ms (114.67ms CPU time)
+
+Ran 6 tests for test/lifecycle/ThresholdEdgeCases.t.sol:ThresholdEdgeCases
+[PASS] test_exactThresholdScoreAccepts() (gas: 3307712)
+[PASS] test_justAboveThresholdAccepts() (gas: 3280789)
+[PASS] test_justBelowThresholdRejects() (gas: 3347228)
+[PASS] test_mixedScoresAveragingToThreshold() (gas: 3389900)
+[PASS] test_stakeWeightShiftsConsensusOutcome() (gas: 3599360)
+[PASS] test_unanimousMaxScoreAccepts() (gas: 3336563)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 7.18ms (5.18ms CPU time)
+
+Ran 34 tests for test/upgrade/Upgrade.t.sol:UpgradeTest
+[PASS] test_core_adminCanUpgrade() (gas: 4432550)
+[PASS] test_core_implementationChangesAfterUpgrade() (gas: 4430300)
+[PASS] test_core_multipleSequentialUpgrades() (gas: 9503188)
+[PASS] test_core_nonAdminCannotUpgrade() (gas: 4423488)
+[PASS] test_core_reinitializeBlockedAfterUpgrade() (gas: 4467539)
+[PASS] test_core_reinitializerBlockedOnDirectImpl() (gas: 4409339)
+[PASS] test_core_reinitializerIdempotentAfterRun() (gas: 4494695)
+[PASS] test_core_reinitializerRunsAfterUpgrade() (gas: 4464244)
+[PASS] test_core_upgradeEmitsUpgradedEvent() (gas: 4433073)
+[PASS] test_core_upgradeExposesNewFunction() (gas: 4440846)
+[PASS] test_core_upgradePreservesClaimData() (gas: 5753755)
+[PASS] test_core_upgradePreservesProjectState() (gas: 5226547)
+[PASS] test_core_upgradePreservesProtocolConfig() (gas: 4592570)
+[PASS] test_core_upgradePreservesRoles() (gas: 4479953)
+[PASS] test_core_upgradePreservesVaultReference() (gas: 4458223)
+[PASS] test_core_upgradeWithMigrationCalldata() (gas: 4468514)
+[PASS] test_vault_adminCanUpgrade() (gas: 2717435)
+[PASS] test_vault_depositsWorkAfterUpgrade() (gas: 2922596)
+[PASS] test_vault_implementationChangesAfterUpgrade() (gas: 2716587)
+[PASS] test_vault_multipleSequentialUpgrades() (gas: 5415895)
+[PASS] test_vault_nonAdminCannotUpgrade() (gas: 2708413)
+[PASS] test_vault_reinitializeBlockedAfterUpgrade() (gas: 2749342)
+[PASS] test_vault_reinitializerBlockedOnDirectImpl() (gas: 2695509)
+[PASS] test_vault_reinitializerIdempotentAfterRun() (gas: 2779810)
+[PASS] test_vault_reinitializerRunsAfterUpgrade() (gas: 2749460)
+[PASS] test_vault_upgradeEmitsUpgradedEvent() (gas: 2717515)
+[PASS] test_vault_upgradeExposesNewFunction() (gas: 2727162)
+[PASS] test_vault_upgradePreservesAssetAddress() (gas: 2740053)
+[PASS] test_vault_upgradePreservesAvailableBalance() (gas: 2780236)
+[PASS] test_vault_upgradePreservesERC4626State() (gas: 2774701)
+[PASS] test_vault_upgradePreservesRoles() (gas: 2803238)
+[PASS] test_vault_upgradePreservesShareBalances() (gas: 2745938)
+[PASS] test_vault_upgradePreservesStakeAccount() (gas: 4051276)
+[PASS] test_vault_upgradeWithMigrationCalldata() (gas: 2754514)
+Suite result: ok. 34 passed; 0 failed; 0 skipped; finished in 9.13ms (7.34ms CPU time)
+
+Ran 4 tests for test/lifecycle/ValidatorAlignment.t.sol:ValidatorAlignment
+[PASS] test_dishonestValidatorEarnsNothingOverTime() (gas: 29059580)
+[PASS] test_highStakeHonestValidatorResistsSybilAttack() (gas: 5456687)
+[PASS] test_outlierValidatorDetectedAndSlashed() (gas: 7143554)
+[PASS] test_splitOpinionResolvesAtThreshold() (gas: 4073223)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 16.19ms (13.92ms CPU time)
+
+Ran 4 tests for test/audit/VerifyFixes.t.sol:VerifyFixesTest
+[PASS] test_RISK003_settlementSucceedsOnRejection() (gas: 4500237)
+[PASS] test_RISK005_escrowInsufficientForAllValidators() (gas: 5777085)
+[PASS] test_RISK006_validatorLockedOutAfterResubmission() (gas: 6881812)
+[PASS] test_RISK007_zeroStakeGetsWeight() (gas: 2592934)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 6.34ms (4.75ms CPU time)
+
+Ran 20 tests for test/libraries/ContributionLibFuzz.t.sol:ContributionLibFuzz
+[PASS] testFuzz_batchContribute_revertsEmptyBatch() (gas: 388456)
+[PASS] testFuzz_batchContribute_revertsMismatchedArrays() (gas: 532254)
+[PASS] testFuzz_batchContribute_validBatch(uint8) (runs: 256, μ: 1916673, ~: 1648084)
+[PASS] testFuzz_claimToContribute_revertsExceedsMaxQuantity(uint256) (runs: 256, μ: 55734, ~: 55596)
+[PASS] testFuzz_claimToContribute_revertsNoSlots(uint8) (runs: 256, μ: 927751, ~: 927923)
+[PASS] testFuzz_claimToContribute_revertsNonExistentProject(bytes32) (runs: 256, μ: 54846, ~: 54939)
+[PASS] testFuzz_claimToContribute_revertsOriginatorContributing() (gas: 56848)
+[PASS] testFuzz_claimToContribute_revertsZeroQuantity() (gas: 52157)
+[PASS] testFuzz_claimToContribute_validQuantity(uint8) (runs: 256, μ: 882656, ~: 802008)
+[PASS] testFuzz_contribute_revertsAfterDeadline(uint256) (runs: 256, μ: 409364, ~: 409388)
+[PASS] testFuzz_contribute_revertsDoubleSubmission() (gas: 715934)
+[PASS] testFuzz_contribute_revertsIndexNotInClaim(uint256) (runs: 256, μ: 895929, ~: 895929)
+[PASS] testFuzz_contribute_revertsNotClaimOwner(address) (runs: 256, μ: 393156, ~: 393156)
+[PASS] testFuzz_contribute_validSubmission(bytes32,string) (runs: 256, μ: 650447, ~: 650372)
+[PASS] testFuzz_expireClaim_revertsAlreadyCompleted() (gas: 675187)
+[PASS] testFuzz_expireClaim_revertsBeforeDeadline() (gas: 395111)
+[PASS] testFuzz_expireClaim_revertsWrongIndices() (gas: 417526)
+[PASS] testFuzz_expireClaim_slashesUnsubmitted(uint8,uint8) (runs: 256, μ: 1518390, ~: 1471246)
+[PASS] testFuzz_multipleClaims_independentSlots(uint8) (runs: 256, μ: 2547492, ~: 2502110)
+[PASS] testFuzz_slotRecycling_afterExpiry(uint8) (runs: 256, μ: 805727, ~: 756971)
+Suite result: ok. 20 passed; 0 failed; 0 skipped; finished in 1.22s (2.20s CPU time)
+
+Ran 4 tests for test/findings/2026-02-18/one/SEC_C_02_ReentrancyGuardStorage.t.sol:SEC_C_02_ReentrancyGuardStorage
+[PASS] test_implementationHasUninitializedStatus() (gas: 4322163)
+[PASS] test_initializerProperlyInitializesReentrancyGuard() (gas: 6532)
+[PASS] test_proxyReentrancyStatusProperlyInitialized() (gas: 6680)
+[PASS] test_proxyStatusRemainsNotEnteredAfterGuardedCall() (gas: 678657)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 1.94ms (390.92µs CPU time)
+
+Ran 4 tests for test/findings/2026-02-18/one/SEC_H_01_PrematureCompletion.t.sol:SEC_H_01_PrematureCompletion
+[PASS] test_canCompleteAfterAllContributionsFinalized() (gas: 4091625)
+[PASS] test_cannotCompleteWithInFlightContributions() (gas: 1323953)
+[PASS] test_escrowSafeAfterProperCompletion() (gas: 4952948)
+[PASS] test_rejectedContributionsDecrementPipeline() (gas: 4033891)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 4.93ms (3.40ms CPU time)
+
+Ran 4 tests for test/findings/2026-02-18/one/SEC_H_02_NoForceSettle.t.sol:SEC_H_02_NoForceSettle
+[PASS] test_forceSettleAfterDelay() (gas: 4210775)
+[PASS] test_forceSettleTooEarlyReverts() (gas: 3926618)
+[PASS] test_outlierForceSettled() (gas: 4191063)
+[PASS] test_selfSettleStillWorks() (gas: 4188452)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 5.68ms (4.14ms CPU time)
+
+Ran 3 tests for test/findings/2026-02-18/one/SEC_H_03_DisputeGriefLoop.t.sol:SEC_H_03_DisputeGriefLoop
+[PASS] test_cannotReopenDisputeAfterRejection() (gas: 4300089)
+[PASS] test_cannotReopenDisputeAfterUphold() (gas: 4295707)
+[PASS] test_rewardBlockedDuringGriefLoop() (gas: 4360532)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 22.00ms (5.37ms CPU time)
+
+Ran 2 tests for test/findings/2026-02-18/one/SEC_H_04_ExcessiveDisputePayout.t.sol:SEC_H_04_ExcessiveDisputePayout
+[PASS] test_multipleOverturnsDoNotDrainEscrow() (gas: 12503869)
+[PASS] test_overturnedRejectionCappedToRewardRate() (gas: 4328383)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 14.57ms (12.83ms CPU time)
+
+Ran 3 tests for test/findings/2026-02-18/one/SEC_L_01_OriginatorIgnored.t.sol:SEC_L_01_OriginatorIgnored
+[PASS] test_matchingOriginatorAllowed() (gas: 387211)
+[PASS] test_mismatchedOriginatorReverts() (gas: 56219)
+[PASS] test_zeroOriginatorStillAllowed() (gas: 386398)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 13.31ms (343.46µs CPU time)
+
+Ran 9 tests for test/findings/2026-02-24/SECURITY_FINDINGS_VERIFICATION.t.sol:SecurityFindings_2026_02_24
+[PASS] test_SEC_C_01_settleValidatorDuringChallengePeriod() (gas: 4487806)
+[PASS] test_SEC_H_01_escrowInsolvencyViaDisputeRejectionRecycle() (gas: 7933157)
+[PASS] test_SEC_H_02_claimExpiryBlockedByRejectedRecycle() (gas: 4342463)
+[PASS] test_SEC_H_03_immediateEscrowDrainAfterCancellation() (gas: 4201222)
+[PASS] test_SEC_L_01_duplicateProjectCancelledEvent() (gas: 1002041)
+[PASS] test_SEC_L_02_reputationOldScoreInaccurate() (gas: 1160669)
+[PASS] test_SEC_M_01_removeProjectStrandsParticipantStakes() (gas: 1422981)
+[PASS] test_SEC_M_02_zeroChallengePeriodDisablesDisputes() (gas: 109244)
+[PASS] test_SEC_M_03_settlementProceedsOnCancelledProject() (gas: 3834956)
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 9.33ms (7.64ms CPU time)
+
+Ran 7 tests for test/findings/2026-02-23/SECURITY_ISSUES_VERIFICATION.t.sol:SecurityIssuesVerification
+[PASS] test_HIGH_01_ValidationClaimExpiryLocksValidatorSlots() (gas: 1988364)
+[PASS] test_HIGH_02_LateCommitAllowedAfterValidationClaimExpiry() (gas: 1595006)
+[PASS] test_HIGH_03_UpheldDisputesDeadlockProjectCompletion() (gas: 5005556)
+[PASS] test_HIGH_04_FlashLoanConsensusManipulation() (gas: 16491)
+[PASS] test_MEDIUM_01_CancelledProjectsStrandEscrow() (gas: 942546)
+[PASS] test_MEDIUM_02_FeeStructureEconomicCentralization() (gas: 704306)
+[PASS] test_MEDIUM_03_ERC20IntegrationAssumptions() (gas: 1119986)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 5.67ms (4.03ms CPU time)
+
+Ran 3 tests for test/findings/2026-02-18/one/SEC_C_01_DisputeIndexPoisoning.t.sol:SEC_C_01_DisputeIndexPoisoning
+[PASS] test_disputeFromOldNonceDoesNotAppearInGetDispute() (gas: 7924202)
+[PASS] test_nonceKeyedDisputeDoesNotBlockNewContributor() (gas: 8054731)
+[PASS] test_upheldDisputeDoesNotPoisonRecycledIndex() (gas: 8240068)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 17.16ms (13.42ms CPU time)
+
+Ran 16 tests for test/libraries/DisputeLibFuzz.t.sol:DisputeLibFuzz
+[PASS] testFuzz_disputeOnRejectedContribution(uint256) (runs: 256, μ: 4003628, ~: 4004962)
+[PASS] testFuzz_multipleDisputesAcrossProjects(uint8) (runs: 256, μ: 10704165, ~: 7858100)
+[PASS] testFuzz_openDispute_bondCalculation(uint16) (runs: 256, μ: 4002714, ~: 4002598)
+[PASS] testFuzz_openDispute_revertsAfterChallengePeriod(uint256) (runs: 256, μ: 94958, ~: 94976)
+[PASS] testFuzz_openDispute_revertsContributorDisputing() (gas: 67223)
+[PASS] testFuzz_openDispute_revertsDoubleDispute() (gas: 494392)
+[PASS] testFuzz_openDispute_revertsNoConsensus(uint256) (runs: 256, μ: 61397, ~: 61424)
+[PASS] testFuzz_openDispute_revertsZeroEvidenceHash() (gas: 52970)
+[PASS] testFuzz_openDispute_validDispute(bytes32) (runs: 256, μ: 264782, ~: 264854)
+[PASS] testFuzz_reportOriginator_blocksClaiming() (gas: 481093)
+[PASS] testFuzz_reportOriginator_bondCalculation(uint16) (runs: 256, μ: 782020, ~: 782020)
+[PASS] testFuzz_reportOriginator_revertsDoubleReport() (gas: 476768)
+[PASS] testFuzz_reportOriginator_revertsNonExistentProject(bytes32) (runs: 256, μ: 52838, ~: 52927)
+[PASS] testFuzz_reportOriginator_revertsOriginatorReporting() (gas: 54257)
+[PASS] testFuzz_reportOriginator_revertsZeroEvidenceHash() (gas: 49510)
+[PASS] testFuzz_reportOriginator_validReport(bytes32) (runs: 256, μ: 245054, ~: 245132)
+Suite result: ok. 16 passed; 0 failed; 0 skipped; finished in 1.89s (4.25s CPU time)
+
+Ran 11 tests for test/libraries/ReputationLibFuzz.t.sol:ReputationLibFuzz
+[PASS] testFuzz_getScore_returnsDefaultForNewUser(address,bytes32) (runs: 256, μ: 32422, ~: 32422)
+[PASS] testFuzz_reputation_crossDayAccumulation() (gas: 2578991)
+[PASS] testFuzz_reputation_dailyGainCapped(uint8) (runs: 256, μ: 6681734, ~: 3801813)
+[PASS] testFuzz_reputation_dailyGainDateTracking() (gas: 364878)
+[PASS] testFuzz_reputation_decayAfterTime(uint8) (runs: 256, μ: 436244, ~: 436118)
+[PASS] testFuzz_reputation_differentRolesIndependent(address) (runs: 256, μ: 79511, ~: 79511)
+[PASS] testFuzz_reputation_lastUpdatedTimestamp(bytes32) (runs: 256, μ: 364678, ~: 364773)
+[PASS] testFuzz_reputation_multipleProjectCreations(uint8) (runs: 256, μ: 1956446, ~: 1568203)
+[PASS] testFuzz_reputation_scoreBoundedByMinMax(uint8) (runs: 256, μ: 8586293, ~: 3133075)
+[PASS] testFuzz_reputation_updatedOnProjectCreation(bytes32) (runs: 256, μ: 396413, ~: 396489)
+[PASS] testFuzz_reputation_zeroDecayNoChange(uint16) (runs: 256, μ: 426145, ~: 426347)
+Suite result: ok. 11 passed; 0 failed; 0 skipped; finished in 1.80s (2.69s CPU time)
+
+Ran 23 tests for test/libraries/ValidationLibFuzz.t.sol:ValidationLibFuzz
+[PASS] testFuzz_batchCommitValidations_valid(uint8) (runs: 256, μ: 1952698, ~: 1641499)
+[PASS] testFuzz_cancelExpiredValidationClaim_afterDeadline() (gas: 420068)
+[PASS] testFuzz_cancelExpiredValidationClaim_revertsBeforeDeadline() (gas: 315278)
+[PASS] testFuzz_claimToValidate_revertsEmpty() (gas: 50355)
+[PASS] testFuzz_claimToValidate_revertsOwnContribution() (gas: 61774)
+[PASS] testFuzz_claimToValidate_revertsTooManyValidators() (gas: 1040383)
+[PASS] testFuzz_claimToValidate_validClaim() (gas: 271996)
+[PASS] testFuzz_claimToValidate_validWithOneSubmitted() (gas: 271556)
+[PASS] testFuzz_commitValidation_revertsAfterClaimDeadline() (gas: 418185)
+[PASS] testFuzz_commitValidation_revertsDoubleCommit() (gas: 640053)
+[PASS] testFuzz_commitValidation_revertsNotClaimed() (gas: 147292)
+[PASS] testFuzz_commitValidation_revertsZeroHash() (gas: 405419)
+[PASS] testFuzz_commitValidation_revertsZeroStake() (gas: 328057)
+[PASS] testFuzz_commitValidation_validCommit(bytes32,uint256,uint256) (runs: 256, μ: 590965, ~: 591102)
+[PASS] testFuzz_computeConsensus_accepted(uint256,uint256,uint256) (runs: 256, μ: 2559031, ~: 2559087)
+[PASS] testFuzz_computeConsensus_rejected(uint256,uint256,uint256) (runs: 256, μ: 2597759, ~: 2598682)
+[PASS] testFuzz_computeConsensus_revertsAlreadyComputed() (gas: 2546874)
+[PASS] testFuzz_computeConsensus_revertsNotEnoughReveals() (gas: 2008714)
+[PASS] testFuzz_revealValidation_revertsAfterWindow() (gas: 1753534)
+[PASS] testFuzz_revealValidation_revertsDoubleReveal() (gas: 1879295)
+[PASS] testFuzz_revealValidation_revertsScoreOutOfRange(uint256) (runs: 256, μ: 626717, ~: 626632)
+[PASS] testFuzz_revealValidation_revertsWrongHash(uint256,bytes32) (runs: 256, μ: 1725400, ~: 1725616)
+[PASS] testFuzz_revealValidation_validReveal(uint256) (runs: 256, μ: 1831113, ~: 1831468)
+Suite result: ok. 23 passed; 0 failed; 0 skipped; finished in 1.71s (2.24s CPU time)
+
+Ran 19 tests for test/fuzz/FuzzExtended.t.sol:FuzzExtended
+[PASS] testFuzz_adminFeesAffectAccounting(uint256,uint256) (runs: 256, μ: 1193687, ~: 1194249)
+[PASS] testFuzz_batchContribute(uint256,uint256) (runs: 256, μ: 2014392, ~: 2167941)
+[PASS] testFuzz_batchValidation(uint256,uint256) (runs: 256, μ: 5738843, ~: 5540859)
+[PASS] testFuzz_cancelExpiredValidationClaim(uint256,uint256) (runs: 256, μ: 4857687, ~: 5021877)
+[PASS] testFuzz_completeProjectAndRefundEscrow(uint256,uint256) (runs: 256, μ: 5366127, ~: 5556694)
+[PASS] testFuzz_consensusManipulationVaryingStakeDistributions(uint256,uint256,uint256,uint256) (runs: 256, μ: 9065786, ~: 9543772)
+[PASS] testFuzz_disputeEscalated(uint256,uint256) (runs: 256, μ: 4758543, ~: 4934034)
+[PASS] testFuzz_disputeRejected_acceptedContribution(uint256,uint256) (runs: 256, μ: 5636586, ~: 5817627)
+[PASS] testFuzz_disputeUpheld_acceptedContribution(uint256,uint256) (runs: 256, μ: 4914710, ~: 4743860)
+[PASS] testFuzz_disputeUpheld_rejectedContribution(uint256,uint256) (runs: 256, μ: 4911814, ~: 4855382)
+[PASS] testFuzz_erc20IntegrationAssumptions(uint256,uint256,uint256) (runs: 256, μ: 1310454, ~: 1310897)
+[PASS] testFuzz_feeCalculationEdgeCases(uint256,uint256,uint256) (runs: 256, μ: 905734, ~: 908692)
+[PASS] testFuzz_forceSettleUnresponsiveValidator(uint256,uint256) (runs: 256, μ: 5125811, ~: 5299785)
+[PASS] testFuzz_lockedStakeUnavailableDuringClaim(uint256) (runs: 256, μ: 4973691, ~: 4973710)
+[PASS] testFuzz_originatorReport_escalated(uint256) (runs: 256, μ: 1279721, ~: 1297478)
+[PASS] testFuzz_originatorReport_rejected(uint256) (runs: 256, μ: 1277968, ~: 1293917)
+[PASS] testFuzz_originatorReport_upheld(uint256) (runs: 256, μ: 1495720, ~: 1509104)
+[PASS] testFuzz_reputationBounds(uint256,uint256,uint256) (runs: 256, μ: 10934773, ~: 11214432)
+[PASS] testFuzz_varyingConsensusThreshold(uint256,uint256,uint256,uint256) (runs: 256, μ: 4194662, ~: 4339125)
+Suite result: ok. 19 passed; 0 failed; 0 skipped; finished in 2.16s (13.26s CPU time)
+
+Ran 20 tests for test/libraries/OriginationLibFuzz.t.sol:OriginationLibFuzz
+[PASS] testFuzz_createProject_revertsDuplicateId(bytes32) (runs: 256, μ: 382058, ~: 382228)
+[PASS] testFuzz_createProject_revertsHighValidatorReward(bytes32,uint256) (runs: 256, μ: 61963, ~: 61966)
+[PASS] testFuzz_createProject_revertsInvalidConsensusThreshold(bytes32,uint256) (runs: 256, μ: 61283, ~: 61230)
+[PASS] testFuzz_createProject_revertsInvalidNumberOfValidations(bytes32,uint256) (runs: 256, μ: 61111, ~: 61126)
+[PASS] testFuzz_createProject_revertsWrongOriginator(bytes32,address) (runs: 256, μ: 56118, ~: 56262)
+[PASS] testFuzz_createProject_revertsZeroConsensusThreshold(bytes32) (runs: 256, μ: 55479, ~: 55580)
+[PASS] testFuzz_createProject_revertsZeroRewardToken(bytes32) (runs: 256, μ: 55062, ~: 55128)
+[PASS] testFuzz_createProject_revertsZeroValidations(bytes32) (runs: 256, μ: 55538, ~: 55627)
+[PASS] testFuzz_createProject_validConfigurations(bytes32,uint16,uint16,uint8) (runs: 256, μ: 399534, ~: 400933)
+[PASS] testFuzz_fundProject_multipleFundings(bytes32,uint8) (runs: 256, μ: 1013045, ~: 948882)
+[PASS] testFuzz_fundProject_originationAdapterFee(bytes32,address) (runs: 256, μ: 685933, ~: 686158)
+[PASS] testFuzz_fundProject_protocolFeeDeduction(bytes32,uint16) (runs: 256, μ: 656929, ~: 659849)
+[PASS] testFuzz_fundProject_revertsNonOriginator(bytes32,address) (runs: 256, μ: 485327, ~: 485562)
+[PASS] testFuzz_fundProject_revertsZeroAmount(bytes32,uint256) (runs: 256, μ: 386807, ~: 387023)
+[PASS] testFuzz_fundProject_revertsZeroQuantity(bytes32,uint256) (runs: 256, μ: 387564, ~: 387516)
+[PASS] testFuzz_fundProject_validFunding(bytes32,uint256,uint256) (runs: 256, μ: 642259, ~: 642461)
+[PASS] testFuzz_fundProject_withOriginatorStakeRequirement(bytes32,uint256,uint256) (runs: 256, μ: 958911, ~: 959077)
+[PASS] testFuzz_removeProject_revertsAlreadyCancelled(bytes32) (runs: 256, μ: 744393, ~: 744782)
+[PASS] testFuzz_removeProject_revertsNonExistent(bytes32) (runs: 256, μ: 54133, ~: 54209)
+[PASS] testFuzz_removeProject_slashesOriginator(bytes32) (runs: 256, μ: 1172138, ~: 1172372)
+Suite result: ok. 20 passed; 0 failed; 0 skipped; finished in 3.57s (2.04s CPU time)
+
+Ran 10 tests for test/fuzz/Lifecycle.t.sol:LifecycleFuzzTest
+[PASS] testFuzz_claimExpiration(uint256,uint256,uint256) (runs: 256, μ: 2236524, ~: 2171756)
+[PASS] testFuzz_ghostValidatorSlash(uint256,uint256) (runs: 256, μ: 2152444, ~: 2152504)
+[PASS] testFuzz_happyPathLifecycle(uint256,uint256,uint256,uint256,uint256,uint256) (runs: 256, μ: 5457826, ~: 5457892)
+[PASS] testFuzz_mixedOutcomeSameProject(uint256,uint256,uint256,uint256) (runs: 256, μ: 7417577, ~: 7546517)
+[PASS] testFuzz_multiContributionLifecycle(uint256,uint256,uint256,uint256,uint256,uint256) (runs: 256, μ: 9888992, ~: 9774455)
+[PASS] testFuzz_outlierValidatorSlashing(uint256,uint256,uint256,uint256) (runs: 256, μ: 7486039, ~: 7486430)
+[PASS] testFuzz_rejectionLifecycle(uint256,uint256,uint256,uint256,uint256) (runs: 256, μ: 4182938, ~: 4184133)
+[PASS] testFuzz_rejectionThenResubmission(uint256,uint256) (runs: 256, μ: 8488587, ~: 8680620)
+[PASS] testFuzz_rewardAccountingInvariant(uint256,uint256,uint256,uint256,uint256) (runs: 256, μ: 5256164, ~: 5256240)
+[PASS] testFuzz_stakeWeightedRewards(uint256,uint256,uint256,uint256,uint256) (runs: 256, μ: 4987544, ~: 4987580)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 4.02s (12.69s CPU time)
+
+╭-------------------------------------------------------------------------------------------+-----------------+--------+--------+---------+---------╮
+| lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy Contract |                 |        |        |         |         |
++===================================================================================================================================================+
+| Deployment Cost                                                                           | Deployment Size |        |        |         |         |
+|-------------------------------------------------------------------------------------------+-----------------+--------+--------+---------+---------|
+| 572253                                                                                    | 893             |        |        |         |         |
+|-------------------------------------------------------------------------------------------+-----------------+--------+--------+---------+---------|
+|                                                                                           |                 |        |        |         |         |
+|-------------------------------------------------------------------------------------------+-----------------+--------+--------+---------+---------|
+| Function Name                                                                             | Min             | Avg    | Median | Max     | # Calls |
+|-------------------------------------------------------------------------------------------+-----------------+--------+--------+---------+---------|
+| fallback                                                                                  | 5106            | 154259 | 130624 | 2721351 | 348037  |
+╰-------------------------------------------------------------------------------------------+-----------------+--------+--------+---------+---------╯
+
+╭----------------------------------------+-----------------+--------+--------+---------+---------╮
+| src/SapienCore.sol:SapienCore Contract |                 |        |        |         |         |
++================================================================================================+
+| Deployment Cost                        | Deployment Size |        |        |         |         |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| 4280312                                | 19657           |        |        |         |         |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+|                                        |                 |        |        |         |         |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| Function Name                          | Min             | Avg    | Median | Max     | # Calls |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| DEFAULT_ADMIN_ROLE                     | 1660            | 1660   | 1660   | 1660    | 2       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| batchCommitValidations                 | 191986          | 332246 | 280337 | 630891  | 2590    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| batchContribute                        | 7910            | 660616 | 366528 | 2675368 | 770     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| batchRevealValidations                 | 108972          | 258597 | 198509 | 638121  | 2334    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| cancelExpiredCommitment                | 16589           | 176936 | 181042 | 181042  | 272     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| cancelExpiredValidationClaim           | 16833           | 155713 | 156190 | 165383  | 273     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| challengePeriod                        | 4266            | 4266   | 4266   | 4266    | 4782    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| claimDeadline                          | 2638            | 2638   | 2638   | 2638    | 775     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| claimReward                            | 4181            | 37737  | 39617  | 61917   | 1536    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| claimToContribute                      | 3966            | 313679 | 286291 | 1612922 | 13687   |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| claimToValidate                        | 11934           | 239767 | 222674 | 648130  | 28872   |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| commitDeadline                         | 3782            | 3782   | 3782   | 3782    | 7       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| commitValidation                       | 13169           | 190058 | 188889 | 205989  | 25994   |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| completeProject                        | 14619           | 37052  | 47622  | 70347   | 807     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| computeConsensus                       | 19401           | 445542 | 430270 | 722956  | 9204    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| contribute                             | 8723            | 206964 | 235995 | 236796  | 11271   |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| createProject                          | 3874            | 225155 | 207350 | 316202  | 35108   |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| decayRateBps                           | 3364            | 3364   | 3364   | 3364    | 1       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| escalateDispute                        | 14067           | 138831 | 140004 | 206307  | 262     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| escalateOriginatorReport               | 10315           | 121195 | 122207 | 154844  | 263     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| expireClaim                            | 13986           | 331909 | 307692 | 598385  | 785     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| forceSettleDelay                       | 2946            | 2946   | 2946   | 2946    | 258     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| forceSettleValidator                   | 18957           | 266944 | 270147 | 270147  | 263     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| fundProject                            | 12242           | 213203 | 226016 | 347935  | 14056   |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| getAdapterFees                         | 7593            | 7593   | 7593   | 7593    | 4       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| getClaim                               | 14277           | 14277  | 14277  | 14277   | 1546    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| getConsensusReport                     | 15356           | 15356  | 15356  | 15356   | 1084    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| getContribution                        | 18130           | 18130  | 18130  | 18130   | 13218   |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| getContributionAdapter                 | 4111            | 4111   | 4111   | 4111    | 2       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| getDispute                             | 17668           | 17668  | 17668  | 17668   | 2765    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| getDisputeConfig                       | 8143            | 8143   | 8143   | 8143    | 2       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| getOriginationAdapter                  | 2637            | 2637   | 2637   | 2637    | 2       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| getOriginatorLockedStake               | 3518            | 3518   | 3518   | 3518    | 771     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| getOriginatorReport                    | 13670           | 13670  | 13670  | 13670   | 1546    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| getPendingRewards                      | 3560            | 3560   | 3560   | 3560    | 8830    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| getProject                             | 35802           | 35802  | 35802  | 35802   | 6227    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| getProjectEscrow                       | 3516            | 3516   | 3516   | 3516    | 2623    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| getReputation                          | 15245           | 15251  | 15245  | 15266   | 3907    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| getReturnStackTop                      | 2594            | 2594   | 2594   | 2594    | 1       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| getRevealCount                         | 5893            | 5893   | 5893   | 5893    | 779     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| getSubmissionNonce                     | 2831            | 2831   | 2831   | 2831    | 516     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| getValidationClaim                     | 20179           | 22817  | 22449  | 29256   | 3079    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| hasRole                                | 3799            | 3799   | 3799   | 3799    | 2       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| initialize                             | 24654           | 448465 | 453631 | 453631  | 581     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| isValidatorOutlier                     | 6866            | 6866   | 6866   | 6866    | 2438    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| isValidatorSettled                     | 4010            | 4010   | 4010   | 4010    | 1804    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| lockValidatorCapacity                  | 45660           | 62529  | 62760  | 62760   | 28582   |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| openDispute                            | 12512           | 164447 | 198716 | 199001  | 3061    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| pause                                  | 26798           | 26798  | 26798  | 26798   | 4       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| paused                                 | 3031            | 3031   | 3031   | 3031    | 2       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| proxiableUUID                          | 823             | 823    | 823    | 823     | 4       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| refundEscrow                           | 13210           | 29049  | 42322  | 42395   | 1053    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| registerSkill                          | 27781           | 27781  | 27781  | 27781   | 596     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| releaseContributorReward               | 16766           | 70223  | 74927  | 84838   | 4534    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| removeProject                          | 15449           | 67198  | 89559  | 145399  | 1030    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| reportOriginator                       | 11946           | 157736 | 187071 | 187071  | 1568    |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| resolveDispute                         | 16369           | 145579 | 135467 | 203441  | 797     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| resolveOriginatorReport                | 12917           | 103072 | 118348 | 181256  | 523     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| revealDeadline                         | 3870            | 3870   | 3870   | 3870    | 7       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| revealValidation                       | 10771           | 115023 | 106222 | 140422  | 24385   |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| setChallengePeriod                     | 3166            | 6181   | 6181   | 9196    | 2       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| setClaimCooldown                       | 26161           | 26161  | 26161  | 26161   | 256     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| setContributionFee                     | 3254            | 9215   | 9262   | 9262    | 260     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| setDecayRate                           | 2436            | 8431   | 8443   | 8443    | 515     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| setDisputeBondBps                      | 3628            | 9593   | 9636   | 9636    | 275     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| setMinClaimAmount                      | 26799           | 26799  | 26799  | 26799   | 256     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| setMinValidationStake                  | 25584           | 25584  | 25584  | 25584   | 3       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| setOriginationFee                      | 3430            | 9409   | 9438   | 9438    | 518     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| setOriginatorReportBondBps             | 2836            | 8799   | 8844   | 8844    | 259     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| setOriginatorStakeRequirement          | 26359           | 26359  | 26359  | 26359   | 527     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| setProtocolFee                         | 3332            | 9312   | 9372   | 9372    | 776     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| setTreasury                            | 4471            | 8179   | 10652  | 10652   | 5       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| setValidationFee                       | 3210            | 9161   | 9218   | 9218    | 260     |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| settleValidator                        | 13324           | 226742 | 266205 | 266205  | 11403   |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| treasury                               | 3102            | 3102   | 3102   | 3102    | 5       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| unlockValidatorCapacity                | 27723           | 27723  | 27723  | 27723   | 1       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| unpause                                | 8926            | 8926   | 8926   | 8926    | 4       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| upgradeToAndCall                       | 3674            | 10967  | 11809  | 19393   | 20      |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| vault                                  | 4358            | 4358   | 4358   | 4358    | 2       |
+|----------------------------------------+-----------------+--------+--------+---------+---------|
+| verifyStorageLocation                  | 750             | 750    | 750    | 750     | 1       |
+╰----------------------------------------+-----------------+--------+--------+---------+---------╯
+
+╭------------------------------------------+-----------------+--------+--------+--------+---------╮
+| src/SapienVault.sol:SapienVault Contract |                 |        |        |        |         |
++=================================================================================================+
+| Deployment Cost                          | Deployment Size |        |        |        |         |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| 2576482                                  | 11780           |        |        |        |         |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+|                                          |                 |        |        |        |         |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| Function Name                            | Min             | Avg    | Median | Max    | # Calls |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| DEFAULT_ADMIN_ROLE                       | 1002            | 1002   | 1002   | 1002   | 2       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| ENGINE_ROLE                              | 299             | 299    | 299    | 299    | 618     |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| asset                                    | 2675            | 2675   | 2675   | 2675   | 2       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| availableBalance                         | 20048           | 20100  | 20102  | 20102  | 36685   |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| balanceOf                                | 3065            | 3065   | 3065   | 3065   | 3646    |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| commitStake                              | 3207            | 25201  | 32002  | 32002  | 32194   |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| convertToAssets                          | 10436           | 10436  | 10436  | 10436  | 1       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| convertToShares                          | 11382           | 11382  | 11382  | 11382  | 2       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| decimals                                 | 2656            | 2656   | 2656   | 2656   | 1       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| deposit                                  | 3065            | 62514  | 44186  | 115386 | 19230   |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| getStakeAccount                          | 7147            | 7147   | 7147   | 7147   | 24      |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| grantRole                                | 29593           | 29593  | 29593  | 29593  | 617     |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| hasRole                                  | 3232            | 3232   | 3232   | 3232   | 3       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| initialize                               | 23297           | 120647 | 120960 | 120960 | 620     |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| lockContributor                          | 2690            | 42743  | 43447  | 43447  | 17272   |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| lockValidatorCapacity                    | 3097            | 45738  | 45971  | 45971  | 28589   |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| maxDeposit                               | 2878            | 2878   | 2878   | 2878   | 1       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| maxMint                                  | 3428            | 3428   | 3428   | 3428   | 1       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| maxRedeem                                | 3546            | 17540  | 24538  | 24538  | 3       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| maxWithdraw                              | 3480            | 24365  | 24447  | 24447  | 257     |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| mint                                     | 3241            | 3241   | 3241   | 3241   | 1       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| pause                                    | 3046            | 23676  | 26255  | 26255  | 9       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| paused                                   | 2861            | 2861   | 2861   | 2861   | 7       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| proxiableUUID                            | 763             | 763    | 763    | 763    | 3       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| releaseCommit                            | 3119            | 28724  | 31914  | 31914  | 11144   |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| slashAndUnlockContributor                | 5776            | 31177  | 30564  | 31970  | 779     |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| slashContributor                         | 3578            | 30528  | 30567  | 30567  | 2848    |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| slashValidator                           | 2874            | 29778  | 29869  | 29869  | 574     |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| totalAssets                              | 7753            | 7753   | 7753   | 7753   | 4       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| totalStaked                              | 13425           | 13425  | 13425  | 13425  | 3       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| totalSupply                              | 2453            | 2453   | 2453   | 2453   | 2       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| transfer                                 | 20197           | 25251  | 25251  | 30306  | 2       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| unlockContributor                        | 3163            | 9771   | 9773   | 9773   | 8445    |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| unlockValidatorCapacity                  | 3666            | 7541   | 8109   | 10282  | 4       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| unpause                                  | 8907            | 8907   | 8907   | 8907   | 4       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| upgradeToAndCall                         | 3550            | 11160  | 11594  | 19015  | 20      |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| verifyStorageLocation                    | 766             | 766    | 766    | 766    | 1       |
+|------------------------------------------+-----------------+--------+--------+--------+---------|
+| withdraw                                 | 47979           | 47979  | 47979  | 47979  | 1       |
+╰------------------------------------------+-----------------+--------+--------+--------+---------╯
+
+╭------------------------------------------------------------+-----------------+--------+--------+---------+---------╮
+| src/libraries/ContributionLib.sol:ContributionLib Contract |                 |        |        |         |         |
++====================================================================================================================+
+| Deployment Cost                                            | Deployment Size |        |        |         |         |
+|------------------------------------------------------------+-----------------+--------+--------+---------+---------|
+| 884544                                                     | 4450            |        |        |         |         |
+|------------------------------------------------------------+-----------------+--------+--------+---------+---------|
+|                                                            |                 |        |        |         |         |
+|------------------------------------------------------------+-----------------+--------+--------+---------+---------|
+| Function Name                                              | Min             | Avg    | Median | Max     | # Calls |
+|------------------------------------------------------------+-----------------+--------+--------+---------+---------|
+| batchContribute                                            | 766             | 651794 | 358542 | 2660832 | 770     |
+|------------------------------------------------------------+-----------------+--------+--------+---------+---------|
+| claimToContribute                                          | 304             | 300827 | 273460 | 1596947 | 13686   |
+|------------------------------------------------------------+-----------------+--------+--------+---------+---------|
+| contribute                                                 | 2540            | 200676 | 229699 | 230485  | 11271   |
+|------------------------------------------------------------+-----------------+--------+--------+---------+---------|
+| expireClaim                                                | 2586            | 320222 | 296013 | 586633  | 785     |
+╰------------------------------------------------------------+-----------------+--------+--------+---------+---------╯
+
+╭--------------------------------------------------+-----------------+--------+--------+--------+---------╮
+| src/libraries/DisputeLib.sol:DisputeLib Contract |                 |        |        |        |         |
++=========================================================================================================+
+| Deployment Cost                                  | Deployment Size |        |        |        |         |
+|--------------------------------------------------+-----------------+--------+--------+--------+---------|
+| 1048710                                          | 5270            |        |        |        |         |
+|--------------------------------------------------+-----------------+--------+--------+--------+---------|
+|                                                  |                 |        |        |        |         |
+|--------------------------------------------------+-----------------+--------+--------+--------+---------|
+| Function Name                                    | Min             | Avg    | Median | Max    | # Calls |
+|--------------------------------------------------+-----------------+--------+--------+--------+---------|
+| openDispute                                      | 427             | 152141 | 186364 | 186646 | 3061    |
+|--------------------------------------------------+-----------------+--------+--------+--------+---------|
+| reportOriginator                                 | 276             | 145844 | 175134 | 175134 | 1568    |
+╰--------------------------------------------------+-----------------+--------+--------+--------+---------╯
+
+╭------------------------------------------------------------+-----------------+--------+--------+--------+---------╮
+| src/libraries/FinalizationLib.sol:FinalizationLib Contract |                 |        |        |        |         |
++===================================================================================================================+
+| Deployment Cost                                            | Deployment Size |        |        |        |         |
+|------------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| 1374854                                                    | 6899            |        |        |        |         |
+|------------------------------------------------------------+-----------------+--------+--------+--------+---------|
+|                                                            |                 |        |        |        |         |
+|------------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| Function Name                                              | Min             | Avg    | Median | Max    | # Calls |
+|------------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| cancelExpiredCommitment                                    | 4904            | 164991 | 169090 | 169090 | 272     |
+|------------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| claimReward                                                | 2614            | 25430  | 27205  | 49505  | 1535    |
+|------------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| completeProject                                            | 2530            | 24782  | 35266  | 57991  | 807     |
+|------------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| forceSettleValidator                                       | 7220            | 254943 | 258143 | 258143 | 263     |
+|------------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| refundEscrow                                               | 2419            | 18123  | 31264  | 31337  | 1053    |
+|------------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| releaseContributorReward                                   | 4856            | 58077  | 62750  | 72661  | 4534    |
+|------------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| settleValidator                                            | 2477            | 215640 | 255091 | 255091 | 11403   |
+╰------------------------------------------------------------+-----------------+--------+--------+--------+---------╯
+
+╭----------------------------------------------------------+-----------------+--------+--------+--------+---------╮
+| src/libraries/OriginationLib.sol:OriginationLib Contract |                 |        |        |        |         |
++=================================================================================================================+
+| Deployment Cost                                          | Deployment Size |        |        |        |         |
+|----------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| 910971                                                   | 4582            |        |        |        |         |
+|----------------------------------------------------------+-----------------+--------+--------+--------+---------|
+|                                                          |                 |        |        |        |         |
+|----------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| Function Name                                            | Min             | Avg    | Median | Max    | # Calls |
+|----------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| fundProject                                              | 296             | 201005 | 213803 | 335722 | 14056   |
+|----------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| removeProject                                            | 2493            | 54119  | 76351  | 132191 | 1030    |
+╰----------------------------------------------------------+-----------------+--------+--------+--------+---------╯
+
+╭--------------------------------------------------------+-----------------+------+--------+------+---------╮
+| src/libraries/ReputationLib.sol:ReputationLib Contract |                 |      |        |      |         |
++===========================================================================================================+
+| Deployment Cost                                        | Deployment Size |      |        |      |         |
+|--------------------------------------------------------+-----------------+------+--------+------+---------|
+| 258920                                                 | 1325            |      |        |      |         |
+|--------------------------------------------------------+-----------------+------+--------+------+---------|
+|                                                        |                 |      |        |      |         |
+|--------------------------------------------------------+-----------------+------+--------+------+---------|
+| Function Name                                          | Min             | Avg  | Median | Max  | # Calls |
+|--------------------------------------------------------+-----------------+------+--------+------+---------|
+| getScore                                               | 4659            | 5232 | 4659   | 7221 | 16      |
+|--------------------------------------------------------+-----------------+------+--------+------+---------|
+| getScoreCached                                         | 2581            | 2614 | 2581   | 5143 | 29106   |
+╰--------------------------------------------------------+-----------------+------+--------+------+---------╯
+
+╭--------------------------------------------------------+-----------------+--------+--------+--------+---------╮
+| src/libraries/ValidationLib.sol:ValidationLib Contract |                 |        |        |        |         |
++===============================================================================================================+
+| Deployment Cost                                        | Deployment Size |        |        |        |         |
+|--------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| 1775494                                                | 8900            |        |        |        |         |
+|--------------------------------------------------------+-----------------+--------+--------+--------+---------|
+|                                                        |                 |        |        |        |         |
+|--------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| Function Name                                          | Min             | Avg    | Median | Max    | # Calls |
+|--------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| batchCommitValidations                                 | 179096          | 319330 | 267429 | 617928 | 2590    |
+|--------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| batchRevealValidations                                 | 96458           | 246058 | 185977 | 625534 | 2334    |
+|--------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| cancelExpiredValidationClaim                           | 4678            | 143292 | 143768 | 152961 | 273     |
+|--------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| claimToValidate                                        | 334             | 227819 | 210726 | 636182 | 28872   |
+|--------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| commitValidation                                       | 2563            | 179195 | 178025 | 195125 | 25994   |
+|--------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| computeConsensus                                       | 7205            | 433080 | 417807 | 710493 | 9204    |
+|--------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| lockValidatorCapacity                                  | 39030           | 55899  | 56130  | 56130  | 28582   |
+|--------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| revealValidation                                       | 247             | 104238 | 95431  | 129631 | 24385   |
+|--------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| unlockValidatorCapacity                                | 20543           | 20543  | 20543  | 20543  | 1       |
+╰--------------------------------------------------------+-----------------+--------+--------+--------+---------╯
+
+╭---------------------------------------------------------------+-----------------+-------+--------+-------+---------╮
+| test/coverage/CoverageGaps.t.sol:ConsensusLibHarness Contract |                 |       |        |       |         |
++====================================================================================================================+
+| Deployment Cost                                               | Deployment Size |       |        |       |         |
+|---------------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| 367563                                                        | 1479            |       |        |       |         |
+|---------------------------------------------------------------+-----------------+-------+--------+-------+---------|
+|                                                               |                 |       |        |       |         |
+|---------------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| Function Name                                                 | Min             | Avg   | Median | Max   | # Calls |
+|---------------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| calculate                                                     | 4201            | 29776 | 26239  | 57872 | 8       |
+╰---------------------------------------------------------------+-----------------+-------+--------+-------+---------╯
+
+╭-----------------------------------------------------------------------------------------+-----------------+-------+--------+-------+---------╮
+| test/findings/2026-02-23/SECURITY_ISSUES_VERIFICATION.t.sol:FeeOnTransferToken Contract |                 |       |        |       |         |
++==============================================================================================================================================+
+| Deployment Cost                                                                         | Deployment Size |       |        |       |         |
+|-----------------------------------------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| 363619                                                                                  | 1462            |       |        |       |         |
+|-----------------------------------------------------------------------------------------+-----------------+-------+--------+-------+---------|
+|                                                                                         |                 |       |        |       |         |
+|-----------------------------------------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| Function Name                                                                           | Min             | Avg   | Median | Max   | # Calls |
+|-----------------------------------------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| approve                                                                                 | 45949           | 45949 | 45949  | 45949 | 1       |
+|-----------------------------------------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| balanceOf                                                                               | 529             | 2029  | 2529   | 2529  | 4       |
+|-----------------------------------------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| mint                                                                                    | 68173           | 68173 | 68173  | 68173 | 1       |
+╰-----------------------------------------------------------------------------------------+-----------------+-------+--------+-------+---------╯
+
+╭----------------------------------------------------------+-----------------+-------+--------+-------+---------╮
+| test/fuzz/FuzzExtended.t.sol:FeeOnTransferToken Contract |                 |       |        |       |         |
++===============================================================================================================+
+| Deployment Cost                                          | Deployment Size |       |        |       |         |
+|----------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| 407834                                                   | 1569            |       |        |       |         |
+|----------------------------------------------------------+-----------------+-------+--------+-------+---------|
+|                                                          |                 |       |        |       |         |
+|----------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| Function Name                                            | Min             | Avg   | Median | Max   | # Calls |
+|----------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| approve                                                  | 45937           | 45979 | 45985  | 45985 | 256     |
+|----------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| balanceOf                                                | 551             | 2051  | 2551   | 2551  | 1024    |
+|----------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| mint                                                     | 68195           | 68227 | 68231  | 68231 | 256     |
+|----------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| setFeeBps                                                | 21721           | 26489 | 26533  | 26545 | 256     |
+╰----------------------------------------------------------+-----------------+-------+--------+-------+---------╯
+
+╭---------------------------------------------+-----------------+-------+--------+-------+---------╮
+| test/mocks/MockERC20.sol:MockERC20 Contract |                 |       |        |       |         |
++==================================================================================================+
+| Deployment Cost                             | Deployment Size |       |        |       |         |
+|---------------------------------------------+-----------------+-------+--------+-------+---------|
+| 480867                                      | 2796            |       |        |       |         |
+|---------------------------------------------+-----------------+-------+--------+-------+---------|
+|                                             |                 |       |        |       |         |
+|---------------------------------------------+-----------------+-------+--------+-------+---------|
+| Function Name                               | Min             | Avg   | Median | Max   | # Calls |
+|---------------------------------------------+-----------------+-------+--------+-------+---------|
+| approve                                     | 26369           | 41333 | 45993  | 46269 | 27894   |
+|---------------------------------------------+-----------------+-------+--------+-------+---------|
+| balanceOf                                   | 537             | 2340  | 2537   | 2537  | 135446  |
+|---------------------------------------------+-----------------+-------+--------+-------+---------|
+| decimals                                    | 241             | 241   | 241    | 241   | 618     |
+|---------------------------------------------+-----------------+-------+--------+-------+---------|
+| mint                                        | 33837           | 41018 | 33945  | 68121 | 27976   |
+╰---------------------------------------------+-----------------+-------+--------+-------+---------╯
+
+╭--------------------------------------------------+-----------------+-------+--------+-------+---------╮
+| test/upgrade/Upgrade.t.sol:SapienCoreV2 Contract |                 |       |        |       |         |
++=======================================================================================================+
+| Deployment Cost                                  | Deployment Size |       |        |       |         |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| 4343580                                          | 19963           |       |        |       |         |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+|                                                  |                 |       |        |       |         |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| Function Name                                    | Min             | Avg   | Median | Max   | # Calls |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| DEFAULT_ADMIN_ROLE                               | 1704            | 1704  | 1704   | 1704  | 1       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| challengePeriod                                  | 4310            | 4310  | 4310   | 4310  | 1       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| claimDeadline                                    | 2638            | 2638  | 2638   | 2638  | 1       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| commitDeadline                                   | 3826            | 3826  | 3826   | 3826  | 1       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| getAdapterFees                                   | 7637            | 7637  | 7637   | 7637  | 1       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| getClaim                                         | 14299           | 14299 | 14299  | 14299 | 1       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| getProject                                       | 35802           | 35802 | 35802  | 35802 | 1       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| getProjectEscrow                                 | 3560            | 3560  | 3560   | 3560  | 1       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| hasRole                                          | 3843            | 3843  | 3843   | 3843  | 1       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| initialize                                       | 4552            | 4552  | 4552   | 4552  | 1       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| initializeV2                                     | 3160            | 8711  | 7242   | 24224 | 6       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| proxiableUUID                                    | 823             | 823   | 823    | 823   | 14      |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| revealDeadline                                   | 3914            | 3914  | 3914   | 3914  | 1       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| treasury                                         | 3146            | 3146  | 3146   | 3146  | 1       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| upgradeToAndCall                                 | 11809           | 11809 | 11809  | 11809 | 1       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| vault                                            | 4402            | 4402  | 4402   | 4402  | 1       |
+|--------------------------------------------------+-----------------+-------+--------+-------+---------|
+| version                                          | 1079            | 1079  | 1079   | 1079  | 1       |
+╰--------------------------------------------------+-----------------+-------+--------+-------+---------╯
+
+╭---------------------------------------------------+-----------------+-------+--------+-------+---------╮
+| test/upgrade/Upgrade.t.sol:SapienVaultV2 Contract |                 |       |        |       |         |
++========================================================================================================+
+| Deployment Cost                                   | Deployment Size |       |        |       |         |
+|---------------------------------------------------+-----------------+-------+--------+-------+---------|
+| 2631692                                           | 12049           |       |        |       |         |
+|---------------------------------------------------+-----------------+-------+--------+-------+---------|
+|                                                   |                 |       |        |       |         |
+|---------------------------------------------------+-----------------+-------+--------+-------+---------|
+| Function Name                                     | Min             | Avg   | Median | Max   | # Calls |
+|---------------------------------------------------+-----------------+-------+--------+-------+---------|
+| DEFAULT_ADMIN_ROLE                                | 1046            | 1046  | 1046   | 1046  | 1       |
+|---------------------------------------------------+-----------------+-------+--------+-------+---------|
+| asset                                             | 2675            | 2675  | 2675   | 2675  | 1       |
+|---------------------------------------------------+-----------------+-------+--------+-------+---------|
+| availableBalance                                  | 20146           | 20146 | 20146  | 20146 | 2       |
+|---------------------------------------------------+-----------------+-------+--------+-------+---------|
+| balanceOf                                         | 3109            | 3109  | 3109   | 3109  | 2       |
+|---------------------------------------------------+-----------------+-------+--------+-------+---------|
+| deposit                                           | 81230           | 81230 | 81230  | 81230 | 1       |
+|---------------------------------------------------+-----------------+-------+--------+-------+---------|
+| hasRole                                           | 3276            | 3276  | 3276   | 3276  | 2       |
+|---------------------------------------------------+-----------------+-------+--------+-------+---------|
+| initialize                                        | 3151            | 3151  | 3151   | 3151  | 1       |
+|---------------------------------------------------+-----------------+-------+--------+-------+---------|
+| initializeV2                                      | 2977            | 8528  | 7058   | 24041 | 6       |
+|---------------------------------------------------+-----------------+-------+--------+-------+---------|
+| proxiableUUID                                     | 763             | 763   | 763    | 763   | 16      |
+|---------------------------------------------------+-----------------+-------+--------+-------+---------|
+| totalAssets                                       | 7753            | 7753  | 7753   | 7753  | 1       |
+|---------------------------------------------------+-----------------+-------+--------+-------+---------|
+| totalSupply                                       | 2453            | 2453  | 2453   | 2453  | 1       |
+|---------------------------------------------------+-----------------+-------+--------+-------+---------|
+| upgradeToAndCall                                  | 11594           | 11594 | 11594  | 11594 | 1       |
+|---------------------------------------------------+-----------------+-------+--------+-------+---------|
+| version                                           | 1005            | 1005  | 1005   | 1005  | 1       |
+╰---------------------------------------------------+-----------------+-------+--------+-------+---------╯
+
+
+Ran 83 test suites in 11.36s (19.53s CPU time): 651 tests passed, 0 failed, 0 skipped (651 total tests)

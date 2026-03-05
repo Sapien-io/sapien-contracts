@@ -209,8 +209,8 @@ contract LifecycleSimulation is LifecycleBase {
             projectStats[p].numberOfValidations = 3;
 
             Project memory config = _defaultConfig();
-            config.consensusThreshold = thresholds[p];
-            config.validatorRewardBps = valRewardBps[p];
+            config.consensusThreshold = uint16(thresholds[p]);
+            config.validatorRewardBps = uint16(valRewardBps[p]);
 
             vm.startPrank(originator);
             engine.createProject(pid, "", config);

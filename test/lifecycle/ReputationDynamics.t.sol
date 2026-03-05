@@ -150,7 +150,7 @@ contract ReputationDynamics is LifecycleBase {
         uint256 gate = degradedScore + 1;
         bytes32 gatedPid = _pid("rep-gated");
         Project memory gatedConfig = _defaultConfig();
-        gatedConfig.minValidatorReputation = gate;
+        gatedConfig.minValidatorReputation = uint16(gate);
         _setupProjectWithConfig(gatedPid, FUND_AMOUNT, 5, gatedConfig);
 
         _claimAndSubmit(contributor1, gatedPid, 1);

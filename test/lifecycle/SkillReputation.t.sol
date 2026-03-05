@@ -518,7 +518,7 @@ contract SkillReputation is LifecycleBase {
         bytes32 pid = _pid("new-skill");
         Project memory config = _defaultConfig();
         config.requiredSkill = SKILL_LABELING;
-        config.minValidatorReputation = C.DEFAULT_REPUTATION; // gate at exactly default
+        config.minValidatorReputation = uint16(C.DEFAULT_REPUTATION); // gate at exactly default
         config.numberOfValidations = 3;
         _setupProjectWithConfig(pid, 50_000e18, 5, config);
 

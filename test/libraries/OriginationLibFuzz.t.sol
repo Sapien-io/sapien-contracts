@@ -91,9 +91,9 @@ contract OriginationLibFuzz is Test {
         engine.createProject(projectId, "", config);
     }
 
-    function testFuzz_createProject_revertsInvalidConsensusThreshold(bytes32 projectId, uint256 threshold) public {
+    function testFuzz_createProject_revertsInvalidConsensusThreshold(bytes32 projectId, uint16 threshold) public {
         vm.assume(projectId != bytes32(0));
-        threshold = bound(threshold, C.BPS + 1, type(uint256).max);
+        threshold = uint16(bound(uint256(threshold), C.BPS + 1, type(uint16).max));
 
         Project memory config = _makeProjectConfig();
         config.consensusThreshold = threshold;
@@ -118,9 +118,9 @@ contract OriginationLibFuzz is Test {
         engine.createProject(projectId, "", config);
     }
 
-    function testFuzz_createProject_revertsHighValidatorReward(bytes32 projectId, uint256 rewardBps) public {
+    function testFuzz_createProject_revertsHighValidatorReward(bytes32 projectId, uint16 rewardBps) public {
         vm.assume(projectId != bytes32(0));
-        rewardBps = bound(rewardBps, C.MAX_VALIDATOR_REWARD_BPS + 1, type(uint256).max);
+        rewardBps = uint16(bound(uint256(rewardBps), C.MAX_VALIDATOR_REWARD_BPS + 1, type(uint16).max));
 
         Project memory config = _makeProjectConfig();
         config.validatorRewardBps = rewardBps;
@@ -132,9 +132,9 @@ contract OriginationLibFuzz is Test {
         engine.createProject(projectId, "", config);
     }
 
-    function testFuzz_createProject_revertsInvalidNumberOfValidations(bytes32 projectId, uint256 validations) public {
+    function testFuzz_createProject_revertsInvalidNumberOfValidations(bytes32 projectId, uint8 validations) public {
         vm.assume(projectId != bytes32(0));
-        validations = bound(validations, C.MAX_NUMBER_OF_VALIDATIONS + 1, type(uint256).max);
+        validations = uint8(bound(uint256(validations), C.MAX_NUMBER_OF_VALIDATIONS + 1, type(uint8).max));
 
         Project memory config = _makeProjectConfig();
         config.numberOfValidations = validations;

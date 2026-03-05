@@ -21,20 +21,12 @@ import {
     ValidationClaimStatus
 } from "src/Types.sol";
 
-/// @title ValidationLib
-/// @notice Deployed library for validation commit-reveal and consensus operations.
-/// @dev Called via DELEGATECALL from SapienCore; operates on the caller's ERC-7201 storage.
 library ValidationLib {
-    // keccak256(abi.encode(uint256(keccak256("sapien.storage.SapienCore")) - 1)) & ~bytes32(uint256(0xff))
     function _getStorage() private pure returns (EngineStorage storage $) {
         assembly {
             $.slot := 0xb21037e32bd67da4126ec23c3d75228183c819f055709f5aa59aa33cc3fd2b00
         }
     }
-
-    // ════════════════════════════════════════════════════════════════════
-    // Validator Capacity (renamed from set/reduce to lock/unlock)
-    // ════════════════════════════════════════════════════════════════════
 
     function lockValidatorCapacity(uint256 amount) public {
         _getStorage().vault.lockValidatorCapacity(msg.sender, amount);
@@ -43,10 +35,6 @@ library ValidationLib {
     function unlockValidatorCapacity(uint256 amount) public {
         _getStorage().vault.unlockValidatorCapacity(msg.sender, amount);
     }
-
-    // ════════════════════════════════════════════════════════════════════
-    // Validation Claims
-    // ════════════════════════════════════════════════════════════════════
 
     function claimToValidate(bytes32 projectId, uint256 quantity) public returns (uint256 claimId) {
         if (quantity == 0) revert ISapienCore.ZeroAmount();
@@ -79,11 +67,6 @@ library ValidationLib {
 
         uint256 assignCount = quantity < eligibleCount ? quantity : eligibleCount;
 
-        // Fisher-Yates partial shuffle — only shuffle first `assignCount` positions.
-        // prevrandao is Beacon-Chain RANDAO; a proposer can bias it by at most 1 bit
-        // (forfeiting their slot reward), which is economically irrational for
-        // validator-assignment manipulation. Commit-reveal + staking provide the
-        // real anti-collusion guarantees.
         uint256 seed = uint256(keccak256(abi.encodePacked(block.prevrandao, projectId, msg.sender, block.timestamp)));
         for (uint256 i; i < assignCount; ++i) {
             // slither-disable-next-line weak-prng
@@ -92,7 +75,6 @@ library ValidationLib {
             seed = uint256(keccak256(abi.encodePacked(seed)));
         }
 
-        // Assign the shuffled selections
         uint256[] memory assigned = new uint256[](assignCount);
         for (uint256 i; i < assignCount; ++i) {
             uint256 idx = eligible[i];
@@ -107,22 +89,18 @@ library ValidationLib {
 
         for (uint256 k; k < assignCount; ++k) {
             uint256 nonce = $.submissionNonce[projectId][assigned[k]];
-            $.validatorCommits[projectId][assigned[k]][nonce][msg.sender].validationClaimId = claimId;
+            $.validatorCommits[projectId][assigned[k]][nonce][msg.sender].validationClaimId = uint32(claimId);
         }
         ValidationClaim storage vclaim = $.validationClaims[claimId];
         vclaim.validator = msg.sender;
         vclaim.projectId = projectId;
         vclaim.indices = assigned;
-        vclaim.deadline = block.timestamp + C.VALIDATION_CLAIM_DEADLINE;
-        vclaim.totalCount = assignCount;
+        vclaim.deadline = uint48(block.timestamp + C.VALIDATION_CLAIM_DEADLINE);
+        vclaim.totalCount = uint16(assignCount);
         vclaim.status = ValidationClaimStatus.Active;
 
         emit ISapienCore.ValidationClaimCreated(claimId, projectId, msg.sender, assigned);
     }
-
-    // ════════════════════════════════════════════════════════════════════
-    // Validation (Commit-Reveal)
-    // ════════════════════════════════════════════════════════════════════
 
     function commitValidation(
         bytes32 projectId,
@@ -159,7 +137,7 @@ library ValidationLib {
         $.vault.commitStake(msg.sender, stakeAmount);
 
         vc.commitHash = commitHash;
-        vc.commitTimestamp = block.timestamp;
+        vc.commitTimestamp = uint48(block.timestamp);
         vc.stakedAmount = stakeAmount;
         vc.adapter = adapter;
 
@@ -208,16 +186,15 @@ library ValidationLib {
 
         if (vc.revealedAt != 0) revert ISapienCore.AlreadyRevealed();
 
-        if (block.timestamp > vc.commitTimestamp + $.commitDeadline + $.revealDeadline) {
+        if (block.timestamp > uint256(vc.commitTimestamp) + $.commitDeadline + $.revealDeadline) {
             revert ISapienCore.RevealWindowClosed();
         }
 
-        // Canonical format: keccak256(abi.encodePacked(uint256 score, bytes32 salt))
         bytes32 expectedHash = keccak256(abi.encodePacked(score, salt));
         if (vc.commitHash != expectedHash) revert ISapienCore.InvalidReveal();
 
-        vc.score = score;
-        vc.revealedAt = block.timestamp;
+        vc.score = uint16(score);
+        vc.revealedAt = uint48(block.timestamp);
 
         $.revealedValidators[projectId][index][nonce].push(msg.sender);
         $.validationCounters[projectId][index][nonce].revealCount++;
@@ -240,10 +217,6 @@ library ValidationLib {
         }
     }
 
-    // ════════════════════════════════════════════════════════════════════
-    // Cancel Expired Validation Claim
-    // ════════════════════════════════════════════════════════════════════
-
     function cancelExpiredValidationClaim(uint256 claimId) public {
         EngineStorage storage $ = _getStorage();
         ValidationClaim storage vclaim = $.validationClaims[claimId];
@@ -263,8 +236,7 @@ library ValidationLib {
 
                 ValidatorCommit storage vc = $.validatorCommits[projectId][idx][nonce][validator];
 
-                // Only release reservations that still belong to this claim and were never committed.
-                if (vc.validationClaimId == claimId && vc.commitHash == bytes32(0)) {
+                if (vc.validationClaimId == uint32(claimId) && vc.commitHash == bytes32(0)) {
                     delete $.validatorCommits[projectId][idx][nonce][validator];
 
                     ValidationCounters storage counters = $.validationCounters[projectId][idx][nonce];
@@ -285,10 +257,6 @@ library ValidationLib {
         emit ISapienCore.ValidationClaimExpired(claimId, released);
     }
 
-    // ════════════════════════════════════════════════════════════════════
-    // Consensus Computation
-    // ════════════════════════════════════════════════════════════════════
-
     function computeConsensus(bytes32 projectId, uint256 index) public {
         EngineStorage storage $ = _getStorage();
         Project storage proj = $.projects[projectId];
@@ -307,10 +275,10 @@ library ValidationLib {
 
         ConsensusResult memory result = _buildAndCompute($, projectId, index, nonce, proj.requiredSkill);
 
-        report.weightedAverage = result.weightedAverage;
+        report.weightedAverage = uint16(result.weightedAverage);
         report.stdDeviation = result.stdDeviation;
         report.totalAccurateWeight = result.totalAccurateWeight;
-        report.nonce = nonce;
+        report.nonce = uint32(nonce);
 
         for (uint256 i; i < result.validators.length; ++i) {
             address v = result.validators[i];
@@ -321,7 +289,7 @@ library ValidationLib {
         }
 
         Contribution storage contrib = $.contributions[projectId][index];
-        contrib.consensusNonce = nonce;
+        contrib.consensusNonce = uint32(nonce);
         _removePendingIndex($, projectId, index);
         ContributionStatus newStatus;
 
@@ -331,7 +299,7 @@ library ValidationLib {
             report.computed = true;
             newStatus = ContributionStatus.Accepted;
             contrib.status = ContributionStatus.Accepted;
-            contrib.challengeEndsAt = block.timestamp + challengePeriod_;
+            contrib.challengeEndsAt = uint48(block.timestamp + challengePeriod_);
 
             uint256 qualityBonus = (result.weightedAverage * 20) / C.BPS;
             ReputationLib.update(contrib.contributor, proj.requiredSkill, true, qualityBonus);
@@ -344,7 +312,7 @@ library ValidationLib {
             report.computed = true;
             newStatus = ContributionStatus.Rejected;
             contrib.status = ContributionStatus.Rejected;
-            contrib.challengeEndsAt = block.timestamp + challengePeriod_;
+            contrib.challengeEndsAt = uint48(block.timestamp + challengePeriod_);
 
             $.pendingContributions[projectId]--;
 
@@ -365,10 +333,6 @@ library ValidationLib {
 
         emit ISapienCore.ConsensusReached(projectId, index, result.weightedAverage, newStatus);
     }
-
-    // ════════════════════════════════════════════════════════════════════
-    // Internal Helpers
-    // ════════════════════════════════════════════════════════════════════
 
     function _removePendingIndex(EngineStorage storage $, bytes32 projectId, uint256 idx) internal {
         uint256 pos = $.pendingIndexPos[projectId][idx];

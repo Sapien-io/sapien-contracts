@@ -55,10 +55,6 @@ contract SapienCore is
 
     /// @notice Verify ERC-7201 storage location derivation
     function verifyStorageLocation() external pure returns (bool) {
-        // SEC-M-06: Use Solidity-level keccak256 instead of inline assembly
-        // to avoid incorrect string length issues (was 30 instead of 25)
-        // keccak256(abi.encode(uint256(keccak256("sapien.storage.SapienCore")) - 1)) & ~bytes32(uint256(0xff))
-        // solhint-disable-next-line solidity-formatting
         bytes32 namespaceHash = keccak256("sapien.storage.SapienCore");
         bytes32 derived = keccak256(abi.encode(uint256(namespaceHash) - 1));
         bytes32 expected = derived & ~bytes32(uint256(0xff));
@@ -102,12 +98,11 @@ contract SapienCore is
         $.originatorReportBondBps = 100; // 1% of totalRewards
         $.originatorStakeRequirement = 0; // disabled by default
 
-        // Configurable deadlines (default to constants)
-        $.claimDeadline = C.DEFAULT_CLAIM_DEADLINE;
-        $.challengePeriod = C.DEFAULT_CHALLENGE_PERIOD;
-        $.commitDeadline = C.DEFAULT_COMMIT_DEADLINE;
-        $.revealDeadline = C.DEFAULT_REVEAL_DEADLINE;
-        $.forceSettleDelay = C.DEFAULT_FORCE_SETTLE_DELAY;
+        $.claimDeadline = uint32(C.DEFAULT_CLAIM_DEADLINE);
+        $.challengePeriod = uint32(C.DEFAULT_CHALLENGE_PERIOD);
+        $.commitDeadline = uint32(C.DEFAULT_COMMIT_DEADLINE);
+        $.revealDeadline = uint32(C.DEFAULT_REVEAL_DEADLINE);
+        $.forceSettleDelay = uint32(C.DEFAULT_FORCE_SETTLE_DELAY);
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -401,37 +396,37 @@ contract SapienCore is
 
     function setProtocolFee(uint256 bps) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (bps > C.MAX_PROTOCOL_FEE_BPS) revert AdapterFeeTooHigh(bps, C.MAX_PROTOCOL_FEE_BPS);
-        _getStorage().protocolFeeBps = bps;
+        _getStorage().protocolFeeBps = uint16(bps);
         emit ProtocolFeeUpdated(bps);
     }
 
     function setOriginationFee(uint256 bps) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (bps > C.MAX_ADAPTER_FEE_BPS) revert AdapterFeeTooHigh(bps, C.MAX_ADAPTER_FEE_BPS);
-        _getStorage().originationFeeBps = bps;
+        _getStorage().originationFeeBps = uint16(bps);
         emit OriginationFeeUpdated(bps);
     }
 
     function setContributionFee(uint256 bps) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (bps > C.MAX_ADAPTER_FEE_BPS) revert AdapterFeeTooHigh(bps, C.MAX_ADAPTER_FEE_BPS);
-        _getStorage().contributionFeeBps = bps;
+        _getStorage().contributionFeeBps = uint16(bps);
         emit ContributionFeeUpdated(bps);
     }
 
     function setValidationFee(uint256 bps) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (bps > C.MAX_ADAPTER_FEE_BPS) revert AdapterFeeTooHigh(bps, C.MAX_ADAPTER_FEE_BPS);
-        _getStorage().validationFeeBps = bps;
+        _getStorage().validationFeeBps = uint16(bps);
         emit ValidationFeeUpdated(bps);
     }
 
     function setDecayRate(uint256 bps) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (bps > C.MAX_DECAY_RATE_BPS) revert AdapterFeeTooHigh(bps, C.MAX_DECAY_RATE_BPS);
-        _getStorage().decayRateBps = bps;
+        _getStorage().decayRateBps = uint16(bps);
         emit DecayRateUpdated(bps);
     }
 
     function setDisputeBondBps(uint256 bps) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (bps > C.MAX_DISPUTE_BOND_BPS) revert DisputeBondTooHigh(bps, C.MAX_DISPUTE_BOND_BPS);
-        _getStorage().disputeBondBps = bps;
+        _getStorage().disputeBondBps = uint16(bps);
         emit DisputeBondBpsUpdated(bps);
     }
 
@@ -442,7 +437,7 @@ contract SapienCore is
 
     function setOriginatorReportBondBps(uint256 bps) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (bps > C.MAX_ORIGINATOR_REPORT_BOND_BPS) revert AdapterFeeTooHigh(bps, C.MAX_ORIGINATOR_REPORT_BOND_BPS);
-        _getStorage().originatorReportBondBps = bps;
+        _getStorage().originatorReportBondBps = uint16(bps);
         emit OriginatorReportBondBpsUpdated(bps);
     }
 
@@ -463,42 +458,42 @@ contract SapienCore is
     }
 
     function setClaimCooldown(uint256 cooldown) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _getStorage().claimCooldown = cooldown;
+        _getStorage().claimCooldown = uint32(cooldown);
         emit ClaimCooldownUpdated(cooldown);
     }
 
     function setClaimDeadline(uint256 deadline) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (deadline < C.MIN_CLAIM_DEADLINE) revert DeadlineTooShort(deadline, C.MIN_CLAIM_DEADLINE);
         if (deadline > C.MAX_CLAIM_DEADLINE) revert DeadlineTooLong(deadline, C.MAX_CLAIM_DEADLINE);
-        _getStorage().claimDeadline = deadline;
+        _getStorage().claimDeadline = uint32(deadline);
         emit ClaimDeadlineUpdated(deadline);
     }
 
     function setChallengePeriod(uint256 period) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (period < C.MIN_CHALLENGE_PERIOD) revert DeadlineTooShort(period, C.MIN_CHALLENGE_PERIOD);
         if (period > C.MAX_CHALLENGE_PERIOD) revert DeadlineTooLong(period, C.MAX_CHALLENGE_PERIOD);
-        _getStorage().challengePeriod = period;
+        _getStorage().challengePeriod = uint32(period);
         emit ChallengePeriodUpdated(period);
     }
 
     function setCommitDeadline(uint256 deadline) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (deadline < C.MIN_COMMIT_DEADLINE) revert DeadlineTooShort(deadline, C.MIN_COMMIT_DEADLINE);
         if (deadline > C.MAX_COMMIT_DEADLINE) revert DeadlineTooLong(deadline, C.MAX_COMMIT_DEADLINE);
-        _getStorage().commitDeadline = deadline;
+        _getStorage().commitDeadline = uint32(deadline);
         emit CommitDeadlineUpdated(deadline);
     }
 
     function setRevealDeadline(uint256 deadline) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (deadline < C.MIN_REVEAL_DEADLINE) revert DeadlineTooShort(deadline, C.MIN_REVEAL_DEADLINE);
         if (deadline > C.MAX_REVEAL_DEADLINE) revert DeadlineTooLong(deadline, C.MAX_REVEAL_DEADLINE);
-        _getStorage().revealDeadline = deadline;
+        _getStorage().revealDeadline = uint32(deadline);
         emit RevealDeadlineUpdated(deadline);
     }
 
     function setForceSettleDelay(uint256 delay) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (delay < C.MIN_FORCE_SETTLE_DELAY) revert DeadlineTooShort(delay, C.MIN_FORCE_SETTLE_DELAY);
         if (delay > C.MAX_FORCE_SETTLE_DELAY) revert DeadlineTooLong(delay, C.MAX_FORCE_SETTLE_DELAY);
-        _getStorage().forceSettleDelay = delay;
+        _getStorage().forceSettleDelay = uint32(delay);
         emit ForceSettleDelayUpdated(delay);
     }
 
@@ -570,7 +565,7 @@ contract SapienCore is
         EngineStorage storage $ = _getStorage();
         Reputation memory rep = $.reputation[user][skillId];
         if (rep.lastUpdated == 0) {
-            rep.score = C.DEFAULT_REPUTATION;
+            rep.score = uint16(C.DEFAULT_REPUTATION);
         }
         return rep;
     }

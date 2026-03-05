@@ -9,22 +9,14 @@ import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 import {ReputationLib} from "src/libraries/ReputationLib.sol";
 import {EngineStorage, Project, ProjectStatus, Contribution, ContributionStatus, IndexRange} from "src/Types.sol";
 
-/// @title OriginationLib
-/// @notice Deployed library for project creation and funding operations.
-/// @dev Called via DELEGATECALL from SapienCore; operates on the caller's ERC-7201 storage.
 library OriginationLib {
     using SafeERC20 for IERC20;
 
-    // keccak256(abi.encode(uint256(keccak256("sapien.storage.SapienCore")) - 1)) & ~bytes32(uint256(0xff))
     function _getStorage() private pure returns (EngineStorage storage $) {
         assembly {
             $.slot := 0xb21037e32bd67da4126ec23c3d75228183c819f055709f5aa59aa33cc3fd2b00
         }
     }
-
-    // ════════════════════════════════════════════════════════════════════
-    // Project Management
-    // ════════════════════════════════════════════════════════════════════
 
     function createProject(bytes32 projectId, string calldata metadataCid, Project calldata config) public {
         EngineStorage storage $ = _getStorage();
@@ -111,23 +103,22 @@ library OriginationLib {
 
         $.projectEscrow[projectId][token] += remaining;
         proj.totalRewards += remaining;
-        proj.totalQuantity += quantity;
-        proj.availableSlots += quantity;
+        proj.totalQuantity += uint32(quantity);
+        proj.availableSlots += uint32(quantity);
         proj.status = ProjectStatus.Funded;
 
         {
-            uint256 existingTotal = proj.totalQuantity - quantity;
+            uint256 existingTotal = uint256(proj.totalQuantity) - quantity;
             IndexRange storage range = $.indexRange[projectId];
             if (range.count == 0) {
-                range.start = existingTotal;
+                range.start = uint128(existingTotal);
             }
-            range.count += quantity;
+            range.count += uint128(quantity);
         }
 
         emit ISapienCore.ProjectFunded(projectId, remaining, quantity);
     }
 
-    /// @notice Admin/operator removes a project and slashes the originator for TOS breach.
     function removeProject(bytes32 projectId) public {
         EngineStorage storage $ = _getStorage();
         Project storage proj = $.projects[projectId];
@@ -135,7 +126,6 @@ library OriginationLib {
         if (proj.originator == address(0)) revert ISapienCore.InvalidProjectConfig("project does not exist");
         if (proj.status == ProjectStatus.Cancelled) revert ISapienCore.ProjectNotCancellable();
 
-        // Slash originator stake if locked
         uint256 originatorStake = $.originatorLockedStake[projectId];
         if (originatorStake > 0) {
             $.vault.slashContributor(proj.originator, originatorStake);
@@ -144,7 +134,6 @@ library OriginationLib {
 
         ReputationLib.update(proj.originator, C.ORIGINATOR_ROLE_KEY, false, 0);
 
-        // Wind-down active claims and unlock contributor stakes
         uint256 totalQuantity = proj.totalQuantity;
         uint256 stakePerSlot = proj.minStakeToClaim;
         for (uint256 i = 0; i < totalQuantity; ++i) {
@@ -161,7 +150,6 @@ library OriginationLib {
             }
         }
 
-        // Reset pending contributions counter and pending index set
         $.pendingContributions[projectId] = 0;
         {
             uint256[] storage arr = $.pendingIndices[projectId];
@@ -173,7 +161,7 @@ library OriginationLib {
         }
 
         proj.status = ProjectStatus.Cancelled;
-        proj.cancelledAt = block.timestamp;
+        proj.cancelledAt = uint48(block.timestamp);
 
         emit ISapienCore.ProjectRemoved(projectId, msg.sender);
         emit ISapienCore.ProjectCancelled(projectId);
