@@ -16,20 +16,12 @@ import {
     OriginatorReportStatus
 } from "src/Types.sol";
 
-/// @title ContributionLib
-/// @notice Deployed library for claim and contribution operations.
-/// @dev Called via DELEGATECALL from SapienCore; operates on the caller's ERC-7201 storage.
 library ContributionLib {
-    // keccak256(abi.encode(uint256(keccak256("sapien.storage.SapienCore")) - 1)) & ~bytes32(uint256(0xff))
     function _getStorage() private pure returns (EngineStorage storage $) {
         assembly {
             $.slot := 0xb21037e32bd67da4126ec23c3d75228183c819f055709f5aa59aa33cc3fd2b00
         }
     }
-
-    // ════════════════════════════════════════════════════════════════════
-    // Claim & Contribute
-    // ════════════════════════════════════════════════════════════════════
 
     function claimToContribute(bytes32 projectId, uint256 quantity, address adapter)
         public
@@ -79,19 +71,19 @@ library ContributionLib {
                 for (uint256 i; i < remaining; ++i) {
                     indices[filled + i] = rStart + rCount - remaining + i;
                 }
-                range.count = rCount - remaining;
+                range.count = uint128(rCount - remaining);
             }
         }
 
-        proj.availableSlots -= quantity;
+        proj.availableSlots -= uint32(quantity);
 
         {
             claimId = $.nextClaimId++;
             Claim storage claim = $.claims[claimId];
             claim.claimant = msg.sender;
             claim.projectId = projectId;
-            claim.deadline = block.timestamp + $.claimDeadline;
-            claim.totalCount = quantity;
+            claim.deadline = uint48(block.timestamp + $.claimDeadline);
+            claim.totalCount = uint16(quantity);
             claim.status = ClaimStatus.Active;
 
             if (adapter != address(0)) {
@@ -103,7 +95,7 @@ library ContributionLib {
             for (uint256 i; i < quantity; ++i) {
                 Contribution storage contrib = $.contributions[projectId][indices[i]];
                 contrib.contributor = msg.sender;
-                contrib.claimId = claimId;
+                contrib.claimId = uint32(claimId);
                 contrib.status = ContributionStatus.Reserved;
                 contrib.submissionHash = bytes32(0);
             }
@@ -111,7 +103,7 @@ library ContributionLib {
 
         if (proj.status == ProjectStatus.Funded) {
             proj.status = ProjectStatus.Active;
-            proj.activatedAt = block.timestamp;
+            proj.activatedAt = uint48(block.timestamp);
         }
 
         emit ISapienCore.ClaimCreated(claimId, projectId, msg.sender, indices);
@@ -133,14 +125,14 @@ library ContributionLib {
         }
 
         Contribution storage contrib = $.contributions[projectId][index];
-        if (contrib.claimId != claimId) revert ISapienCore.IndexNotInClaim();
+        if (contrib.claimId != uint32(claimId)) revert ISapienCore.IndexNotInClaim();
         if (contrib.status != ContributionStatus.Reserved) revert ISapienCore.IndexNotReserved();
 
         uint256 rewardRate = proj.totalRewards / proj.totalQuantity;
 
         contrib.submissionHash = submissionHash;
         contrib.rewardRate = rewardRate;
-        contrib.submittedAt = block.timestamp;
+        contrib.submittedAt = uint48(block.timestamp);
         contrib.status = ContributionStatus.Pending;
         contrib.challengeEndsAt = 0;
         contrib.rewardReleased = false;
@@ -148,7 +140,6 @@ library ContributionLib {
 
         $.pendingContributions[projectId]++;
 
-        // Track index for random validator assignment
         $.pendingIndices[projectId].push(index);
         $.pendingIndexPos[projectId][index] = $.pendingIndices[projectId].length; // 1-indexed
 
@@ -195,9 +186,7 @@ library ContributionLib {
             uint256 idx = indices[i];
             Contribution storage contrib = $.contributions[projectId][idx];
 
-            // Skip indices that no longer belong to this claim (recycled after consensus rejection).
-            // These slots had their stake already handled by computeConsensus.
-            if (contrib.claimId != claimId) continue;
+            if (contrib.claimId != uint32(claimId)) continue;
 
             if (contrib.status == ContributionStatus.Reserved) {
                 $.returnStack[projectId][rsTop] = idx;
@@ -208,24 +197,17 @@ library ContributionLib {
                 contrib.status = ContributionStatus.Empty;
                 unsubmitted++;
             } else if (contrib.status == ContributionStatus.Pending) {
-                // Submitted but still awaiting consensus — stake is still locked for this slot
                 stillInFlight++;
             }
         }
 
         $.returnStackTop[projectId] = rsTop;
-        proj.availableSlots += unsubmitted;
+        proj.availableSlots += uint32(unsubmitted);
 
-        // All unsubmitted Reserved slots must be accounted for. If the caller passed
-        // indices that never belonged to this claim, their actual Reserved slots were
-        // skipped and this invariant catches the discrepancy.
-        uint256 expectedUnsubmitted = claim.totalCount - claim.submittedCount;
+        uint256 expectedUnsubmitted = uint256(claim.totalCount) - uint256(claim.submittedCount);
         if (unsubmitted != expectedUnsubmitted) revert ISapienCore.InvalidIndex();
 
         uint256 slashAmount = unsubmitted > 0 ? proj.minStakeToClaim * unsubmitted : 0;
-        // Only unlock stake for slots that are still in-flight (Pending). Slots that were
-        // rejected by consensus already had their stake slashed via computeConsensus and
-        // must not be double-counted here.
         uint256 unlockAmount = stillInFlight * proj.minStakeToClaim;
         if (slashAmount > 0 || unlockAmount > 0) {
             $.vault.slashAndUnlockContributor(claim.claimant, slashAmount, unlockAmount);

@@ -21,13 +21,9 @@ import {
     DisputeStatus
 } from "src/Types.sol";
 
-/// @title FinalizationLib
-/// @notice Deployed library for validator settlement and reward release operations.
-/// @dev Called via DELEGATECALL from SapienCore; operates on the caller's ERC-7201 storage.
 library FinalizationLib {
     using SafeERC20 for IERC20;
 
-    // keccak256(abi.encode(uint256(keccak256("sapien.storage.SapienCore")) - 1)) & ~bytes32(uint256(0xff))
     function _getStorage() private pure returns (EngineStorage storage $) {
         assembly {
             $.slot := 0xb21037e32bd67da4126ec23c3d75228183c819f055709f5aa59aa33cc3fd2b00
@@ -45,7 +41,7 @@ library FinalizationLib {
 
         ValidatorCommit storage vc = $.validatorCommits[projectId][index][nonce][validator];
         if (vc.revealedAt == 0) revert ISapienCore.NotCommitted();
-        if (block.timestamp <= vc.revealedAt + $.forceSettleDelay) {
+        if (block.timestamp <= uint256(vc.revealedAt) + $.forceSettleDelay) {
             revert ISapienCore.ForceSettleTooEarly();
         }
 
@@ -92,8 +88,6 @@ library FinalizationLib {
             }
             ReputationLib.update(validator, proj.requiredSkill, false, 0);
         } else {
-            // Always release committed stake — validators must recover their stake
-            // regardless of dispute outcome or contribution status
             if (committedStake > 0) {
                 $.vault.releaseCommit(validator, committedStake);
             }
@@ -101,12 +95,8 @@ library FinalizationLib {
             if (contrib.status == ContributionStatus.Accepted) {
                 Dispute storage dispute = $.disputes[projectId][index][nonce];
 
-                // Block settlement while a dispute is actively in progress (can retry after resolution)
                 if (dispute.status == DisputeStatus.Open) revert ISapienCore.DisputeInProgress();
 
-                // Only pay reward when the dispute was not upheld and the challenge window has closed.
-                // Upheld dispute = contribution was bad; no reward owed to validators who approved it.
-                // Challenge period = prevents same-block reward extraction before a dispute can be filed.
                 if (dispute.status != DisputeStatus.Upheld) {
                     if (block.timestamp < contrib.challengeEndsAt) revert ISapienCore.ChallengeNotElapsed();
 
@@ -117,10 +107,9 @@ library FinalizationLib {
                         uint256 validatorShare = Math.mulDiv(
                             proj.totalRewards * proj.validatorRewardBps * weight,
                             1,
-                            C.BPS * proj.totalQuantity * totalAccWeight
+                            C.BPS * uint256(proj.totalQuantity) * totalAccWeight
                         );
 
-                        // Cap to available escrow before computing fees to prevent accounting debt
                         uint256 availableEscrow = $.projectEscrow[projectId][proj.rewardToken];
                         uint256 actualValidatorShare =
                             validatorShare > availableEscrow ? availableEscrow : validatorShare;
@@ -165,9 +154,8 @@ library FinalizationLib {
 
         address token = proj.rewardToken;
 
-        uint256 contributorShare = Math.mulDiv(contrib.rewardRate, C.BPS - proj.validatorRewardBps, C.BPS);
+        uint256 contributorShare = Math.mulDiv(contrib.rewardRate, C.BPS - uint256(proj.validatorRewardBps), C.BPS);
 
-        // Cap to available escrow before computing fees to prevent accounting debt
         uint256 availableEscrow = $.projectEscrow[projectId][token];
         uint256 actualContributorShare = contributorShare > availableEscrow ? availableEscrow : contributorShare;
         uint256 reward = actualContributorShare;
@@ -219,7 +207,7 @@ library FinalizationLib {
         if (vc.commitTimestamp == 0) revert ISapienCore.NotCommitted();
         if (vc.revealedAt != 0) revert ISapienCore.AlreadyRevealed();
 
-        if (block.timestamp <= vc.commitTimestamp + $.commitDeadline + $.revealDeadline) {
+        if (block.timestamp <= uint256(vc.commitTimestamp) + $.commitDeadline + $.revealDeadline) {
             revert ISapienCore.ClaimDeadlineNotPassed();
         }
 
@@ -253,7 +241,7 @@ library FinalizationLib {
         if ($.pendingContributions[projectId] > 0) revert ISapienCore.ProjectHasActivePipeline();
 
         proj.status = ProjectStatus.Completed;
-        proj.completedAt = block.timestamp;
+        proj.completedAt = uint48(block.timestamp);
 
         uint256 originatorStake = $.originatorLockedStake[projectId];
         if (originatorStake > 0) {
@@ -269,11 +257,11 @@ library FinalizationLib {
         Project storage proj = $.projects[projectId];
         if (proj.originator != msg.sender) revert ISapienCore.NotProjectOriginator();
         if (proj.status == ProjectStatus.Completed) {
-            if (block.timestamp < proj.completedAt + C.PROJECT_COMPLETION_DELAY) {
+            if (block.timestamp < uint256(proj.completedAt) + C.PROJECT_COMPLETION_DELAY) {
                 revert ISapienCore.ChallengeNotElapsed();
             }
         } else if (proj.status == ProjectStatus.Cancelled) {
-            if (block.timestamp < proj.cancelledAt + C.PROJECT_COMPLETION_DELAY) {
+            if (block.timestamp < uint256(proj.cancelledAt) + C.PROJECT_COMPLETION_DELAY) {
                 revert ISapienCore.ChallengeNotElapsed();
             }
         } else {

@@ -80,21 +80,21 @@ contract BaseTest is Test {
 
         Project memory config = Project({
             originator: address(0),
-            rewardToken: address(token),
-            totalRewards: 0,
-            totalQuantity: 0,
-            availableSlots: 0,
-            consensusThreshold: 7000,
-            minStakeToClaim: STAKE_AMOUNT,
-            validatorRewardBps: 2000,
-            numberOfValidations: 3,
-            requiredSkill: SKILL_ID,
-            minValidatorReputation: 0,
-            minValidationStake: 0,
             status: ProjectStatus.Created,
+            numberOfValidations: 3,
+            consensusThreshold: 7000,
+            validatorRewardBps: 2000,
+            minValidatorReputation: 0,
+            totalQuantity: 0,
+            rewardToken: address(token),
             activatedAt: 0,
             completedAt: 0,
-            cancelledAt: 0
+            cancelledAt: 0,
+            availableSlots: 0,
+            requiredSkill: SKILL_ID,
+            totalRewards: 0,
+            minStakeToClaim: STAKE_AMOUNT,
+            minValidationStake: 0
         });
 
         engine.createProject(projectId, "", config);

@@ -170,7 +170,7 @@ contract SapienCoreHandler is Test {
             consensusThreshold: 7000,
             minStakeToClaim: STAKE_AMOUNT,
             validatorRewardBps: 2000,
-            numberOfValidations: NUM_VALIDATIONS,
+            numberOfValidations: uint8(NUM_VALIDATIONS),
             requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
