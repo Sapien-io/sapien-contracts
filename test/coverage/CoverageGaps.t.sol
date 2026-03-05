@@ -2622,7 +2622,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         engine.resolveDispute(pid, index, true); // upheld
 
         vm.warp(block.timestamp + 30 days);
-        vm.expectRevert(ISapienCore.DisputeInProgress.selector);
+        vm.expectRevert(ISapienCore.ContributionNotAccepted.selector);
         engine.releaseContributorReward(pid, index);
     }
 

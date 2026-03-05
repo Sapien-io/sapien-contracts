@@ -291,6 +291,15 @@ contract SapienCore is
         FinalizationLib.cancelExpiredCommitment(projectId, index, validator);
     }
 
+    /// @inheritdoc ISapienCore
+    function releaseValidatorOnCancelledProject(bytes32 projectId, uint256 index, uint256 nonce, address validator)
+        external
+        whenNotPaused
+        nonReentrant
+    {
+        FinalizationLib.releaseValidatorOnCancelledProject(projectId, index, nonce, validator);
+    }
+
     // ════════════════════════════════════════════════════════════════════
     // Disputes — Consensus Outcome Challenges
     // ════════════════════════════════════════════════════════════════════

@@ -1,3 +1,27 @@
+== Logs == 2026-03-04
+  === SapienCore Upgrade ===
+  Proxy:               0xDFFEc0D8F9DF05bf3DecbdFefD650779D6481077
+  Old implementation:  0x492dC73D7471146ce0BF5569D8e8d1898AE70610
+  Safe admin:          0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC
+
+  New implementation:  0x58F73de42FaA56452ee26a668109abA8F2006195
+
+  ============================================================
+    SAFE TRANSACTION - paste into app.safe.global
+  ============================================================
+
+    To:     0xDFFEc0D8F9DF05bf3DecbdFefD650779D6481077
+    Value: 0
+    Data:
+  0x4f1ef28600000000000000000000000058f73de42faa56452ee26a668109aba8f200619500000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000
+
+  ============================================================
+  Updated deployments/base-sepolia.json
+
+
+
+
+
 == Logs == 2026-03-01 #2
   === SapienVault Upgrade ===
   Proxy:               0xf0E3C676b277Ce31C2E72Cd473684FA4C8866029

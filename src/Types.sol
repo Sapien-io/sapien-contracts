@@ -121,7 +121,8 @@ enum ContributionStatus {
     Reserved,
     Pending,
     Accepted,
-    Rejected
+    Rejected,
+    Disputed
 }
 
 enum DisputeStatus {

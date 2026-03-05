@@ -88,12 +88,12 @@ During the challenge period after consensus, anyone can open a bonded dispute. O
 | Contract | Address |
 |----------|---------|
 | SapienCore (Proxy) | [`0xDFFEc0D8F9DF05bf3DecbdFefD650779D6481077`](https://sepolia.basescan.org/address/0xDFFEc0D8F9DF05bf3DecbdFefD650779D6481077) |
-| SapienCore (Implementation) | [`0x5800578781440999EF366f19607DBC1451952EFB`](https://sepolia.basescan.org/address/0x5800578781440999EF366f19607DBC1451952EFB) |
 | SapienVault (Proxy) | [`0xf0E3C676b277Ce31C2E72Cd473684FA4C8866029`](https://sepolia.basescan.org/address/0xf0E3C676b277Ce31C2E72Cd473684FA4C8866029) |
-| SapienVault (Implementation) | [`0xd7F71220dad3350dc1eC398A16b297EEC4ef81b3`](https://sepolia.basescan.org/address/0xd7F71220dad3350dc1eC398A16b297EEC4ef81b3) |
 | SAPIEN Token | [`0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6`](https://sepolia.basescan.org/address/0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6) |
 | Default Admin | [`0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC`](https://sepolia.basescan.org/address/0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC) |
 | Treasury | [`0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC`](https://sepolia.basescan.org/address/0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC) |
+| SAPIEN | [`0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6`](https://sepolia.basescan.org/address/0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6) |
+| USDC | [`0x4d4394119CF096FbdbbD3Efb00d204c891C6Cd05`](https://sepolia.basescan.org/address/0x4d4394119CF096FbdbbD3Efb00d204c891C6Cd05) |
 
 ## Getting started
 

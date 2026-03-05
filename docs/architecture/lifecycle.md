@@ -104,7 +104,7 @@ Originators register a project with `createProject`, defining the reward token, 
 Contributors claim slots via `claimToContribute`, which locks their stake at `minStakeToClaim × quantity` and assigns slot indices using a range + return-stack hybrid allocator. The first claim on a `Funded` project transitions it to `Active`. Work is submitted via `contribute` with a submission hash and data CID.
 
 ### 3. Validation
-Validators pre-lock capacity via `lockValidatorCapacity`, then request a quantity via `claimToValidate(projectId, quantity)` and receive randomly assigned pending contributions (1-hour deadline, reputation check). The commit-reveal scheme uses `keccak256(abi.encodePacked(uint16(score), salt))` as the commit hash. Stake moves from `validatorCapacity` to `inFlight` on commit.
+Validators pre-lock capacity via `lockValidatorCapacity`, then request a quantity via `claimToValidate(projectId, quantity)` and receive randomly assigned pending contributions (1-hour deadline, reputation check). The commit-reveal scheme uses `keccak256(abi.encodePacked(uint256(score), bytes32(salt)))` as the commit hash. Stake moves from `validatorCapacity` to `inFlight` on commit.
 
 ### 4. Consensus
 `computeConsensus` calls `ConsensusLib.calculate()` which computes a stake-weighted average (`sqrt(stake) × reputation`), standard deviation, and classifies outliers using tiered thresholds. The contribution is set to `Accepted` (score ≥ threshold) or `Rejected` (score < threshold). Accepted contributions start the challenge period; rejected contributions return the slot to the pool and increment the submission nonce.
@@ -124,36 +124,44 @@ The originator calls `completeProject` when no contributions are in-flight, whic
 ## Optimization and Improvement Recommendations
 
 Based on expanded lifecycle and edge-path testing in `test/lifecycle/Lifecycle.t.sol`,
-the following improvements are recommended to improve liveness, operator UX, and
-integrator safety.
+the following improvements were identified. Status and implementation details below.
 
-1. **Release validator slot reservations on validation-claim expiry**  
-   On `cancelExpiredValidationClaim`, clear uncommitted reservation flags and
-   decrement claim counters so new validators can claim and unblock consensus.
+1. **Release validator slot reservations on validation-claim expiry** — *Implemented*  
+   `cancelExpiredValidationClaim` clears uncommitted reservation flags and decrements
+   `claimCount` so new validators can claim and unblock consensus.  
+   Regression: `test_issue_validationClaimExpiryLocksValidatorSlots`
 
-2. **Enforce claim-level commit cutoff**  
-   In `commitValidation`, require the associated validation claim to still be
-   `Active` and before claim deadline to preserve commit-reveal fairness.
+2. **Enforce claim-level commit cutoff** — *Implemented*  
+   `commitValidation` requires the associated validation claim to be `Active` and
+   within deadline to preserve commit-reveal fairness.  
+   Regression: `test_issue_lateCommitAllowedAfterValidationClaimExpiry`
 
-3. **Add a terminal upheld-dispute transition**  
-   For upheld disputes on accepted contributions, finalize contribution state in a
-   way that decrements `pendingContributions` and preserves project completion paths.
+3. **Add a terminal upheld-dispute transition** — *Implemented*  
+   Upheld disputes on accepted contributions decrement `pendingContributions` and
+   transition the contribution to `ContributionStatus.Disputed`, providing a clean
+   terminal state for integrators. Validators who settle after an upheld dispute
+   receive their stake back without reward.  
+   Regression: `test_issue_upheldDisputeCanDeadlockProjectCompletion`
 
-4. **Define cancelled-project escrow settlement policy**  
-   Add an explicit escrow disposition path for `Cancelled` projects (originator
-   refund, treasury routing, or governance-defined split) to avoid stranded funds.
+4. **Define cancelled-project escrow settlement policy** — *Implemented*  
+   `refundEscrow` supports `Cancelled` projects with a 30-day delay (same as
+   `Completed`). `releaseValidatorOnCancelledProject` allows permissionless recovery
+   of in-flight validator stake on cancelled projects without slashing.  
+   Regression: `test_issue_cancelledProjectEscrowStranding`
 
-5. **Standardize commit-hash encoding across docs and contracts**  
-   Keep interface docs, SDK helpers, and onchain verification logic in strict
-   alignment (including score type/padding) to prevent reveal failures.
+5. **Standardize commit-hash encoding across docs and contracts** — *Implemented*  
+   Canonical encoding: `keccak256(abi.encodePacked(uint256(score), bytes32(salt)))`.
+   Score is `uint256` in the function signature (valid range `[0, 10000]`), stored as
+   `uint16` after reveal. Interface NatSpec documents the exact encoding.  
+   Regression: `test_issue_uint256CommitHashEncodingMismatch`
 
-6. **Strengthen keeper recoverability patterns**  
-   Continue exposing permissionless recovery operations (`cancelExpiredCommitment`,
-   `forceSettleValidator`) and ensure every timeout path has a bounded, terminal
-   cleanup route.
+6. **Strengthen keeper recoverability patterns** — *Implemented*  
+   All timeout paths have bounded, permissionless cleanup routes. See the
+   [Keeper Functions Reference](#keeper-functions-reference) below for the complete
+   table of keeper operations, trigger conditions, and timeouts.
 
-For currently confirmed lifecycle issues and reproductions, see
-`docs/security/lifecycle-flow-issues.md`.
+For confirmed lifecycle issues and reproductions, see
+`test/findings/2026-02-23/lifecycle/lifecycle-flow-issues.md`.
 
 ## Edge Cases & Timeouts
 
@@ -186,6 +194,12 @@ sequenceDiagram
     U->>SC: forceSettleValidator(projectId, index, nonce, validator)
     SC->>SC: Check forceSettleDelay elapsed since reveal
     Note right of SC: Same settlement logic as settleValidator
+
+    Note over U, SC: Scenario 5: Cancelled Project Validator Recovery
+    U->>SC: releaseValidatorOnCancelledProject(projectId, index, nonce, validator)
+    SC->>SC: Check project status == Cancelled
+    SC->>SV: releaseCommit(validator, stakedAmount)
+    Note right of SC: No slashing (not validator's fault)
 ```
 
 ### 1. Contributor Claim Expiration
@@ -199,3 +213,18 @@ If a validator commits but fails to reveal within the combined commit + reveal d
 
 ### 4. Force Settlement
 If a validator reveals but fails to settle after the `forceSettleDelay` (default 3 days), anyone can call `forceSettleValidator` to settle on their behalf. This prevents validators from blocking reward distribution.
+
+### 5. Cancelled Project Validator Recovery
+When a project is cancelled (via operator `removeProject` or upheld originator report), validators with in-flight stake cannot settle through the normal path. Anyone can call `releaseValidatorOnCancelledProject` to release their committed stake back to validator capacity without slashing, since cancellation is not the validator's fault.
+
+## Keeper Functions Reference
+
+| Function | Trigger Condition | Default Timeout | Effect |
+|----------|------------------|-----------------|--------|
+| `expireClaim` | `block.timestamp > claim.deadline` | `claimDeadline` (configurable) | Slash unsubmitted slots, unlock submitted, return slots to pool |
+| `cancelExpiredValidationClaim` | `block.timestamp > vclaim.deadline` | 1 hour | Release uncommitted slots, decrement `claimCount`, penalize reputation |
+| `cancelExpiredCommitment` | `block.timestamp > commitTimestamp + commitDeadline + revealDeadline` | ~2 days | Slash full committed stake, decrement counters, penalize reputation |
+| `forceSettleValidator` | `block.timestamp > revealedAt + forceSettleDelay` | 3 days | Same settlement logic as `settleValidator` |
+| `escalateDispute` | `block.timestamp > openedAt + DISPUTE_RESOLUTION_DEADLINE` | 7 days | Auto-uphold the dispute |
+| `escalateOriginatorReport` | `block.timestamp > reportedAt + DISPUTE_RESOLUTION_DEADLINE` | 7 days | Auto-uphold the report, cancel project |
+| `releaseValidatorOnCancelledProject` | `project.status == Cancelled` | Immediate | Release in-flight stake without slashing |

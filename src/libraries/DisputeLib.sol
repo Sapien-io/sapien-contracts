@@ -86,6 +86,8 @@ library DisputeLib {
             }
             ReputationLib.update(contrib.contributor, proj.requiredSkill, false, 0);
 
+            contrib.status = ContributionStatus.Disputed;
+
             if ($.pendingContributions[projectId] > 0) {
                 $.pendingContributions[projectId]--;
             }

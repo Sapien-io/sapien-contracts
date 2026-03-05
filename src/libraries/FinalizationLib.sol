@@ -48,6 +48,26 @@ library FinalizationLib {
         _settleValidatorFor(projectId, index, nonce, validator);
     }
 
+    function releaseValidatorOnCancelledProject(bytes32 projectId, uint256 index, uint256 nonce, address validator)
+        public
+    {
+        EngineStorage storage $ = _getStorage();
+        Project storage proj = $.projects[projectId];
+        if (proj.status != ProjectStatus.Cancelled) revert ISapienCore.ProjectNotCancelled();
+
+        ValidatorCommit storage vc = $.validatorCommits[projectId][index][nonce][validator];
+        if (vc.settled) revert ISapienCore.AlreadySettled();
+        if (vc.stakedAmount == 0) revert ISapienCore.NotCommitted();
+
+        vc.settled = true;
+        uint256 stake = vc.stakedAmount;
+        if (stake > 0) {
+            $.vault.releaseCommit(validator, stake);
+        }
+
+        emit ISapienCore.ValidatorSettled(projectId, index, validator, false);
+    }
+
     function _settleValidatorFor(bytes32 projectId, uint256 index, uint256 nonce, address validator) internal {
         EngineStorage storage $ = _getStorage();
 

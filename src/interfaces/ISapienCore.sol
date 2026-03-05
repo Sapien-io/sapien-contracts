@@ -224,6 +224,9 @@ interface ISapienCore {
     /// @dev The project is not eligible for cancellation.
     error ProjectNotCancellable();
 
+    /// @dev The project is not in Cancelled status.
+    error ProjectNotCancelled();
+
     // ── Events ─────────────────────────────────────────────────────────
 
     // ── Projects ────────────────────────────────────────────────────────
@@ -596,8 +599,11 @@ interface ISapienCore {
     function claimToValidate(bytes32 projectId, uint256 quantity) external returns (uint256 claimId);
 
     /// @notice Commit a sealed validation score for a contribution (commit phase of commit-reveal).
-    /// @dev The commit hash should be `keccak256(abi.encodePacked(score, salt))`. The validator's
-    ///      stake is locked proportionally. Must be called before the commit deadline.
+    /// @dev The commit hash MUST be `keccak256(abi.encodePacked(uint256(score), bytes32(salt)))`.
+    ///      Score is encoded as `uint256` (valid range [0, 10000]) even though it is stored as
+    ///      `uint16` after reveal. Using `uint16` encoding will produce a different hash and
+    ///      cause reveal to fail. The validator's stake is locked proportionally. Must be called
+    ///      before the commit deadline and while the validation claim is still Active.
     /// @param projectId Project containing the contribution.
     /// @param index Contribution slot index.
     /// @param commitHash Sealed hash of the score and salt.
@@ -627,8 +633,9 @@ interface ISapienCore {
     ) external;
 
     /// @notice Reveal a previously committed validation score (reveal phase of commit-reveal).
-    /// @dev The provided score and salt must hash to the stored commit hash. Must be called
-    ///      within the reveal window (after commit deadline, before reveal deadline).
+    /// @dev The provided score and salt must satisfy
+    ///      `keccak256(abi.encodePacked(uint256(score), bytes32(salt))) == commitHash`.
+    ///      Must be called within the reveal window (after commit deadline, before reveal deadline).
     ///      Reverts with `CommitPhaseIncomplete` if fewer than `numberOfValidations` validators
     ///      have committed for this contribution — all validators must commit before any can reveal.
     /// @param projectId Project containing the contribution.
@@ -682,6 +689,18 @@ interface ISapienCore {
     /// @param nonce Consensus nonce to settle against.
     /// @param validator Address of the validator to force-settle.
     function forceSettleValidator(bytes32 projectId, uint256 index, uint256 nonce, address validator) external;
+
+    /// @notice Release a validator's in-flight stake on a cancelled project.
+    /// @dev Permissionless keeper function. When a project is cancelled, validators who have
+    ///      committed or revealed cannot settle normally (settlement reverts on Cancelled).
+    ///      This function releases their in-flight stake without slashing since cancellation
+    ///      is not the validator's fault.
+    /// @param projectId Project that has been cancelled.
+    /// @param index Contribution slot index.
+    /// @param nonce Consensus nonce.
+    /// @param validator Address of the validator to release.
+    function releaseValidatorOnCancelledProject(bytes32 projectId, uint256 index, uint256 nonce, address validator)
+        external;
 
     /// @notice Release a contributor's reward to their pending balance after consensus.
     /// @dev The contribution must be Accepted and the challenge period must have elapsed

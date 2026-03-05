@@ -793,9 +793,9 @@ contract LifecycleDisputeTest is LifecycleBase {
         // Challenger gets reward (20% of rewardRate from escrow)
         assertGt(engine.getPendingRewards(challenger, address(token)), 0);
 
-        // Contributor reward release is blocked
+        // Contributor reward release is blocked (status is now Disputed)
         vm.warp(block.timestamp + 10 days);
-        vm.expectRevert(ISapienCore.DisputeInProgress.selector);
+        vm.expectRevert(ISapienCore.ContributionNotAccepted.selector);
         engine.releaseContributorReward(projId, index);
     }
 
@@ -2003,9 +2003,9 @@ contract LifecycleMultiActorTest is LifecycleBase {
         vm.prank(validator3);
         engine.settleValidator(projId, index2, nonce2);
 
-        // Contributor2's reward is blocked (dispute upheld)
+        // Contributor2's reward is blocked (status is now Disputed)
         vm.warp(block.timestamp + 10 days);
-        vm.expectRevert(ISapienCore.DisputeInProgress.selector);
+        vm.expectRevert(ISapienCore.ContributionNotAccepted.selector);
         engine.releaseContributorReward(projId, index2);
 
         // Challenger gets reward
