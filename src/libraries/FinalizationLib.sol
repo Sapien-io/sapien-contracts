@@ -238,7 +238,9 @@ library FinalizationLib {
             revert ISapienCore.ProjectNotActive();
         }
 
-        if ($.pendingContributions[projectId] > 0) revert ISapienCore.ProjectHasActivePipeline();
+        if ($.pendingContributions[projectId] > 0 || $.activeContributionClaims[projectId] > 0) {
+            revert ISapienCore.ProjectHasActivePipeline();
+        }
 
         proj.status = ProjectStatus.Completed;
         proj.completedAt = uint48(block.timestamp);

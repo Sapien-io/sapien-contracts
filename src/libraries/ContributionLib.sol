@@ -85,6 +85,7 @@ library ContributionLib {
             claim.deadline = uint48(block.timestamp + $.claimDeadline);
             claim.totalCount = uint16(quantity);
             claim.status = ClaimStatus.Active;
+            $.activeContributionClaims[projectId]++;
 
             if (adapter != address(0)) {
                 $.contributionAdapter[claimId] = adapter;
@@ -146,6 +147,9 @@ library ContributionLib {
         claim.submittedCount++;
         if (claim.submittedCount == claim.totalCount) {
             claim.status = ClaimStatus.Completed;
+            if ($.activeContributionClaims[projectId] > 0) {
+                $.activeContributionClaims[projectId]--;
+            }
         }
 
         emit ISapienCore.ContributionSubmitted(projectId, index, msg.sender, submissionHash, dataCid);
@@ -214,6 +218,9 @@ library ContributionLib {
         }
 
         claim.status = ClaimStatus.Expired;
+        if ($.activeContributionClaims[projectId] > 0) {
+            $.activeContributionClaims[projectId]--;
+        }
 
         if (unsubmitted > 0) {
             ReputationLib.update(claim.claimant, proj.requiredSkill, false, 0);

@@ -69,8 +69,9 @@ struct EngineStorage {
     mapping(bytes32 => uint256) originatorLockedStake;
     mapping(bytes32 => OriginatorReport) originatorReports;
 
-    // ── Pipeline Tracking (SEC-H-01) ─────────────────────────
+    // ── Pipeline Tracking (SEC-H-01 / POQ-1) ─────────────────
     mapping(bytes32 => uint256) pendingContributions;
+    mapping(bytes32 => uint256) activeContributionClaims;
 
     // ── Claim Protection ──────────────────────────────────────
     uint256 minClaimAmount;

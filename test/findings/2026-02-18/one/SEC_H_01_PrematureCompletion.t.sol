@@ -10,6 +10,18 @@ import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 /// @notice Verifies that completeProject reverts with ProjectHasActivePipeline when
 ///         contributions are in-flight, preventing escrow drain.
 contract SEC_H_01_PrematureCompletion is BaseTest {
+    function test_cannotCompleteWithActiveReservedClaim() public {
+        bytes32 projectId = _createAndFundProject();
+
+        // Contributor reserves a slot but has not submitted yet.
+        vm.prank(contributor1);
+        engine.claimToContribute(projectId, 1, adapter);
+
+        vm.prank(originator);
+        vm.expectRevert(ISapienCore.ProjectHasActivePipeline.selector);
+        engine.completeProject(projectId);
+    }
+
     function test_cannotCompleteWithInFlightContributions() public {
         bytes32 projectId = _createAndFundProject();
 
