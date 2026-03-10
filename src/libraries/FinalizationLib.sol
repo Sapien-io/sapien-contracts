@@ -98,15 +98,15 @@ library FinalizationLib {
                 $.vault.releaseCommit(validator, committedStake);
             }
 
-            if (contrib.status == ContributionStatus.Accepted) {
+            if (contrib.status == ContributionStatus.Accepted || contrib.status == ContributionStatus.Rejected) {
                 Dispute storage dispute = $.disputes[projectId][index][nonce];
 
                 // Block settlement while a dispute is actively in progress (can retry after resolution)
                 if (dispute.status == DisputeStatus.Open) revert ISapienCore.DisputeInProgress();
 
-                // Only pay reward when the dispute was not upheld and the challenge window has closed.
-                // Upheld dispute = contribution was bad; no reward owed to validators who approved it.
-                // Challenge period = prevents same-block reward extraction before a dispute can be filed.
+                // Pay reward when the dispute was not upheld and the challenge window has closed.
+                // Upheld dispute on accepted = validators approved bad content; no reward.
+                // Upheld dispute on rejected = validators wrongly rejected good content; no reward.
                 if (dispute.status != DisputeStatus.Upheld) {
                     if (block.timestamp < contrib.challengeEndsAt) revert ISapienCore.ChallengeNotElapsed();
 
