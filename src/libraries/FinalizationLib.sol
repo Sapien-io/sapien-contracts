@@ -75,6 +75,7 @@ library FinalizationLib {
         }
 
         Contribution storage contrib = $.contributions[projectId][index];
+
         ValidatorConsensusResult storage vcr = $.validatorConsensus[projectId][index][nonce][validator];
         bool outlier = vcr.isOutlier;
 
@@ -98,7 +99,7 @@ library FinalizationLib {
                 $.vault.releaseCommit(validator, committedStake);
             }
 
-            if (contrib.status == ContributionStatus.Accepted) {
+            if (report.wasAccepted) {
                 Dispute storage dispute = $.disputes[projectId][index][nonce];
 
                 // Block settlement while a dispute is actively in progress (can retry after resolution)
@@ -139,6 +140,11 @@ library FinalizationLib {
                 }
             }
             ReputationLib.update(validator, proj.requiredSkill, true, 0);
+        }
+
+        ConsensusReport storage report_ = $.consensusReports[projectId][index][nonce];
+        if (report_.unsettledValidators > 0) {
+            report_.unsettledValidators--;
         }
 
         emit ISapienCore.ValidatorSettled(projectId, index, validator, outlier);

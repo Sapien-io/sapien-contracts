@@ -13,7 +13,10 @@ import {
     Contribution,
     ContributionStatus,
     IndexRange,
-    OriginatorReportStatus
+    OriginatorReportStatus,
+    ConsensusReport,
+    Dispute,
+    DisputeStatus
 } from "src/Types.sol";
 
 /// @title ContributionLib
@@ -66,7 +69,25 @@ library ContributionLib {
             uint256 rsTop = $.returnStackTop[projectId];
             while (filled < quantity && rsTop > 0) {
                 rsTop--;
-                indices[filled] = $.returnStack[projectId][rsTop];
+                uint256 idx = $.returnStack[projectId][rsTop];
+
+                // POQ-3 FIX: Block index recycling while prior-round validators or disputes remain
+                uint256 currentNonce = $.submissionNonce[projectId][idx];
+                if (currentNonce > 0) {
+                    uint256 priorNonce = currentNonce - 1;
+                    ConsensusReport storage priorReport = $.consensusReports[projectId][idx][priorNonce];
+                    if (priorReport.computed) {
+                        if (priorReport.unsettledValidators > 0) {
+                            revert ISapienCore.PriorRoundNotSettled();
+                        }
+                        Dispute storage priorDispute = $.disputes[projectId][idx][priorNonce];
+                        if (priorDispute.status == DisputeStatus.Open) {
+                            revert ISapienCore.DisputeInProgress();
+                        }
+                    }
+                }
+
+                indices[filled] = idx;
                 filled++;
             }
             $.returnStackTop[projectId] = rsTop;

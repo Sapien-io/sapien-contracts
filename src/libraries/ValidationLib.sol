@@ -303,6 +303,8 @@ library ValidationLib {
         report.stdDeviation = result.stdDeviation;
         report.totalAccurateWeight = result.totalAccurateWeight;
         report.nonce = nonce;
+        report.wasAccepted = (result.weightedAverage >= proj.consensusThreshold);
+        report.unsettledValidators = result.validators.length;
 
         for (uint256 i; i < result.validators.length; ++i) {
             address v = result.validators[i];

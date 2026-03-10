@@ -558,6 +558,15 @@ contract LifecycleRejectionTest is LifecycleBase {
         _validateBelowThreshold(projId, index);
         engine.computeConsensus(projId, index);
 
+        // Settle validators before recycling
+        _warpPastChallengePeriod();
+        vm.prank(validator1);
+        engine.settleValidator(projId, index, 0);
+        vm.prank(validator2);
+        engine.settleValidator(projId, index, 0);
+        vm.prank(validator3);
+        engine.settleValidator(projId, index, 0);
+
         // Index is back in the pool — contributor2 claims
         (, uint256[] memory indices2) = _claimAndSubmit(contributor2, projId, 1);
         uint256 index2 = indices2[0];
@@ -751,8 +760,9 @@ contract LifecycleDisputeTest is LifecycleBase {
         assertGt(d.bondAmount, 0);
 
         // Operator upholds the dispute
+        uint256 nonce = engine.getContribution(projId, index).consensusNonce;
         vm.prank(admin);
-        engine.resolveDispute(projId, index, true);
+        engine.resolveDispute(projId, index, nonce, true);
 
         d = engine.getDispute(projId, index);
         assertEq(uint256(d.status), uint256(DisputeStatus.Upheld));
@@ -784,8 +794,9 @@ contract LifecycleDisputeTest is LifecycleBase {
         uint256 challengerSharesBefore = vault.balanceOf(challenger);
 
         // Operator rejects the dispute
+        uint256 nonce = engine.getContribution(projId, index).consensusNonce;
         vm.prank(admin);
-        engine.resolveDispute(projId, index, false);
+        engine.resolveDispute(projId, index, nonce, false);
 
         Dispute memory d = engine.getDispute(projId, index);
         assertEq(uint256(d.status), uint256(DisputeStatus.Rejected));
@@ -816,8 +827,9 @@ contract LifecycleDisputeTest is LifecycleBase {
         engine.openDispute(projId, index, keccak256("unfair-rejection"), "evidenceCid");
 
         // Operator upholds — contributor was wrongly rejected
+        uint256 nonce = engine.getContribution(projId, index).consensusNonce;
         vm.prank(admin);
-        engine.resolveDispute(projId, index, true);
+        engine.resolveDispute(projId, index, nonce, true);
 
         Dispute memory d = engine.getDispute(projId, index);
         assertEq(uint256(d.status), uint256(DisputeStatus.Upheld));
@@ -839,15 +851,16 @@ contract LifecycleDisputeTest is LifecycleBase {
         engine.openDispute(projId, index, keccak256("evidence"), "evidenceCid");
 
         // Cannot escalate before deadline
+        uint256 nonce = engine.getContribution(projId, index).consensusNonce;
         vm.expectRevert(ISapienCore.DisputeResolutionNotExpired.selector);
-        engine.escalateDispute(projId, index);
+        engine.escalateDispute(projId, index, nonce);
 
         // Warp past resolution deadline (7 days)
         vm.warp(block.timestamp + 8 days);
 
         // Anyone can escalate
         vm.prank(keeper);
-        engine.escalateDispute(projId, index);
+        engine.escalateDispute(projId, index, nonce);
 
         Dispute memory d = engine.getDispute(projId, index);
         assertEq(uint256(d.status), uint256(DisputeStatus.Upheld));
@@ -1929,6 +1942,15 @@ contract LifecycleMultiActorTest is LifecycleBase {
         engine.computeConsensus(projId, index1);
         assertEq(uint256(engine.getContribution(projId, index1).status), uint256(ContributionStatus.Rejected));
 
+        // Settle validators before recycling
+        _warpPastChallengePeriod();
+        vm.prank(validator1);
+        engine.settleValidator(projId, index1, 0);
+        vm.prank(validator2);
+        engine.settleValidator(projId, index1, 0);
+        vm.prank(validator3);
+        engine.settleValidator(projId, index1, 0);
+
         // Index back in pool, contributor2 picks it up
         (, uint256[] memory indices2) = _claimAndSubmit(contributor2, projId, 1);
         uint256 index2 = indices2[0];
@@ -1943,11 +1965,11 @@ contract LifecycleMultiActorTest is LifecycleBase {
         engine.openDispute(projId, index2, keccak256("evidence"), "evidenceCid");
 
         // Operator upholds dispute
+        uint256 nonce2 = engine.getContribution(projId, index2).consensusNonce;
         vm.prank(admin);
-        engine.resolveDispute(projId, index2, true);
+        engine.resolveDispute(projId, index2, nonce2, true);
 
         // Validators can now settle (upheld dispute: stake released, no reward)
-        uint256 nonce2 = engine.getContribution(projId, index2).consensusNonce;
         vm.prank(validator1);
         engine.settleValidator(projId, index2, nonce2);
         vm.prank(validator2);
@@ -2568,8 +2590,9 @@ contract LifecycleKnownIssuesTest is LifecycleBase {
         vm.prank(challenger);
         engine.openDispute(projId, index, keccak256("upheld-deadlock"), "evidenceCid");
 
+        uint256 nonceDisp = engine.getContribution(projId, index).consensusNonce;
         vm.prank(admin);
-        engine.resolveDispute(projId, index, true);
+        engine.resolveDispute(projId, index, nonceDisp, true);
 
         // Settle validators: upheld dispute means stake is returned but no reward paid
         // No challenge period warp needed for upheld-dispute settlement

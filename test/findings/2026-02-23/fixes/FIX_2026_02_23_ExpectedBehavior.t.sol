@@ -75,7 +75,7 @@ contract FIX_2026_02_23_ExpectedBehavior is BaseTest {
         engine.openDispute(projectId, idx, keccak256("accepted-dispute"), "evidenceCid");
 
         vm.prank(admin);
-        engine.resolveDispute(projectId, idx, true);
+        engine.resolveDispute(projectId, idx, 0, true);
 
         vm.prank(validator1);
         engine.settleValidator(projectId, idx, 0);
