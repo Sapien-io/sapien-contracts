@@ -47,6 +47,7 @@ contract SapienVault is
     event CommitReleased(address indexed user, uint256 amount);
     event ValidatorSlashed(address indexed user, uint256 amount);
     event MinDepositAgeUpdated(uint256 newAge);
+    event DepositAgeTimestampSet(address indexed caller, uint256 timestamp);
 
     uint256 public constant MAX_MIN_DEPOSIT_AGE = 7 days;
 
@@ -99,7 +100,12 @@ contract SapienVault is
     // ── Deposit timestamp tracking ──────────────────────────────────────
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
-        _getSapienVaultStorage().lastDepositTimestamp[receiver] = block.timestamp;
+        // POQ-2 Fix (Sub-issue B): Only update timestamp when caller == receiver
+        // This prevents griefing attacks where someone deposits dust on behalf of victim
+        if (caller == receiver) {
+            _getSapienVaultStorage().lastDepositTimestamp[receiver] = block.timestamp;
+            emit DepositAgeTimestampSet(caller, block.timestamp);
+        }
         super._deposit(caller, receiver, assets, shares);
     }
 
@@ -145,10 +151,11 @@ contract SapienVault is
         uint256 minAge = $.minDepositAge;
         if (minAge > 0) {
             uint256 depositTs = $.lastDepositTimestamp[user];
-            if (depositTs > 0) {
-                uint256 age = block.timestamp - depositTs;
-                if (age < minAge) revert DepositTooRecent(minAge, age);
-            }
+            // POQ-2 Fix (Sub-issue A): Treat depositTs == 0 as "never deposited" and fail the check
+            // Previously, depositTs == 0 would bypass the age check
+            if (depositTs == 0) revert DepositTooRecent(minAge, 0);
+            uint256 age = block.timestamp - depositTs;
+            if (age < minAge) revert DepositTooRecent(minAge, age);
         }
         uint256 avail = availableBalance(user);
         if (avail < amount) revert InsufficientAvailableBalance(amount, avail);
@@ -281,6 +288,10 @@ contract SapienVault is
             uint256 totalLocked = acct.contributorLock + acct.validatorCapacity + acct.inFlight;
             uint256 lockedShares = convertToShares(totalLocked);
             if (balanceOf(from) - value < lockedShares) revert TransferExceedsUnlockedShares();
+
+            // POQ-2 Fix (Sub-issue A): Set lastDepositTimestamp for receiver on transfers
+            // This prevents bypassing minDepositAge via share transfers
+            _getSapienVaultStorage().lastDepositTimestamp[to] = block.timestamp;
         }
         super._update(from, to, value);
     }
