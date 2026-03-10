@@ -466,7 +466,7 @@ contract ECON_ProtocolEconomics is BaseTest {
         view
         returns (string memory)
     {
-        return string(
+        string memory header = string(
             abi.encodePacked(
                 "{\n",
                 '  "title": "SAPIEN PoQ - Revenue Model Assumptions",\n',
@@ -481,7 +481,11 @@ contract ECON_ProtocolEconomics is BaseTest {
                 '    "validatorRewardSharePct": ["10.0","10.0","10.0","10.0","10.0"],\n',
                 '    "sapienRoutedVolumePct": ["80","50","35","25","20"],\n',
                 '    "blendedTakeRatePct": ["15.0","13.1","12.0","11.3","11.1"]\n',
-                "  },\n",
+                "  },\n"
+            )
+        );
+        string memory pricing = string(
+            abi.encodePacked(
                 '  "B_pricing": {"enterpriseUsdPerValidation":["0.25","0.20","0.15","0.12","0.10"],"platformUsdPerValidation":["0.05","0.04","0.03","0.03","0.02"]},\n',
                 '  "C_enterpriseTotalsM": {"year1":3,"year2":31,"year3":138},\n',
                 '  "D_registeredDevelopers": [900,17500,64000,158000,330000],\n',
@@ -491,7 +495,11 @@ contract ECON_ProtocolEconomics is BaseTest {
                 '  "G_tokenAndEcosystem": {"tokenPriceUsd":["0.08","0.10","0.20","0.30","0.80"],',
                 '"sapienTreasuryStakedM":[40,60,75,85,90],"totalVaultStakeM":[100,200,400,600,800],',
                 '"validatorSlashingRatePct":["8.0","6.0","5.0","4.0","3.0"],"avgSlashSeverityPct":["25","25","20","20","15"],',
-                '"sapienValidatorShareOfGtvPct":["25","15","10","8","5"]},\n',
+                '"sapienValidatorShareOfGtvPct":["25","15","10","8","5"]},\n'
+            )
+        );
+        string memory outputs = string(
+            abi.encodePacked(
                 '  "H_projectionOutputs": {\n',
                 '    "enterpriseValidations": ',
                 _uintArrayToJson(projection.enterpriseValidations),
@@ -517,7 +525,11 @@ contract ECON_ProtocolEconomics is BaseTest {
                 '    "operatingIncomeUsd": ',
                 _intArrayToJson(projection.operatingIncomeUsd),
                 "\n",
-                "  },\n",
+                "  },\n"
+            )
+        );
+        string memory footer = string(
+            abi.encodePacked(
                 '  "protocolSimulation": ',
                 _simulationJson(sim),
                 ",\n",
@@ -527,10 +539,11 @@ contract ECON_ProtocolEconomics is BaseTest {
                 "}\n"
             )
         );
+        return string(abi.encodePacked(header, pricing, outputs, footer));
     }
 
     function _simulationJson(ProtocolSimulation memory sim) internal pure returns (string memory) {
-        return string(
+        string memory part1 = string(
             abi.encodePacked(
                 "{",
                 '"projectsFunded":',
@@ -562,7 +575,11 @@ contract ECON_ProtocolEconomics is BaseTest {
                 ",",
                 '"originationFeeAccruedWei":',
                 vm.toString(sim.originationFeeAccrued),
-                ",",
+                ","
+            )
+        );
+        string memory part2 = string(
+            abi.encodePacked(
                 '"escrowAfterFundingWei":',
                 vm.toString(sim.escrowAfterFunding),
                 ",",
@@ -586,7 +603,11 @@ contract ECON_ProtocolEconomics is BaseTest {
                 ",",
                 '"adapterClaimedWei":',
                 vm.toString(sim.adapterClaimed),
-                ",",
+                ","
+            )
+        );
+        string memory part3 = string(
+            abi.encodePacked(
                 '"contributorSlashAmountWei":',
                 vm.toString(sim.contributorSlashAmount),
                 ",",
@@ -604,6 +625,7 @@ contract ECON_ProtocolEconomics is BaseTest {
                 "}"
             )
         );
+        return string(abi.encodePacked(part1, part2, part3));
     }
 
     function _buildSummaryMarkdown(ProjectionData memory projection, ProtocolSimulation memory sim)

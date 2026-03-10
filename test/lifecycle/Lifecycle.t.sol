@@ -182,60 +182,56 @@ contract LifecycleBase is BaseTest {
         _validate(validator3, projectId, index, 4000, VALIDATOR_STAKE);
     }
 
+    /// @dev Prepare batch data (stakes, salts, commitHashes) for a single validator
+    function _prepareBatchData(address val, bytes32 projectId, uint256[] memory indices, uint256[] memory scores)
+        internal
+        pure
+        returns (uint256[] memory stakeAmounts, bytes32[] memory salts, bytes32[] memory commitHashes)
+    {
+        uint256 n = indices.length;
+        stakeAmounts = new uint256[](n);
+        salts = new bytes32[](n);
+        commitHashes = new bytes32[](n);
+        for (uint256 i; i < n; ++i) {
+            stakeAmounts[i] = VALIDATOR_STAKE;
+            salts[i] = keccak256(abi.encodePacked("salt", val, projectId, indices[i], scores[i]));
+            commitHashes[i] = keccak256(abi.encodePacked(scores[i], salts[i]));
+        }
+    }
+
+    /// @dev Fill a scores array with a constant value
+    function _fillScores(uint256 n, uint256 score) internal pure returns (uint256[] memory scores) {
+        scores = new uint256[](n);
+        for (uint256 i; i < n; ++i) {
+            scores[i] = score;
+        }
+    }
+
+    /// @dev Batch validate for one validator: claim, lock, commit, reveal
+    function _batchValidateOne(address val, bytes32 projectId, uint256[] memory indices, uint256[] memory scores)
+        internal
+    {
+        uint256 n = indices.length;
+        uint256 totalStake = VALIDATOR_STAKE * n;
+        _ensureStake(val, totalStake * 2);
+        (uint256[] memory stakeAmounts, bytes32[] memory salts, bytes32[] memory commitHashes) =
+            _prepareBatchData(val, projectId, indices, scores);
+        vm.startPrank(val);
+        engine.claimToValidate(projectId, n);
+        engine.lockValidatorCapacity(totalStake);
+        engine.batchCommitValidations(projectId, indices, commitHashes, stakeAmounts, address(0));
+        engine.batchRevealValidations(projectId, indices, scores, salts);
+        vm.stopPrank();
+    }
+
     /// @dev When multiple indices are pending, validators get randomly assigned.
     ///      Use batch claim so each validator gets all indices, then batch commit/reveal.
     function _validateAllAboveThreshold(bytes32 projectId, uint256[] memory indices) internal {
         uint256 n = indices.length;
         if (n == 0) return;
-        uint256 totalStake = VALIDATOR_STAKE * n;
-        _ensureStake(validator1, totalStake * 2);
-        _ensureStake(validator2, totalStake * 2);
-        _ensureStake(validator3, totalStake * 2);
-
-        uint256[] memory stakeAmounts = new uint256[](n);
-        uint256[] memory scores1 = new uint256[](n);
-        uint256[] memory scores2 = new uint256[](n);
-        uint256[] memory scores3 = new uint256[](n);
-        bytes32[] memory salts1 = new bytes32[](n);
-        bytes32[] memory salts2 = new bytes32[](n);
-        bytes32[] memory salts3 = new bytes32[](n);
-        bytes32[] memory commitHashes1 = new bytes32[](n);
-        bytes32[] memory commitHashes2 = new bytes32[](n);
-        bytes32[] memory commitHashes3 = new bytes32[](n);
-
-        for (uint256 i; i < n; ++i) {
-            stakeAmounts[i] = VALIDATOR_STAKE;
-            scores1[i] = 8000;
-            scores2[i] = 8500;
-            scores3[i] = 7500;
-            salts1[i] = keccak256(abi.encodePacked("salt", validator1, projectId, indices[i], scores1[i]));
-            salts2[i] = keccak256(abi.encodePacked("salt", validator2, projectId, indices[i], scores2[i]));
-            salts3[i] = keccak256(abi.encodePacked("salt", validator3, projectId, indices[i], scores3[i]));
-            commitHashes1[i] = keccak256(abi.encodePacked(scores1[i], salts1[i]));
-            commitHashes2[i] = keccak256(abi.encodePacked(scores2[i], salts2[i]));
-            commitHashes3[i] = keccak256(abi.encodePacked(scores3[i], salts3[i]));
-        }
-
-        vm.startPrank(validator1);
-        engine.claimToValidate(projectId, n);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projectId, indices, commitHashes1, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores1, salts1);
-        vm.stopPrank();
-
-        vm.startPrank(validator2);
-        engine.claimToValidate(projectId, n);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projectId, indices, commitHashes2, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores2, salts2);
-        vm.stopPrank();
-
-        vm.startPrank(validator3);
-        engine.claimToValidate(projectId, n);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projectId, indices, commitHashes3, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores3, salts3);
-        vm.stopPrank();
+        _batchValidateOne(validator1, projectId, indices, _fillScores(n, 8000));
+        _batchValidateOne(validator2, projectId, indices, _fillScores(n, 8500));
+        _batchValidateOne(validator3, projectId, indices, _fillScores(n, 7500));
     }
 
     /// @dev Validate multiple indices with custom per-index scores (for mixed outcomes)
@@ -246,104 +242,19 @@ contract LifecycleBase is BaseTest {
         uint256[] memory scores2,
         uint256[] memory scores3
     ) internal {
-        uint256 n = indices.length;
-        if (n == 0) return;
-        uint256 totalStake = VALIDATOR_STAKE * n;
-        _ensureStake(validator1, totalStake * 2);
-        _ensureStake(validator2, totalStake * 2);
-        _ensureStake(validator3, totalStake * 2);
-
-        uint256[] memory stakeAmounts = new uint256[](n);
-        bytes32[] memory salts1 = new bytes32[](n);
-        bytes32[] memory salts2 = new bytes32[](n);
-        bytes32[] memory salts3 = new bytes32[](n);
-        bytes32[] memory commitHashes1 = new bytes32[](n);
-        bytes32[] memory commitHashes2 = new bytes32[](n);
-        bytes32[] memory commitHashes3 = new bytes32[](n);
-
-        for (uint256 i; i < n; ++i) {
-            stakeAmounts[i] = VALIDATOR_STAKE;
-            salts1[i] = keccak256(abi.encodePacked("salt", validator1, projectId, indices[i], scores1[i]));
-            salts2[i] = keccak256(abi.encodePacked("salt", validator2, projectId, indices[i], scores2[i]));
-            salts3[i] = keccak256(abi.encodePacked("salt", validator3, projectId, indices[i], scores3[i]));
-            commitHashes1[i] = keccak256(abi.encodePacked(scores1[i], salts1[i]));
-            commitHashes2[i] = keccak256(abi.encodePacked(scores2[i], salts2[i]));
-            commitHashes3[i] = keccak256(abi.encodePacked(scores3[i], salts3[i]));
-        }
-
-        vm.startPrank(validator1);
-        engine.claimToValidate(projectId, n);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projectId, indices, commitHashes1, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores1, salts1);
-        vm.stopPrank();
-        vm.startPrank(validator2);
-        engine.claimToValidate(projectId, n);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projectId, indices, commitHashes2, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores2, salts2);
-        vm.stopPrank();
-        vm.startPrank(validator3);
-        engine.claimToValidate(projectId, n);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projectId, indices, commitHashes3, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores3, salts3);
-        vm.stopPrank();
+        if (indices.length == 0) return;
+        _batchValidateOne(validator1, projectId, indices, scores1);
+        _batchValidateOne(validator2, projectId, indices, scores2);
+        _batchValidateOne(validator3, projectId, indices, scores3);
     }
 
     /// @dev Same as _validateAllAboveThreshold but with below-threshold scores
     function _validateAllBelowThreshold(bytes32 projectId, uint256[] memory indices) internal {
         uint256 n = indices.length;
         if (n == 0) return;
-        uint256 totalStake = VALIDATOR_STAKE * n;
-        _ensureStake(validator1, totalStake * 2);
-        _ensureStake(validator2, totalStake * 2);
-        _ensureStake(validator3, totalStake * 2);
-
-        uint256[] memory stakeAmounts = new uint256[](n);
-        uint256[] memory scores1 = new uint256[](n);
-        uint256[] memory scores2 = new uint256[](n);
-        uint256[] memory scores3 = new uint256[](n);
-        bytes32[] memory salts1 = new bytes32[](n);
-        bytes32[] memory salts2 = new bytes32[](n);
-        bytes32[] memory salts3 = new bytes32[](n);
-        bytes32[] memory commitHashes1 = new bytes32[](n);
-        bytes32[] memory commitHashes2 = new bytes32[](n);
-        bytes32[] memory commitHashes3 = new bytes32[](n);
-
-        for (uint256 i; i < n; ++i) {
-            stakeAmounts[i] = VALIDATOR_STAKE;
-            scores1[i] = 3000;
-            scores2[i] = 2500;
-            scores3[i] = 4000;
-            salts1[i] = keccak256(abi.encodePacked("salt", validator1, projectId, indices[i], scores1[i]));
-            salts2[i] = keccak256(abi.encodePacked("salt", validator2, projectId, indices[i], scores2[i]));
-            salts3[i] = keccak256(abi.encodePacked("salt", validator3, projectId, indices[i], scores3[i]));
-            commitHashes1[i] = keccak256(abi.encodePacked(scores1[i], salts1[i]));
-            commitHashes2[i] = keccak256(abi.encodePacked(scores2[i], salts2[i]));
-            commitHashes3[i] = keccak256(abi.encodePacked(scores3[i], salts3[i]));
-        }
-
-        vm.startPrank(validator1);
-        engine.claimToValidate(projectId, n);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projectId, indices, commitHashes1, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores1, salts1);
-        vm.stopPrank();
-
-        vm.startPrank(validator2);
-        engine.claimToValidate(projectId, n);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projectId, indices, commitHashes2, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores2, salts2);
-        vm.stopPrank();
-
-        vm.startPrank(validator3);
-        engine.claimToValidate(projectId, n);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projectId, indices, commitHashes3, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores3, salts3);
-        vm.stopPrank();
+        _batchValidateOne(validator1, projectId, indices, _fillScores(n, 3000));
+        _batchValidateOne(validator2, projectId, indices, _fillScores(n, 2500));
+        _batchValidateOne(validator3, projectId, indices, _fillScores(n, 4000));
     }
 
     /// @dev Settle all 3 validators (warps past the challenge period first for accepted contributions)
@@ -658,47 +569,10 @@ contract LifecycleRejectionTest is LifecycleBase {
         scores2[1] = 2500;
         scores3[0] = 7500;
         scores3[1] = 4000;
-        uint256[] memory stakeAmounts = new uint256[](2);
-        stakeAmounts[0] = VALIDATOR_STAKE;
-        stakeAmounts[1] = VALIDATOR_STAKE;
-        uint256 totalStake = VALIDATOR_STAKE * 2;
-        _ensureStake(validator1, totalStake * 2);
-        _ensureStake(validator2, totalStake * 2);
-        _ensureStake(validator3, totalStake * 2);
 
-        bytes32[] memory salts1 = new bytes32[](2);
-        bytes32[] memory salts2 = new bytes32[](2);
-        bytes32[] memory salts3 = new bytes32[](2);
-        bytes32[] memory commitHashes1 = new bytes32[](2);
-        bytes32[] memory commitHashes2 = new bytes32[](2);
-        bytes32[] memory commitHashes3 = new bytes32[](2);
-        for (uint256 i; i < 2; ++i) {
-            salts1[i] = keccak256(abi.encodePacked("salt", validator1, projId, both[i], scores1[i]));
-            salts2[i] = keccak256(abi.encodePacked("salt", validator2, projId, both[i], scores2[i]));
-            salts3[i] = keccak256(abi.encodePacked("salt", validator3, projId, both[i], scores3[i]));
-            commitHashes1[i] = keccak256(abi.encodePacked(scores1[i], salts1[i]));
-            commitHashes2[i] = keccak256(abi.encodePacked(scores2[i], salts2[i]));
-            commitHashes3[i] = keccak256(abi.encodePacked(scores3[i], salts3[i]));
-        }
-
-        vm.startPrank(validator1);
-        engine.claimToValidate(projId, 2);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projId, both, commitHashes1, stakeAmounts, address(0));
-        engine.batchRevealValidations(projId, both, scores1, salts1);
-        vm.stopPrank();
-        vm.startPrank(validator2);
-        engine.claimToValidate(projId, 2);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projId, both, commitHashes2, stakeAmounts, address(0));
-        engine.batchRevealValidations(projId, both, scores2, salts2);
-        vm.stopPrank();
-        vm.startPrank(validator3);
-        engine.claimToValidate(projId, 2);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projId, both, commitHashes3, stakeAmounts, address(0));
-        engine.batchRevealValidations(projId, both, scores3, salts3);
-        vm.stopPrank();
+        _batchValidateOne(validator1, projId, both, scores1);
+        _batchValidateOne(validator2, projId, both, scores2);
+        _batchValidateOne(validator3, projId, both, scores3);
 
         engine.computeConsensus(projId, goodIdx);
         assertEq(uint256(engine.getContribution(projId, goodIdx).status), uint256(ContributionStatus.Accepted));

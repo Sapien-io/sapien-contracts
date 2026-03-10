@@ -185,7 +185,6 @@ library ContributionLib {
         bytes32 projectId = claim.projectId;
         Project storage proj = $.projects[projectId];
         uint256 unsubmitted = 0;
-        uint256 stillInFlight = 0;
 
         uint256 len = indices.length;
         if (len != claim.totalCount) revert ISapienCore.InvalidIndex();
@@ -195,9 +194,7 @@ library ContributionLib {
             uint256 idx = indices[i];
             Contribution storage contrib = $.contributions[projectId][idx];
 
-            // Skip indices that no longer belong to this claim (recycled after consensus rejection).
-            // These slots had their stake already handled by computeConsensus.
-            if (contrib.claimId != claimId) continue;
+            if (contrib.claimId != uint32(claimId)) continue;
 
             if (contrib.status == ContributionStatus.Reserved) {
                 $.returnStack[projectId][rsTop] = idx;
@@ -207,28 +204,21 @@ library ContributionLib {
                 contrib.claimId = 0;
                 contrib.status = ContributionStatus.Empty;
                 unsubmitted++;
-            } else if (contrib.status == ContributionStatus.Pending) {
-                // Submitted but still awaiting consensus — stake is still locked for this slot
-                stillInFlight++;
             }
+            // Pending contributions stay in the validation pipeline with their
+            // stake locked.  computeConsensus() will unlock or slash when it
+            // resolves them, preventing double-accounting of the contributor lock.
         }
 
         $.returnStackTop[projectId] = rsTop;
         proj.availableSlots += unsubmitted;
 
-        // All unsubmitted Reserved slots must be accounted for. If the caller passed
-        // indices that never belonged to this claim, their actual Reserved slots were
-        // skipped and this invariant catches the discrepancy.
         uint256 expectedUnsubmitted = claim.totalCount - claim.submittedCount;
         if (unsubmitted != expectedUnsubmitted) revert ISapienCore.InvalidIndex();
 
         uint256 slashAmount = unsubmitted > 0 ? proj.minStakeToClaim * unsubmitted : 0;
-        // Only unlock stake for slots that are still in-flight (Pending). Slots that were
-        // rejected by consensus already had their stake slashed via computeConsensus and
-        // must not be double-counted here.
-        uint256 unlockAmount = stillInFlight * proj.minStakeToClaim;
-        if (slashAmount > 0 || unlockAmount > 0) {
-            $.vault.slashAndUnlockContributor(claim.claimant, slashAmount, unlockAmount);
+        if (slashAmount > 0) {
+            $.vault.slashContributor(claim.claimant, slashAmount);
         }
 
         claim.status = ClaimStatus.Expired;
