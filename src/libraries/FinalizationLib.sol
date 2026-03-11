@@ -40,6 +40,13 @@ library FinalizationLib {
 
     function forceSettleValidator(bytes32 projectId, uint256 index, uint256 nonce, address validator) public {
         EngineStorage storage $ = _getStorage();
+
+        // POQ-4: On cancelled projects, skip consensus/reveal/delay checks
+        if ($.projects[projectId].status == ProjectStatus.Cancelled) {
+            _settleValidatorFor(projectId, index, nonce, validator);
+            return;
+        }
+
         ConsensusReport storage report = $.consensusReports[projectId][index][nonce];
         if (!report.computed) revert ISapienCore.ConsensusNotReady(0, 1);
 
@@ -56,7 +63,22 @@ library FinalizationLib {
         EngineStorage storage $ = _getStorage();
 
         Project storage proj = $.projects[projectId];
-        if (proj.status == ProjectStatus.Cancelled) revert ISapienCore.ProjectNotActive();
+
+        // POQ-4: On cancelled projects, release validator in-flight stake without rewards
+        if (proj.status == ProjectStatus.Cancelled) {
+            ValidatorCommit storage vc = $.validatorCommits[projectId][index][nonce][validator];
+            if (vc.settled) revert ISapienCore.AlreadySettled();
+            if (vc.commitHash == bytes32(0)) revert ISapienCore.NotCommitted();
+
+            vc.settled = true;
+            uint256 stake = vc.stakedAmount;
+            if (stake > 0) {
+                $.vault.releaseCommit(validator, stake);
+            }
+
+            emit ISapienCore.ValidatorSettled(projectId, index, validator, false);
+            return;
+        }
 
         {
             ConsensusReport storage report = $.consensusReports[projectId][index][nonce];
@@ -237,6 +259,20 @@ library FinalizationLib {
         ValidatorCommit storage vc = $.validatorCommits[projectId][index][nonce][validator];
         if (vc.commitTimestamp == 0) revert ISapienCore.NotCommitted();
         if (vc.revealedAt != 0) revert ISapienCore.AlreadyRevealed();
+
+        // POQ-4: On cancelled projects, release stake instead of slashing.
+        // Committed-but-not-revealed validators should not be penalised for
+        // a project that was cancelled out from under them.
+        if ($.projects[projectId].status == ProjectStatus.Cancelled) {
+            if (vc.settled) revert ISapienCore.AlreadySettled();
+            vc.settled = true;
+            uint256 stake = vc.stakedAmount;
+            if (stake > 0) {
+                $.vault.releaseCommit(validator, stake);
+            }
+            emit ISapienCore.ValidatorSettled(projectId, index, validator, false);
+            return;
+        }
 
         if (block.timestamp <= vc.commitTimestamp + $.commitDeadline + $.revealDeadline) {
             revert ISapienCore.ClaimDeadlineNotPassed();

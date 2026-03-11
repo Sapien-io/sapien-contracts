@@ -281,11 +281,16 @@ contract SecurityFindings_2026_02_24 is BaseTest {
         vm.expectRevert(ISapienCore.ChallengeNotElapsed.selector);
         engine.refundEscrow(pid);
 
-        // Validators CAN settle during the delay window
+        // POQ-4: Validators CAN settle during the delay window (stake released, no rewards)
         _warpPastChallengePeriod();
+        uint256 inFlightBefore = vault.getStakeAccount(validator1).inFlight;
+        assertGt(inFlightBefore, 0, "validator has in-flight stake before settlement");
+
         vm.prank(validator1);
-        vm.expectRevert(ISapienCore.ProjectNotActive.selector);
         engine.settleValidator(pid, idx, 0);
+
+        assertEq(vault.getStakeAccount(validator1).inFlight, 0, "validator stake released after settlement");
+        assertEq(engine.getPendingRewards(validator1, address(token)), 0, "no reward on cancelled project");
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -333,10 +338,11 @@ contract SecurityFindings_2026_02_24 is BaseTest {
     }
 
     // ════════════════════════════════════════════════════════════════════
-    // SEC-M-03 FIX: Settlement reverts on cancelled projects
+    // SEC-M-03 / POQ-4: Settlement on cancelled projects releases stake without rewards
     // ════════════════════════════════════════════════════════════════════
 
-    /// @notice FIX: Settlement and reward release now revert on cancelled projects.
+    /// @notice POQ-4 supersedes SEC-M-03: Settlement on cancelled projects now succeeds
+    ///         but only releases the validator's committed stake — no rewards are paid.
     function test_SEC_M_03_settlementProceedsOnCancelledProject() public {
         bytes32 pid = _createSimpleProject(keccak256("m03"), 1_000e18, 1);
         (, uint256[] memory indices) = _claimAndContributeSimple(contributor1, pid, 1);
@@ -352,12 +358,16 @@ contract SecurityFindings_2026_02_24 is BaseTest {
         engine.removeProject(pid);
         assertEq(uint256(engine.getProject(pid).status), uint256(ProjectStatus.Cancelled));
 
-        // FIX: Settlement now reverts with ProjectNotActive
+        // POQ-4: Settlement succeeds — stake is released, no rewards paid
+        uint256 inFlightBefore = vault.getStakeAccount(validator1).inFlight;
+        assertGt(inFlightBefore, 0, "validator has in-flight stake");
+
         vm.prank(validator1);
-        vm.expectRevert(ISapienCore.ProjectNotActive.selector);
         engine.settleValidator(pid, idx, 0);
 
-        assertFalse(engine.isValidatorSettled(pid, idx, 0, validator1), "cannot settle on cancelled project");
+        assertTrue(engine.isValidatorSettled(pid, idx, 0, validator1), "validator should be settled");
+        assertEq(vault.getStakeAccount(validator1).inFlight, 0, "in-flight stake released");
+        assertEq(engine.getPendingRewards(validator1, address(token)), 0, "no reward on cancelled project");
     }
 
     // ════════════════════════════════════════════════════════════════════
