@@ -425,6 +425,14 @@ contract LifecycleSimulation is LifecycleBase {
             consensus.totalRejected++;
             projectStats[projectIdx].rejected++;
 
+            // Settle validators before recycling
+            _warpPastChallengePeriod();
+            uint256 nonce = engine.getContribution(pid, index).consensusNonce;
+            for (uint256 v; v < 3; ++v) {
+                vm.prank(vals[v]);
+                engine.settleValidator(pid, index, nonce);
+            }
+
             uint256 sharesAfter = vault.balanceOf(contrib);
             if (sharesBefore > sharesAfter) {
                 fundsFlow.totalSlashed += sharesBefore - sharesAfter;

@@ -13,7 +13,10 @@ import {
     Contribution,
     ContributionStatus,
     IndexRange,
-    OriginatorReportStatus
+    OriginatorReportStatus,
+    ConsensusReport,
+    Dispute,
+    DisputeStatus
 } from "src/Types.sol";
 
 /// @title ContributionLib
@@ -66,7 +69,25 @@ library ContributionLib {
             uint256 rsTop = $.returnStackTop[projectId];
             while (filled < quantity && rsTop > 0) {
                 rsTop--;
-                indices[filled] = $.returnStack[projectId][rsTop];
+                uint256 idx = $.returnStack[projectId][rsTop];
+
+                // POQ-3 FIX: Block index recycling while prior-round validators or disputes remain
+                uint256 currentNonce = $.submissionNonce[projectId][idx];
+                if (currentNonce > 0) {
+                    uint256 priorNonce = currentNonce - 1;
+                    ConsensusReport storage priorReport = $.consensusReports[projectId][idx][priorNonce];
+                    if (priorReport.computed) {
+                        if (priorReport.unsettledValidators > 0) {
+                            revert ISapienCore.PriorRoundNotSettled();
+                        }
+                        Dispute storage priorDispute = $.disputes[projectId][idx][priorNonce];
+                        if (priorDispute.status == DisputeStatus.Open) {
+                            revert ISapienCore.DisputeInProgress();
+                        }
+                    }
+                }
+
+                indices[filled] = idx;
                 filled++;
             }
             $.returnStackTop[projectId] = rsTop;
@@ -93,6 +114,7 @@ library ContributionLib {
             claim.deadline = block.timestamp + $.claimDeadline;
             claim.totalCount = quantity;
             claim.status = ClaimStatus.Active;
+            $.activeContributionClaims[projectId]++;
 
             if (adapter != address(0)) {
                 $.contributionAdapter[claimId] = adapter;
@@ -155,6 +177,9 @@ library ContributionLib {
         claim.submittedCount++;
         if (claim.submittedCount == claim.totalCount) {
             claim.status = ClaimStatus.Completed;
+            if ($.activeContributionClaims[projectId] > 0) {
+                $.activeContributionClaims[projectId]--;
+            }
         }
 
         emit ISapienCore.ContributionSubmitted(projectId, index, msg.sender, submissionHash, dataCid);
@@ -222,6 +247,9 @@ library ContributionLib {
         }
 
         claim.status = ClaimStatus.Expired;
+        if ($.activeContributionClaims[projectId] > 0) {
+            $.activeContributionClaims[projectId]--;
+        }
 
         if (unsubmitted > 0) {
             ReputationLib.update(claim.claimant, proj.requiredSkill, false, 0);

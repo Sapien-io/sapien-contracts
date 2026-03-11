@@ -2,15 +2,26 @@
 pragma solidity ^0.8.30;
 
 import {BaseTest} from "test/BaseTest.sol";
-import {ContributionStatus} from "src/Types.sol";
 import {Constants as C} from "src/Constants.sol";
 import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 
-/// @title SEC-H-01 FIX VERIFICATION: completeProject blocked while pipeline active
+/// @title POQ-1 FIX VERIFICATION: completeProject blocked while pipeline active
 /// @notice Verifies that completeProject reverts with ProjectHasActivePipeline when
 ///         contributions are in-flight, preventing escrow drain.
-contract SEC_H_01_PrematureCompletion is BaseTest {
-    function test_cannotCompleteWithInFlightContributions() public {
+contract POQ_1_PrematureCompletion is BaseTest {
+    function test_POQ_1_cannotCompleteWithActiveReservedClaim() public {
+        bytes32 projectId = _createAndFundProject();
+
+        // Contributor reserves a slot but has not submitted yet.
+        vm.prank(contributor1);
+        engine.claimToContribute(projectId, 1, adapter);
+
+        vm.prank(originator);
+        vm.expectRevert(ISapienCore.ProjectHasActivePipeline.selector);
+        engine.completeProject(projectId);
+    }
+
+    function test_POQ_1_cannotCompleteWithInFlightContributions() public {
         bytes32 projectId = _createAndFundProject();
 
         // Contributor submits — pipeline is now active
@@ -22,7 +33,7 @@ contract SEC_H_01_PrematureCompletion is BaseTest {
         engine.completeProject(projectId);
     }
 
-    function test_canCompleteAfterAllContributionsFinalized() public {
+    function test_POQ_1_canCompleteAfterAllContributionsFinalized() public {
         bytes32 projectId = _createAndFundProject();
 
         // Contributor submits and validators accept
@@ -45,7 +56,7 @@ contract SEC_H_01_PrematureCompletion is BaseTest {
         assertEq(uint8(engine.getProject(projectId).status), uint8(3), "project should be Completed");
     }
 
-    function test_rejectedContributionsDecrementPipeline() public {
+    function test_POQ_1_rejectedContributionsDecrementPipeline() public {
         bytes32 projectId = _createAndFundProject();
 
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);
@@ -64,7 +75,7 @@ contract SEC_H_01_PrematureCompletion is BaseTest {
         assertEq(uint8(engine.getProject(projectId).status), uint8(3), "project should be Completed");
     }
 
-    function test_escrowSafeAfterProperCompletion() public {
+    function test_POQ_1_escrowSafeAfterProperCompletion() public {
         bytes32 projectId = _createAndFundProject();
 
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projectId, 1);

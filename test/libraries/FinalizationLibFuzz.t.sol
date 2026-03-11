@@ -328,6 +328,18 @@ contract FinalizationLibFuzz is Test {
         engine.completeProject(PROJECT_ID);
     }
 
+    function testFuzz_completeProject_revertsActiveReservedClaim() public {
+        _warpPastChallengePeriod();
+        engine.releaseContributorReward(PROJECT_ID, acceptedIndex);
+
+        vm.prank(contributor);
+        engine.claimToContribute(PROJECT_ID, 1, address(0));
+
+        vm.prank(originator);
+        vm.expectRevert(ISapienCore.ProjectHasActivePipeline.selector);
+        engine.completeProject(PROJECT_ID);
+    }
+
     function testFuzz_refundEscrow_afterCompletionDelay() public {
         _warpPastChallengePeriod();
         engine.releaseContributorReward(PROJECT_ID, acceptedIndex);

@@ -22,7 +22,7 @@ contract POC_003_UpheldDisputeDeadlock is BaseTest {
         engine.openDispute(projectId, idx, keccak256("accepted-dispute"), "evidenceCid");
 
         vm.prank(admin);
-        engine.resolveDispute(projectId, idx, true);
+        engine.resolveDispute(projectId, idx, 0, true);
         assertEq(uint256(engine.getDispute(projectId, idx).status), uint256(DisputeStatus.Upheld), "dispute upheld");
 
         vm.prank(validator1);

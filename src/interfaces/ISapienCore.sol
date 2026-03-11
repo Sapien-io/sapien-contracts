@@ -189,6 +189,9 @@ interface ISapienCore {
     /// @dev The dispute resolution deadline has not expired (required for escalation).
     error DisputeResolutionNotExpired();
 
+    /// @dev Emitted when attempting to recycle a slot while prior-round validators have not yet settled.
+    error PriorRoundNotSettled();
+
     /// @dev Contributors cannot dispute their own contribution.
     error CannotDisputeOwnContribution();
 
@@ -707,15 +710,17 @@ interface ISapienCore {
     ///      If rejected, the challenger's bond is forfeited to the contributor.
     /// @param projectId Project containing the contribution.
     /// @param index Contribution slot index.
+    /// @param nonce Consensus nonce of the dispute to resolve.
     /// @param upheld Whether the dispute is upheld (true) or rejected (false).
-    function resolveDispute(bytes32 projectId, uint256 index, bool upheld) external;
+    function resolveDispute(bytes32 projectId, uint256 index, uint256 nonce, bool upheld) external;
 
     /// @notice Escalate an unresolved dispute after the resolution deadline expires.
     /// @dev Permissionless — can be called by anyone once the resolution deadline passes.
     ///      The dispute is automatically upheld, triggering re-validation.
     /// @param projectId Project containing the contribution.
     /// @param index Contribution slot index.
-    function escalateDispute(bytes32 projectId, uint256 index) external;
+    /// @param nonce Consensus nonce of the dispute to escalate.
+    function escalateDispute(bytes32 projectId, uint256 index, uint256 nonce) external;
 
     // ── Originator Reports ──────────────────────────────────────────────
 
