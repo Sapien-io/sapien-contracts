@@ -120,9 +120,13 @@ contract FIX_2026_02_23_ExpectedBehavior is BaseTest {
         engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projectId, idx, commitHash, VALIDATOR_STAKE, address(0));
+        vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
 
         // Expected after fix: hash validation aligns with interface guidance.
+        vm.prank(validator1);
         engine.revealValidation(projectId, idx, score, salt);
-        vm.stopPrank();
     }
 }

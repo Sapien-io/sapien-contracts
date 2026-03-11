@@ -115,9 +115,32 @@ contract DisputeLibFuzz is Test {
 
     function _validateAndAccept(uint256 index, uint256 score) internal {
         address[3] memory validators = [validator1, validator2, validator3];
+        bytes32[3] memory salts;
+
+        // Commit phase
         for (uint256 i; i < 3; ++i) {
-            _fullValidation(validators[i], index, score);
+            salts[i] = keccak256(abi.encodePacked("salt", validators[i], index));
+            bytes32 commitHash = keccak256(abi.encodePacked(score, salts[i]));
+
+            vm.prank(validators[i]);
+            engine.claimToValidate(PROJECT_ID, 1);
+
+            vm.prank(validators[i]);
+            engine.lockValidatorCapacity(VALIDATOR_STAKE);
+
+            vm.prank(validators[i]);
+            engine.commitValidation(PROJECT_ID, index, commitHash, VALIDATOR_STAKE, address(0));
         }
+
+        // Warp past commit deadline to allow reveals (only once)
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        // Reveal phase
+        for (uint256 i; i < 3; ++i) {
+            vm.prank(validators[i]);
+            engine.revealValidation(PROJECT_ID, index, score, salts[i]);
+        }
+
         engine.computeConsensus(PROJECT_ID, index);
     }
 
@@ -391,9 +414,32 @@ contract DisputeLibFuzz is Test {
 
     function _validateContributionOnProject(bytes32 projectId, uint256 index, uint256 score) internal {
         address[3] memory validators = [validator1, validator2, validator3];
+        bytes32[3] memory salts;
+
+        // Commit phase
         for (uint256 i; i < 3; ++i) {
-            _fullValidationOnProject(validators[i], projectId, index, score);
+            salts[i] = keccak256(abi.encodePacked("salt", validators[i], projectId, index));
+            bytes32 commitHash = keccak256(abi.encodePacked(score, salts[i]));
+
+            vm.prank(validators[i]);
+            engine.claimToValidate(projectId, 1);
+
+            vm.prank(validators[i]);
+            engine.lockValidatorCapacity(VALIDATOR_STAKE);
+
+            vm.prank(validators[i]);
+            engine.commitValidation(projectId, index, commitHash, VALIDATOR_STAKE, address(0));
         }
+
+        // Warp past commit deadline to allow reveals (only once)
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        // Reveal phase
+        for (uint256 i; i < 3; ++i) {
+            vm.prank(validators[i]);
+            engine.revealValidation(projectId, index, score, salts[i]);
+        }
+
         engine.computeConsensus(projectId, index);
     }
 

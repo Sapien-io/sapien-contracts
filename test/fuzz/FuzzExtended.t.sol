@@ -110,8 +110,13 @@ contract FuzzExtended is BaseTest {
         engine.claimToValidate(projId, 1);
         engine.lockValidatorCapacity(stakeAmt);
         engine.commitValidation(projId, index, commitHash, stakeAmt, address(0));
-        engine.revealValidation(projId, index, score, salt);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(val);
+        engine.revealValidation(projId, index, score, salt);
     }
 
     /// @dev Full setup: fund project, claim one slot, contribute, 3 validators
@@ -129,12 +134,43 @@ contract FuzzExtended is BaseTest {
         engine.contribute(claimId, index, keccak256(abi.encodePacked("sub", seed)), "");
         vm.stopPrank();
 
-        _commitReveal(validator1, projId, index, score, valStake);
-        _commitReveal(validator2, projId, index, score, valStake);
-        _commitReveal(validator3, projId, index, score, valStake);
+        uint256 startTime = block.timestamp;
+
+        // Commit phase
+        bytes32 salt1 = _commitOnly(validator1, projId, index, score, valStake);
+        bytes32 salt2 = _commitOnly(validator2, projId, index, score, valStake);
+        bytes32 salt3 = _commitOnly(validator3, projId, index, score, valStake);
+
+        // Warp past commit deadline to allow reveals (only once)
+        vm.warp(startTime + engine.commitDeadline());
+
+        // Reveal phase
+        vm.prank(validator1);
+        engine.revealValidation(projId, index, score, salt1);
+        vm.prank(validator2);
+        engine.revealValidation(projId, index, score, salt2);
+        vm.prank(validator3);
+        engine.revealValidation(projId, index, score, salt3);
+
         engine.computeConsensus(projId, index);
 
         nonce = engine.getContribution(projId, index).consensusNonce;
+    }
+
+    function _commitOnly(address val, bytes32 projId, uint256 index, uint256 score, uint256 stakeAmt)
+        internal
+        returns (bytes32 salt)
+    {
+        salt = keccak256(abi.encodePacked("ext-salt", val, index, score));
+        bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
+
+        _ensureStake(val, stakeAmt * 3);
+
+        vm.startPrank(val);
+        engine.claimToValidate(projId, 1);
+        engine.lockValidatorCapacity(stakeAmt);
+        engine.commitValidation(projId, index, commitHash, stakeAmt, address(0));
+        vm.stopPrank();
     }
 
     /// @dev Full setup leading to a REJECTED contribution.
@@ -151,10 +187,25 @@ contract FuzzExtended is BaseTest {
         engine.contribute(claimId, index, keccak256(abi.encodePacked("sub-reject", seed)), "");
         vm.stopPrank();
 
+        uint256 startTime = block.timestamp;
+
         // Low scores — all below 7000 threshold
-        _commitReveal(validator1, projId, index, 2000, valStake);
-        _commitReveal(validator2, projId, index, 3000, valStake);
-        _commitReveal(validator3, projId, index, 2500, valStake);
+        // Commit phase
+        bytes32 salt1 = _commitOnly(validator1, projId, index, 2000, valStake);
+        bytes32 salt2 = _commitOnly(validator2, projId, index, 3000, valStake);
+        bytes32 salt3 = _commitOnly(validator3, projId, index, 2500, valStake);
+
+        // Warp past commit deadline to allow reveals (only once)
+        vm.warp(startTime + engine.commitDeadline());
+
+        // Reveal phase
+        vm.prank(validator1);
+        engine.revealValidation(projId, index, 2000, salt1);
+        vm.prank(validator2);
+        engine.revealValidation(projId, index, 3000, salt2);
+        vm.prank(validator3);
+        engine.revealValidation(projId, index, 2500, salt3);
+
         engine.computeConsensus(projId, index);
 
         nonce = engine.getContribution(projId, index).consensusNonce;

@@ -105,18 +105,55 @@ contract ReproduceIssuesTest is BaseTest {
         (, uint256[] memory indices) = _claimAndContribute(contributor1, projId, 1);
         uint256 index = indices[0];
 
-        // 4 validators all participate
-        _validate(validator1, projId, index, 8000, 50e18);
-        _validate(validator2, projId, index, 8500, 50e18);
-        _validate(validator3, projId, index, 7500, 50e18);
+        uint256 startTime = block.timestamp;
 
+        // 4 validators all commit first
+        bytes32 salt1 = keccak256(abi.encodePacked("salt", validator1, projId, index, uint256(8000)));
+        bytes32 commitHash1 = keccak256(abi.encodePacked(uint256(8000), salt1));
+        _ensureStake(validator1, 100e18);
+        vm.startPrank(validator1);
+        engine.claimToValidate(projId, 1);
+        engine.lockValidatorCapacity(50e18);
+        engine.commitValidation(projId, index, commitHash1, 50e18, address(0));
+        vm.stopPrank();
+
+        bytes32 salt2 = keccak256(abi.encodePacked("salt", validator2, projId, index, uint256(8500)));
+        bytes32 commitHash2 = keccak256(abi.encodePacked(uint256(8500), salt2));
+        _ensureStake(validator2, 100e18);
+        vm.startPrank(validator2);
+        engine.claimToValidate(projId, 1);
+        engine.lockValidatorCapacity(50e18);
+        engine.commitValidation(projId, index, commitHash2, 50e18, address(0));
+        vm.stopPrank();
+
+        bytes32 salt3 = keccak256(abi.encodePacked("salt", validator3, projId, index, uint256(7500)));
+        bytes32 commitHash3 = keccak256(abi.encodePacked(uint256(7500), salt3));
+        _ensureStake(validator3, 100e18);
+        vm.startPrank(validator3);
+        engine.claimToValidate(projId, 1);
+        engine.lockValidatorCapacity(50e18);
+        engine.commitValidation(projId, index, commitHash3, 50e18, address(0));
+        vm.stopPrank();
+
+        bytes32 salt4 = keccak256("validator4");
         vm.startPrank(validator4);
         engine.claimToValidate(projId, 1);
         engine.lockValidatorCapacity(50e18);
-        bytes32 salt4 = keccak256("validator4");
         engine.commitValidation(projId, index, keccak256(abi.encodePacked(uint256(8200), salt4)), 50e18, address(0));
-        engine.revealValidation(projId, index, 8200, salt4);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals (only once)
+        vm.warp(startTime + engine.commitDeadline());
+
+        // All validators reveal
+        vm.prank(validator1);
+        engine.revealValidation(projId, index, 8000, salt1);
+        vm.prank(validator2);
+        engine.revealValidation(projId, index, 8500, salt2);
+        vm.prank(validator3);
+        engine.revealValidation(projId, index, 7500, salt3);
+        vm.prank(validator4);
+        engine.revealValidation(projId, index, 8200, salt4);
 
         engine.computeConsensus(projId, index);
 

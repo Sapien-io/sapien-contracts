@@ -713,20 +713,27 @@ contract LifecycleRejectionTest is LifecycleBase {
         engine.claimToValidate(projId, 2);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projId, both, commitHashes1, stakeAmounts, address(0));
-        engine.batchRevealValidations(projId, both, scores1, salts1);
         vm.stopPrank();
         vm.startPrank(validator2);
         engine.claimToValidate(projId, 2);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projId, both, commitHashes2, stakeAmounts, address(0));
-        engine.batchRevealValidations(projId, both, scores2, salts2);
         vm.stopPrank();
         vm.startPrank(validator3);
         engine.claimToValidate(projId, 2);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projId, both, commitHashes3, stakeAmounts, address(0));
-        engine.batchRevealValidations(projId, both, scores3, salts3);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(validator1);
+        engine.batchRevealValidations(projId, both, scores1, salts1);
+        vm.prank(validator2);
+        engine.batchRevealValidations(projId, both, scores2, salts2);
+        vm.prank(validator3);
+        engine.batchRevealValidations(projId, both, scores3, salts3);
 
         engine.computeConsensus(projId, goodIdx);
         assertEq(uint256(engine.getContribution(projId, goodIdx).status), uint256(ContributionStatus.Accepted));
@@ -1497,10 +1504,14 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
         engine.claimToValidate(projId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projId, index, commitHash, VALIDATOR_STAKE, address(0));
+        vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
 
         vm.expectRevert(ISapienCore.InvalidReveal.selector);
+        vm.prank(validator1);
         engine.revealValidation(projId, index, 5000, salt); // wrong score
-        vm.stopPrank();
     }
 
     /// @notice Cannot commit twice for same index
@@ -2425,7 +2436,6 @@ contract LifecycleExhaustiveWorkflowTest is LifecycleBase {
         engine.claimToValidate(projId, 2);
         engine.lockValidatorCapacity(VALIDATOR_STAKE * 2);
         engine.batchCommitValidations(projId, indices, commitHashes, stakeAmounts, address(0));
-        engine.batchRevealValidations(projId, indices, scores, salts);
         vm.stopPrank();
 
         // Validator2 and validator3 must also validate both indices (batch) since assignment is random
@@ -2451,14 +2461,22 @@ contract LifecycleExhaustiveWorkflowTest is LifecycleBase {
         engine.claimToValidate(projId, 2);
         engine.lockValidatorCapacity(VALIDATOR_STAKE * 2);
         engine.batchCommitValidations(projId, indices, commitHashes2, stakeAmounts, address(0));
-        engine.batchRevealValidations(projId, indices, scores2, salts2);
         vm.stopPrank();
         vm.startPrank(validator3);
         engine.claimToValidate(projId, 2);
         engine.lockValidatorCapacity(VALIDATOR_STAKE * 2);
         engine.batchCommitValidations(projId, indices, commitHashes3, stakeAmounts, address(0));
-        engine.batchRevealValidations(projId, indices, scores3, salts3);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(validator1);
+        engine.batchRevealValidations(projId, indices, scores, salts);
+        vm.prank(validator2);
+        engine.batchRevealValidations(projId, indices, scores2, salts2);
+        vm.prank(validator3);
+        engine.batchRevealValidations(projId, indices, scores3, salts3);
 
         engine.computeConsensus(projId, indices[0]);
         engine.computeConsensus(projId, indices[1]);
@@ -2647,8 +2665,13 @@ contract LifecycleKnownIssuesTest is LifecycleBase {
         engine.claimToValidate(projId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projId, index, commitHash, VALIDATOR_STAKE, address(0));
-        engine.revealValidation(projId, index, score, salt);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(validator1);
+        engine.revealValidation(projId, index, score, salt);
 
         assertEq(engine.getRevealCount(projId, index), 1);
     }

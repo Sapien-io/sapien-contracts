@@ -18,7 +18,7 @@ contract RISK_010_FlashLoanConsensus is BaseTest {
         bytes32 salt = keccak256(abi.encodePacked("salt", newValidator, idx));
         bytes32 commitHash = keccak256(abi.encodePacked(uint256(score), salt));
 
-        // All in one block: mint → deposit → lock → claim → commit → reveal
+        // All in one block: mint → deposit → lock → claim → commit
         token.mint(newValidator, VALIDATOR_STAKE * 3);
         vm.startPrank(newValidator);
         token.approve(address(vault), type(uint256).max);
@@ -27,8 +27,13 @@ contract RISK_010_FlashLoanConsensus is BaseTest {
         engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projectId, idx, commitHash, VALIDATOR_STAKE, address(0));
-        engine.revealValidation(projectId, idx, score, salt);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(newValidator);
+        engine.revealValidation(projectId, idx, score, salt);
 
         assertEq(engine.getRevealCount(projectId, idx), 1, "instant validator counted in consensus");
     }
@@ -42,7 +47,7 @@ contract RISK_010_FlashLoanConsensus is BaseTest {
         _commitAndReveal(validator1, projectId, idx, 8000, VALIDATOR_STAKE);
         _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
 
-        // Instant validator deposits and votes to reject — all in one block
+        // Instant validator deposits and votes to reject — commits in one block, reveals after deadline
         address instantVal = makeAddr("instant-validator");
         uint256 rejectScore = 1000;
         bytes32 salt = keccak256(abi.encodePacked("salt", instantVal, idx));
@@ -56,8 +61,15 @@ contract RISK_010_FlashLoanConsensus is BaseTest {
         engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projectId, idx, commitHash, VALIDATOR_STAKE, address(0));
-        engine.revealValidation(projectId, idx, rejectScore, salt);
         vm.stopPrank();
+
+        // Note: Due to commit deadline enforcement, instant validator must wait
+        // This actually makes the test MORE secure - can't flash loan and immediately influence consensus
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(instantVal);
+        engine.revealValidation(projectId, idx, rejectScore, salt);
 
         // Consensus includes the instant validator's vote
         assertEq(engine.getRevealCount(projectId, idx), 3, "instant validator included");

@@ -1235,10 +1235,17 @@ contract QEValidationBranchTest is QECoverageBase {
         engine.claimToValidate(projId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projId, index, commitHash, VALIDATOR_STAKE, address(0));
-        engine.revealValidation(projId, index, score, salt);
-        vm.expectRevert(ISapienCore.AlreadyRevealed.selector);
-        engine.revealValidation(projId, index, score, salt);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(validator1);
+        engine.revealValidation(projId, index, score, salt);
+
+        vm.expectRevert(ISapienCore.AlreadyRevealed.selector);
+        vm.prank(validator1);
+        engine.revealValidation(projId, index, score, salt);
     }
 
     function test_commitValidation_zeroStake() public {
@@ -1370,8 +1377,13 @@ contract QESettleBranchTest is QECoverageBase {
         engine.claimToValidate(pid2, 1);
         engine.lockValidatorCapacity(5);
         engine.commitValidation(pid2, index, commitHash, 5, address(0));
-        engine.revealValidation(pid2, index, score, salt);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(validator4);
+        engine.revealValidation(pid2, index, score, salt);
 
         engine.computeConsensus(pid2, index);
 
@@ -1870,16 +1882,24 @@ contract QERemainingGapsTest is QECoverageBase {
         // All validators commit with tiny stake (9 wei) and equal reputation
         address[4] memory vals = [validator1, validator2, validator3, validator4];
         uint256[4] memory scores = [uint256(9500), uint256(9500), uint256(9500), uint256(100)];
+        bytes32[4] memory salts;
         for (uint256 i; i < 4; ++i) {
-            bytes32 salt = keccak256(abi.encodePacked("salt", vals[i], pid, index, scores[i]));
-            bytes32 commitHash = keccak256(abi.encodePacked(uint256(scores[i]), salt));
+            salts[i] = keccak256(abi.encodePacked("salt", vals[i], pid, index, scores[i]));
+            bytes32 commitHash = keccak256(abi.encodePacked(uint256(scores[i]), salts[i]));
             _ensureStake(vals[i], 1e18);
             vm.startPrank(vals[i]);
             engine.claimToValidate(pid, 1);
             engine.lockValidatorCapacity(9);
             engine.commitValidation(pid, index, commitHash, 9, address(0));
-            engine.revealValidation(pid, index, scores[i], salt);
             vm.stopPrank();
+        }
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        for (uint256 i; i < 4; ++i) {
+            vm.prank(vals[i]);
+            engine.revealValidation(pid, index, scores[i], salts[i]);
         }
 
         engine.computeConsensus(pid, index);
