@@ -182,6 +182,48 @@ contract LifecycleBase is BaseTest {
         _validate(validator3, projectId, index, 4000, VALIDATOR_STAKE);
     }
 
+    /// @dev Prepare batch data (stakes, salts, commitHashes) for a single validator
+    function _prepareBatchData(address val, bytes32 projectId, uint256[] memory indices, uint256[] memory scores)
+        internal
+        pure
+        returns (uint256[] memory stakeAmounts, bytes32[] memory salts, bytes32[] memory commitHashes)
+    {
+        uint256 n = indices.length;
+        stakeAmounts = new uint256[](n);
+        salts = new bytes32[](n);
+        commitHashes = new bytes32[](n);
+        for (uint256 i; i < n; ++i) {
+            stakeAmounts[i] = VALIDATOR_STAKE;
+            salts[i] = keccak256(abi.encodePacked("salt", val, projectId, indices[i], scores[i]));
+            commitHashes[i] = keccak256(abi.encodePacked(scores[i], salts[i]));
+        }
+    }
+
+    /// @dev Fill a scores array with a constant value
+    function _fillScores(uint256 n, uint256 score) internal pure returns (uint256[] memory scores) {
+        scores = new uint256[](n);
+        for (uint256 i; i < n; ++i) {
+            scores[i] = score;
+        }
+    }
+
+    /// @dev Batch validate for one validator: claim, lock, commit, reveal
+    function _batchValidateOne(address val, bytes32 projectId, uint256[] memory indices, uint256[] memory scores)
+        internal
+    {
+        uint256 n = indices.length;
+        uint256 totalStake = VALIDATOR_STAKE * n;
+        _ensureStake(val, totalStake * 2);
+        (uint256[] memory stakeAmounts, bytes32[] memory salts, bytes32[] memory commitHashes) =
+            _prepareBatchData(val, projectId, indices, scores);
+        vm.startPrank(val);
+        engine.claimToValidate(projectId, n);
+        engine.lockValidatorCapacity(totalStake);
+        engine.batchCommitValidations(projectId, indices, commitHashes, stakeAmounts, address(0));
+        engine.batchRevealValidations(projectId, indices, scores, salts);
+        vm.stopPrank();
+    }
+
     /// @dev When multiple indices are pending, validators get randomly assigned.
     ///      Use batch claim so each validator gets all indices, then batch commit/reveal.
     function _validateAllAboveThreshold(bytes32 projectId, uint256[] memory indices) internal {
