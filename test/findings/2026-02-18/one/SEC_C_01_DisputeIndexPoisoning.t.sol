@@ -40,6 +40,10 @@ contract SEC_C_01_DisputeIndexPoisoning is BaseTest {
         vm.prank(attacker);
         engine.openDispute(projectId, targetIndex, keccak256("evidence"), "evidenceCid");
 
+        // Resolve the dispute before recycling
+        vm.prank(admin);
+        engine.resolveDispute(projectId, targetIndex, 0, false);
+
         // Settle round 1 validators
         vm.prank(validator1);
         engine.settleValidator(projectId, targetIndex, 0);
@@ -88,7 +92,7 @@ contract SEC_C_01_DisputeIndexPoisoning is BaseTest {
         vm.prank(attacker);
         engine.openDispute(projectId, idx, keccak256("evidence"), "evidenceCid");
         vm.prank(admin);
-        engine.resolveDispute(projectId, idx, true);
+        engine.resolveDispute(projectId, idx, 0, true);
 
         Dispute memory d = engine.getDispute(projectId, idx);
         assertEq(uint8(d.status), uint8(DisputeStatus.Upheld), "dispute upheld");
@@ -137,6 +141,10 @@ contract SEC_C_01_DisputeIndexPoisoning is BaseTest {
         // Before recycling, getDispute returns the open dispute (at nonce 0)
         Dispute memory d1 = engine.getDispute(projectId, idx);
         assertEq(uint8(d1.status), uint8(DisputeStatus.Open), "dispute visible before recycling");
+
+        // Resolve the dispute before recycling
+        vm.prank(admin);
+        engine.resolveDispute(projectId, idx, 0, false);
 
         // Settle and recycle
         vm.prank(validator1);

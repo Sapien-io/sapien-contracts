@@ -188,7 +188,7 @@ contract FuzzExtended is BaseTest {
 
         // Admin upholds the dispute
         vm.prank(admin);
-        engine.resolveDispute(projId, index, true);
+        engine.resolveDispute(projId, index, 0, true);
 
         assertEq(uint256(engine.getDispute(projId, index).status), uint256(DisputeStatus.Upheld));
 
@@ -233,7 +233,7 @@ contract FuzzExtended is BaseTest {
 
         // Admin rejects the dispute (resets challengeEndsAt to block.timestamp)
         vm.prank(admin);
-        engine.resolveDispute(projId, index, false);
+        engine.resolveDispute(projId, index, 0, false);
 
         assertEq(uint256(engine.getDispute(projId, index).status), uint256(DisputeStatus.Rejected));
 
@@ -277,7 +277,7 @@ contract FuzzExtended is BaseTest {
         vm.warp(block.timestamp + C.DISPUTE_RESOLUTION_DEADLINE + 1);
 
         // Any address can escalate
-        engine.escalateDispute(projId, index);
+        engine.escalateDispute(projId, index, 0);
 
         assertEq(uint256(engine.getDispute(projId, index).status), uint256(DisputeStatus.Upheld));
 
@@ -312,7 +312,7 @@ contract FuzzExtended is BaseTest {
         engine.openDispute(projId, index, keccak256("dispute-evidence-4"), "");
 
         vm.prank(admin);
-        engine.resolveDispute(projId, index, true);
+        engine.resolveDispute(projId, index, 0, true);
 
         assertEq(uint256(engine.getDispute(projId, index).status), uint256(DisputeStatus.Upheld));
 
