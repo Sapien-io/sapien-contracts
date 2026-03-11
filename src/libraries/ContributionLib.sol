@@ -194,7 +194,7 @@ library ContributionLib {
             uint256 idx = indices[i];
             Contribution storage contrib = $.contributions[projectId][idx];
 
-            if (contrib.claimId != uint32(claimId)) continue;
+            if (contrib.claimId != claimId) continue;
 
             if (contrib.status == ContributionStatus.Reserved) {
                 $.returnStack[projectId][rsTop] = idx;
