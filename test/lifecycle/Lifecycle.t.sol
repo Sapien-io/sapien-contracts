@@ -164,8 +164,13 @@ contract LifecycleBase is BaseTest {
         engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(stakeAmt);
         engine.commitValidation(projectId, index, commitHash, stakeAmt, address(0));
-        engine.revealValidation(projectId, index, score, salt);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(val);
+        engine.revealValidation(projectId, index, score, salt);
     }
 
     /// @dev Run 3 validators above threshold on an index
@@ -220,22 +225,31 @@ contract LifecycleBase is BaseTest {
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes1, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores1, salts1);
         vm.stopPrank();
 
         vm.startPrank(validator2);
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes2, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores2, salts2);
         vm.stopPrank();
 
         vm.startPrank(validator3);
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes3, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores3, salts3);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(validator1);
+        engine.batchRevealValidations(projectId, indices, scores1, salts1);
+
+        vm.prank(validator2);
+        engine.batchRevealValidations(projectId, indices, scores2, salts2);
+
+        vm.prank(validator3);
+        engine.batchRevealValidations(projectId, indices, scores3, salts3);
     }
 
     /// @dev Validate multiple indices with custom per-index scores (for mixed outcomes)
@@ -275,20 +289,27 @@ contract LifecycleBase is BaseTest {
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes1, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores1, salts1);
         vm.stopPrank();
         vm.startPrank(validator2);
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes2, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores2, salts2);
         vm.stopPrank();
         vm.startPrank(validator3);
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes3, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores3, salts3);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(validator1);
+        engine.batchRevealValidations(projectId, indices, scores1, salts1);
+        vm.prank(validator2);
+        engine.batchRevealValidations(projectId, indices, scores2, salts2);
+        vm.prank(validator3);
+        engine.batchRevealValidations(projectId, indices, scores3, salts3);
     }
 
     /// @dev Same as _validateAllAboveThreshold but with below-threshold scores
@@ -328,22 +349,29 @@ contract LifecycleBase is BaseTest {
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes1, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores1, salts1);
         vm.stopPrank();
 
         vm.startPrank(validator2);
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes2, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores2, salts2);
         vm.stopPrank();
 
         vm.startPrank(validator3);
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes3, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores3, salts3);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(validator1);
+        engine.batchRevealValidations(projectId, indices, scores1, salts1);
+        vm.prank(validator2);
+        engine.batchRevealValidations(projectId, indices, scores2, salts2);
+        vm.prank(validator3);
+        engine.batchRevealValidations(projectId, indices, scores3, salts3);
     }
 
     /// @dev Settle all 3 validators (warps past the challenge period first for accepted contributions)

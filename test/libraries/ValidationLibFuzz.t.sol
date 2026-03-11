@@ -412,6 +412,9 @@ contract ValidationLibFuzz is Test {
         vm.prank(val);
         engine.commitValidation(PROJECT_ID, index, commitHash, VALIDATOR_STAKE, address(0));
 
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
         vm.prank(val);
         engine.revealValidation(PROJECT_ID, index, score, salt);
     }

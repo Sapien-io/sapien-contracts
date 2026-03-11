@@ -108,6 +108,9 @@ interface ISapienCore {
     /// @dev The reveal window has closed.
     error RevealWindowClosed();
 
+    /// @dev The commit phase is still active; reveals are not yet allowed.
+    error CommitPhaseActive();
+
     /// @dev The contribution was not accepted by consensus.
     error ContributionNotAccepted();
 

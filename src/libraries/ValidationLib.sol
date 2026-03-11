@@ -200,6 +200,11 @@ library ValidationLib {
 
         if (vc.revealedAt != 0) revert ISapienCore.AlreadyRevealed();
 
+        // Enforce commit phase completion before allowing reveals
+        if (block.timestamp < vc.commitTimestamp + $.commitDeadline) {
+            revert ISapienCore.CommitPhaseActive();
+        }
+
         if (block.timestamp > vc.commitTimestamp + $.commitDeadline + $.revealDeadline) {
             revert ISapienCore.RevealWindowClosed();
         }
