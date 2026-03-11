@@ -226,6 +226,9 @@ contract ValidationLibFuzz is Test {
         vm.prank(validator1);
         engine.commitValidation(PROJECT_ID, submittedIndex, commitHash, VALIDATOR_STAKE, address(0));
 
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
         vm.prank(validator1);
         engine.revealValidation(PROJECT_ID, submittedIndex, score, salt);
     }
@@ -259,6 +262,9 @@ contract ValidationLibFuzz is Test {
         vm.prank(validator1);
         engine.commitValidation(PROJECT_ID, submittedIndex, commitHash, VALIDATOR_STAKE, address(0));
 
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
         vm.prank(validator1);
         vm.expectRevert(ISapienCore.InvalidReveal.selector);
         engine.revealValidation(PROJECT_ID, submittedIndex, score, wrongSalt);
@@ -274,6 +280,9 @@ contract ValidationLibFuzz is Test {
 
         vm.prank(validator1);
         engine.commitValidation(PROJECT_ID, submittedIndex, commitHash, VALIDATOR_STAKE, address(0));
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
 
         vm.prank(validator1);
         engine.revealValidation(PROJECT_ID, submittedIndex, score, salt);
@@ -306,9 +315,7 @@ contract ValidationLibFuzz is Test {
         score2 = bound(score2, 7500, 9500);
         score3 = bound(score3, 7500, 9500);
 
-        _fullValidation(validator1, submittedIndex, score1);
-        _fullValidation(validator2, submittedIndex, score2);
-        _fullValidation(validator3, submittedIndex, score3);
+        _batchValidation(validator1, validator2, validator3, submittedIndex, score1, score2, score3);
 
         engine.computeConsensus(PROJECT_ID, submittedIndex);
 
@@ -321,9 +328,7 @@ contract ValidationLibFuzz is Test {
         score2 = bound(score2, 0, 5000);
         score3 = bound(score3, 0, 5000);
 
-        _fullValidation(validator1, submittedIndex, score1);
-        _fullValidation(validator2, submittedIndex, score2);
-        _fullValidation(validator3, submittedIndex, score3);
+        _batchValidation(validator1, validator2, validator3, submittedIndex, score1, score2, score3);
 
         engine.computeConsensus(PROJECT_ID, submittedIndex);
 
@@ -332,17 +337,20 @@ contract ValidationLibFuzz is Test {
     }
 
     function testFuzz_computeConsensus_revertsNotEnoughReveals() public {
-        _fullValidation(validator1, submittedIndex, 8000);
-        _fullValidation(validator2, submittedIndex, 8000);
+        bytes32 salt1 = _commit(validator1, submittedIndex, 8000);
+        bytes32 salt2 = _commit(validator2, submittedIndex, 8000);
+
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        _reveal(validator1, submittedIndex, 8000, salt1);
+        _reveal(validator2, submittedIndex, 8000, salt2);
 
         vm.expectRevert(abi.encodeWithSelector(ISapienCore.ConsensusNotReady.selector, 2, 3));
         engine.computeConsensus(PROJECT_ID, submittedIndex);
     }
 
     function testFuzz_computeConsensus_revertsAlreadyComputed() public {
-        _fullValidation(validator1, submittedIndex, 8000);
-        _fullValidation(validator2, submittedIndex, 8000);
-        _fullValidation(validator3, submittedIndex, 8000);
+        _batchValidation(validator1, validator2, validator3, submittedIndex, 8000, 8000, 8000);
 
         engine.computeConsensus(PROJECT_ID, submittedIndex);
 
@@ -402,8 +410,8 @@ contract ValidationLibFuzz is Test {
         engine.lockValidatorCapacity(amount);
     }
 
-    function _fullValidation(address val, uint256 index, uint256 score) internal {
-        bytes32 salt = keccak256(abi.encodePacked("salt", val, index));
+    function _commit(address val, uint256 index, uint256 score) internal returns (bytes32 salt) {
+        salt = keccak256(abi.encodePacked("salt", val, index));
         bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
 
         _claimValidation(val);
@@ -411,9 +419,41 @@ contract ValidationLibFuzz is Test {
 
         vm.prank(val);
         engine.commitValidation(PROJECT_ID, index, commitHash, VALIDATOR_STAKE, address(0));
+    }
 
+    function _reveal(address val, uint256 index, uint256 score, bytes32 salt) internal {
         vm.prank(val);
         engine.revealValidation(PROJECT_ID, index, score, salt);
+    }
+
+    function _fullValidation(address val, uint256 index, uint256 score) internal {
+        bytes32 salt = _commit(val, index, score);
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        _reveal(val, index, score, salt);
+    }
+
+    function _batchValidation(
+        address val1,
+        address val2,
+        address val3,
+        uint256 index,
+        uint256 score1,
+        uint256 score2,
+        uint256 score3
+    ) internal {
+        bytes32 salt1 = _commit(val1, index, score1);
+        bytes32 salt2 = _commit(val2, index, score2);
+        bytes32 salt3 = _commit(val3, index, score3);
+
+        // Warp past commit deadline to allow reveals (only once)
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        _reveal(val1, index, score1, salt1);
+        _reveal(val2, index, score2, salt2);
+        _reveal(val3, index, score3, salt3);
     }
 
     function _setupValidator(address val) internal {

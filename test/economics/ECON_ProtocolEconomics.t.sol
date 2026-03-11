@@ -316,8 +316,13 @@ contract ECON_ProtocolEconomics is BaseTest {
         engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(stakeAmount);
         engine.commitValidation(projectId, index, commitHash, stakeAmount, validationAdapter);
-        engine.revealValidation(projectId, index, score, salt);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(validator);
+        engine.revealValidation(projectId, index, score, salt);
     }
 
     function _runProtocolActivitySimulation() internal returns (ProtocolSimulation memory sim) {

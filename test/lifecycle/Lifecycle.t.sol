@@ -164,8 +164,13 @@ contract LifecycleBase is BaseTest {
         engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(stakeAmt);
         engine.commitValidation(projectId, index, commitHash, stakeAmt, address(0));
-        engine.revealValidation(projectId, index, score, salt);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(val);
+        engine.revealValidation(projectId, index, score, salt);
     }
 
     /// @dev Run 3 validators above threshold on an index
@@ -207,7 +212,7 @@ contract LifecycleBase is BaseTest {
         }
     }
 
-    /// @dev Batch validate for one validator: claim, lock, commit, reveal
+    /// @dev Batch validate for one validator: claim, lock, commit, warp, reveal
     function _batchValidateOne(address val, bytes32 projectId, uint256[] memory indices, uint256[] memory scores)
         internal
     {
@@ -220,8 +225,12 @@ contract LifecycleBase is BaseTest {
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores, salts);
         vm.stopPrank();
+
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(val);
+        engine.batchRevealValidations(projectId, indices, scores, salts);
     }
 
     /// @dev When multiple indices are pending, validators get randomly assigned.
@@ -293,8 +302,12 @@ contract LifecycleBase is BaseTest {
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
         engine.batchCommitValidations(projectId, indices, commitHashes, stakeAmounts, address(0));
-        engine.batchRevealValidations(projectId, indices, scores, salts);
         vm.stopPrank();
+
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(val);
+        engine.batchRevealValidations(projectId, indices, scores, salts);
     }
 
     function _uniformScores(uint256 n, uint256 score) internal pure returns (uint256[] memory scores) {
@@ -1400,10 +1413,14 @@ contract LifecycleEdgeCaseTest is LifecycleBase {
         engine.claimToValidate(projId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projId, index, commitHash, VALIDATOR_STAKE, address(0));
+        vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
 
         vm.expectRevert(ISapienCore.InvalidReveal.selector);
+        vm.prank(validator1);
         engine.revealValidation(projId, index, 5000, salt); // wrong score
-        vm.stopPrank();
     }
 
     /// @notice Cannot commit twice for same index
@@ -2516,8 +2533,13 @@ contract LifecycleKnownIssuesTest is LifecycleBase {
         engine.claimToValidate(projId, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(projId, index, commitHash, VALIDATOR_STAKE, address(0));
-        engine.revealValidation(projId, index, score, salt);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(validator1);
+        engine.revealValidation(projId, index, score, salt);
 
         assertEq(engine.getRevealCount(projId, index), 1);
     }

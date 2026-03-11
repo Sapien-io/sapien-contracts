@@ -280,8 +280,13 @@ contract SapienCoreValidationTest is BaseTest {
         engine.claimToValidate(PROJECT_ID, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(PROJECT_ID, index, commitHash, VALIDATOR_STAKE, address(0));
-        engine.revealValidation(PROJECT_ID, index, score, salt);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(validator1);
+        engine.revealValidation(PROJECT_ID, index, score, salt);
 
         uint256 reveals = engine.getRevealCount(PROJECT_ID, index);
         assertEq(reveals, 1);
@@ -314,11 +319,15 @@ contract SapienCoreValidationTest is BaseTest {
         engine.claimToValidate(PROJECT_ID, 1);
         engine.lockValidatorCapacity(VALIDATOR_STAKE);
         engine.commitValidation(PROJECT_ID, index, commitHash, VALIDATOR_STAKE, address(0));
+        vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
 
         // Try to reveal with wrong score
         vm.expectRevert(ISapienCore.InvalidReveal.selector);
+        vm.prank(validator1);
         engine.revealValidation(PROJECT_ID, index, 5000, salt);
-        vm.stopPrank();
     }
 
     function test_commitValidation_revertsAlreadyCommitted() public {

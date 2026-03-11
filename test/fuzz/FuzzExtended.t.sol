@@ -50,8 +50,13 @@ contract FuzzExtended is BaseTest {
         engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(stakeAmt);
         engine.commitValidation(projectId, index, commitHash, stakeAmt, address(0));
-        engine.revealValidation(projectId, index, score, salt);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(val);
+        engine.revealValidation(projectId, index, score, salt);
     }
 
     function _projectId(uint256 seed) internal pure returns (bytes32) {
@@ -105,8 +110,13 @@ contract FuzzExtended is BaseTest {
         engine.claimToValidate(projId, 1);
         engine.lockValidatorCapacity(stakeAmt);
         engine.commitValidation(projId, index, commitHash, stakeAmt, address(0));
-        engine.revealValidation(projId, index, score, salt);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(val);
+        engine.revealValidation(projId, index, score, salt);
     }
 
     /// @dev Full setup: fund project, claim one slot, contribute, 3 validators
@@ -124,12 +134,43 @@ contract FuzzExtended is BaseTest {
         engine.contribute(claimId, index, keccak256(abi.encodePacked("sub", seed)), "");
         vm.stopPrank();
 
-        _commitReveal(validator1, projId, index, score, valStake);
-        _commitReveal(validator2, projId, index, score, valStake);
-        _commitReveal(validator3, projId, index, score, valStake);
+        uint256 startTime = block.timestamp;
+
+        // Commit phase
+        bytes32 salt1 = _commitOnly(validator1, projId, index, score, valStake);
+        bytes32 salt2 = _commitOnly(validator2, projId, index, score, valStake);
+        bytes32 salt3 = _commitOnly(validator3, projId, index, score, valStake);
+
+        // Warp past commit deadline to allow reveals (only once)
+        vm.warp(startTime + engine.commitDeadline());
+
+        // Reveal phase
+        vm.prank(validator1);
+        engine.revealValidation(projId, index, score, salt1);
+        vm.prank(validator2);
+        engine.revealValidation(projId, index, score, salt2);
+        vm.prank(validator3);
+        engine.revealValidation(projId, index, score, salt3);
+
         engine.computeConsensus(projId, index);
 
         nonce = engine.getContribution(projId, index).consensusNonce;
+    }
+
+    function _commitOnly(address val, bytes32 projId, uint256 index, uint256 score, uint256 stakeAmt)
+        internal
+        returns (bytes32 salt)
+    {
+        salt = keccak256(abi.encodePacked("ext-salt", val, index, score));
+        bytes32 commitHash = keccak256(abi.encodePacked(score, salt));
+
+        _ensureStake(val, stakeAmt * 3);
+
+        vm.startPrank(val);
+        engine.claimToValidate(projId, 1);
+        engine.lockValidatorCapacity(stakeAmt);
+        engine.commitValidation(projId, index, commitHash, stakeAmt, address(0));
+        vm.stopPrank();
     }
 
     /// @dev Full setup leading to a REJECTED contribution.
@@ -146,10 +187,25 @@ contract FuzzExtended is BaseTest {
         engine.contribute(claimId, index, keccak256(abi.encodePacked("sub-reject", seed)), "");
         vm.stopPrank();
 
+        uint256 startTime = block.timestamp;
+
         // Low scores — all below 7000 threshold
-        _commitReveal(validator1, projId, index, 2000, valStake);
-        _commitReveal(validator2, projId, index, 3000, valStake);
-        _commitReveal(validator3, projId, index, 2500, valStake);
+        // Commit phase
+        bytes32 salt1 = _commitOnly(validator1, projId, index, 2000, valStake);
+        bytes32 salt2 = _commitOnly(validator2, projId, index, 3000, valStake);
+        bytes32 salt3 = _commitOnly(validator3, projId, index, 2500, valStake);
+
+        // Warp past commit deadline to allow reveals (only once)
+        vm.warp(startTime + engine.commitDeadline());
+
+        // Reveal phase
+        vm.prank(validator1);
+        engine.revealValidation(projId, index, 2000, salt1);
+        vm.prank(validator2);
+        engine.revealValidation(projId, index, 3000, salt2);
+        vm.prank(validator3);
+        engine.revealValidation(projId, index, 2500, salt3);
+
         engine.computeConsensus(projId, index);
 
         nonce = engine.getContribution(projId, index).consensusNonce;
@@ -668,6 +724,13 @@ contract FuzzExtended is BaseTest {
         // Each validator: claimToValidate(batchSize), get assigned indices, batchCommit, batchReveal
         address[3] memory vals = [validator1, validator2, validator3];
         uint256 score = 8800;
+
+        // Arrays to store data for reveal phase
+        uint256[][3] memory allAssignedIndices;
+        uint256[][3] memory allScores;
+        bytes32[][3] memory allSalts;
+
+        // Commit phase - all validators commit
         for (uint256 v; v < 3; ++v) {
             address val = vals[v];
             _ensureStake(val, valStake * 3);
@@ -676,6 +739,7 @@ contract FuzzExtended is BaseTest {
             uint256 vcClaimId = engine.claimToValidate(projId, batchSize);
             ValidationClaim memory vc = engine.getValidationClaim(vcClaimId);
             uint256[] memory assignedIndices = vc.indices;
+            allAssignedIndices[v] = assignedIndices;
             engine.lockValidatorCapacity(valStake * assignedIndices.length);
 
             // Build commit arrays for assigned indices
@@ -690,9 +754,20 @@ contract FuzzExtended is BaseTest {
                 scores[i] = score;
             }
 
+            allScores[v] = scores;
+            allSalts[v] = salts;
+
             engine.batchCommitValidations(projId, assignedIndices, commitHashes, stakeAmts, address(0));
-            engine.batchRevealValidations(projId, assignedIndices, scores, salts);
             vm.stopPrank();
+        }
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        // Reveal phase - all validators reveal
+        for (uint256 v; v < 3; ++v) {
+            vm.prank(vals[v]);
+            engine.batchRevealValidations(projId, allAssignedIndices[v], allScores[v], allSalts[v]);
         }
 
         // Compute consensus and verify acceptance for each index

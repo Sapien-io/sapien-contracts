@@ -77,9 +77,14 @@ contract SecurityFindings_2026_02_24 is BaseTest {
         engine.claimToValidate(pid, 1);
         engine.lockValidatorCapacity(stakeAmt);
         engine.commitValidation(pid, index, commitHash, stakeAmt, address(0));
-        engine.revealValidation(pid, index, score, salt);
 
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(val);
+        engine.revealValidation(pid, index, score, salt);
     }
 
     // ════════════════════════════════════════════════════════════════════
