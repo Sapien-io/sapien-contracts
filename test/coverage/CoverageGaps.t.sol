@@ -1520,6 +1520,7 @@ contract QEDisputeBranchTest is QECoverageBase {
     }
 
     function test_revert_escalateDispute_notOpen() public {
+        vm.prank(admin);
         vm.expectRevert(ISapienCore.DisputeNotOpen.selector);
         engine.escalateDispute(projId, 0, 0);
     }
@@ -1539,8 +1540,9 @@ contract QEDisputeBranchTest is QECoverageBase {
         vm.prank(contributor1);
         engine.openDispute(projId, index, keccak256("unfair-rejection"), "evidenceCid");
 
-        // Warp past resolution deadline → escalate
+        // Warp past resolution deadline → escalate (POQ-9 FIX: requires operator)
         vm.warp(block.timestamp + 8 days);
+        vm.prank(admin);
         engine.escalateDispute(projId, index, 0);
 
         Dispute memory d = engine.getDispute(projId, index);
@@ -1600,6 +1602,7 @@ contract QEDisputeBranchTest is QECoverageBase {
         engine.openDispute(projId, index, keccak256("evidence"), "evidenceCid");
 
         vm.warp(block.timestamp + 8 days);
+        vm.prank(admin);
         engine.escalateDispute(projId, index, 0);
 
         assertGt(engine.getPendingRewards(challenger, address(token)), 0);
@@ -1662,6 +1665,7 @@ contract QEOriginatorReportBranchTest is QECoverageBase {
     }
 
     function test_revert_escalateOriginatorReport_notOpen() public {
+        vm.prank(admin);
         vm.expectRevert(ISapienCore.OriginatorReportNotOpen.selector);
         engine.escalateOriginatorReport(keccak256("nonexistent"));
     }
@@ -2712,6 +2716,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         engine.openDispute(pid, index, keccak256("evidence"), "evidenceCid");
 
         // Try to escalate immediately (before 7 day resolution deadline)
+        vm.prank(admin);
         vm.expectRevert(ISapienCore.DisputeResolutionNotExpired.selector);
         engine.escalateDispute(pid, index, 0);
     }
@@ -2729,6 +2734,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         // Warp past resolution deadline
         vm.warp(block.timestamp + 7 days + 1);
 
+        vm.prank(admin);
         engine.escalateOriginatorReport(pid);
 
         OriginatorReport memory report = engine.getOriginatorReport(pid);
@@ -2757,6 +2763,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         engine.reportOriginator(pid, keccak256("evidence"));
 
         vm.warp(block.timestamp + 7 days + 1);
+        vm.prank(admin);
         engine.escalateOriginatorReport(pid);
 
         assertEq(uint256(engine.getProject(pid).status), uint256(ProjectStatus.Cancelled));
@@ -2772,6 +2779,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         vm.prank(challenger);
         engine.reportOriginator(pid, keccak256("evidence"));
 
+        vm.prank(admin);
         vm.expectRevert(ISapienCore.DisputeResolutionNotExpired.selector);
         engine.escalateOriginatorReport(pid);
     }

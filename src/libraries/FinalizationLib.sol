@@ -116,8 +116,20 @@ library FinalizationLib {
             }
         }
 
-        if (outlier) {
+        // POQ-9 FIX: Check if dispute was upheld to determine reputation update
+        bool disputeUpheld = false;
+        {
+            Dispute storage dispute = $.disputes[projectId][index][nonce];
+            disputeUpheld = (dispute.status == DisputeStatus.Upheld);
+        }
+
+        if (outlier || disputeUpheld) {
+            // POQ-9 FIX: Validators with overturned consensus receive negative reputation
             ReputationLib.update(validator, proj.requiredSkill, false, 0);
+            if (!outlier && committedStake > 0) {
+                // Not an outlier but dispute was upheld - still release stake
+                $.vault.releaseCommit(validator, committedStake);
+            }
         } else {
             if (committedStake > 0) {
                 $.vault.releaseCommit(validator, committedStake);

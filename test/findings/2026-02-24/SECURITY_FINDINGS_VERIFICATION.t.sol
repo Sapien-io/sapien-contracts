@@ -386,6 +386,7 @@ contract SecurityFindings_2026_02_24 is BaseTest {
         vm.warp(block.timestamp + C.DISPUTE_RESOLUTION_DEADLINE + 1);
 
         vm.recordLogs();
+        vm.prank(admin);
         engine.escalateOriginatorReport(pid);
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
