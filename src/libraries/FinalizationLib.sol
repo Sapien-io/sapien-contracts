@@ -260,6 +260,20 @@ library FinalizationLib {
         if (vc.commitTimestamp == 0) revert ISapienCore.NotCommitted();
         if (vc.revealedAt != 0) revert ISapienCore.AlreadyRevealed();
 
+        // POQ-4: On cancelled projects, release stake instead of slashing.
+        // Committed-but-not-revealed validators should not be penalised for
+        // a project that was cancelled out from under them.
+        if ($.projects[projectId].status == ProjectStatus.Cancelled) {
+            if (vc.settled) revert ISapienCore.AlreadySettled();
+            vc.settled = true;
+            uint256 stake = vc.stakedAmount;
+            if (stake > 0) {
+                $.vault.releaseCommit(validator, stake);
+            }
+            emit ISapienCore.ValidatorSettled(projectId, index, validator, false);
+            return;
+        }
+
         if (block.timestamp <= vc.commitTimestamp + $.commitDeadline + $.revealDeadline) {
             revert ISapienCore.ClaimDeadlineNotPassed();
         }
