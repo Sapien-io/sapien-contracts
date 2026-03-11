@@ -76,7 +76,7 @@ contract SEC_H_04_ExcessiveDisputePayout is BaseTest {
 
         // Operator upholds the dispute
         vm.prank(admin);
-        engine.resolveDispute(projectId, idx, true);
+        engine.resolveDispute(projectId, idx, 0, true);
 
         uint256 escrowAfterUphold = engine.getProjectEscrow(projectId, address(token));
         uint256 deducted = escrowAfterConsensus - escrowAfterUphold;
@@ -146,11 +146,13 @@ contract SEC_H_04_ExcessiveDisputePayout is BaseTest {
         vm.prank(challenger);
         engine.openDispute(projectId, idx, keccak256(abi.encode("overturn", contribNum)), "evidenceCid");
 
+        // Get the consensusNonce at which the dispute was opened (before rejection increments submissionNonce)
+        uint256 nonce = engine.getContribution(projectId, idx).consensusNonce;
+
         vm.prank(admin);
-        engine.resolveDispute(projectId, idx, true);
+        engine.resolveDispute(projectId, idx, nonce, true);
 
         // Settle validators to free in-flight stake
-        uint256 nonce = contribNum;
         vm.prank(validator1);
         engine.settleValidator(projectId, idx, nonce);
         vm.prank(validator2);

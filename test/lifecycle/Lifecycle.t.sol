@@ -187,6 +187,52 @@ contract LifecycleBase is BaseTest {
         _validate(validator3, projectId, index, 4000, VALIDATOR_STAKE);
     }
 
+    /// @dev Prepare batch data (stakes, salts, commitHashes) for a single validator
+    function _prepareBatchData(address val, bytes32 projectId, uint256[] memory indices, uint256[] memory scores)
+        internal
+        pure
+        returns (uint256[] memory stakeAmounts, bytes32[] memory salts, bytes32[] memory commitHashes)
+    {
+        uint256 n = indices.length;
+        stakeAmounts = new uint256[](n);
+        salts = new bytes32[](n);
+        commitHashes = new bytes32[](n);
+        for (uint256 i; i < n; ++i) {
+            stakeAmounts[i] = VALIDATOR_STAKE;
+            salts[i] = keccak256(abi.encodePacked("salt", val, projectId, indices[i], scores[i]));
+            commitHashes[i] = keccak256(abi.encodePacked(scores[i], salts[i]));
+        }
+    }
+
+    /// @dev Fill a scores array with a constant value
+    function _fillScores(uint256 n, uint256 score) internal pure returns (uint256[] memory scores) {
+        scores = new uint256[](n);
+        for (uint256 i; i < n; ++i) {
+            scores[i] = score;
+        }
+    }
+
+    /// @dev Batch validate for one validator: claim, lock, commit, warp, reveal
+    function _batchValidateOne(address val, bytes32 projectId, uint256[] memory indices, uint256[] memory scores)
+        internal
+    {
+        uint256 n = indices.length;
+        uint256 totalStake = VALIDATOR_STAKE * n;
+        _ensureStake(val, totalStake * 2);
+        (uint256[] memory stakeAmounts, bytes32[] memory salts, bytes32[] memory commitHashes) =
+            _prepareBatchData(val, projectId, indices, scores);
+        vm.startPrank(val);
+        engine.claimToValidate(projectId, n);
+        engine.lockValidatorCapacity(totalStake);
+        engine.batchCommitValidations(projectId, indices, commitHashes, stakeAmounts, address(0));
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(val);
+        engine.batchRevealValidations(projectId, indices, scores, salts);
+    }
+
     /// @dev When multiple indices are pending, validators get randomly assigned.
     ///      Use batch claim so each validator gets all indices, then batch commit/reveal.
     function _validateAllAboveThreshold(bytes32 projectId, uint256[] memory indices) internal {
@@ -197,59 +243,9 @@ contract LifecycleBase is BaseTest {
         _ensureStake(validator2, totalStake * 2);
         _ensureStake(validator3, totalStake * 2);
 
-        uint256[] memory stakeAmounts = new uint256[](n);
-        uint256[] memory scores1 = new uint256[](n);
-        uint256[] memory scores2 = new uint256[](n);
-        uint256[] memory scores3 = new uint256[](n);
-        bytes32[] memory salts1 = new bytes32[](n);
-        bytes32[] memory salts2 = new bytes32[](n);
-        bytes32[] memory salts3 = new bytes32[](n);
-        bytes32[] memory commitHashes1 = new bytes32[](n);
-        bytes32[] memory commitHashes2 = new bytes32[](n);
-        bytes32[] memory commitHashes3 = new bytes32[](n);
-
-        for (uint256 i; i < n; ++i) {
-            stakeAmounts[i] = VALIDATOR_STAKE;
-            scores1[i] = 8000;
-            scores2[i] = 8500;
-            scores3[i] = 7500;
-            salts1[i] = keccak256(abi.encodePacked("salt", validator1, projectId, indices[i], scores1[i]));
-            salts2[i] = keccak256(abi.encodePacked("salt", validator2, projectId, indices[i], scores2[i]));
-            salts3[i] = keccak256(abi.encodePacked("salt", validator3, projectId, indices[i], scores3[i]));
-            commitHashes1[i] = keccak256(abi.encodePacked(scores1[i], salts1[i]));
-            commitHashes2[i] = keccak256(abi.encodePacked(scores2[i], salts2[i]));
-            commitHashes3[i] = keccak256(abi.encodePacked(scores3[i], salts3[i]));
-        }
-
-        vm.startPrank(validator1);
-        engine.claimToValidate(projectId, n);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projectId, indices, commitHashes1, stakeAmounts, address(0));
-        vm.stopPrank();
-
-        vm.startPrank(validator2);
-        engine.claimToValidate(projectId, n);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projectId, indices, commitHashes2, stakeAmounts, address(0));
-        vm.stopPrank();
-
-        vm.startPrank(validator3);
-        engine.claimToValidate(projectId, n);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projectId, indices, commitHashes3, stakeAmounts, address(0));
-        vm.stopPrank();
-
-        // Warp past commit deadline to allow reveals
-        vm.warp(block.timestamp + engine.commitDeadline());
-
-        vm.prank(validator1);
-        engine.batchRevealValidations(projectId, indices, scores1, salts1);
-
-        vm.prank(validator2);
-        engine.batchRevealValidations(projectId, indices, scores2, salts2);
-
-        vm.prank(validator3);
-        engine.batchRevealValidations(projectId, indices, scores3, salts3);
+        _commitRevealBatch(validator1, projectId, indices, _uniformScores(n, 8000), totalStake);
+        _commitRevealBatch(validator2, projectId, indices, _uniformScores(n, 8500), totalStake);
+        _commitRevealBatch(validator3, projectId, indices, _uniformScores(n, 7500), totalStake);
     }
 
     /// @dev Validate multiple indices with custom per-index scores (for mixed outcomes)
@@ -267,49 +263,9 @@ contract LifecycleBase is BaseTest {
         _ensureStake(validator2, totalStake * 2);
         _ensureStake(validator3, totalStake * 2);
 
-        uint256[] memory stakeAmounts = new uint256[](n);
-        bytes32[] memory salts1 = new bytes32[](n);
-        bytes32[] memory salts2 = new bytes32[](n);
-        bytes32[] memory salts3 = new bytes32[](n);
-        bytes32[] memory commitHashes1 = new bytes32[](n);
-        bytes32[] memory commitHashes2 = new bytes32[](n);
-        bytes32[] memory commitHashes3 = new bytes32[](n);
-
-        for (uint256 i; i < n; ++i) {
-            stakeAmounts[i] = VALIDATOR_STAKE;
-            salts1[i] = keccak256(abi.encodePacked("salt", validator1, projectId, indices[i], scores1[i]));
-            salts2[i] = keccak256(abi.encodePacked("salt", validator2, projectId, indices[i], scores2[i]));
-            salts3[i] = keccak256(abi.encodePacked("salt", validator3, projectId, indices[i], scores3[i]));
-            commitHashes1[i] = keccak256(abi.encodePacked(scores1[i], salts1[i]));
-            commitHashes2[i] = keccak256(abi.encodePacked(scores2[i], salts2[i]));
-            commitHashes3[i] = keccak256(abi.encodePacked(scores3[i], salts3[i]));
-        }
-
-        vm.startPrank(validator1);
-        engine.claimToValidate(projectId, n);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projectId, indices, commitHashes1, stakeAmounts, address(0));
-        vm.stopPrank();
-        vm.startPrank(validator2);
-        engine.claimToValidate(projectId, n);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projectId, indices, commitHashes2, stakeAmounts, address(0));
-        vm.stopPrank();
-        vm.startPrank(validator3);
-        engine.claimToValidate(projectId, n);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projectId, indices, commitHashes3, stakeAmounts, address(0));
-        vm.stopPrank();
-
-        // Warp past commit deadline to allow reveals
-        vm.warp(block.timestamp + engine.commitDeadline());
-
-        vm.prank(validator1);
-        engine.batchRevealValidations(projectId, indices, scores1, salts1);
-        vm.prank(validator2);
-        engine.batchRevealValidations(projectId, indices, scores2, salts2);
-        vm.prank(validator3);
-        engine.batchRevealValidations(projectId, indices, scores3, salts3);
+        _commitRevealBatch(validator1, projectId, indices, scores1, totalStake);
+        _commitRevealBatch(validator2, projectId, indices, scores2, totalStake);
+        _commitRevealBatch(validator3, projectId, indices, scores3, totalStake);
     }
 
     /// @dev Same as _validateAllAboveThreshold but with below-threshold scores
@@ -321,57 +277,44 @@ contract LifecycleBase is BaseTest {
         _ensureStake(validator2, totalStake * 2);
         _ensureStake(validator3, totalStake * 2);
 
-        uint256[] memory stakeAmounts = new uint256[](n);
-        uint256[] memory scores1 = new uint256[](n);
-        uint256[] memory scores2 = new uint256[](n);
-        uint256[] memory scores3 = new uint256[](n);
-        bytes32[] memory salts1 = new bytes32[](n);
-        bytes32[] memory salts2 = new bytes32[](n);
-        bytes32[] memory salts3 = new bytes32[](n);
-        bytes32[] memory commitHashes1 = new bytes32[](n);
-        bytes32[] memory commitHashes2 = new bytes32[](n);
-        bytes32[] memory commitHashes3 = new bytes32[](n);
+        _commitRevealBatch(validator1, projectId, indices, _uniformScores(n, 3000), totalStake);
+        _commitRevealBatch(validator2, projectId, indices, _uniformScores(n, 2500), totalStake);
+        _commitRevealBatch(validator3, projectId, indices, _uniformScores(n, 4000), totalStake);
+    }
 
+    function _commitRevealBatch(
+        address val,
+        bytes32 projectId,
+        uint256[] memory indices,
+        uint256[] memory scores,
+        uint256 totalStake
+    ) internal {
+        uint256 n = indices.length;
+        uint256[] memory stakeAmounts = new uint256[](n);
+        bytes32[] memory salts = new bytes32[](n);
+        bytes32[] memory commitHashes = new bytes32[](n);
         for (uint256 i; i < n; ++i) {
             stakeAmounts[i] = VALIDATOR_STAKE;
-            scores1[i] = 3000;
-            scores2[i] = 2500;
-            scores3[i] = 4000;
-            salts1[i] = keccak256(abi.encodePacked("salt", validator1, projectId, indices[i], scores1[i]));
-            salts2[i] = keccak256(abi.encodePacked("salt", validator2, projectId, indices[i], scores2[i]));
-            salts3[i] = keccak256(abi.encodePacked("salt", validator3, projectId, indices[i], scores3[i]));
-            commitHashes1[i] = keccak256(abi.encodePacked(scores1[i], salts1[i]));
-            commitHashes2[i] = keccak256(abi.encodePacked(scores2[i], salts2[i]));
-            commitHashes3[i] = keccak256(abi.encodePacked(scores3[i], salts3[i]));
+            salts[i] = keccak256(abi.encodePacked("salt", val, projectId, indices[i], scores[i]));
+            commitHashes[i] = keccak256(abi.encodePacked(scores[i], salts[i]));
         }
-
-        vm.startPrank(validator1);
+        vm.startPrank(val);
         engine.claimToValidate(projectId, n);
         engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projectId, indices, commitHashes1, stakeAmounts, address(0));
+        engine.batchCommitValidations(projectId, indices, commitHashes, stakeAmounts, address(0));
         vm.stopPrank();
 
-        vm.startPrank(validator2);
-        engine.claimToValidate(projectId, n);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projectId, indices, commitHashes2, stakeAmounts, address(0));
-        vm.stopPrank();
-
-        vm.startPrank(validator3);
-        engine.claimToValidate(projectId, n);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projectId, indices, commitHashes3, stakeAmounts, address(0));
-        vm.stopPrank();
-
-        // Warp past commit deadline to allow reveals
         vm.warp(block.timestamp + engine.commitDeadline());
 
-        vm.prank(validator1);
-        engine.batchRevealValidations(projectId, indices, scores1, salts1);
-        vm.prank(validator2);
-        engine.batchRevealValidations(projectId, indices, scores2, salts2);
-        vm.prank(validator3);
-        engine.batchRevealValidations(projectId, indices, scores3, salts3);
+        vm.prank(val);
+        engine.batchRevealValidations(projectId, indices, scores, salts);
+    }
+
+    function _uniformScores(uint256 n, uint256 score) internal pure returns (uint256[] memory scores) {
+        scores = new uint256[](n);
+        for (uint256 i; i < n; ++i) {
+            scores[i] = score;
+        }
     }
 
     /// @dev Settle all 3 validators (warps past the challenge period first for accepted contributions)
@@ -586,6 +529,15 @@ contract LifecycleRejectionTest is LifecycleBase {
         _validateBelowThreshold(projId, index);
         engine.computeConsensus(projId, index);
 
+        // Settle validators before recycling
+        _warpPastChallengePeriod();
+        vm.prank(validator1);
+        engine.settleValidator(projId, index, 0);
+        vm.prank(validator2);
+        engine.settleValidator(projId, index, 0);
+        vm.prank(validator3);
+        engine.settleValidator(projId, index, 0);
+
         // Index is back in the pool — contributor2 claims
         (, uint256[] memory indices2) = _claimAndSubmit(contributor2, projId, 1);
         uint256 index2 = indices2[0];
@@ -686,54 +638,7 @@ contract LifecycleRejectionTest is LifecycleBase {
         scores2[1] = 2500;
         scores3[0] = 7500;
         scores3[1] = 4000;
-        uint256[] memory stakeAmounts = new uint256[](2);
-        stakeAmounts[0] = VALIDATOR_STAKE;
-        stakeAmounts[1] = VALIDATOR_STAKE;
-        uint256 totalStake = VALIDATOR_STAKE * 2;
-        _ensureStake(validator1, totalStake * 2);
-        _ensureStake(validator2, totalStake * 2);
-        _ensureStake(validator3, totalStake * 2);
-
-        bytes32[] memory salts1 = new bytes32[](2);
-        bytes32[] memory salts2 = new bytes32[](2);
-        bytes32[] memory salts3 = new bytes32[](2);
-        bytes32[] memory commitHashes1 = new bytes32[](2);
-        bytes32[] memory commitHashes2 = new bytes32[](2);
-        bytes32[] memory commitHashes3 = new bytes32[](2);
-        for (uint256 i; i < 2; ++i) {
-            salts1[i] = keccak256(abi.encodePacked("salt", validator1, projId, both[i], scores1[i]));
-            salts2[i] = keccak256(abi.encodePacked("salt", validator2, projId, both[i], scores2[i]));
-            salts3[i] = keccak256(abi.encodePacked("salt", validator3, projId, both[i], scores3[i]));
-            commitHashes1[i] = keccak256(abi.encodePacked(scores1[i], salts1[i]));
-            commitHashes2[i] = keccak256(abi.encodePacked(scores2[i], salts2[i]));
-            commitHashes3[i] = keccak256(abi.encodePacked(scores3[i], salts3[i]));
-        }
-
-        vm.startPrank(validator1);
-        engine.claimToValidate(projId, 2);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projId, both, commitHashes1, stakeAmounts, address(0));
-        vm.stopPrank();
-        vm.startPrank(validator2);
-        engine.claimToValidate(projId, 2);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projId, both, commitHashes2, stakeAmounts, address(0));
-        vm.stopPrank();
-        vm.startPrank(validator3);
-        engine.claimToValidate(projId, 2);
-        engine.lockValidatorCapacity(totalStake);
-        engine.batchCommitValidations(projId, both, commitHashes3, stakeAmounts, address(0));
-        vm.stopPrank();
-
-        // Warp past commit deadline to allow reveals
-        vm.warp(block.timestamp + engine.commitDeadline());
-
-        vm.prank(validator1);
-        engine.batchRevealValidations(projId, both, scores1, salts1);
-        vm.prank(validator2);
-        engine.batchRevealValidations(projId, both, scores2, salts2);
-        vm.prank(validator3);
-        engine.batchRevealValidations(projId, both, scores3, salts3);
+        _validateWithScores(projId, both, scores1, scores2, scores3);
 
         engine.computeConsensus(projId, goodIdx);
         assertEq(uint256(engine.getContribution(projId, goodIdx).status), uint256(ContributionStatus.Accepted));
@@ -786,8 +691,9 @@ contract LifecycleDisputeTest is LifecycleBase {
         assertGt(d.bondAmount, 0);
 
         // Operator upholds the dispute
+        uint256 nonce = engine.getContribution(projId, index).consensusNonce;
         vm.prank(admin);
-        engine.resolveDispute(projId, index, true);
+        engine.resolveDispute(projId, index, nonce, true);
 
         d = engine.getDispute(projId, index);
         assertEq(uint256(d.status), uint256(DisputeStatus.Upheld));
@@ -819,8 +725,9 @@ contract LifecycleDisputeTest is LifecycleBase {
         uint256 challengerSharesBefore = vault.balanceOf(challenger);
 
         // Operator rejects the dispute
+        uint256 nonce = engine.getContribution(projId, index).consensusNonce;
         vm.prank(admin);
-        engine.resolveDispute(projId, index, false);
+        engine.resolveDispute(projId, index, nonce, false);
 
         Dispute memory d = engine.getDispute(projId, index);
         assertEq(uint256(d.status), uint256(DisputeStatus.Rejected));
@@ -851,8 +758,9 @@ contract LifecycleDisputeTest is LifecycleBase {
         engine.openDispute(projId, index, keccak256("unfair-rejection"), "evidenceCid");
 
         // Operator upholds — contributor was wrongly rejected
+        uint256 nonce = engine.getContribution(projId, index).consensusNonce;
         vm.prank(admin);
-        engine.resolveDispute(projId, index, true);
+        engine.resolveDispute(projId, index, nonce, true);
 
         Dispute memory d = engine.getDispute(projId, index);
         assertEq(uint256(d.status), uint256(DisputeStatus.Upheld));
@@ -874,15 +782,16 @@ contract LifecycleDisputeTest is LifecycleBase {
         engine.openDispute(projId, index, keccak256("evidence"), "evidenceCid");
 
         // Cannot escalate before deadline
+        uint256 nonce = engine.getContribution(projId, index).consensusNonce;
         vm.expectRevert(ISapienCore.DisputeResolutionNotExpired.selector);
-        engine.escalateDispute(projId, index);
+        engine.escalateDispute(projId, index, nonce);
 
         // Warp past resolution deadline (7 days)
         vm.warp(block.timestamp + 8 days);
 
         // Anyone can escalate
         vm.prank(keeper);
-        engine.escalateDispute(projId, index);
+        engine.escalateDispute(projId, index, nonce);
 
         Dispute memory d = engine.getDispute(projId, index);
         assertEq(uint256(d.status), uint256(DisputeStatus.Upheld));
@@ -1968,6 +1877,15 @@ contract LifecycleMultiActorTest is LifecycleBase {
         engine.computeConsensus(projId, index1);
         assertEq(uint256(engine.getContribution(projId, index1).status), uint256(ContributionStatus.Rejected));
 
+        // Settle validators before recycling
+        _warpPastChallengePeriod();
+        vm.prank(validator1);
+        engine.settleValidator(projId, index1, 0);
+        vm.prank(validator2);
+        engine.settleValidator(projId, index1, 0);
+        vm.prank(validator3);
+        engine.settleValidator(projId, index1, 0);
+
         // Index back in pool, contributor2 picks it up
         (, uint256[] memory indices2) = _claimAndSubmit(contributor2, projId, 1);
         uint256 index2 = indices2[0];
@@ -1982,11 +1900,11 @@ contract LifecycleMultiActorTest is LifecycleBase {
         engine.openDispute(projId, index2, keccak256("evidence"), "evidenceCid");
 
         // Operator upholds dispute
+        uint256 nonce2 = engine.getContribution(projId, index2).consensusNonce;
         vm.prank(admin);
-        engine.resolveDispute(projId, index2, true);
+        engine.resolveDispute(projId, index2, nonce2, true);
 
         // Validators can now settle (upheld dispute: stake released, no reward)
-        uint256 nonce2 = engine.getContribution(projId, index2).consensusNonce;
         vm.prank(validator1);
         engine.settleValidator(projId, index2, nonce2);
         vm.prank(validator2);
@@ -2415,68 +2333,17 @@ contract LifecycleExhaustiveWorkflowTest is LifecycleBase {
     function test_batchCommitRevealMultiIndexLifecycle() public {
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 2);
 
-        uint256[] memory stakeAmounts = new uint256[](2);
-        stakeAmounts[0] = VALIDATOR_STAKE;
-        stakeAmounts[1] = VALIDATOR_STAKE;
-
-        uint256[] memory scores = new uint256[](2);
-        scores[0] = 8000;
-        scores[1] = 8300;
-
-        bytes32[] memory salts = new bytes32[](2);
-        bytes32[] memory commitHashes = new bytes32[](2);
-        for (uint256 i; i < 2; ++i) {
-            salts[i] = keccak256(abi.encodePacked("batch", validator1, projId, indices[i]));
-            commitHashes[i] = keccak256(abi.encodePacked(scores[i], salts[i]));
-        }
-
-        _ensureStake(validator1, VALIDATOR_STAKE * 6);
-
-        vm.startPrank(validator1);
-        engine.claimToValidate(projId, 2);
-        engine.lockValidatorCapacity(VALIDATOR_STAKE * 2);
-        engine.batchCommitValidations(projId, indices, commitHashes, stakeAmounts, address(0));
-        vm.stopPrank();
-
-        // Validator2 and validator3 must also validate both indices (batch) since assignment is random
+        uint256[] memory scores1 = new uint256[](2);
         uint256[] memory scores2 = new uint256[](2);
         uint256[] memory scores3 = new uint256[](2);
+        scores1[0] = 8000;
+        scores1[1] = 8300;
         scores2[0] = 8100;
         scores2[1] = 8400;
         scores3[0] = 8200;
         scores3[1] = 8500;
-        bytes32[] memory salts2 = new bytes32[](2);
-        bytes32[] memory salts3 = new bytes32[](2);
-        bytes32[] memory commitHashes2 = new bytes32[](2);
-        bytes32[] memory commitHashes3 = new bytes32[](2);
-        for (uint256 i; i < 2; ++i) {
-            salts2[i] = keccak256(abi.encodePacked("batch", validator2, projId, indices[i]));
-            salts3[i] = keccak256(abi.encodePacked("batch", validator3, projId, indices[i]));
-            commitHashes2[i] = keccak256(abi.encodePacked(scores2[i], salts2[i]));
-            commitHashes3[i] = keccak256(abi.encodePacked(scores3[i], salts3[i]));
-        }
-        _ensureStake(validator2, VALIDATOR_STAKE * 4);
-        _ensureStake(validator3, VALIDATOR_STAKE * 4);
-        vm.startPrank(validator2);
-        engine.claimToValidate(projId, 2);
-        engine.lockValidatorCapacity(VALIDATOR_STAKE * 2);
-        engine.batchCommitValidations(projId, indices, commitHashes2, stakeAmounts, address(0));
-        vm.stopPrank();
-        vm.startPrank(validator3);
-        engine.claimToValidate(projId, 2);
-        engine.lockValidatorCapacity(VALIDATOR_STAKE * 2);
-        engine.batchCommitValidations(projId, indices, commitHashes3, stakeAmounts, address(0));
-        vm.stopPrank();
 
-        // Warp past commit deadline to allow reveals
-        vm.warp(block.timestamp + engine.commitDeadline());
-
-        vm.prank(validator1);
-        engine.batchRevealValidations(projId, indices, scores, salts);
-        vm.prank(validator2);
-        engine.batchRevealValidations(projId, indices, scores2, salts2);
-        vm.prank(validator3);
-        engine.batchRevealValidations(projId, indices, scores3, salts3);
+        _validateWithScores(projId, indices, scores1, scores2, scores3);
 
         engine.computeConsensus(projId, indices[0]);
         engine.computeConsensus(projId, indices[1]);
@@ -2614,8 +2481,9 @@ contract LifecycleKnownIssuesTest is LifecycleBase {
         vm.prank(challenger);
         engine.openDispute(projId, index, keccak256("upheld-deadlock"), "evidenceCid");
 
+        uint256 nonceDisp = engine.getContribution(projId, index).consensusNonce;
         vm.prank(admin);
-        engine.resolveDispute(projId, index, true);
+        engine.resolveDispute(projId, index, nonceDisp, true);
 
         // Settle validators: upheld dispute means stake is returned but no reward paid
         // No challenge period warp needed for upheld-dispute settlement

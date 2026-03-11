@@ -190,6 +190,15 @@ contract ReproduceIssuesTest is BaseTest {
         engine.computeConsensus(PROJECT_ID, index);
         assertEq(uint256(engine.getContribution(PROJECT_ID, index).status), uint256(ContributionStatus.Rejected));
 
+        // Settle round 1 validators before recycling
+        vm.warp(block.timestamp + engine.challengePeriod() + 1);
+        vm.prank(validator1);
+        engine.settleValidator(PROJECT_ID, index, 0);
+        vm.prank(validator2);
+        engine.settleValidator(PROJECT_ID, index, 0);
+        vm.prank(validator3);
+        engine.settleValidator(PROJECT_ID, index, 0);
+
         // Contributor resubmits; Round 2: validator1, validator2, and contributor2 (as validator4) — validator3 sits out
         address validator4 = contributor2; // reuse contributor2 who has stake
         vm.startPrank(contributor1);

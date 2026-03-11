@@ -119,7 +119,7 @@ contract SecurityFindings_2026_02_24 is BaseTest {
         engine.openDispute(pid, idx, keccak256("evidence"), "cid");
 
         vm.prank(admin);
-        engine.resolveDispute(pid, idx, true);
+        engine.resolveDispute(pid, idx, 0, true);
 
         assertEq(uint256(engine.getDispute(pid, idx).status), uint256(DisputeStatus.Upheld));
 
@@ -162,7 +162,7 @@ contract SecurityFindings_2026_02_24 is BaseTest {
         engine.openDispute(pid, idx, keccak256("rejection-dispute"), "cid");
 
         vm.prank(admin);
-        engine.resolveDispute(pid, idx, true);
+        engine.resolveDispute(pid, idx, 0, true);
 
         assertEq(engine.getProjectEscrow(pid, address(token)), 0, "escrow fully drained by dispute");
 
@@ -217,6 +217,15 @@ contract SecurityFindings_2026_02_24 is BaseTest {
         _commitAndReveal(validator3, pid, idxA, 5000, VALIDATOR_STAKE);
         engine.computeConsensus(pid, idxA);
         assertEq(uint256(engine.getContribution(pid, idxA).status), uint256(ContributionStatus.Rejected));
+
+        // Settle validators before recycling
+        vm.warp(block.timestamp + engine.challengePeriod() + 1);
+        vm.prank(validator1);
+        engine.settleValidator(pid, idxA, 0);
+        vm.prank(validator2);
+        engine.settleValidator(pid, idxA, 0);
+        vm.prank(validator3);
+        engine.settleValidator(pid, idxA, 0);
 
         // New contributor claims the recycled slot A — index A's claimId is now different
         vm.prank(contributor2);

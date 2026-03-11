@@ -68,8 +68,9 @@ struct EngineStorage {
     mapping(bytes32 => uint256) originatorLockedStake;
     mapping(bytes32 => OriginatorReport) originatorReports;
 
-    // ── Pipeline Tracking (SEC-H-01) ─────────────────────────
+    // ── Pipeline Tracking (SEC-H-01 / POQ-1) ─────────────────
     mapping(bytes32 => uint256) pendingContributions; // projectId => in-flight contribution count
+    mapping(bytes32 => uint256) activeContributionClaims; // projectId => active reserved claims
 
     // ── Claim Protection ──────────────────────────────────────
     uint256 minClaimAmount; // minimum amount required to claim rewards
@@ -266,6 +267,8 @@ struct ConsensusReport {
     uint256 totalAccurateWeight;
     uint256 nonce;
     bool computed;
+    bool wasAccepted;
+    uint256 unsettledValidators;
 }
 
 /// @notice Input to the consensus algorithm

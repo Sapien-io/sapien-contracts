@@ -110,7 +110,7 @@ contract SecurityIssuesVerification is BaseTest {
         engine.openDispute(projectId, idx, keccak256("dispute"), "evidence");
 
         vm.prank(admin);
-        engine.resolveDispute(projectId, idx, true); // Uphold dispute
+        engine.resolveDispute(projectId, idx, 0, true); // Uphold dispute
 
         // Settle validators
         vm.prank(validator1);

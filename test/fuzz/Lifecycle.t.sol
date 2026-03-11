@@ -1017,6 +1017,15 @@ contract LifecycleFuzzTest is BaseTest {
             assertEq(uint256(engine.getContribution(projId, index).status), uint256(ContributionStatus.Rejected));
             assertEq(engine.getSubmissionNonce(projId, index), 1);
             assertEq(engine.getProject(projId).availableSlots, 3);
+
+            // Settle validators before recycling
+            vm.warp(block.timestamp + engine.challengePeriod() + 1);
+            vm.prank(validator1);
+            engine.settleValidator(projId, index, 0);
+            vm.prank(validator2);
+            engine.settleValidator(projId, index, 0);
+            vm.prank(validator3);
+            engine.settleValidator(projId, index, 0);
         }
 
         uint256 index2;

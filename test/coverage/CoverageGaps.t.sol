@@ -1496,12 +1496,12 @@ contract QEDisputeBranchTest is QECoverageBase {
     function test_revert_resolveDispute_notOpen() public {
         vm.prank(admin);
         vm.expectRevert(ISapienCore.DisputeNotOpen.selector);
-        engine.resolveDispute(projId, 0, true);
+        engine.resolveDispute(projId, 0, 0, true);
     }
 
     function test_revert_escalateDispute_notOpen() public {
         vm.expectRevert(ISapienCore.DisputeNotOpen.selector);
-        engine.escalateDispute(projId, 0);
+        engine.escalateDispute(projId, 0, 0);
     }
 
     function test_escalateDispute_onRejectedContribution() public {
@@ -1521,7 +1521,7 @@ contract QEDisputeBranchTest is QECoverageBase {
 
         // Warp past resolution deadline → escalate
         vm.warp(block.timestamp + 8 days);
-        engine.escalateDispute(projId, index);
+        engine.escalateDispute(projId, index, 0);
 
         Dispute memory d = engine.getDispute(projId, index);
         assertEq(uint256(d.status), uint256(DisputeStatus.Upheld));
@@ -1542,7 +1542,7 @@ contract QEDisputeBranchTest is QECoverageBase {
         engine.openDispute(projId, index, keccak256("bad-rejection"), "evidenceCid");
 
         vm.prank(admin);
-        engine.resolveDispute(projId, index, true);
+        engine.resolveDispute(projId, index, 0, true);
 
         // Contributor compensated
         assertGt(engine.getPendingRewards(contributor1, address(token)), 0);
@@ -1562,7 +1562,7 @@ contract QEDisputeBranchTest is QECoverageBase {
         uint256 sharesBefore = vault.balanceOf(contributor1);
 
         vm.prank(admin);
-        engine.resolveDispute(projId, index, false);
+        engine.resolveDispute(projId, index, 0, false);
 
         // Challenger bond slashed
         assertLt(vault.balanceOf(contributor1), sharesBefore);
@@ -1580,7 +1580,7 @@ contract QEDisputeBranchTest is QECoverageBase {
         engine.openDispute(projId, index, keccak256("evidence"), "evidenceCid");
 
         vm.warp(block.timestamp + 8 days);
-        engine.escalateDispute(projId, index);
+        engine.escalateDispute(projId, index, 0);
 
         assertGt(engine.getPendingRewards(challenger, address(token)), 0);
     }
@@ -2020,7 +2020,7 @@ contract QERemainingGapsTest is QECoverageBase {
         engine.openDispute(pid, index, keccak256("evidence"), "evidenceCid");
 
         vm.prank(admin);
-        engine.resolveDispute(pid, index, true);
+        engine.resolveDispute(pid, index, 0, true);
 
         // Challenger gets rewards, contributor reward blocked
         assertGt(engine.getPendingRewards(challenger, address(token)), 0);
@@ -2208,7 +2208,7 @@ contract QERemainingGapsTest is QECoverageBase {
 
         // Reject the dispute — should set challengeEndsAt to now
         vm.prank(admin);
-        engine.resolveDispute(pid, index, false);
+        engine.resolveDispute(pid, index, 0, false);
 
         // Can immediately release reward
         engine.releaseContributorReward(pid, index);
@@ -2402,7 +2402,7 @@ contract QEExplicitBranchTest is QECoverageBase {
         engine.openDispute(pid, index, keccak256("weak-evidence"), "evidenceCid");
 
         vm.prank(admin);
-        engine.resolveDispute(pid, index, false);
+        engine.resolveDispute(pid, index, 0, false);
 
         Dispute memory d = engine.getDispute(pid, index);
         assertEq(uint256(d.status), uint256(DisputeStatus.Rejected));
@@ -2423,7 +2423,7 @@ contract QEExplicitBranchTest is QECoverageBase {
         engine.openDispute(pid, index, keccak256("weak-dispute"), "evidenceCid");
 
         vm.prank(admin);
-        engine.resolveDispute(pid, index, false);
+        engine.resolveDispute(pid, index, 0, false);
 
         Dispute memory d = engine.getDispute(pid, index);
         assertEq(uint256(d.status), uint256(DisputeStatus.Rejected));
@@ -2518,6 +2518,15 @@ contract QEFullPathCoverageTest is QECoverageBase {
         _validateBelowThreshold(pid, indices1[0]);
         engine.computeConsensus(pid, indices1[0]);
 
+        // Settle validators before recycling
+        vm.warp(block.timestamp + engine.challengePeriod() + 1);
+        vm.prank(validator1);
+        engine.settleValidator(pid, indices1[0], 0);
+        vm.prank(validator2);
+        engine.settleValidator(pid, indices1[0], 0);
+        vm.prank(validator3);
+        engine.settleValidator(pid, indices1[0], 0);
+
         // The index should be on the return stack now
         // Claim again — should pop from return stack
         (, uint256[] memory indices2) = _claimAndSubmit(contributor2, pid, 1);
@@ -2579,7 +2588,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         engine.openDispute(pid, index, keccak256("evidence"), "evidenceCid");
 
         vm.prank(admin);
-        engine.resolveDispute(pid, index, true); // upheld
+        engine.resolveDispute(pid, index, 0, true); // upheld
 
         vm.warp(block.timestamp + 30 days);
         vm.expectRevert(ISapienCore.DisputeInProgress.selector);
@@ -2682,7 +2691,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
 
         // Try to escalate immediately (before 7 day resolution deadline)
         vm.expectRevert(ISapienCore.DisputeResolutionNotExpired.selector);
-        engine.escalateDispute(pid, index);
+        engine.escalateDispute(pid, index, 0);
     }
 
     // ── escalateOriginatorReport full flow (lines 1172-1197) ─────────
@@ -3096,7 +3105,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         vm.expectEmit(true, true, true, true);
         emit ISapienCore.DisputeResolved(pid, index, true);
         vm.prank(admin);
-        engine.resolveDispute(pid, index, true);
+        engine.resolveDispute(pid, index, 0, true);
     }
 
     function test_event_rejectDispute() public {
@@ -3116,7 +3125,7 @@ contract QEFullPathCoverageTest is QECoverageBase {
         vm.expectEmit(true, true, true, true);
         emit ISapienCore.DisputeResolved(pid, index, false);
         vm.prank(admin);
-        engine.resolveDispute(pid, index, false);
+        engine.resolveDispute(pid, index, 0, false);
     }
 
     function test_event_rejectOriginatorReport() public {

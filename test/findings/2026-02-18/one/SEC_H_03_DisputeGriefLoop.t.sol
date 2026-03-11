@@ -43,7 +43,7 @@ contract SEC_H_03_DisputeGriefLoop is BaseTest {
 
         // Operator rejects dispute
         vm.prank(admin);
-        engine.resolveDispute(projectId, idx, false);
+        engine.resolveDispute(projectId, idx, 0, false);
 
         Dispute memory d = engine.getDispute(projectId, idx);
         assertEq(uint8(d.status), uint8(DisputeStatus.Rejected), "dispute rejected");
@@ -69,7 +69,7 @@ contract SEC_H_03_DisputeGriefLoop is BaseTest {
         engine.openDispute(projectId, idx, keccak256("dispute-1"), "evidenceCid");
 
         vm.prank(admin);
-        engine.resolveDispute(projectId, idx, true);
+        engine.resolveDispute(projectId, idx, 0, true);
 
         // FIX VERIFIED: cannot reopen after uphold either
         vm.prank(attacker2);
@@ -104,7 +104,7 @@ contract SEC_H_03_DisputeGriefLoop is BaseTest {
 
         // But once the dispute is resolved and challenge period passes, reward releases
         vm.prank(admin);
-        engine.resolveDispute(projectId, idx, false);
+        engine.resolveDispute(projectId, idx, 0, false);
 
         // After rejection, challengeEndsAt is snapped to block.timestamp
         vm.warp(block.timestamp + 1);

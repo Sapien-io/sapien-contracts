@@ -13,7 +13,10 @@ import {
     Contribution,
     ContributionStatus,
     IndexRange,
-    OriginatorReportStatus
+    OriginatorReportStatus,
+    ConsensusReport,
+    Dispute,
+    DisputeStatus
 } from "src/Types.sol";
 
 /// @title ContributionLib
@@ -66,7 +69,25 @@ library ContributionLib {
             uint256 rsTop = $.returnStackTop[projectId];
             while (filled < quantity && rsTop > 0) {
                 rsTop--;
-                indices[filled] = $.returnStack[projectId][rsTop];
+                uint256 idx = $.returnStack[projectId][rsTop];
+
+                // POQ-3 FIX: Block index recycling while prior-round validators or disputes remain
+                uint256 currentNonce = $.submissionNonce[projectId][idx];
+                if (currentNonce > 0) {
+                    uint256 priorNonce = currentNonce - 1;
+                    ConsensusReport storage priorReport = $.consensusReports[projectId][idx][priorNonce];
+                    if (priorReport.computed) {
+                        if (priorReport.unsettledValidators > 0) {
+                            revert ISapienCore.PriorRoundNotSettled();
+                        }
+                        Dispute storage priorDispute = $.disputes[projectId][idx][priorNonce];
+                        if (priorDispute.status == DisputeStatus.Open) {
+                            revert ISapienCore.DisputeInProgress();
+                        }
+                    }
+                }
+
+                indices[filled] = idx;
                 filled++;
             }
             $.returnStackTop[projectId] = rsTop;
@@ -93,6 +114,7 @@ library ContributionLib {
             claim.deadline = block.timestamp + $.claimDeadline;
             claim.totalCount = quantity;
             claim.status = ClaimStatus.Active;
+            $.activeContributionClaims[projectId]++;
 
             if (adapter != address(0)) {
                 $.contributionAdapter[claimId] = adapter;
@@ -155,6 +177,9 @@ library ContributionLib {
         claim.submittedCount++;
         if (claim.submittedCount == claim.totalCount) {
             claim.status = ClaimStatus.Completed;
+            if ($.activeContributionClaims[projectId] > 0) {
+                $.activeContributionClaims[projectId]--;
+            }
         }
 
         emit ISapienCore.ContributionSubmitted(projectId, index, msg.sender, submissionHash, dataCid);
@@ -185,7 +210,6 @@ library ContributionLib {
         bytes32 projectId = claim.projectId;
         Project storage proj = $.projects[projectId];
         uint256 unsubmitted = 0;
-        uint256 stillInFlight = 0;
 
         uint256 len = indices.length;
         if (len != claim.totalCount) revert ISapienCore.InvalidIndex();
@@ -195,8 +219,6 @@ library ContributionLib {
             uint256 idx = indices[i];
             Contribution storage contrib = $.contributions[projectId][idx];
 
-            // Skip indices that no longer belong to this claim (recycled after consensus rejection).
-            // These slots had their stake already handled by computeConsensus.
             if (contrib.claimId != claimId) continue;
 
             if (contrib.status == ContributionStatus.Reserved) {
@@ -207,31 +229,27 @@ library ContributionLib {
                 contrib.claimId = 0;
                 contrib.status = ContributionStatus.Empty;
                 unsubmitted++;
-            } else if (contrib.status == ContributionStatus.Pending) {
-                // Submitted but still awaiting consensus — stake is still locked for this slot
-                stillInFlight++;
             }
+            // Pending contributions stay in the validation pipeline with their
+            // stake locked.  computeConsensus() will unlock or slash when it
+            // resolves them, preventing double-accounting of the contributor lock.
         }
 
         $.returnStackTop[projectId] = rsTop;
         proj.availableSlots += unsubmitted;
 
-        // All unsubmitted Reserved slots must be accounted for. If the caller passed
-        // indices that never belonged to this claim, their actual Reserved slots were
-        // skipped and this invariant catches the discrepancy.
         uint256 expectedUnsubmitted = claim.totalCount - claim.submittedCount;
         if (unsubmitted != expectedUnsubmitted) revert ISapienCore.InvalidIndex();
 
         uint256 slashAmount = unsubmitted > 0 ? proj.minStakeToClaim * unsubmitted : 0;
-        // Only unlock stake for slots that are still in-flight (Pending). Slots that were
-        // rejected by consensus already had their stake slashed via computeConsensus and
-        // must not be double-counted here.
-        uint256 unlockAmount = stillInFlight * proj.minStakeToClaim;
-        if (slashAmount > 0 || unlockAmount > 0) {
-            $.vault.slashAndUnlockContributor(claim.claimant, slashAmount, unlockAmount);
+        if (slashAmount > 0) {
+            $.vault.slashContributor(claim.claimant, slashAmount);
         }
 
         claim.status = ClaimStatus.Expired;
+        if ($.activeContributionClaims[projectId] > 0) {
+            $.activeContributionClaims[projectId]--;
+        }
 
         if (unsubmitted > 0) {
             ReputationLib.update(claim.claimant, proj.requiredSkill, false, 0);
