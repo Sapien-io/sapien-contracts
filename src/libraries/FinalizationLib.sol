@@ -58,11 +58,12 @@ library FinalizationLib {
         Project storage proj = $.projects[projectId];
         if (proj.status == ProjectStatus.Cancelled) revert ISapienCore.ProjectNotActive();
 
-        ConsensusReport storage report = $.consensusReports[projectId][index][nonce];
-        if (!report.computed) revert ISapienCore.ConsensusNotReady(0, 1);
+        {
+            ConsensusReport storage report = $.consensusReports[projectId][index][nonce];
+            if (!report.computed) revert ISapienCore.ConsensusNotReady(0, 1);
+        }
 
         uint256 committedStake;
-        address validationAdapter;
         {
             ValidatorCommit storage vc = $.validatorCommits[projectId][index][nonce][validator];
 
@@ -71,74 +72,36 @@ library FinalizationLib {
 
             vc.settled = true;
             committedStake = vc.stakedAmount;
-            validationAdapter = vc.adapter;
         }
 
-        Contribution storage contrib = $.contributions[projectId][index];
+        bool outlier;
+        {
+            ValidatorConsensusResult storage vcr = $.validatorConsensus[projectId][index][nonce][validator];
+            outlier = vcr.isOutlier;
 
-        ValidatorConsensusResult storage vcr = $.validatorConsensus[projectId][index][nonce][validator];
-        bool outlier = vcr.isOutlier;
+            if (outlier) {
+                uint256 slashAmt = vcr.slashAmount;
+                if (slashAmt > 0 && committedStake > 0) {
+                    uint256 actualSlash = slashAmt > committedStake ? committedStake : slashAmt;
+                    $.vault.slashValidator(validator, actualSlash);
+                    uint256 remaining = committedStake - actualSlash;
+                    if (remaining > 0) {
+                        $.vault.releaseCommit(validator, remaining);
+                    }
+                } else if (committedStake > 0) {
+                    $.vault.releaseCommit(validator, committedStake);
+                }
+            }
+        }
 
         if (outlier) {
-            uint256 slashAmt = vcr.slashAmount;
-            if (slashAmt > 0 && committedStake > 0) {
-                uint256 actualSlash = slashAmt > committedStake ? committedStake : slashAmt;
-                $.vault.slashValidator(validator, actualSlash);
-                uint256 remaining = committedStake - actualSlash;
-                if (remaining > 0) {
-                    $.vault.releaseCommit(validator, remaining);
-                }
-            } else if (committedStake > 0) {
-                $.vault.releaseCommit(validator, committedStake);
-            }
             ReputationLib.update(validator, proj.requiredSkill, false, 0);
         } else {
-            // Always release committed stake — validators must recover their stake
-            // regardless of dispute outcome or contribution status
             if (committedStake > 0) {
                 $.vault.releaseCommit(validator, committedStake);
             }
 
-            if (report.wasAccepted) {
-                Dispute storage dispute = $.disputes[projectId][index][nonce];
-
-                // Block settlement while a dispute is actively in progress (can retry after resolution)
-                if (dispute.status == DisputeStatus.Open) revert ISapienCore.DisputeInProgress();
-
-                // Only pay reward when the dispute was not upheld and the challenge window has closed.
-                // Upheld dispute = contribution was bad; no reward owed to validators who approved it.
-                // Challenge period = prevents same-block reward extraction before a dispute can be filed.
-                if (dispute.status != DisputeStatus.Upheld) {
-                    if (block.timestamp < contrib.challengeEndsAt) revert ISapienCore.ChallengeNotElapsed();
-
-                    uint256 weight = vcr.weight;
-                    uint256 totalAccWeight = report.totalAccurateWeight;
-
-                    if (totalAccWeight > 0 && weight > 0) {
-                        uint256 validatorShare = Math.mulDiv(
-                            proj.totalRewards * proj.validatorRewardBps * weight,
-                            1,
-                            C.BPS * proj.totalQuantity * totalAccWeight
-                        );
-
-                        // Cap to available escrow before computing fees to prevent accounting debt
-                        uint256 availableEscrow = $.projectEscrow[projectId][proj.rewardToken];
-                        uint256 actualValidatorShare =
-                            validatorShare > availableEscrow ? availableEscrow : validatorShare;
-                        uint256 reward = actualValidatorShare;
-
-                        if (validationAdapter != address(0) && $.validationFeeBps > 0) {
-                            uint256 fee = (actualValidatorShare * $.validationFeeBps) / C.BPS;
-                            $.pendingRewards[validationAdapter][proj.rewardToken] += fee;
-                            reward -= fee;
-                            emit ISapienCore.ValidationAdapterFeePaid(projectId, index, validationAdapter, fee);
-                        }
-
-                        $.pendingRewards[validator][proj.rewardToken] += reward;
-                        $.projectEscrow[projectId][proj.rewardToken] -= actualValidatorShare;
-                    }
-                }
-            }
+            _settleValidatorReward(projectId, index, nonce, validator);
             ReputationLib.update(validator, proj.requiredSkill, true, 0);
         }
 
@@ -148,6 +111,56 @@ library FinalizationLib {
         }
 
         emit ISapienCore.ValidatorSettled(projectId, index, validator, outlier);
+    }
+
+    function _settleValidatorReward(bytes32 projectId, uint256 index, uint256 nonce, address validator) private {
+        EngineStorage storage $ = _getStorage();
+
+        uint256 challengeEndsAt;
+        {
+            Contribution storage contrib = $.contributions[projectId][index];
+            if (contrib.status != ContributionStatus.Accepted) return;
+            challengeEndsAt = contrib.challengeEndsAt;
+        }
+
+        {
+            Dispute storage dispute = $.disputes[projectId][index][nonce];
+            if (dispute.status == DisputeStatus.Open) revert ISapienCore.DisputeInProgress();
+            if (dispute.status == DisputeStatus.Upheld) return;
+        }
+
+        if (block.timestamp < challengeEndsAt) revert ISapienCore.ChallengeNotElapsed();
+
+        Project storage proj = $.projects[projectId];
+
+        uint256 validatorShare;
+        {
+            ConsensusReport storage report = $.consensusReports[projectId][index][nonce];
+            ValidatorConsensusResult storage vcr = $.validatorConsensus[projectId][index][nonce][validator];
+            uint256 weight = vcr.weight;
+            uint256 totalAccWeight = report.totalAccurateWeight;
+            if (totalAccWeight == 0 || weight == 0) return;
+            validatorShare = Math.mulDiv(
+                proj.totalRewards * proj.validatorRewardBps * weight, 1, C.BPS * proj.totalQuantity * totalAccWeight
+            );
+        }
+
+        uint256 availableEscrow = $.projectEscrow[projectId][proj.rewardToken];
+        uint256 actualValidatorShare = validatorShare > availableEscrow ? availableEscrow : validatorShare;
+        uint256 reward = actualValidatorShare;
+
+        {
+            address adapter = $.validatorCommits[projectId][index][nonce][validator].adapter;
+            if (adapter != address(0) && $.validationFeeBps > 0) {
+                uint256 fee = (actualValidatorShare * $.validationFeeBps) / C.BPS;
+                $.pendingRewards[adapter][proj.rewardToken] += fee;
+                reward -= fee;
+                emit ISapienCore.ValidationAdapterFeePaid(projectId, index, adapter, fee);
+            }
+        }
+
+        $.pendingRewards[validator][proj.rewardToken] += reward;
+        $.projectEscrow[projectId][proj.rewardToken] -= actualValidatorShare;
     }
 
     function releaseContributorReward(bytes32 projectId, uint256 index) public {
