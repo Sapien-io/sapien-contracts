@@ -94,6 +94,13 @@ struct EngineStorage {
 
     // ── Skill Registry ──────────────────────────────────────────────────
     mapping(bytes32 => bool) registeredSkills;
+
+    // ── Pause Tracking (POQ-11 Fix) ─────────────────────────────────────
+    // Tracks cumulative time protocol has been paused to prevent unfair slashing
+    // When paused, participants cannot act but deadlines keep advancing
+    // Solution: extend all deadlines by subtracting total pause time from current time
+    uint256 totalPausedDuration; // Cumulative seconds protocol has been paused (all history)
+    uint256 lastPauseTimestamp; // When current pause started (0 if not paused)
 }
 
 // ============================================

@@ -8,6 +8,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Constants as C} from "src/Constants.sol";
 import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 import {ReputationLib} from "src/libraries/ReputationLib.sol";
+import {PauseAwareLib} from "src/libraries/PauseAwareLib.sol";
 import {
     EngineStorage,
     Project,
@@ -129,7 +130,7 @@ library FinalizationLib {
             if (dispute.status == DisputeStatus.Upheld) return;
         }
 
-        if (block.timestamp < challengeEndsAt) revert ISapienCore.ChallengeNotElapsed();
+        if (PauseAwareLib.isBeforeDeadline($, challengeEndsAt)) revert ISapienCore.ChallengeNotElapsed();
 
         Project storage proj = $.projects[projectId];
 
@@ -172,7 +173,7 @@ library FinalizationLib {
         Contribution storage contrib = $.contributions[projectId][index];
 
         if (contrib.status != ContributionStatus.Accepted) revert ISapienCore.ContributionNotAccepted();
-        if (block.timestamp < contrib.challengeEndsAt) revert ISapienCore.ChallengeNotElapsed();
+        if (PauseAwareLib.isBeforeDeadline($, contrib.challengeEndsAt)) revert ISapienCore.ChallengeNotElapsed();
         if (contrib.rewardReleased) revert ISapienCore.RewardAlreadyReleased();
 
         uint256 nonce = contrib.consensusNonce;
@@ -238,7 +239,7 @@ library FinalizationLib {
         if (vc.commitTimestamp == 0) revert ISapienCore.NotCommitted();
         if (vc.revealedAt != 0) revert ISapienCore.AlreadyRevealed();
 
-        if (block.timestamp <= vc.commitTimestamp + $.commitDeadline + $.revealDeadline) {
+        if (PauseAwareLib.hasNotStrictlyElapsed($, vc.commitTimestamp, $.commitDeadline + $.revealDeadline)) {
             revert ISapienCore.ClaimDeadlineNotPassed();
         }
 

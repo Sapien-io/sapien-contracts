@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {Constants as C} from "src/Constants.sol";
 import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 import {ReputationLib} from "src/libraries/ReputationLib.sol";
+import {PauseAwareLib} from "src/libraries/PauseAwareLib.sol";
 import {
     EngineStorage,
     Project,
@@ -145,7 +146,7 @@ library ContributionLib {
 
         if (claim.claimant != msg.sender) revert ISapienCore.NotClaimOwner();
         if (claim.status != ClaimStatus.Active) revert ISapienCore.ClaimDeadlinePassed();
-        if (block.timestamp > claim.deadline) revert ISapienCore.ClaimDeadlinePassed();
+        if (PauseAwareLib.isAfterDeadline($, claim.deadline)) revert ISapienCore.ClaimDeadlinePassed();
 
         bytes32 projectId = claim.projectId;
 
@@ -205,7 +206,7 @@ library ContributionLib {
         Claim storage claim = $.claims[claimId];
 
         if (claim.status != ClaimStatus.Active) revert ISapienCore.ClaimDeadlineNotPassed();
-        if (block.timestamp <= claim.deadline) revert ISapienCore.ClaimDeadlineNotPassed();
+        if (PauseAwareLib.isBeforeOrAtDeadline($, claim.deadline)) revert ISapienCore.ClaimDeadlineNotPassed();
 
         bytes32 projectId = claim.projectId;
         Project storage proj = $.projects[projectId];

@@ -13,6 +13,7 @@ import {DisputeLib} from "src/libraries/DisputeLib.sol";
 import {FinalizationLib} from "src/libraries/FinalizationLib.sol";
 import {OriginationLib} from "src/libraries/OriginationLib.sol";
 import {ValidationLib} from "src/libraries/ValidationLib.sol";
+import {PauseAwareLib} from "src/libraries/PauseAwareLib.sol";
 import {
     EngineStorage,
     Project,
@@ -519,11 +520,26 @@ contract SapienCore is
         return _getStorage().registeredSkills[skillId];
     }
 
+    /// @notice Pauses the protocol and records the pause start time
+    /// @dev POQ-11 Fix: Records when pause starts so we can track total pause duration
+    ///      This prevents honest participants from being slashed when deadlines advance during pause
     function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        EngineStorage storage $ = _getStorage();
+        $.lastPauseTimestamp = block.timestamp; // Record when this pause period starts
         _pause();
     }
 
+    /// @notice Unpauses the protocol and updates cumulative pause duration
+    /// @dev POQ-11 Fix: Adds elapsed pause time to cumulative total and resets pause start
+    ///      All deadline checks use effectiveTime = block.timestamp - totalPausedDuration
+    ///      This effectively extends all deadlines by the amount of time protocol was paused
     function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        EngineStorage storage $ = _getStorage();
+        if ($.lastPauseTimestamp > 0) {
+            // Add this pause period's duration to the cumulative total
+            $.totalPausedDuration += block.timestamp - $.lastPauseTimestamp;
+            $.lastPauseTimestamp = 0; // Clear pause start (now unpaused)
+        }
         _unpause();
     }
 
@@ -705,6 +721,18 @@ contract SapienCore is
     /// @inheritdoc ISapienCore
     function decayRateBps() external view returns (uint256) {
         return _getStorage().decayRateBps;
+    }
+
+    /// @notice Returns the total cumulative paused duration
+    /// @return The total time the protocol has been paused (in seconds)
+    function getTotalPausedDuration() external view returns (uint256) {
+        return PauseAwareLib.getTotalPausedDuration(_getStorage(), paused());
+    }
+
+    /// @notice Returns when the protocol was last paused (0 if not currently paused)
+    /// @return The timestamp when pause() was last called, or 0 if not paused
+    function getLastPauseTimestamp() external view returns (uint256) {
+        return _getStorage().lastPauseTimestamp;
     }
 
     // ── UUPS ───────────────────────────────────────────────────────────
