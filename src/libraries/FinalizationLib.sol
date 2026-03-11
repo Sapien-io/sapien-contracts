@@ -176,6 +176,52 @@ library FinalizationLib {
         emit ISapienCore.ContributorRewardReleased(projectId, index, contrib.contributor, reward);
     }
 
+    function distributeAcceptedContributorRewards(bytes32 projectId) internal {
+        EngineStorage storage $ = _getStorage();
+        Project storage proj = $.projects[projectId];
+        address token = proj.rewardToken;
+        uint256 totalQuantity = proj.totalQuantity;
+
+        for (uint256 i = 0; i < totalQuantity; ++i) {
+            Contribution storage contrib = $.contributions[projectId][i];
+
+            if (contrib.status != ContributionStatus.Accepted) continue;
+            if (contrib.rewardReleased) continue;
+
+            uint256 nonce = contrib.consensusNonce;
+            Dispute storage dispute = $.disputes[projectId][i][nonce];
+            if (dispute.status == DisputeStatus.Open) continue;
+            if (dispute.status == DisputeStatus.Upheld) continue;
+
+            contrib.rewardReleased = true;
+
+            uint256 contributorShare = Math.mulDiv(contrib.rewardRate, C.BPS - uint256(proj.validatorRewardBps), C.BPS);
+
+            uint256 availableEscrow = $.projectEscrow[projectId][token];
+            if (availableEscrow == 0) break;
+
+            uint256 actualContributorShare = contributorShare > availableEscrow ? availableEscrow : contributorShare;
+            uint256 reward = actualContributorShare;
+
+            address adapter = $.contributionAdapter[contrib.claimId];
+            if (adapter != address(0) && $.contributionFeeBps > 0) {
+                uint256 fee = Math.mulDiv(actualContributorShare, $.contributionFeeBps, C.BPS);
+                $.pendingRewards[adapter][token] += fee;
+                reward -= fee;
+                emit ISapienCore.ContributionAdapterFeePaid(projectId, i, adapter, fee);
+            }
+
+            $.pendingRewards[contrib.contributor][token] += reward;
+            $.projectEscrow[projectId][token] -= actualContributorShare;
+
+            if ($.pendingContributions[projectId] > 0) {
+                $.pendingContributions[projectId]--;
+            }
+
+            emit ISapienCore.ContributorRewardReleased(projectId, i, contrib.contributor, reward);
+        }
+    }
+
     function claimReward(address token) public {
         EngineStorage storage $ = _getStorage();
         uint256 amount = $.pendingRewards[msg.sender][token];

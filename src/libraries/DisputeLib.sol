@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {Constants as C} from "src/Constants.sol";
 import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 import {ReputationLib} from "src/libraries/ReputationLib.sol";
+import {FinalizationLib} from "src/libraries/FinalizationLib.sol";
 import {
     EngineStorage,
     Project,
@@ -176,6 +177,8 @@ library DisputeLib {
                 }
             }
         }
+
+        FinalizationLib.distributeAcceptedContributorRewards(projectId);
 
         ReputationLib.update(proj.originator, C.ORIGINATOR_ROLE_KEY, false, 0);
         proj.status = ProjectStatus.Cancelled;
