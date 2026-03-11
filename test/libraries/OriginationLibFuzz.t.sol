@@ -160,6 +160,20 @@ contract OriginationLibFuzz is Test {
         engine.createProject(projectId, "", config);
     }
 
+    function testFuzz_createProject_revertsBelowMinValidations(bytes32 projectId, uint256 validations) public {
+        vm.assume(projectId != bytes32(0));
+        validations = bound(validations, 1, C.MIN_NUMBER_OF_VALIDATIONS - 1);
+
+        Project memory config = _makeProjectConfig();
+        config.numberOfValidations = validations;
+
+        vm.prank(originator);
+        vm.expectRevert(
+            abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "numberOfValidations out of range")
+        );
+        engine.createProject(projectId, "", config);
+    }
+
     function testFuzz_createProject_revertsWrongOriginator(bytes32 projectId, address wrongOriginator) public {
         vm.assume(projectId != bytes32(0));
         vm.assume(wrongOriginator != address(0) && wrongOriginator != originator);

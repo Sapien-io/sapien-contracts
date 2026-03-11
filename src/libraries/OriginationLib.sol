@@ -41,7 +41,6 @@ library OriginationLib {
         if (config.validatorRewardBps > C.MAX_VALIDATOR_REWARD_BPS) {
             revert ISapienCore.InvalidProjectConfig("validatorRewardBps too high");
         }
-        // POQ-8 FIX: Require minimum 3 validators to prevent Sybil farming
         if (
             config.numberOfValidations < C.MIN_NUMBER_OF_VALIDATIONS
                 || config.numberOfValidations > C.MAX_NUMBER_OF_VALIDATIONS
