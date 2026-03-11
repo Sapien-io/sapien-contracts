@@ -51,48 +51,10 @@ library ValidationLib {
     function claimToValidate(bytes32 projectId, uint256 quantity) public returns (uint256 claimId) {
         if (quantity == 0) revert ISapienCore.ZeroAmount();
 
+        (uint256[] memory eligible, uint256 assignCount) = _selectEligibleTargets(projectId, quantity);
+
         EngineStorage storage $ = _getStorage();
-        Project storage proj = $.projects[projectId];
 
-        if (proj.minValidatorReputation > 0) {
-            uint256 rep = ReputationLib.getScore(msg.sender, proj.requiredSkill);
-            if (rep < proj.minValidatorReputation) {
-                revert ISapienCore.InsufficientReputation(uint256(proj.minValidatorReputation), rep);
-            }
-        }
-
-        uint256[] storage pending = $.pendingIndices[projectId];
-        uint256 pendingLen = pending.length;
-
-        uint256[] memory eligible = new uint256[](pendingLen);
-        uint256 eligibleCount = 0;
-        for (uint256 i; i < pendingLen; ++i) {
-            uint256 idx = pending[i];
-            Contribution storage contrib = $.contributions[projectId][idx];
-            if (contrib.contributor == msg.sender) continue;
-            uint256 nonce = $.submissionNonce[projectId][idx];
-            if ($.validatorCommits[projectId][idx][nonce][msg.sender].claimed) continue;
-            if ($.validationCounters[projectId][idx][nonce].claimCount >= proj.numberOfValidations) continue;
-            eligible[eligibleCount++] = idx;
-        }
-        if (eligibleCount == 0) revert ISapienCore.NoEligibleContributions();
-
-        uint256 assignCount = quantity < eligibleCount ? quantity : eligibleCount;
-
-        // Fisher-Yates partial shuffle — only shuffle first `assignCount` positions.
-        // prevrandao is Beacon-Chain RANDAO; a proposer can bias it by at most 1 bit
-        // (forfeiting their slot reward), which is economically irrational for
-        // validator-assignment manipulation. Commit-reveal + staking provide the
-        // real anti-collusion guarantees.
-        uint256 seed = uint256(keccak256(abi.encodePacked(block.prevrandao, projectId, msg.sender, block.timestamp)));
-        for (uint256 i; i < assignCount; ++i) {
-            // slither-disable-next-line weak-prng
-            uint256 j = i + (seed % (eligibleCount - i));
-            (eligible[i], eligible[j]) = (eligible[j], eligible[i]);
-            seed = uint256(keccak256(abi.encodePacked(seed)));
-        }
-
-        // Assign the shuffled selections
         uint256[] memory assigned = new uint256[](assignCount);
         for (uint256 i; i < assignCount; ++i) {
             uint256 idx = eligible[i];
@@ -118,6 +80,53 @@ library ValidationLib {
         vclaim.status = ValidationClaimStatus.Active;
 
         emit ISapienCore.ValidationClaimCreated(claimId, projectId, msg.sender, assigned);
+    }
+
+    function _selectEligibleTargets(bytes32 projectId, uint256 quantity)
+        private
+        returns (uint256[] memory eligible, uint256 assignCount)
+    {
+        EngineStorage storage $ = _getStorage();
+        Project storage proj = $.projects[projectId];
+
+        if (proj.minValidatorReputation > 0) {
+            uint256 rep = ReputationLib.getScore(msg.sender, proj.requiredSkill);
+            if (rep < proj.minValidatorReputation) {
+                revert ISapienCore.InsufficientReputation(uint256(proj.minValidatorReputation), rep);
+            }
+        }
+
+        uint256 eligibleCount;
+        {
+            uint256[] storage pending = $.pendingIndices[projectId];
+            uint256 pendingLen = pending.length;
+            eligible = new uint256[](pendingLen);
+            for (uint256 i; i < pendingLen; ++i) {
+                uint256 idx = pending[i];
+                Contribution storage contrib = $.contributions[projectId][idx];
+                if (contrib.contributor == msg.sender) continue;
+                uint256 nonce = $.submissionNonce[projectId][idx];
+                if ($.validatorCommits[projectId][idx][nonce][msg.sender].claimed) continue;
+                if ($.validationCounters[projectId][idx][nonce].claimCount >= proj.numberOfValidations) continue;
+                eligible[eligibleCount++] = idx;
+            }
+        }
+        if (eligibleCount == 0) revert ISapienCore.NoEligibleContributions();
+
+        assignCount = quantity < eligibleCount ? quantity : eligibleCount;
+
+        // Fisher-Yates partial shuffle — only shuffle first `assignCount` positions.
+        // prevrandao is Beacon-Chain RANDAO; a proposer can bias it by at most 1 bit
+        // (forfeiting their slot reward), which is economically irrational for
+        // validator-assignment manipulation. Commit-reveal + staking provide the
+        // real anti-collusion guarantees.
+        uint256 seed = uint256(keccak256(abi.encodePacked(block.prevrandao, projectId, msg.sender, block.timestamp)));
+        for (uint256 i; i < assignCount; ++i) {
+            // slither-disable-next-line weak-prng
+            uint256 j = i + (seed % (eligibleCount - i));
+            (eligible[i], eligible[j]) = (eligible[j], eligible[i]);
+            seed = uint256(keccak256(abi.encodePacked(seed)));
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════
