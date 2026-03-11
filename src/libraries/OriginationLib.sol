@@ -41,7 +41,11 @@ library OriginationLib {
         if (config.validatorRewardBps > C.MAX_VALIDATOR_REWARD_BPS) {
             revert ISapienCore.InvalidProjectConfig("validatorRewardBps too high");
         }
-        if (config.numberOfValidations == 0 || config.numberOfValidations > C.MAX_NUMBER_OF_VALIDATIONS) {
+        // POQ-8 FIX: Require minimum 3 validators to prevent Sybil farming
+        if (
+            config.numberOfValidations < C.MIN_NUMBER_OF_VALIDATIONS
+                || config.numberOfValidations > C.MAX_NUMBER_OF_VALIDATIONS
+        ) {
             revert ISapienCore.InvalidProjectConfig("numberOfValidations out of range");
         }
         if (config.requiredSkill == bytes32(0)) revert ISapienCore.SkillNotRegistered();
