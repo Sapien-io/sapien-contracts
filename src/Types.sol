@@ -94,6 +94,9 @@ struct EngineStorage {
 
     // ── Skill Registry ──────────────────────────────────────────────────
     mapping(bytes32 => bool) registeredSkills;
+
+    // ── Paginated Reward Settlement (POQ-7) ─────────────────────────────
+    mapping(bytes32 => uint256) rewardSettlementCursor;
 }
 
 // ============================================

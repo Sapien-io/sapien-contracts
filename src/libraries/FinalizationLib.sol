@@ -189,7 +189,12 @@ library FinalizationLib {
         EngineStorage storage $ = _getStorage();
         Project storage proj = $.projects[projectId];
 
-        if (proj.status == ProjectStatus.Cancelled) revert ISapienCore.ProjectNotActive();
+        if (
+            proj.status != ProjectStatus.Active && proj.status != ProjectStatus.Funded
+                && proj.status != ProjectStatus.Cancelled
+        ) {
+            revert ISapienCore.ProjectNotActive();
+        }
 
         Contribution storage contrib = $.contributions[projectId][index];
 
@@ -224,9 +229,70 @@ library FinalizationLib {
         $.pendingRewards[contrib.contributor][token] += reward;
         $.projectEscrow[projectId][token] -= actualContributorShare;
 
-        $.pendingContributions[projectId]--;
+        if ($.pendingContributions[projectId] > 0) {
+            $.pendingContributions[projectId]--;
+        }
 
         emit ISapienCore.ContributorRewardReleased(projectId, index, contrib.contributor, reward);
+    }
+
+    function settleContributorRewardsBatch(bytes32 projectId, uint256 batchSize) public returns (uint256 processed) {
+        EngineStorage storage $ = _getStorage();
+        Project storage proj = $.projects[projectId];
+
+        if (proj.status != ProjectStatus.Cancelled) revert ISapienCore.ProjectNotCancellable();
+
+        uint256 cursor = $.rewardSettlementCursor[projectId];
+        uint256 totalQuantity = proj.totalQuantity;
+        if (cursor >= totalQuantity) revert ISapienCore.SettlementAlreadyComplete();
+
+        address token = proj.rewardToken;
+        uint256 end = cursor + batchSize;
+        if (end > totalQuantity) end = totalQuantity;
+
+        for (uint256 i = cursor; i < end; ++i) {
+            Contribution storage contrib = $.contributions[projectId][i];
+
+            if (contrib.status != ContributionStatus.Accepted) continue;
+            if (contrib.rewardReleased) continue;
+            if (block.timestamp < contrib.challengeEndsAt) continue;
+
+            uint256 nonce = contrib.consensusNonce;
+            Dispute storage dispute = $.disputes[projectId][i][nonce];
+            if (dispute.status == DisputeStatus.Open) continue;
+            if (dispute.status == DisputeStatus.Upheld) continue;
+
+            contrib.rewardReleased = true;
+
+            uint256 contributorShare = Math.mulDiv(contrib.rewardRate, C.BPS - uint256(proj.validatorRewardBps), C.BPS);
+
+            uint256 availableEscrow = $.projectEscrow[projectId][token];
+            if (availableEscrow == 0) break;
+
+            uint256 actualContributorShare = contributorShare > availableEscrow ? availableEscrow : contributorShare;
+            uint256 reward = actualContributorShare;
+
+            address adapter = $.contributionAdapter[contrib.claimId];
+            if (adapter != address(0) && $.contributionFeeBps > 0) {
+                uint256 fee = Math.mulDiv(actualContributorShare, $.contributionFeeBps, C.BPS);
+                $.pendingRewards[adapter][token] += fee;
+                reward -= fee;
+                emit ISapienCore.ContributionAdapterFeePaid(projectId, i, adapter, fee);
+            }
+
+            $.pendingRewards[contrib.contributor][token] += reward;
+            $.projectEscrow[projectId][token] -= actualContributorShare;
+
+            if ($.pendingContributions[projectId] > 0) {
+                $.pendingContributions[projectId]--;
+            }
+
+            processed++;
+            emit ISapienCore.ContributorRewardReleased(projectId, i, contrib.contributor, reward);
+        }
+
+        $.rewardSettlementCursor[projectId] = end;
+        emit ISapienCore.ContributorRewardsSettled(projectId, end, processed);
     }
 
     function claimReward(address token) public {

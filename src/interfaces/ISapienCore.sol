@@ -225,6 +225,9 @@ interface ISapienCore {
     /// @dev The project is not eligible for cancellation.
     error ProjectNotCancellable();
 
+    /// @dev All eligible contributions have already been settled for this cancelled project.
+    error SettlementAlreadyComplete();
+
     // ── Events ─────────────────────────────────────────────────────────
 
     // ── Projects ────────────────────────────────────────────────────────
@@ -418,6 +421,12 @@ interface ISapienCore {
     /// @notice Emitted when a project is cancelled (e.g., due to an upheld originator report).
     /// @param projectId Project that was cancelled.
     event ProjectCancelled(bytes32 indexed projectId);
+
+    /// @notice Emitted when a batch of contributor rewards is settled for a cancelled project.
+    /// @param projectId Project the settlement belongs to.
+    /// @param cursor New cursor position after this batch.
+    /// @param processed Number of contributions settled in this batch.
+    event ContributorRewardsSettled(bytes32 indexed projectId, uint256 cursor, uint256 processed);
 
     // ── Skill Registry ──────────────────────────────────────────────────
 
@@ -746,6 +755,25 @@ interface ISapienCore {
     ///      The report is automatically upheld and the project is cancelled.
     /// @param projectId Project the report targets.
     function escalateOriginatorReport(bytes32 projectId) external;
+
+    // ── Batch Settlement ─────────────────────────────────────────────────
+
+    /// @notice Settle contributor rewards for a cancelled project in bounded batches.
+    /// @dev Permissionless — can be called by anyone (contributors, keepers, operators).
+    ///      Processes up to `batchSize` contributions starting from the internal cursor.
+    ///      Only settles contributions that are Accepted, finalized (challenge elapsed),
+    ///      and have no open/upheld dispute. Call repeatedly until all contributions
+    ///      are processed. Contributors can also use `releaseContributorReward()` to
+    ///      individually claim their reward on a cancelled project.
+    /// @param projectId Project to settle rewards for (must be Cancelled).
+    /// @param batchSize Maximum number of contribution indices to process in this call.
+    /// @return processed Number of contributions actually settled in this batch.
+    function settleContributorRewards(bytes32 projectId, uint256 batchSize) external returns (uint256 processed);
+
+    /// @notice Retrieve the current reward settlement cursor for a project.
+    /// @param projectId Project to query.
+    /// @return The current cursor position (next index to process).
+    function getSettlementCursor(bytes32 projectId) external view returns (uint256);
 
     // ── Project Completion ───────────────────────────────────────────────
 
