@@ -11,18 +11,16 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 /// @notice This test originally demonstrated that after cancellation via upholdOriginatorReport() or removeProject(),
 ///         contributors with Accepted work cannot call releaseContributorReward() (reverts on Cancelled projects),
 ///         but the originator can use refundEscrow() after 30 days to drain all remaining escrow including
-///         earned contributor rewards. This has been FIXED - rewards are now pre-distributed.
+///         earned contributor rewards. This has been FIXED - contributors can settle rewards via batch
+///         settlement or individual releaseContributorReward() on cancelled projects.
 contract POQ_007_OriginatorReclaimEscrowAfterCancellation is BaseTest {
     /// @notice Test that originally demonstrated the vulnerability - now shows it's fixed
     function test_removeProject_ContributorRewardsNowProtected() public {
-        // Setup: Create project with accepted contribution
         bytes32 projectId = _setupProjectWithAcceptedContribution();
 
-        // Verify contributor has earned reward
         uint256 escrowBefore = engine.getProjectEscrow(projectId, address(token));
         assertGt(escrowBefore, 0, "project should have funded escrow");
 
-        // Originator gets project removed (by admin/operator)
         vm.prank(admin);
         engine.removeProject(projectId);
 
@@ -32,46 +30,38 @@ contract POQ_007_OriginatorReclaimEscrowAfterCancellation is BaseTest {
             "project should be cancelled"
         );
 
-        // FIXED: Contributor now has their rewards in pendingRewards
+        // Warp past challenge period, then settle via batch function
+        _warpPastChallengePeriod();
+        engine.settleContributorRewards(projectId, 100);
+
         uint256 contributorPending = engine.getPendingRewards(contributor1, address(token));
         assertGt(contributorPending, 0, "contributor should have pending rewards after fix");
 
-        // Contributor can claim their reward
         vm.prank(contributor1);
         engine.claimReward(address(token));
 
-        // Wait 30 days
         vm.warp(block.timestamp + C.PROJECT_COMPLETION_DELAY + 1);
 
-        // Originator can only drain REMAINING escrow (not contributor's portion)
         uint256 escrowAfterDistribution = engine.getProjectEscrow(projectId, address(token));
-        uint256 originatorBalBefore = token.balanceOf(originator);
 
         if (escrowAfterDistribution > 0) {
             vm.prank(originator);
             engine.refundEscrow(projectId);
         }
 
-        uint256 originatorBalAfter = token.balanceOf(originator);
-
-        // Contributor successfully received their reward
         assertGt(token.balanceOf(contributor1), 0, "contributor received their tokens");
     }
 
     /// @notice Test that originally demonstrated the vulnerability - now shows it's fixed
     function test_upholdOriginatorReport_ContributorRewardsNowProtected() public {
-        // Setup: Create project with accepted contribution
         bytes32 projectId = _setupProjectWithAcceptedContribution();
 
-        // Verify contributor has earned reward
         uint256 escrowBefore = engine.getProjectEscrow(projectId, address(token));
         assertGt(escrowBefore, 0, "project should have funded escrow");
 
-        // Someone reports the originator for misconduct
         vm.prank(contributor2);
         engine.reportOriginator(projectId, keccak256("originator-misconduct"));
 
-        // Report is upheld
         vm.prank(admin);
         engine.resolveOriginatorReport(projectId, true);
 
@@ -81,29 +71,25 @@ contract POQ_007_OriginatorReclaimEscrowAfterCancellation is BaseTest {
             "project should be cancelled"
         );
 
-        // FIXED: Contributor now has their rewards in pendingRewards
+        // Warp past challenge period, then settle via batch function
+        _warpPastChallengePeriod();
+        engine.settleContributorRewards(projectId, 100);
+
         uint256 contributorPending = engine.getPendingRewards(contributor1, address(token));
         assertGt(contributorPending, 0, "contributor should have pending rewards after fix");
 
-        // Contributor can claim their reward
         vm.prank(contributor1);
         engine.claimReward(address(token));
 
-        // Wait 30 days
         vm.warp(block.timestamp + C.PROJECT_COMPLETION_DELAY + 1);
 
-        // Originator can only drain REMAINING escrow (not contributor's portion)
         uint256 escrowAfterDistribution = engine.getProjectEscrow(projectId, address(token));
-        uint256 originatorBalBefore = token.balanceOf(originator);
 
         if (escrowAfterDistribution > 0) {
             vm.prank(originator);
             engine.refundEscrow(projectId);
         }
 
-        uint256 originatorBalAfter = token.balanceOf(originator);
-
-        // Contributor successfully received their reward
         assertGt(token.balanceOf(contributor1), 0, "contributor received their tokens");
     }
 

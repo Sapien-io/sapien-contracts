@@ -7,7 +7,6 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Constants as C} from "src/Constants.sol";
 import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 import {ReputationLib} from "src/libraries/ReputationLib.sol";
-import {FinalizationLib} from "src/libraries/FinalizationLib.sol";
 import {EngineStorage, Project, ProjectStatus, Contribution, ContributionStatus, IndexRange} from "src/Types.sol";
 
 /// @title OriginationLib
@@ -144,8 +143,6 @@ library OriginationLib {
         }
 
         ReputationLib.update(proj.originator, C.ORIGINATOR_ROLE_KEY, false, 0);
-
-        FinalizationLib.distributeAcceptedContributorRewards(projectId);
 
         // Wind-down active claims and unlock contributor stakes
         uint256 totalQuantity = proj.totalQuantity;

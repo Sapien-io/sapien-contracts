@@ -8,22 +8,19 @@ import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title POQ-7 FIX VERIFIED: Contributor Rewards Protected During Project Cancellation
-/// @notice This test verifies that after cancellation via upholdOriginatorReport() or removeProject(),
-///         contributors with Accepted work now have their rewards pre-distributed to pendingRewards
-///         before the project status is set to Cancelled, preventing the originator from stealing them.
+/// @notice Verifies that after cancellation, contributors can settle rewards via paginated
+///         batch settlement or individual releaseContributorReward(), while the originator
+///         can only refund remaining escrow after 30 days.
 contract POQ_007_OriginatorReclaimEscrowAfterCancellation_FIX is BaseTest {
-    /// @notice Test that demonstrates the fix when project is cancelled via removeProject
+    /// @notice Test that removeProject sets Cancelled and batch settlement distributes rewards
     function test_removeProject_ContributorRewardsProtected() public {
-        // Setup: Create project with accepted contribution
-        bytes32 projectId = _setupProjectWithAcceptedContribution();
+        (bytes32 projectId,) = _setupProjectWithAcceptedContribution();
 
-        // Store initial balances
         uint256 escrowBefore = engine.getProjectEscrow(projectId, address(token));
         uint256 contributorPendingBefore = engine.getPendingRewards(contributor1, address(token));
 
         assertGt(escrowBefore, 0, "project should have funded escrow");
 
-        // Originator gets project removed (by admin/operator)
         vm.prank(admin);
         engine.removeProject(projectId);
 
@@ -33,22 +30,22 @@ contract POQ_007_OriginatorReclaimEscrowAfterCancellation_FIX is BaseTest {
             "project should be cancelled"
         );
 
-        // After fix: Contributor's rewards should be in pendingRewards
+        _warpPastChallengePeriod();
+
+        engine.settleContributorRewards(projectId, 100);
+
         uint256 contributorPendingAfter = engine.getPendingRewards(contributor1, address(token));
         assertGt(contributorPendingAfter, contributorPendingBefore, "contributor should have pending rewards");
 
-        // Escrow should be reduced by the amount distributed
         uint256 escrowAfter = engine.getProjectEscrow(projectId, address(token));
         assertLt(escrowAfter, escrowBefore, "escrow should be reduced");
 
-        // Contributor can claim their reward
         vm.prank(contributor1);
         engine.claimReward(address(token));
 
         assertEq(engine.getPendingRewards(contributor1, address(token)), 0, "pending rewards should be claimed");
         assertGt(token.balanceOf(contributor1), 0, "contributor should have received tokens");
 
-        // Wait 30 days and originator can only refund remaining escrow (not contributor's portion)
         vm.warp(block.timestamp + C.PROJECT_COMPLETION_DELAY + 1);
 
         uint256 originatorBalBefore = token.balanceOf(originator);
@@ -65,22 +62,18 @@ contract POQ_007_OriginatorReclaimEscrowAfterCancellation_FIX is BaseTest {
         assertEq(engine.getProjectEscrow(projectId, address(token)), 0, "escrow should be fully drained");
     }
 
-    /// @notice Test that demonstrates the fix when project is cancelled via upholdOriginatorReport
+    /// @notice Test that upholdOriginatorReport sets Cancelled and batch settlement distributes rewards
     function test_upholdOriginatorReport_ContributorRewardsProtected() public {
-        // Setup: Create project with accepted contribution
-        bytes32 projectId = _setupProjectWithAcceptedContribution();
+        (bytes32 projectId,) = _setupProjectWithAcceptedContribution();
 
-        // Store initial balances
         uint256 escrowBefore = engine.getProjectEscrow(projectId, address(token));
         uint256 contributorPendingBefore = engine.getPendingRewards(contributor1, address(token));
 
         assertGt(escrowBefore, 0, "project should have funded escrow");
 
-        // Someone reports the originator for misconduct
         vm.prank(contributor2);
         engine.reportOriginator(projectId, keccak256("originator-misconduct"));
 
-        // Report is upheld
         vm.prank(admin);
         engine.resolveOriginatorReport(projectId, true);
 
@@ -90,22 +83,22 @@ contract POQ_007_OriginatorReclaimEscrowAfterCancellation_FIX is BaseTest {
             "project should be cancelled"
         );
 
-        // After fix: Contributor's rewards should be in pendingRewards
+        _warpPastChallengePeriod();
+
+        engine.settleContributorRewards(projectId, 100);
+
         uint256 contributorPendingAfter = engine.getPendingRewards(contributor1, address(token));
         assertGt(contributorPendingAfter, contributorPendingBefore, "contributor should have pending rewards");
 
-        // Escrow should be reduced by the amount distributed
         uint256 escrowAfter = engine.getProjectEscrow(projectId, address(token));
         assertLt(escrowAfter, escrowBefore, "escrow should be reduced");
 
-        // Contributor can claim their reward
         vm.prank(contributor1);
         engine.claimReward(address(token));
 
         assertEq(engine.getPendingRewards(contributor1, address(token)), 0, "pending rewards should be claimed");
         assertGt(token.balanceOf(contributor1), 0, "contributor should have received tokens");
 
-        // Wait 30 days and originator can only refund remaining escrow
         vm.warp(block.timestamp + C.PROJECT_COMPLETION_DELAY + 1);
 
         uint256 originatorBalBefore = token.balanceOf(originator);
@@ -122,11 +115,95 @@ contract POQ_007_OriginatorReclaimEscrowAfterCancellation_FIX is BaseTest {
         assertEq(engine.getProjectEscrow(projectId, address(token)), 0, "escrow should be fully drained");
     }
 
-    /// @notice Helper to create a project with an accepted contribution
-    function _setupProjectWithAcceptedContribution() internal returns (bytes32) {
+    /// @notice Test individual releaseContributorReward works on cancelled projects
+    function test_releaseContributorReward_worksOnCancelledProject() public {
+        (bytes32 projectId, uint256 index) = _setupProjectWithAcceptedContribution();
+
+        vm.prank(admin);
+        engine.removeProject(projectId);
+
+        assertEq(
+            uint256(engine.getProject(projectId).status),
+            uint256(ProjectStatus.Cancelled),
+            "project should be cancelled"
+        );
+
+        _warpPastChallengePeriod();
+
+        uint256 pendingBefore = engine.getPendingRewards(contributor1, address(token));
+        engine.releaseContributorReward(projectId, index);
+        uint256 pendingAfter = engine.getPendingRewards(contributor1, address(token));
+
+        assertGt(pendingAfter, pendingBefore, "contributor reward should be released on cancelled project");
+    }
+
+    /// @notice Test paginated settlement processes batches correctly with cursor advancement
+    function test_paginatedSettlement_cursorAdvancement() public {
+        (bytes32 projectId,) = _setupProjectWithAcceptedContribution();
+
+        vm.prank(admin);
+        engine.removeProject(projectId);
+
+        _warpPastChallengePeriod();
+
+        uint256 totalQuantity = engine.getProject(projectId).totalQuantity;
+
+        assertEq(engine.getSettlementCursor(projectId), 0, "cursor should start at 0");
+
+        // Settle first 5 of 10 total indices
+        engine.settleContributorRewards(projectId, 5);
+        assertEq(engine.getSettlementCursor(projectId), 5, "cursor should advance to 5");
+
+        // Settle remaining 5
+        engine.settleContributorRewards(projectId, 100);
+        assertEq(engine.getSettlementCursor(projectId), totalQuantity, "cursor should reach end");
+
+        // Further calls should revert
+        vm.expectRevert(ISapienCore.SettlementAlreadyComplete.selector);
+        engine.settleContributorRewards(projectId, 1);
+    }
+
+    /// @notice Test that settlement respects challenge finality
+    function test_settlement_respectsChallengeFinality() public {
+        (bytes32 projectId,) = _setupProjectWithAcceptedContribution();
+
+        vm.prank(admin);
+        engine.removeProject(projectId);
+
+        // Don't warp past challenge period
+        uint256 processed = engine.settleContributorRewards(projectId, 100);
+        uint256 contributorPending = engine.getPendingRewards(contributor1, address(token));
+
+        assertEq(processed, 0, "should not process unfinalised contributions");
+        assertEq(contributorPending, 0, "no rewards should be distributed before challenge expires");
+    }
+
+    /// @notice Test that non-cancelled project can't use settleContributorRewards
+    function test_settleContributorRewards_revertsOnActiveProject() public {
+        (bytes32 projectId,) = _setupProjectWithAcceptedContribution();
+
+        vm.expectRevert(ISapienCore.ProjectNotCancellable.selector);
+        engine.settleContributorRewards(projectId, 100);
+    }
+
+    /// @notice Test emitted event from batch settlement
+    function test_settleContributorRewards_emitsEvent() public {
+        (bytes32 projectId, uint256 index) = _setupProjectWithAcceptedContribution();
+
+        vm.prank(admin);
+        engine.removeProject(projectId);
+
+        _warpPastChallengePeriod();
+
+        vm.expectEmit(true, false, false, false);
+        emit ISapienCore.ContributorRewardsSettled(projectId, 0, 0);
+        engine.settleContributorRewards(projectId, 100);
+    }
+
+    /// @notice Helper to create a project with a single accepted contribution
+    function _setupProjectWithAcceptedContribution() internal returns (bytes32, uint256) {
         bytes32 projectId = _createAndFundProject();
 
-        // Contributor claims a slot and submits work
         vm.startPrank(contributor1);
         (uint256 claimId, uint256[] memory indices) = engine.claimToContribute(projectId, 1, address(0));
         bytes32 submissionHash = keccak256("work-hash");
@@ -134,28 +211,19 @@ contract POQ_007_OriginatorReclaimEscrowAfterCancellation_FIX is BaseTest {
         vm.stopPrank();
 
         uint256 index = indices[0];
+        uint256 score = 9000;
 
-        // Validators claim, commit and reveal high scores (consensus threshold is 70%, scores are 90%)
-        uint256 score = 9000; // 90% quality
-
-        // Validator 1
         _commitAndReveal(validator1, projectId, index, score, VALIDATOR_STAKE);
-
-        // Validator 2
         _commitAndReveal(validator2, projectId, index, score, VALIDATOR_STAKE);
-
-        // Validator 3
         _commitAndReveal(validator3, projectId, index, score, VALIDATOR_STAKE);
 
-        // Compute consensus
         vm.warp(block.timestamp + 1);
         vm.prank(validator1);
         engine.computeConsensus(projectId, index);
 
-        // Verify contribution is now Accepted
         Contribution memory contrib = engine.getContribution(projectId, index);
         assertEq(uint256(contrib.status), uint256(ContributionStatus.Accepted), "contribution should be accepted");
 
-        return projectId;
+        return (projectId, index);
     }
 }
