@@ -784,14 +784,15 @@ contract LifecycleDisputeTest is LifecycleBase {
 
         // Cannot escalate before deadline
         uint256 nonce = engine.getContribution(projId, index).consensusNonce;
+        vm.prank(admin);
         vm.expectRevert(ISapienCore.DisputeResolutionNotExpired.selector);
         engine.escalateDispute(projId, index, nonce);
 
         // Warp past resolution deadline (7 days)
         vm.warp(block.timestamp + 8 days);
 
-        // Anyone can escalate
-        vm.prank(keeper);
+        // POQ-9 FIX: Only operator can escalate (no longer permissionless)
+        vm.prank(admin);
         engine.escalateDispute(projId, index, nonce);
 
         Dispute memory d = engine.getDispute(projId, index);
@@ -946,13 +947,14 @@ contract LifecycleOriginatorReportTest is LifecycleBase {
         engine.reportOriginator(projId, keccak256("evidence"));
 
         // Cannot escalate before deadline
+        vm.prank(admin);
         vm.expectRevert(ISapienCore.DisputeResolutionNotExpired.selector);
         engine.escalateOriginatorReport(projId);
 
-        // Warp past resolution deadline
+        // Warp past resolution deadline (POQ-9 FIX: requires operator)
         vm.warp(block.timestamp + 8 days);
 
-        vm.prank(keeper);
+        vm.prank(admin);
         engine.escalateOriginatorReport(projId);
 
         assertEq(uint256(engine.getOriginatorReport(projId).status), uint256(OriginatorReportStatus.Upheld));

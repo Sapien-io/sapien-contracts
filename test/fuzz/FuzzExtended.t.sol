@@ -333,7 +333,8 @@ contract FuzzExtended is BaseTest {
         // Nobody resolves — warp past DISPUTE_RESOLUTION_DEADLINE
         vm.warp(block.timestamp + C.DISPUTE_RESOLUTION_DEADLINE + 1);
 
-        // Any address can escalate
+        // POQ-9 FIX: Only operator can escalate
+        vm.prank(admin);
         engine.escalateDispute(projId, index, 0);
 
         assertEq(uint256(engine.getDispute(projId, index).status), uint256(DisputeStatus.Upheld));
@@ -647,6 +648,7 @@ contract FuzzExtended is BaseTest {
         // No admin action — warp past resolution deadline
         vm.warp(block.timestamp + C.DISPUTE_RESOLUTION_DEADLINE + 1);
 
+        vm.prank(admin);
         engine.escalateOriginatorReport(projId);
 
         assertEq(uint256(engine.getProject(projId).status), uint256(ProjectStatus.Cancelled));

@@ -317,7 +317,13 @@ contract SapienCore is
         }
     }
 
-    function escalateDispute(bytes32 projectId, uint256 index, uint256 nonce) external whenNotPaused nonReentrant {
+    // POQ-9 FIX: Require operator role for dispute escalation to prevent permissionless collusion attacks
+    function escalateDispute(bytes32 projectId, uint256 index, uint256 nonce)
+        external
+        onlyRole(C.OPERATOR_ROLE)
+        whenNotPaused
+        nonReentrant
+    {
         EngineStorage storage $ = _getStorage();
         // POQ-3 FIX: Accept nonce as explicit parameter to prevent dispute corruption
         // Previously read from contrib.consensusNonce which can be overwritten when index is recycled
@@ -358,7 +364,8 @@ contract SapienCore is
         }
     }
 
-    function escalateOriginatorReport(bytes32 projectId) external whenNotPaused nonReentrant {
+    // POQ-9 FIX: Require operator role for originator report escalation (consistent with dispute escalation)
+    function escalateOriginatorReport(bytes32 projectId) external onlyRole(C.OPERATOR_ROLE) whenNotPaused nonReentrant {
         EngineStorage storage $ = _getStorage();
         OriginatorReport storage report = $.originatorReports[projectId];
         if (report.status != OriginatorReportStatus.Open) revert OriginatorReportNotOpen();
