@@ -151,8 +151,12 @@ contract BaseTest is Test {
 
         engine.commitValidation(projectId, index, commitHash, stakeAmt, address(0));
 
-        engine.revealValidation(projectId, index, score, salt);
-
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(val);
+        engine.revealValidation(projectId, index, score, salt);
     }
 }

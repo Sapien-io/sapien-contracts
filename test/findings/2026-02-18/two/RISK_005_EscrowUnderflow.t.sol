@@ -56,7 +56,7 @@ contract RISK_005_EscrowUnderflow is BaseTest {
         engine.openDispute(projectId, idx, keccak256("evidence"), "cid");
 
         vm.prank(admin);
-        engine.resolveDispute(projectId, idx, true);
+        engine.resolveDispute(projectId, idx, 0, true);
 
         uint256 escrowAfterDispute = engine.getProjectEscrow(projectId, address(token));
         assertLt(escrowAfterDispute, escrowBeforeDispute, "dispute drained escrow (with safety check)");

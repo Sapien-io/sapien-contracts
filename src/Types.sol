@@ -267,6 +267,8 @@ struct ConsensusReport {
     uint256 totalAccurateWeight;
     uint256 nonce;
     bool computed;
+    bool wasAccepted;
+    uint256 unsettledValidators;
 }
 
 /// @notice Input to the consensus algorithm

@@ -316,8 +316,13 @@ contract ECON_ProtocolEconomics is BaseTest {
         engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(stakeAmount);
         engine.commitValidation(projectId, index, commitHash, stakeAmount, validationAdapter);
-        engine.revealValidation(projectId, index, score, salt);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(validator);
+        engine.revealValidation(projectId, index, score, salt);
     }
 
     function _runProtocolActivitySimulation() internal returns (ProtocolSimulation memory sim) {
@@ -422,102 +427,167 @@ contract ECON_ProtocolEconomics is BaseTest {
         uint256[5] memory platformPriceCents = [uint256(5), uint256(4), uint256(3), uint256(3), uint256(2)];
         uint256[5] memory blendedTakeRateBps =
             [uint256(1_500), uint256(1_310), uint256(1_200), uint256(1_130), uint256(1_110)];
+        uint256[5] memory operatingCosts =
+            [uint256(3_500_000), uint256(4_250_000), uint256(4_500_000), uint256(4_750_000), uint256(5_000_000)];
+
+        enterpriseValsM[3] = (enterpriseValsM[2] * enterpriseNrrBps[3]) / C.BPS;
+        enterpriseValsM[4] = (enterpriseValsM[3] * enterpriseNrrBps[4]) / C.BPS;
+
+        _fillProjectionValidations(data, enterpriseValsM);
+
+        for (uint256 i; i < 5; ++i) {
+            data.enterpriseRevenueUsd[i] = (data.enterpriseValidations[i] * enterprisePriceCents[i]) / 100;
+            data.platformRevenueUsd[i] = (data.platformValidations[i] * platformPriceCents[i]) / 100;
+            data.gtvUsd[i] = data.enterpriseRevenueUsd[i] + data.platformRevenueUsd[i];
+            data.feeRevenueUsd[i] = (data.gtvUsd[i] * blendedTakeRateBps[i]) / C.BPS;
+            data.operatingCostsUsd[i] = operatingCosts[i];
+            data.operatingIncomeUsd[i] =
+                int256(data.feeRevenueUsd[i] + (i == 0 ? 375_000 : 0)) - int256(operatingCosts[i]);
+        }
+    }
+
+    function _fillProjectionValidations(ProjectionData memory data, uint256[5] memory enterpriseValsM) internal pure {
         uint256[5] memory registeredDevelopers =
             [uint256(900), uint256(17_500), uint256(64_000), uint256(158_000), uint256(330_000)];
         uint256[5] memory activationBps =
             [uint256(2_000), uint256(3_000), uint256(3_500), uint256(3_800), uint256(4_000)];
         uint256[5] memory monthlyValidations =
             [uint256(1_000), uint256(5_000), uint256(6_000), uint256(8_000), uint256(10_000)];
-        uint256[5] memory operatingCosts =
-            [uint256(3_500_000), uint256(4_250_000), uint256(4_500_000), uint256(4_750_000), uint256(5_000_000)];
-        uint256[5] memory seedOffsets = [uint256(375_000), uint256(0), uint256(0), uint256(0), uint256(0)];
-
-        uint256 rampBpsY1 = 4_000; // 40%
-
-        enterpriseValsM[3] = (enterpriseValsM[2] * enterpriseNrrBps[3]) / C.BPS;
-        enterpriseValsM[4] = (enterpriseValsM[3] * enterpriseNrrBps[4]) / C.BPS;
 
         for (uint256 i; i < 5; ++i) {
-            uint256 enterpriseVals = enterpriseValsM[i] * 1_000_000;
-            if (i == 0) enterpriseVals = (enterpriseVals * rampBpsY1) / C.BPS;
+            uint256 ev = enterpriseValsM[i] * 1_000_000;
+            if (i == 0) ev = (ev * 4_000) / C.BPS;
 
-            uint256 activeDevelopers = (registeredDevelopers[i] * activationBps[i]) / C.BPS;
-            uint256 platformVals = activeDevelopers * monthlyValidations[i] * 12;
-            if (i == 0) platformVals = (platformVals * rampBpsY1) / C.BPS;
+            uint256 pv = ((registeredDevelopers[i] * activationBps[i]) / C.BPS) * monthlyValidations[i] * 12;
+            if (i == 0) pv = (pv * 4_000) / C.BPS;
 
-            uint256 enterpriseRevenue = (enterpriseVals * enterprisePriceCents[i]) / 100;
-            uint256 platformRevenue = (platformVals * platformPriceCents[i]) / 100;
-            uint256 gtv = enterpriseRevenue + platformRevenue;
-            uint256 feeRevenue = (gtv * blendedTakeRateBps[i]) / C.BPS;
-
-            data.enterpriseValidations[i] = enterpriseVals;
-            data.platformValidations[i] = platformVals;
-            data.enterpriseRevenueUsd[i] = enterpriseRevenue;
-            data.platformRevenueUsd[i] = platformRevenue;
-            data.gtvUsd[i] = gtv;
-            data.feeRevenueUsd[i] = feeRevenue;
-            data.operatingCostsUsd[i] = operatingCosts[i];
-            data.operatingIncomeUsd[i] = int256(feeRevenue + seedOffsets[i]) - int256(operatingCosts[i]);
+            data.enterpriseValidations[i] = ev;
+            data.platformValidations[i] = pv;
         }
     }
 
     function _buildRevenueModelJson(ProjectionData memory projection, ProtocolSimulation memory sim)
         internal
         view
-        returns (string memory)
+        returns (string memory result)
     {
-        return string(
+        result = string(
             abi.encodePacked(
                 "{\n",
                 '  "title": "SAPIEN PoQ - Revenue Model Assumptions",\n',
                 '  "currency": "USD",\n',
-                '  "cadUsd": "0.72",\n',
+                '  "cadUsd": "0.72",\n'
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
                 '  "legend": {"INPUT":"hardcoded assumption","FORMULA":"calculated","LINK":"cross-section reference"},\n',
                 '  "A_feeStructure": {\n',
-                '    "protocolFeePct": ["10.0","10.0","10.0","10.0","10.0"],\n',
+                '    "protocolFeePct": ["10.0","10.0","10.0","10.0","10.0"],\n'
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
                 '    "originatorFeePct": ["4.0","4.0","3.5","3.0","3.0"],\n',
                 '    "contributorClaimFeePct": ["3.0","3.0","3.0","3.0","3.0"],\n',
-                '    "validatorClaimFeePct": ["3.0","3.0","3.0","3.0","3.0"],\n',
+                '    "validatorClaimFeePct": ["3.0","3.0","3.0","3.0","3.0"],\n'
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
                 '    "validatorRewardSharePct": ["10.0","10.0","10.0","10.0","10.0"],\n',
                 '    "sapienRoutedVolumePct": ["80","50","35","25","20"],\n',
                 '    "blendedTakeRatePct": ["15.0","13.1","12.0","11.3","11.1"]\n',
-                "  },\n",
+                "  },\n"
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
                 '  "B_pricing": {"enterpriseUsdPerValidation":["0.25","0.20","0.15","0.12","0.10"],"platformUsdPerValidation":["0.05","0.04","0.03","0.03","0.02"]},\n',
-                '  "C_enterpriseTotalsM": {"year1":3,"year2":31,"year3":138},\n',
+                '  "C_enterpriseTotalsM": {"year1":3,"year2":31,"year3":138},\n'
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
                 '  "D_registeredDevelopers": [900,17500,64000,158000,330000],\n',
-                '  "E_activationAndUsage": {"activationPct":["20","30","35","38","40"],"avgMonthlyValidations":[1000,5000,6000,8000,10000]},\n',
+                '  "E_activationAndUsage": {"activationPct":["20","30","35","38","40"],"avgMonthlyValidations":[1000,5000,6000,8000,10000]},\n'
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
                 '  "F_operationsAndGtm": {"rampFactorY1Pct":"40","enterpriseNrr":["1.4","1.6","1.7","1.5","1.4"],',
-                '"operatingCostsUsd":[3500000,4250000,4500000,4750000,5000000],"seedFundingUsdY1":375000},\n',
+                '"operatingCostsUsd":[3500000,4250000,4500000,4750000,5000000],"seedFundingUsdY1":375000},\n'
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
                 '  "G_tokenAndEcosystem": {"tokenPriceUsd":["0.08","0.10","0.20","0.30","0.80"],',
-                '"sapienTreasuryStakedM":[40,60,75,85,90],"totalVaultStakeM":[100,200,400,600,800],',
+                '"sapienTreasuryStakedM":[40,60,75,85,90],"totalVaultStakeM":[100,200,400,600,800],'
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
                 '"validatorSlashingRatePct":["8.0","6.0","5.0","4.0","3.0"],"avgSlashSeverityPct":["25","25","20","20","15"],',
-                '"sapienValidatorShareOfGtvPct":["25","15","10","8","5"]},\n',
+                '"sapienValidatorShareOfGtvPct":["25","15","10","8","5"]},\n'
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
                 '  "H_projectionOutputs": {\n',
                 '    "enterpriseValidations": ',
                 _uintArrayToJson(projection.enterpriseValidations),
                 ",\n",
                 '    "platformValidations": ',
                 _uintArrayToJson(projection.platformValidations),
-                ",\n",
+                ",\n"
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
                 '    "enterpriseRevenueUsd": ',
                 _uintArrayToJson(projection.enterpriseRevenueUsd),
                 ",\n",
                 '    "platformRevenueUsd": ',
                 _uintArrayToJson(projection.platformRevenueUsd),
-                ",\n",
+                ",\n"
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
                 '    "gtvUsd": ',
                 _uintArrayToJson(projection.gtvUsd),
                 ",\n",
                 '    "feeRevenueUsd": ',
                 _uintArrayToJson(projection.feeRevenueUsd),
-                ",\n",
+                ",\n"
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
                 '    "operatingCostsUsd": ',
                 _uintArrayToJson(projection.operatingCostsUsd),
                 ",\n",
                 '    "operatingIncomeUsd": ',
                 _intArrayToJson(projection.operatingIncomeUsd),
                 "\n",
-                "  },\n",
+                "  },\n"
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
                 '  "protocolSimulation": ',
                 _simulationJson(sim),
                 ",\n",
@@ -529,77 +599,84 @@ contract ECON_ProtocolEconomics is BaseTest {
         );
     }
 
-    function _simulationJson(ProtocolSimulation memory sim) internal pure returns (string memory) {
-        return string(
+    function _simulationJson(ProtocolSimulation memory sim) internal pure returns (string memory result) {
+        result = string(
             abi.encodePacked(
-                "{",
-                '"projectsFunded":',
+                '{"projectsFunded":',
                 vm.toString(sim.projectsFunded),
-                ",",
-                '"contributionsSubmitted":',
+                ',"contributionsSubmitted":',
                 vm.toString(sim.contributionsSubmitted),
-                ",",
-                '"acceptedContributions":',
+                ',"acceptedContributions":',
                 vm.toString(sim.acceptedContributions),
-                ",",
-                '"rejectedContributions":',
-                vm.toString(sim.rejectedContributions),
-                ",",
-                '"validatorSettlements":',
+                ',"rejectedContributions":',
+                vm.toString(sim.rejectedContributions)
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
+                ',"validatorSettlements":',
                 vm.toString(sim.validatorSettlements),
-                ",",
-                '"expiredCommitmentSlashes":',
+                ',"expiredCommitmentSlashes":',
                 vm.toString(sim.expiredCommitmentSlashes),
-                ",",
-                '"rewardClaims":',
+                ',"rewardClaims":',
                 vm.toString(sim.rewardClaims),
-                ",",
-                '"fundingAmountWei":',
-                vm.toString(sim.fundingAmount),
-                ",",
-                '"protocolFeeCollectedWei":',
+                ',"fundingAmountWei":',
+                vm.toString(sim.fundingAmount)
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
+                ',"protocolFeeCollectedWei":',
                 vm.toString(sim.protocolFeeCollected),
-                ",",
-                '"originationFeeAccruedWei":',
+                ',"originationFeeAccruedWei":',
                 vm.toString(sim.originationFeeAccrued),
-                ",",
-                '"escrowAfterFundingWei":',
+                ',"escrowAfterFundingWei":',
                 vm.toString(sim.escrowAfterFunding),
-                ",",
-                '"acceptedRewardRateWei":',
-                vm.toString(sim.acceptedRewardRate),
-                ",",
-                '"contributorPendingAfterAcceptedWei":',
+                ',"acceptedRewardRateWei":',
+                vm.toString(sim.acceptedRewardRate)
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
+                ',"contributorPendingAfterAcceptedWei":',
                 vm.toString(sim.contributorPendingAfterAccepted),
-                ",",
-                '"validatorPendingAfterAcceptedWei":',
+                ',"validatorPendingAfterAcceptedWei":',
                 vm.toString(sim.validatorPendingAfterAccepted),
-                ",",
-                '"adapterPendingAfterAcceptedWei":',
-                vm.toString(sim.adapterPendingAfterAccepted),
-                ",",
-                '"contributorClaimedWei":',
+                ',"adapterPendingAfterAcceptedWei":',
+                vm.toString(sim.adapterPendingAfterAccepted)
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
+                ',"contributorClaimedWei":',
                 vm.toString(sim.contributorClaimed),
-                ",",
-                '"validatorClaimedWei":',
+                ',"validatorClaimedWei":',
                 vm.toString(sim.validatorClaimed),
-                ",",
-                '"adapterClaimedWei":',
-                vm.toString(sim.adapterClaimed),
-                ",",
-                '"contributorSlashAmountWei":',
+                ',"adapterClaimedWei":',
+                vm.toString(sim.adapterClaimed)
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
+                ',"contributorSlashAmountWei":',
                 vm.toString(sim.contributorSlashAmount),
-                ",",
-                '"validatorSlashShares":',
+                ',"validatorSlashShares":',
                 vm.toString(sim.validatorSlashShares),
-                ",",
-                '"escrowBeforeRefundWei":',
-                vm.toString(sim.escrowBeforeRefund),
-                ",",
-                '"originatorRefundAmountWei":',
+                ',"escrowBeforeRefundWei":',
+                vm.toString(sim.escrowBeforeRefund)
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
+                ',"originatorRefundAmountWei":',
                 vm.toString(sim.originatorRefundAmount),
-                ",",
-                '"remainingEscrowAfterRefundWei":',
+                ',"remainingEscrowAfterRefundWei":',
                 vm.toString(sim.remainingEscrowAfterRefund),
                 "}"
             )
@@ -609,41 +686,66 @@ contract ECON_ProtocolEconomics is BaseTest {
     function _buildSummaryMarkdown(ProjectionData memory projection, ProtocolSimulation memory sim)
         internal
         pure
-        returns (string memory)
+        returns (string memory result)
     {
-        return string(
+        result = string(
             abi.encodePacked(
                 "# SAPIEN PoQ - Generated Economics Summary\n\n",
                 "- Data file: `",
                 ECON_DATA_OUTPUT_PATH,
                 "`\n",
-                "- Generated by: `forge test --match-test testECON_generateRevenueModelDataFile`\n\n",
+                "- Generated by: `forge test --match-test testECON_generateRevenueModelDataFile`\n\n"
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
                 "## Projection Highlights (USD)\n",
                 "- Y1 GTV: $",
                 vm.toString(projection.gtvUsd[0]),
                 "\n",
                 "- Y5 GTV: $",
                 vm.toString(projection.gtvUsd[4]),
-                "\n",
+                "\n"
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
                 "- Y1 Fee Revenue: $",
                 vm.toString(projection.feeRevenueUsd[0]),
                 "\n",
                 "- Y5 Fee Revenue: $",
                 vm.toString(projection.feeRevenueUsd[4]),
-                "\n",
+                "\n"
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
                 "- Y1 Operating Income: $",
                 _intToString(projection.operatingIncomeUsd[0]),
                 "\n",
                 "- Y5 Operating Income: $",
                 _intToString(projection.operatingIncomeUsd[4]),
-                "\n\n",
+                "\n\n"
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
                 "## Protocol Activity Simulation Snapshot\n",
                 "- Projects funded: ",
                 vm.toString(sim.projectsFunded),
                 "\n",
                 "- Contributions submitted: ",
                 vm.toString(sim.contributionsSubmitted),
-                "\n",
+                "\n"
+            )
+        );
+        result = string(
+            abi.encodePacked(
+                result,
                 "- Accepted contributions: ",
                 vm.toString(sim.acceptedContributions),
                 "\n",

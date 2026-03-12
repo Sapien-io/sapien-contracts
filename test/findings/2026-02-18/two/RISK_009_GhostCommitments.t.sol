@@ -27,9 +27,35 @@ contract RISK_009_GhostCommitments is BaseTest {
         engine.commitValidation(projectId, idx, ghostHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
 
-        // Honest validators commit and reveal — scores now visible on-chain
-        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        uint256 commitTimestamp = block.timestamp;
+
+        // Honest validators also commit (using manual approach to avoid multiple time warps)
+        bytes32 salt2 = keccak256(abi.encodePacked("salt", validator2, idx));
+        bytes32 commitHash2 = keccak256(abi.encodePacked(uint256(8000), salt2));
+        _ensureStake(validator2, VALIDATOR_STAKE * 2);
+        vm.startPrank(validator2);
+        engine.claimToValidate(projectId, 1);
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        engine.commitValidation(projectId, idx, commitHash2, VALIDATOR_STAKE, address(0));
+        vm.stopPrank();
+
+        bytes32 salt3 = keccak256(abi.encodePacked("salt", validator3, idx));
+        bytes32 commitHash3 = keccak256(abi.encodePacked(uint256(8000), salt3));
+        _ensureStake(validator3, VALIDATOR_STAKE * 2);
+        vm.startPrank(validator3);
+        engine.claimToValidate(projectId, 1);
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        engine.commitValidation(projectId, idx, commitHash3, VALIDATOR_STAKE, address(0));
+        vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(commitTimestamp + engine.commitDeadline());
+
+        // Honest validators reveal — scores now visible on-chain
+        vm.prank(validator2);
+        engine.revealValidation(projectId, idx, 8000, salt2);
+        vm.prank(validator3);
+        engine.revealValidation(projectId, idx, 8000, salt3);
 
         assertEq(engine.getRevealCount(projectId, idx), 2, "only 2 reveals, ghost withheld");
 
@@ -37,14 +63,8 @@ contract RISK_009_GhostCommitments is BaseTest {
         vm.expectRevert(ISapienCore.ClaimDeadlineNotPassed.selector);
         engine.cancelExpiredCommitment(projectId, idx, validator1);
 
-        // Advance past commit deadline — still can't cancel (need full window)
-        vm.warp(block.timestamp + engine.commitDeadline());
-        vm.expectRevert(ISapienCore.ClaimDeadlineNotPassed.selector);
-        engine.cancelExpiredCommitment(projectId, idx, validator1);
-
-        // Ghost has observed scores and can still strategically reveal or abandon
         // Full window must elapse before cancellation is possible
-        vm.warp(block.timestamp + engine.revealDeadline() + 1);
+        vm.warp(commitTimestamp + engine.commitDeadline() + engine.revealDeadline() + 1);
         engine.cancelExpiredCommitment(projectId, idx, validator1);
 
         // Ghost is finally slashed, but had a multi-day free look at other scores
@@ -66,15 +86,46 @@ contract RISK_009_GhostCommitments is BaseTest {
         engine.commitValidation(projectId, idx, ghostHash, VALIDATOR_STAKE, address(0));
         vm.stopPrank();
 
-        _commitAndReveal(validator2, projectId, idx, 8000, VALIDATOR_STAKE);
-        _commitAndReveal(validator3, projectId, idx, 8000, VALIDATOR_STAKE);
+        uint256 commitTimestamp = block.timestamp;
 
-        // Ghost sees scores, waits almost until deadline, then reveals
-        vm.warp(block.timestamp + engine.commitDeadline() + engine.revealDeadline() - 1);
+        // Other validators also commit
+        bytes32 salt2 = keccak256(abi.encodePacked("salt", validator2, idx));
+        bytes32 commitHash2 = keccak256(abi.encodePacked(uint256(8000), salt2));
+        _ensureStake(validator2, VALIDATOR_STAKE * 2);
+        vm.startPrank(validator2);
+        engine.claimToValidate(projectId, 1);
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        engine.commitValidation(projectId, idx, commitHash2, VALIDATOR_STAKE, address(0));
+        vm.stopPrank();
+
+        bytes32 salt3 = keccak256(abi.encodePacked("salt", validator3, idx));
+        bytes32 commitHash3 = keccak256(abi.encodePacked(uint256(8000), salt3));
+        _ensureStake(validator3, VALIDATOR_STAKE * 2);
+        vm.startPrank(validator3);
+        engine.claimToValidate(projectId, 1);
+        engine.lockValidatorCapacity(VALIDATOR_STAKE);
+        engine.commitValidation(projectId, idx, commitHash3, VALIDATOR_STAKE, address(0));
+        vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(commitTimestamp + engine.commitDeadline());
+
+        // Honest validators reveal — scores now visible on-chain
+        vm.prank(validator2);
+        engine.revealValidation(projectId, idx, 8000, salt2);
+        vm.prank(validator3);
+        engine.revealValidation(projectId, idx, 8000, salt3);
+
+        // Ghost sees scores and reveals later within the window
+        // The window is: commitTimestamp + commitDeadline to commitTimestamp + commitDeadline + revealDeadline
+        // We're already at commitTimestamp + commitDeadline from the earlier warp
+        // So we can reveal immediately or warp a bit more (but not past commitTimestamp + commitDeadline + revealDeadline)
+        // Let's warp to 1 hour after reveal phase starts
+        vm.warp(block.timestamp + 1 hours);
 
         vm.prank(validator1);
         engine.revealValidation(projectId, idx, ghostScore, ghostSalt);
 
-        assertEq(engine.getRevealCount(projectId, idx), 3, "ghost revealed just before deadline");
+        assertEq(engine.getRevealCount(projectId, idx), 3, "ghost revealed within window");
     }
 }

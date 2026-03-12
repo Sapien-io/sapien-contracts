@@ -1,4 +1,4 @@
-You are an expert level solidity engineer. Let's open a new pr on a new branch against v0.5-qs-fixes as the base branch. The branch should be titled fix/insert-details-from-issue-title-here This PR should address the issue here by:
+You are an expert level solidity engineer. Let's open a new pr on a new branch against v0.5-qs-fixes as the base branch. The branch should be titled fix/insert-details-from-issue-title-here. This PR should address the issue here by:
 
 - Validate the issue and determine it's valid with a test, and not a false positive finding.
 - If the issue is valid, implement the recommended fix for the issue and write a test to verify.

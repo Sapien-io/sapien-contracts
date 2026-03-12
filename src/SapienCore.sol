@@ -297,14 +297,15 @@ contract SapienCore is
         DisputeLib.openDispute(projectId, index, evidenceHash, evidenceCid);
     }
 
-    function resolveDispute(bytes32 projectId, uint256 index, bool upheld)
+    function resolveDispute(bytes32 projectId, uint256 index, uint256 nonce, bool upheld)
         external
         onlyRole(C.OPERATOR_ROLE)
         whenNotPaused
         nonReentrant
     {
         EngineStorage storage $ = _getStorage();
-        uint256 nonce = $.contributions[projectId][index].consensusNonce;
+        // POQ-3 FIX: Accept nonce as explicit parameter to prevent dispute corruption
+        // Previously read from contrib.consensusNonce which can be overwritten when index is recycled
         if ($.disputes[projectId][index][nonce].status != DisputeStatus.Open) {
             revert DisputeNotOpen();
         }
@@ -316,9 +317,10 @@ contract SapienCore is
         }
     }
 
-    function escalateDispute(bytes32 projectId, uint256 index) external whenNotPaused nonReentrant {
+    function escalateDispute(bytes32 projectId, uint256 index, uint256 nonce) external whenNotPaused nonReentrant {
         EngineStorage storage $ = _getStorage();
-        uint256 nonce = $.contributions[projectId][index].consensusNonce;
+        // POQ-3 FIX: Accept nonce as explicit parameter to prevent dispute corruption
+        // Previously read from contrib.consensusNonce which can be overwritten when index is recycled
         Dispute storage dispute = $.disputes[projectId][index][nonce];
         if (dispute.status != DisputeStatus.Open) revert DisputeNotOpen();
 

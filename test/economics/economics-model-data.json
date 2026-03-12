@@ -29,5 +29,5 @@
     "operatingIncomeUsd": [-3073520,-1787200,3790080,17596337,33372700]
   },
   "protocolSimulation": {"projectsFunded":3,"contributionsSubmitted":3,"acceptedContributions":1,"rejectedContributions":1,"validatorSettlements":3,"expiredCommitmentSlashes":1,"rewardClaims":3,"fundingAmountWei":10000000000000000000000,"protocolFeeCollectedWei":1000000000000000000000,"originationFeeAccruedWei":360000000000000000000,"escrowAfterFundingWei":8640000000000000000000,"acceptedRewardRateWei":864000000000000000000,"contributorPendingAfterAcceptedWei":670464000000000000000,"validatorPendingAfterAcceptedWei":55872000000000000000,"adapterPendingAfterAcceptedWei":385920000000000000000,"contributorClaimedWei":670464000000000000000,"validatorClaimedWei":55872000000000000000,"adapterClaimedWei":385920000000000000000,"contributorSlashAmountWei":100000000000000000000,"validatorSlashShares":48000000000000000000000,"escrowBeforeRefundWei":7776000000000000000000,"originatorRefundAmountWei":7776000000000000000000,"remainingEscrowAfterRefundWei":0},
-  "generatedAtBlockTimestamp": 2851204
+  "generatedAtBlockTimestamp": 3369604
 }

@@ -80,8 +80,13 @@ contract LifecycleFuzzTest is BaseTest {
         engine.claimToValidate(projectId, 1);
         engine.lockValidatorCapacity(stakeAmt);
         engine.commitValidation(projectId, index, commitHash, stakeAmt, address(0));
-        engine.revealValidation(projectId, index, score, salt);
         vm.stopPrank();
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        vm.prank(val);
+        engine.revealValidation(projectId, index, score, salt);
     }
 
     /// @dev Batch validate multiple indices: each validator claims quantity, gets randomly assigned
@@ -97,6 +102,12 @@ contract LifecycleFuzzTest is BaseTest {
         address[3] memory vals = [validator1, validator2, validator3];
         uint256[3] memory scores = [score1, score2, score3];
 
+        // Arrays to store data for reveal phase
+        uint256[][3] memory allAssignedIndices;
+        uint256[][3] memory allScoreArr;
+        bytes32[][3] memory allSalts;
+
+        // Commit phase - all validators commit
         for (uint256 v; v < 3; ++v) {
             address val = vals[v];
             uint256 score = scores[v];
@@ -107,6 +118,7 @@ contract LifecycleFuzzTest is BaseTest {
             vm.stopPrank();
 
             uint256[] memory assignedIndices = engine.getValidationClaim(vcClaimId).indices;
+            allAssignedIndices[v] = assignedIndices;
 
             bytes32[] memory commitHashes = new bytes32[](assignedIndices.length);
             bytes32[] memory salts = new bytes32[](assignedIndices.length);
@@ -120,11 +132,22 @@ contract LifecycleFuzzTest is BaseTest {
                 scoreArr[i] = score;
             }
 
+            allScoreArr[v] = scoreArr;
+            allSalts[v] = salts;
+
             vm.startPrank(val);
             engine.lockValidatorCapacity(stakeAmt * assignedIndices.length);
             engine.batchCommitValidations(projectId, assignedIndices, commitHashes, stakeAmts, address(0));
-            engine.batchRevealValidations(projectId, assignedIndices, scoreArr, salts);
             vm.stopPrank();
+        }
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        // Reveal phase - all validators reveal
+        for (uint256 v; v < 3; ++v) {
+            vm.prank(vals[v]);
+            engine.batchRevealValidations(projectId, allAssignedIndices[v], allScoreArr[v], allSalts[v]);
         }
     }
 
@@ -139,6 +162,12 @@ contract LifecycleFuzzTest is BaseTest {
         require(indices.length == scoresPerIndex.length, "length mismatch");
         address[3] memory vals = [validator1, validator2, validator3];
 
+        // Arrays to store data for reveal phase
+        uint256[][3] memory allAssignedIndices;
+        uint256[][3] memory allScoreArr;
+        bytes32[][3] memory allSalts;
+
+        // Commit phase - all validators commit
         for (uint256 v; v < 3; ++v) {
             address val = vals[v];
             _ensureStake(val, stakeAmt * indices.length * 2);
@@ -148,6 +177,7 @@ contract LifecycleFuzzTest is BaseTest {
             vm.stopPrank();
 
             uint256[] memory assignedIndices = engine.getValidationClaim(vcClaimId).indices;
+            allAssignedIndices[v] = assignedIndices;
 
             bytes32[] memory commitHashes = new bytes32[](assignedIndices.length);
             bytes32[] memory salts = new bytes32[](assignedIndices.length);
@@ -163,11 +193,22 @@ contract LifecycleFuzzTest is BaseTest {
                 scoreArr[i] = score;
             }
 
+            allScoreArr[v] = scoreArr;
+            allSalts[v] = salts;
+
             vm.startPrank(val);
             engine.lockValidatorCapacity(stakeAmt * assignedIndices.length);
             engine.batchCommitValidations(projectId, assignedIndices, commitHashes, stakeAmts, address(0));
-            engine.batchRevealValidations(projectId, assignedIndices, scoreArr, salts);
             vm.stopPrank();
+        }
+
+        // Warp past commit deadline to allow reveals
+        vm.warp(block.timestamp + engine.commitDeadline());
+
+        // Reveal phase - all validators reveal
+        for (uint256 v; v < 3; ++v) {
+            vm.prank(vals[v]);
+            engine.batchRevealValidations(projectId, allAssignedIndices[v], allScoreArr[v], allSalts[v]);
         }
     }
 
@@ -976,6 +1017,15 @@ contract LifecycleFuzzTest is BaseTest {
             assertEq(uint256(engine.getContribution(projId, index).status), uint256(ContributionStatus.Rejected));
             assertEq(engine.getSubmissionNonce(projId, index), 1);
             assertEq(engine.getProject(projId).availableSlots, 3);
+
+            // Settle validators before recycling
+            vm.warp(block.timestamp + engine.challengePeriod() + 1);
+            vm.prank(validator1);
+            engine.settleValidator(projId, index, 0);
+            vm.prank(validator2);
+            engine.settleValidator(projId, index, 0);
+            vm.prank(validator3);
+            engine.settleValidator(projId, index, 0);
         }
 
         uint256 index2;

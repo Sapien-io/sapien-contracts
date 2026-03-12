@@ -132,6 +132,14 @@ contract EconomicInvariants is LifecycleBase {
             _validate(validator2, pid, idx, 3000, VALIDATOR_STAKE);
             _validate(validator3, pid, idx, 3000, VALIDATOR_STAKE);
             engine.computeConsensus(pid, idx);
+            _warpPastChallengePeriod();
+            uint256 nonce = engine.getContribution(pid, idx).consensusNonce;
+            vm.prank(validator1);
+            engine.settleValidator(pid, idx, nonce);
+            vm.prank(validator2);
+            engine.settleValidator(pid, idx, nonce);
+            vm.prank(validator3);
+            engine.settleValidator(pid, idx, nonce);
         }
 
         _assertSolvent(pid, "after mixed outcomes");
