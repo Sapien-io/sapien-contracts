@@ -189,8 +189,10 @@ library FinalizationLib {
         EngineStorage storage $ = _getStorage();
         Project storage proj = $.projects[projectId];
 
-        if (proj.status != ProjectStatus.Active && proj.status != ProjectStatus.Funded
-            && proj.status != ProjectStatus.Cancelled) {
+        if (
+            proj.status != ProjectStatus.Active && proj.status != ProjectStatus.Funded
+                && proj.status != ProjectStatus.Cancelled
+        ) {
             revert ISapienCore.ProjectNotActive();
         }
 
