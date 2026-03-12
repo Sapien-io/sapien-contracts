@@ -193,7 +193,7 @@ contract SecurityIssuesVerification is BaseTest {
 
         // Cancel the project via operator
         vm.prank(admin);
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
 
         // Verify project is cancelled
         assertEq(uint256(engine.getProject(projectId).status), uint256(ProjectStatus.Cancelled));

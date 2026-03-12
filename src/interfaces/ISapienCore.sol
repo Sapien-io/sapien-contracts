@@ -540,8 +540,12 @@ interface ISapienCore {
     function fundProject(bytes32 projectId, uint256 amount, uint256 quantity, address adapter) external;
 
     /// @notice Remove a project that has not yet been funded. Operator-only.
+    /// @dev Processes contributions in batches to avoid gas DoS. Call repeatedly until complete.
     /// @param projectId Unique identifier for the project to remove.
-    function removeProject(bytes32 projectId) external;
+    /// @param batchSize Maximum number of contributions to process (0 = use default of 50, max 100)
+    /// @return complete True if all contributions have been processed
+    /// @return processed Number of contributions processed in this batch
+    function removeProject(bytes32 projectId, uint256 batchSize) external returns (bool complete, uint256 processed);
 
     // ── Contribution ─────────────────────────────────────────────
 

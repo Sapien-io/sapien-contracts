@@ -2510,7 +2510,7 @@ contract LifecycleKnownIssuesTest is LifecycleBase {
         assertGt(escrowBefore, 0);
 
         vm.prank(admin);
-        engine.removeProject(cancelledPid);
+        engine.removeProject(cancelledPid, 0);
 
         // After fix: refundEscrow requires waiting for the PROJECT_COMPLETION_DELAY
         // to give participants time to settle before escrow is returned.

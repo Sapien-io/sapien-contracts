@@ -35,7 +35,7 @@ contract POQ_004_CancelExpiredCommitmentSlashOnCancelledProject is BaseTest {
 
         // Operator cancels the project
         vm.prank(admin);
-        engine.removeProject(pid);
+        engine.removeProject(pid, 0);
         assertEq(uint256(engine.getProject(pid).status), uint256(ProjectStatus.Cancelled));
 
         // Warp past the full commit+reveal window so the commitment is "expired"
@@ -75,7 +75,7 @@ contract POQ_004_CancelExpiredCommitmentSlashOnCancelledProject is BaseTest {
         vm.stopPrank();
 
         vm.prank(admin);
-        engine.removeProject(pid);
+        engine.removeProject(pid, 0);
 
         // Validator settles first via the POQ-4 pull path
         vm.prank(validator1);

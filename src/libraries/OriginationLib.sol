@@ -128,26 +128,44 @@ library OriginationLib {
     }
 
     /// @notice Admin/operator removes a project and slashes the originator for TOS breach.
-    function removeProject(bytes32 projectId) public {
+    /// @dev Processes contributions in batches to avoid gas DoS. Call repeatedly until complete.
+    /// @param projectId The project to remove
+    /// @param batchSize Maximum number of contributions to process (0 = use default of 50)
+    /// @return complete True if all contributions have been processed
+    /// @return processed Number of contributions processed in this batch
+    function removeProject(bytes32 projectId, uint256 batchSize) public returns (bool complete, uint256 processed) {
         EngineStorage storage $ = _getStorage();
         Project storage proj = $.projects[projectId];
 
         if (proj.originator == address(0)) revert ISapienCore.InvalidProjectConfig("project does not exist");
         if (proj.status == ProjectStatus.Cancelled) revert ISapienCore.ProjectNotCancellable();
 
-        // Slash originator stake if locked
-        uint256 originatorStake = $.originatorLockedStake[projectId];
-        if (originatorStake > 0) {
-            $.vault.slashContributor(proj.originator, originatorStake);
-            $.originatorLockedStake[projectId] = 0;
-        }
+        // Set default batch size if not specified
+        if (batchSize == 0) batchSize = 50;
+        // Cap batch size to prevent single-call DoS
+        if (batchSize > 100) batchSize = 100;
 
-        ReputationLib.update(proj.originator, C.ORIGINATOR_ROLE_KEY, false, 0);
-
-        // Wind-down active claims and unlock contributor stakes
+        // Get or initialize removal cursor
+        uint256 cursor = $.removalCursor[projectId];
         uint256 totalQuantity = proj.totalQuantity;
         uint256 stakePerSlot = proj.minStakeToClaim;
-        for (uint256 i = 0; i < totalQuantity; ++i) {
+
+        // On first call, slash originator and update reputation
+        if (cursor == 0) {
+            uint256 originatorStake = $.originatorLockedStake[projectId];
+            if (originatorStake > 0) {
+                $.vault.slashContributor(proj.originator, originatorStake);
+                $.originatorLockedStake[projectId] = 0;
+            }
+            ReputationLib.update(proj.originator, C.ORIGINATOR_ROLE_KEY, false, 0);
+        }
+
+        // Process contributions in batch
+        uint256 endIndex = cursor + batchSize;
+        if (endIndex > totalQuantity) endIndex = totalQuantity;
+
+        processed = 0;
+        for (uint256 i = cursor; i < endIndex; ++i) {
             Contribution storage contrib = $.contributions[projectId][i];
             if (contrib.status == ContributionStatus.Reserved || contrib.status == ContributionStatus.Pending) {
                 if (contrib.contributor != address(0) && contrib.claimId != 0) {
@@ -157,25 +175,39 @@ library OriginationLib {
                     contrib.status = ContributionStatus.Empty;
                     contrib.contributor = address(0);
                     contrib.claimId = 0;
+                    processed++;
                 }
             }
         }
 
-        // Reset pending contributions counter and pending index set
-        $.pendingContributions[projectId] = 0;
-        {
-            uint256[] storage arr = $.pendingIndices[projectId];
-            uint256 pLen = arr.length;
-            for (uint256 j; j < pLen; ++j) {
-                delete $.pendingIndexPos[projectId][arr[j]];
+        // Update cursor
+        $.removalCursor[projectId] = endIndex;
+
+        // Check if complete
+        complete = endIndex >= totalQuantity;
+
+        // If complete, clean up pending indices and mark as cancelled
+        if (complete) {
+            $.pendingContributions[projectId] = 0;
+            {
+                uint256[] storage arr = $.pendingIndices[projectId];
+                uint256 pLen = arr.length;
+                for (uint256 j; j < pLen; ++j) {
+                    delete $.pendingIndexPos[projectId][arr[j]];
+                }
+                delete $.pendingIndices[projectId];
             }
-            delete $.pendingIndices[projectId];
+
+            proj.status = ProjectStatus.Cancelled;
+            proj.cancelledAt = block.timestamp;
+
+            // Clean up cursor
+            delete $.removalCursor[projectId];
+
+            emit ISapienCore.ProjectRemoved(projectId, msg.sender);
+            emit ISapienCore.ProjectCancelled(projectId);
         }
 
-        proj.status = ProjectStatus.Cancelled;
-        proj.cancelledAt = block.timestamp;
-
-        emit ISapienCore.ProjectRemoved(projectId, msg.sender);
-        emit ISapienCore.ProjectCancelled(projectId);
+        return (complete, processed);
     }
 }

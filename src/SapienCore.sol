@@ -121,8 +121,14 @@ contract SapienCore is
     }
 
     /// @inheritdoc ISapienCore
-    function removeProject(bytes32 projectId) external onlyRole(C.OPERATOR_ROLE) whenNotPaused nonReentrant {
-        OriginationLib.removeProject(projectId);
+    function removeProject(bytes32 projectId, uint256 batchSize)
+        external
+        onlyRole(C.OPERATOR_ROLE)
+        whenNotPaused
+        nonReentrant
+        returns (bool complete, uint256 processed)
+    {
+        return OriginationLib.removeProject(projectId, batchSize);
     }
 
     // ════════════════════════════════════════════════════════════════════

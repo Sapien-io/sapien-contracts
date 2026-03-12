@@ -97,6 +97,9 @@ struct EngineStorage {
 
     // ── Paginated Reward Settlement (POQ-7) ─────────────────────────────
     mapping(bytes32 => uint256) rewardSettlementCursor;
+
+    // ── Paginated Project Removal (POQ-12) ──────────────────────────────
+    mapping(bytes32 => uint256) removalCursor;
 }
 
 // ============================================

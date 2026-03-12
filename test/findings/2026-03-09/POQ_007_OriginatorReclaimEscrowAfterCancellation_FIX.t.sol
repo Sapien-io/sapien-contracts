@@ -22,7 +22,7 @@ contract POQ_007_OriginatorReclaimEscrowAfterCancellation_FIX is BaseTest {
         assertGt(escrowBefore, 0, "project should have funded escrow");
 
         vm.prank(admin);
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
 
         assertEq(
             uint256(engine.getProject(projectId).status),
@@ -120,7 +120,7 @@ contract POQ_007_OriginatorReclaimEscrowAfterCancellation_FIX is BaseTest {
         (bytes32 projectId, uint256 index) = _setupProjectWithAcceptedContribution();
 
         vm.prank(admin);
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
 
         assertEq(
             uint256(engine.getProject(projectId).status),
@@ -142,7 +142,7 @@ contract POQ_007_OriginatorReclaimEscrowAfterCancellation_FIX is BaseTest {
         (bytes32 projectId,) = _setupProjectWithAcceptedContribution();
 
         vm.prank(admin);
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
 
         _warpPastChallengePeriod();
 
@@ -168,7 +168,7 @@ contract POQ_007_OriginatorReclaimEscrowAfterCancellation_FIX is BaseTest {
         (bytes32 projectId,) = _setupProjectWithAcceptedContribution();
 
         vm.prank(admin);
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
 
         // Don't warp past challenge period
         uint256 processed = engine.settleContributorRewards(projectId, 100);
@@ -191,7 +191,7 @@ contract POQ_007_OriginatorReclaimEscrowAfterCancellation_FIX is BaseTest {
         (bytes32 projectId, uint256 index) = _setupProjectWithAcceptedContribution();
 
         vm.prank(admin);
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
 
         _warpPastChallengePeriod();
 

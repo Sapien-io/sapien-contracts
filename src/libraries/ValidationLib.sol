@@ -105,8 +105,13 @@ library ValidationLib {
         {
             uint256[] storage pending = $.pendingIndices[projectId];
             uint256 pendingLen = pending.length;
-            eligible = new uint256[](pendingLen);
-            for (uint256 i; i < pendingLen; ++i) {
+
+            // Cap iteration to prevent gas DoS for large pending arrays
+            uint256 maxIterations = 500;
+            uint256 iterationLimit = pendingLen > maxIterations ? maxIterations : pendingLen;
+
+            eligible = new uint256[](iterationLimit);
+            for (uint256 i; i < iterationLimit; ++i) {
                 uint256 idx = pending[i];
                 Contribution storage contrib = $.contributions[projectId][idx];
                 if (contrib.contributor == msg.sender) continue;

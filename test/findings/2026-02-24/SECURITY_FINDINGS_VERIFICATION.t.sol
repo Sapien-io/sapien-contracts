@@ -309,7 +309,7 @@ contract SecurityFindings_2026_02_24 is BaseTest {
 
         // Operator removes the project
         vm.prank(admin);
-        engine.removeProject(pid);
+        engine.removeProject(pid, 0);
         assertEq(uint256(engine.getProject(pid).status), uint256(ProjectStatus.Cancelled));
 
         // FIX: Contributor's stake is now unlocked by the wind-down logic
@@ -355,7 +355,7 @@ contract SecurityFindings_2026_02_24 is BaseTest {
 
         // Cancel the project
         vm.prank(admin);
-        engine.removeProject(pid);
+        engine.removeProject(pid, 0);
         assertEq(uint256(engine.getProject(pid).status), uint256(ProjectStatus.Cancelled));
 
         // POQ-4: Settlement succeeds — stake is released, no rewards paid

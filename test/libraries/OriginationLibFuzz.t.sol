@@ -335,7 +335,7 @@ contract OriginationLibFuzz is Test {
         assertTrue(lockedBefore > 0);
 
         vm.prank(admin);
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
 
         Project memory proj = engine.getProject(projectId);
         assertEq(uint8(proj.status), uint8(ProjectStatus.Cancelled));
@@ -349,7 +349,7 @@ contract OriginationLibFuzz is Test {
 
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(ISapienCore.InvalidProjectConfig.selector, "project does not exist"));
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
     }
 
     function testFuzz_removeProject_revertsAlreadyCancelled(bytes32 projectId) public {
@@ -361,11 +361,11 @@ contract OriginationLibFuzz is Test {
         engine.fundProject(projectId, 1000e18, 5, address(0));
 
         vm.prank(admin);
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
 
         vm.prank(admin);
         vm.expectRevert(ISapienCore.ProjectNotCancellable.selector);
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
     }
 
     function _createProject(bytes32 projectId) internal {

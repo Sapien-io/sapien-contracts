@@ -97,7 +97,7 @@ contract FIX_2026_02_23_ExpectedBehavior is BaseTest {
         assertGt(escrowBefore, 0, "funded project should have escrow");
 
         vm.prank(admin);
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
         assertEq(uint256(engine.getProject(projectId).status), uint256(ProjectStatus.Cancelled));
 
         // Expected after fix: cancellation path provides an escrow exit after delay.

@@ -15,7 +15,7 @@ contract POC_004_CancelledProjectEscrowStranding is BaseTest {
         assertGt(escrowBefore, 0, "project should have funded escrow");
 
         vm.prank(admin);
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
 
         assertEq(
             uint256(engine.getProject(projectId).status),

@@ -44,7 +44,7 @@ contract POQ_004_ValidatorFundsCancellation is BaseTest {
         assertGt(v3Before.inFlight, 0, "v3 should have in-flight stake");
 
         vm.prank(admin);
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
 
         assertEq(
             uint256(engine.getProject(projectId).status),
@@ -126,7 +126,7 @@ contract POQ_004_ValidatorFundsCancellation is BaseTest {
         engine.computeConsensus(projectId, idx);
 
         vm.prank(admin);
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
 
         engine.forceSettleValidator(projectId, idx, 0, validator1);
 
@@ -158,7 +158,7 @@ contract POQ_004_ValidatorFundsCancellation is BaseTest {
         assertGt(v1Before.inFlight, 0, "v1 should have in-flight stake");
 
         vm.prank(admin);
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
 
         vm.prank(validator1);
         engine.settleValidator(projectId, idx, 0);
@@ -177,7 +177,7 @@ contract POQ_004_ValidatorFundsCancellation is BaseTest {
         _claimAndContribute(contributor1, projectId, 1);
 
         vm.prank(admin);
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
 
         vm.prank(validator1);
         vm.expectRevert(ISapienCore.ProjectNotActive.selector);
@@ -199,7 +199,7 @@ contract POQ_004_ValidatorFundsCancellation is BaseTest {
         engine.claimToValidate(projectId, 1);
 
         vm.prank(admin);
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
 
         bytes32 salt = keccak256(abi.encodePacked("salt", validator1, idx));
         bytes32 commitHash = keccak256(abi.encodePacked(uint256(8000), salt));
@@ -232,7 +232,7 @@ contract POQ_004_ValidatorFundsCancellation is BaseTest {
         vm.stopPrank();
 
         vm.prank(admin);
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
 
         vm.prank(validator1);
         vm.expectRevert(ISapienCore.ProjectNotActive.selector);
@@ -255,7 +255,7 @@ contract POQ_004_ValidatorFundsCancellation is BaseTest {
         uint256 v1RewardsBefore = engine.getPendingRewards(validator1, address(token));
 
         vm.prank(admin);
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
 
         _warpPastChallengePeriod();
 
@@ -280,7 +280,7 @@ contract POQ_004_ValidatorFundsCancellation is BaseTest {
         engine.computeConsensus(projectId, idx);
 
         vm.prank(admin);
-        engine.removeProject(projectId);
+        engine.removeProject(projectId, 0);
 
         vm.prank(validator1);
         engine.settleValidator(projectId, idx, 0);
