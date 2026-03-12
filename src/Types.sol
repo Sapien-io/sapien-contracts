@@ -95,6 +95,9 @@ struct EngineStorage {
     // ── Skill Registry ──────────────────────────────────────────────────
     mapping(bytes32 => bool) registeredSkills;
 
+    // ── Paginated Reward Settlement (POQ-7) ─────────────────────────────
+    mapping(bytes32 => uint256) rewardSettlementCursor;
+
     // ── Pause Tracking (POQ-11 Fix) ─────────────────────────────────────
     // Tracks cumulative time protocol has been paused to prevent unfair slashing
     // When paused, participants cannot act but deadlines keep advancing

@@ -374,6 +374,25 @@ contract SapienCore is
     }
 
     // ════════════════════════════════════════════════════════════════════
+    // Batch Settlement
+    // ════════════════════════════════════════════════════════════════════
+
+    /// @inheritdoc ISapienCore
+    function settleContributorRewards(bytes32 projectId, uint256 batchSize)
+        external
+        whenNotPaused
+        nonReentrant
+        returns (uint256 processed)
+    {
+        return FinalizationLib.settleContributorRewardsBatch(projectId, batchSize);
+    }
+
+    /// @inheritdoc ISapienCore
+    function getSettlementCursor(bytes32 projectId) external view returns (uint256) {
+        return _getStorage().rewardSettlementCursor[projectId];
+    }
+
+    // ════════════════════════════════════════════════════════════════════
     // Project Completion
     // ════════════════════════════════════════════════════════════════════
 

@@ -33,9 +33,9 @@ import {EngineStorage} from "src/Types.sol";
 /// - On unpause(): add elapsed time to total, reset start time to 0
 /// - All deadline checks use effectiveTimestamp() instead of block.timestamp
 ///
-/// @audit Quantstamp Initial Audit (2026-02-25 to 2026-03-06)
-/// @audit Finding: POQ-11 (Medium Severity)
-/// @audit Recommendation: Track cumulative paused duration and subtract from deadline calculations
+/// Audit Reference: Quantstamp Initial Audit (2026-02-25 to 2026-03-06)
+/// Finding: POQ-11 (Medium Severity)
+/// Recommendation: Track cumulative paused duration and subtract from deadline calculations
 library PauseAwareLib {
     /// @notice Returns the current effective block timestamp for deadline comparisons.
     ///         This is block.timestamp minus the total time the protocol has been paused.
