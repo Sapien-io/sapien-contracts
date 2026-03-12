@@ -84,11 +84,16 @@ library ValidationLib {
 
     function _selectEligibleTargets(bytes32 projectId, uint256 quantity)
         private
+        view
         returns (uint256[] memory eligible, uint256 assignCount)
     {
         EngineStorage storage $ = _getStorage();
         Project storage proj = $.projects[projectId];
 
+        // POQ-8 FIX: Prevent originator from validating their own project
+        if (msg.sender == proj.originator) {
+            revert ISapienCore.OriginatorCannotValidate();
+        }
         // POQ-4: Block validation claims on non-active projects
         if (proj.status != ProjectStatus.Active && proj.status != ProjectStatus.Funded) {
             revert ISapienCore.ProjectNotActive();
@@ -362,6 +367,9 @@ library ValidationLib {
             newStatus = ContributionStatus.Accepted;
             contrib.status = ContributionStatus.Accepted;
             contrib.challengeEndsAt = block.timestamp + challengePeriod_;
+
+            // POQ-8 FIX: Track accepted contributions
+            proj.acceptedContributions++;
 
             uint256 qualityBonus = (result.weightedAverage * 20) / C.BPS;
             ReputationLib.update(contrib.contributor, proj.requiredSkill, true, qualityBonus);

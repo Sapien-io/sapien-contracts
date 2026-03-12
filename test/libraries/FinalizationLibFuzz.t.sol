@@ -81,6 +81,7 @@ contract FinalizationLibFuzz is Test {
             requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
+            acceptedContributions: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
             completedAt: 0,
@@ -312,7 +313,7 @@ contract FinalizationLibFuzz is Test {
         bytes32 proj2 = keccak256("cooldown-test-2");
         uint256 contribIdx2 = _createNewProjectWithAcceptedContributionFor(proj2, contributor);
 
-        vm.warp(claimedAt + engine.challengePeriod() + 1);
+        _warpPastChallengePeriod();
         engine.releaseContributorReward(proj2, contribIdx2);
 
         vm.prank(contributor);
@@ -520,6 +521,7 @@ contract FinalizationLibFuzz is Test {
             requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
+            acceptedContributions: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
             completedAt: 0,
@@ -559,6 +561,7 @@ contract FinalizationLibFuzz is Test {
             requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
+            acceptedContributions: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
             completedAt: 0,

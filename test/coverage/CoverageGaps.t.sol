@@ -515,6 +515,7 @@ contract QECoverageBase is Test {
             requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
+            acceptedContributions: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
             completedAt: 0,
@@ -606,6 +607,14 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
         _setupProject(projId, FUND_AMOUNT, QUANTITY);
     }
 
+    function _acceptOneContribution(bytes32 projectId) internal {
+        (, uint256[] memory indices) = _claimAndSubmit(contributor1, projectId, 1);
+        _validateAboveThreshold(projectId, indices[0]);
+        engine.computeConsensus(projectId, indices[0]);
+        _warpPastChallengePeriod();
+        engine.releaseContributorReward(projectId, indices[0]);
+    }
+
     function test_reduceValidatorCapacity() public {
         _ensureStake(validator1, VALIDATOR_STAKE * 3);
         vm.startPrank(validator1);
@@ -615,6 +624,8 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
     }
 
     function test_completeProject_funded() public {
+        _acceptOneContribution(projId);
+
         vm.prank(originator);
         engine.completeProject(projId);
 
@@ -624,11 +635,7 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
     }
 
     function test_completeProject_active() public {
-        (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
-
-        // SEC-H-01: finalize contribution before completing project
-        _validateBelowThreshold(projId, indices[0]);
-        engine.computeConsensus(projId, indices[0]);
+        _acceptOneContribution(projId);
 
         vm.prank(originator);
         engine.completeProject(projId);
@@ -652,10 +659,12 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
         uint256 lockedBefore = engine.getOriginatorLockedStake(pid2);
         assertGt(lockedBefore, 0);
 
-        // Make project active and finalize the contribution
+        // Make project active and accept a contribution
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid2, 1);
-        _validateBelowThreshold(pid2, indices[0]);
+        _validateAboveThreshold(pid2, indices[0]);
         engine.computeConsensus(pid2, indices[0]);
+        _warpPastChallengePeriod();
+        engine.releaseContributorReward(pid2, indices[0]);
 
         vm.prank(originator);
         engine.completeProject(pid2);
@@ -670,6 +679,8 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
     }
 
     function test_revert_completeProject_wrongStatus() public {
+        _acceptOneContribution(projId);
+
         vm.prank(originator);
         engine.completeProject(projId);
 
@@ -679,6 +690,8 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
     }
 
     function test_refundEscrow() public {
+        _acceptOneContribution(projId);
+
         vm.prank(originator);
         engine.completeProject(projId);
 
@@ -696,6 +709,8 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
     }
 
     function test_revert_refundEscrow_notOriginator() public {
+        _acceptOneContribution(projId);
+
         vm.prank(originator);
         engine.completeProject(projId);
 
@@ -713,6 +728,8 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
     }
 
     function test_revert_refundEscrow_tooEarly() public {
+        _acceptOneContribution(projId);
+
         vm.prank(originator);
         engine.completeProject(projId);
 
@@ -725,6 +742,7 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
         // Create a tiny project, complete it, drain escrow, then try refund
         bytes32 pid2 = keccak256("cov-refund-zero");
         _setupProject(pid2, FUND_AMOUNT, QUANTITY);
+        _acceptOneContribution(pid2);
 
         vm.prank(originator);
         engine.completeProject(pid2);
@@ -884,10 +902,12 @@ contract QEProjectValidationTest is QECoverageBase {
         bytes32 pid = keccak256("fws");
         _setupProject(pid, FUND_AMOUNT, QUANTITY);
 
-        // Make project Active and finalize contribution
+        // Make project Active and accept a contribution
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
-        _validateBelowThreshold(pid, indices[0]);
+        _validateAboveThreshold(pid, indices[0]);
         engine.computeConsensus(pid, indices[0]);
+        _warpPastChallengePeriod();
+        engine.releaseContributorReward(pid, indices[0]);
 
         // Complete the project
         vm.prank(originator);
@@ -1621,8 +1641,10 @@ contract QEOriginatorReportBranchTest is QECoverageBase {
         bytes32 pid = keccak256("cov-report-status");
         _setupProject(pid, FUND_AMOUNT, QUANTITY);
         (, uint256[] memory idxs) = _claimAndSubmit(contributor1, pid, 1);
-        _validateBelowThreshold(pid, idxs[0]);
+        _validateAboveThreshold(pid, idxs[0]);
         engine.computeConsensus(pid, idxs[0]);
+        _warpPastChallengePeriod();
+        engine.releaseContributorReward(pid, idxs[0]);
 
         vm.prank(originator);
         engine.completeProject(pid);

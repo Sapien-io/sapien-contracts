@@ -53,7 +53,8 @@ contract OriginationLibFuzz is Test {
         vm.assume(projectId != bytes32(0));
         consensusThreshold = uint16(bound(consensusThreshold, 1, C.BPS));
         validatorRewardBps = uint16(bound(validatorRewardBps, 0, C.MAX_VALIDATOR_REWARD_BPS));
-        numberOfValidations = uint8(bound(numberOfValidations, 1, C.MAX_NUMBER_OF_VALIDATIONS));
+        numberOfValidations =
+            uint8(bound(numberOfValidations, C.MIN_NUMBER_OF_VALIDATIONS, C.MAX_NUMBER_OF_VALIDATIONS));
 
         Project memory config = _makeProjectConfig();
         config.consensusThreshold = consensusThreshold;
@@ -388,6 +389,7 @@ contract OriginationLibFuzz is Test {
             requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
+            acceptedContributions: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
             completedAt: 0,

@@ -372,6 +372,11 @@ library FinalizationLib {
             revert ISapienCore.ProjectHasActivePipeline();
         }
 
+        // POQ-8 FIX: Require at least one accepted contribution to prevent reputation farming
+        if (proj.acceptedContributions == 0) {
+            revert ISapienCore.NoAcceptedContributions();
+        }
+
         proj.status = ProjectStatus.Completed;
         proj.completedAt = block.timestamp;
 

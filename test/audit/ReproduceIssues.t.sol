@@ -84,6 +84,7 @@ contract ReproduceIssuesTest is BaseTest {
             requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 50e18,
+            acceptedContributions: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
             completedAt: 0,
@@ -242,6 +243,7 @@ contract ReproduceIssuesTest is BaseTest {
             requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0, // Allow zero stake
+            acceptedContributions: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
             completedAt: 0,

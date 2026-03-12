@@ -107,6 +107,7 @@ contract LifecycleBase is BaseTest {
             requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
+            acceptedContributions: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
             completedAt: 0,
@@ -1094,7 +1095,7 @@ contract LifecycleOriginatorReportTest is LifecycleBase {
         assertGt(engine.getPendingRewards(validator3, address(token)), 0);
     }
 
-    /// @notice Failure mode recovery: Complete project failure and originator refund
+    /// @notice Failure mode: all contributions rejected blocks completion (POQ-8)
     function test_completeProjectFailureAndRecovery() public {
         // Create project with multiple contributions
         bytes32 failureProjId = _pid("failure-recovery");
@@ -1123,22 +1124,10 @@ contract LifecycleOriginatorReportTest is LifecycleBase {
         assertEq(uint256(proj.status), uint256(ProjectStatus.Active));
         assertEq(proj.availableSlots, 3);
 
-        // Originator can now complete the failed project
+        // POQ-8: Cannot complete project with zero accepted contributions
         vm.prank(originator);
+        vm.expectRevert(ISapienCore.NoAcceptedContributions.selector);
         engine.completeProject(failureProjId);
-
-        assertEq(uint256(engine.getProject(failureProjId).status), uint256(ProjectStatus.Completed));
-
-        // Originator can refund escrow after grace period
-        vm.warp(block.timestamp + 31 days);
-        uint256 escrowBefore = engine.getProjectEscrow(failureProjId, address(token));
-        uint256 originatorBalBefore = token.balanceOf(originator);
-
-        vm.prank(originator);
-        engine.refundEscrow(failureProjId);
-
-        assertEq(engine.getProjectEscrow(failureProjId, address(token)), 0);
-        assertEq(token.balanceOf(originator) - originatorBalBefore, escrowBefore);
     }
 
     /// @notice Multi-actor interaction: Competing validators with different stake amounts
@@ -2393,6 +2382,12 @@ contract LifecycleExhaustiveWorkflowTest is LifecycleBase {
 
     /// @notice Refund is blocked until completion grace period elapses.
     function test_revert_refundEscrowBeforeCompletionDelay() public {
+        uint256 index = _singlePendingIndex(projId);
+        _validateAboveThreshold(projId, index);
+        engine.computeConsensus(projId, index);
+        _warpPastChallengePeriod();
+        engine.releaseContributorReward(projId, index);
+
         vm.prank(originator);
         engine.completeProject(projId);
 

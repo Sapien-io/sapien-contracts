@@ -174,6 +174,7 @@ struct Project {
     uint256 activatedAt;
     uint256 completedAt;
     uint256 cancelledAt;
+    uint256 acceptedContributions;
 }
 
 struct Claim {
