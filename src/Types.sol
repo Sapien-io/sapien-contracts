@@ -167,6 +167,7 @@ struct Project {
     uint256 validatorRewardBps; // 0-2500
     uint256 numberOfValidations;
     uint256 minValidatorReputation;
+    uint256 acceptedContributions; // POQ-8: Track accepted contributions
     ProjectStatus status;
     uint256 activatedAt;
     uint256 completedAt;

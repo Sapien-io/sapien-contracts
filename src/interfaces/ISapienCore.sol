@@ -28,6 +28,9 @@ interface ISapienCore {
     /// @dev Project originators cannot submit contributions to their own project.
     error OriginatorCannotContribute();
 
+    /// @dev POQ-8: Originator cannot validate their own project.
+    error OriginatorCannotValidate();
+
     /// @dev Caller is not the owner of the referenced claim.
     error NotClaimOwner();
 
@@ -156,6 +159,9 @@ interface ISapienCore {
 
     /// @dev The project still has contributions in the active pipeline.
     error ProjectHasActivePipeline();
+
+    /// @dev POQ-8: Project must have at least one accepted contribution to be completed.
+    error NoAcceptedContributions();
 
     /// @dev No pending contributions are eligible for this validator to claim.
     error NoEligibleContributions();

@@ -515,6 +515,7 @@ contract QECoverageBase is Test {
             requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
             minValidationStake: 0,
+            acceptedContributions: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
             completedAt: 0,
@@ -615,12 +616,10 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
     }
 
     function test_completeProject_funded() public {
+        // POQ-8: Cannot complete project without accepted contributions
         vm.prank(originator);
+        vm.expectRevert(ISapienCore.NoAcceptedContributions.selector);
         engine.completeProject(projId);
-
-        Project memory proj = engine.getProject(projId);
-        assertEq(uint256(proj.status), uint256(ProjectStatus.Completed));
-        assertGt(proj.completedAt, 0);
     }
 
     function test_completeProject_active() public {
@@ -630,9 +629,10 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
         _validateBelowThreshold(projId, indices[0]);
         engine.computeConsensus(projId, indices[0]);
 
+        // POQ-8: Rejected contribution, so still no accepted contributions
         vm.prank(originator);
+        vm.expectRevert(ISapienCore.NoAcceptedContributions.selector);
         engine.completeProject(projId);
-        assertEq(uint256(engine.getProject(projId).status), uint256(ProjectStatus.Completed));
     }
 
     function test_completeProject_withOriginatorStake() public {
@@ -657,10 +657,10 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
         _validateBelowThreshold(pid2, indices[0]);
         engine.computeConsensus(pid2, indices[0]);
 
+        // POQ-8: Rejected contribution, so no accepted contributions
         vm.prank(originator);
+        vm.expectRevert(ISapienCore.NoAcceptedContributions.selector);
         engine.completeProject(pid2);
-
-        assertEq(engine.getOriginatorLockedStake(pid2), 0);
     }
 
     function test_revert_completeProject_notOriginator() public {
@@ -670,15 +670,18 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
     }
 
     function test_revert_completeProject_wrongStatus() public {
+        // POQ-8: First attempt fails due to no accepted contributions
         vm.prank(originator);
-        engine.completeProject(projId);
-
-        vm.prank(originator);
-        vm.expectRevert(ISapienCore.ProjectNotActive.selector);
+        vm.expectRevert(ISapienCore.NoAcceptedContributions.selector);
         engine.completeProject(projId);
     }
 
     function test_refundEscrow() public {
+        // Need to have accepted contribution first
+        (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
+        _validateAboveThreshold(projId, indices[0]);
+        engine.computeConsensus(projId, indices[0]);
+
         vm.prank(originator);
         engine.completeProject(projId);
 
@@ -696,6 +699,11 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
     }
 
     function test_revert_refundEscrow_notOriginator() public {
+        // Need accepted contribution
+        (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
+        _validateAboveThreshold(projId, indices[0]);
+        engine.computeConsensus(projId, indices[0]);
+
         vm.prank(originator);
         engine.completeProject(projId);
 
@@ -713,6 +721,11 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
     }
 
     function test_revert_refundEscrow_tooEarly() public {
+        // Need accepted contribution
+        (, uint256[] memory indices) = _claimAndSubmit(contributor1, projId, 1);
+        _validateAboveThreshold(projId, indices[0]);
+        engine.computeConsensus(projId, indices[0]);
+
         vm.prank(originator);
         engine.completeProject(projId);
 
@@ -725,6 +738,11 @@ contract QEUncoveredFunctionsTest is QECoverageBase {
         // Create a tiny project, complete it, drain escrow, then try refund
         bytes32 pid2 = keccak256("cov-refund-zero");
         _setupProject(pid2, FUND_AMOUNT, QUANTITY);
+
+        // Need accepted contribution
+        (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid2, 1);
+        _validateAboveThreshold(pid2, indices[0]);
+        engine.computeConsensus(pid2, indices[0]);
 
         vm.prank(originator);
         engine.completeProject(pid2);
@@ -884,9 +902,9 @@ contract QEProjectValidationTest is QECoverageBase {
         bytes32 pid = keccak256("fws");
         _setupProject(pid, FUND_AMOUNT, QUANTITY);
 
-        // Make project Active and finalize contribution
+        // Make project Active and finalize contribution (accept it)
         (, uint256[] memory indices) = _claimAndSubmit(contributor1, pid, 1);
-        _validateBelowThreshold(pid, indices[0]);
+        _validateAboveThreshold(pid, indices[0]);
         engine.computeConsensus(pid, indices[0]);
 
         // Complete the project
@@ -1621,7 +1639,7 @@ contract QEOriginatorReportBranchTest is QECoverageBase {
         bytes32 pid = keccak256("cov-report-status");
         _setupProject(pid, FUND_AMOUNT, QUANTITY);
         (, uint256[] memory idxs) = _claimAndSubmit(contributor1, pid, 1);
-        _validateBelowThreshold(pid, idxs[0]);
+        _validateAboveThreshold(pid, idxs[0]);
         engine.computeConsensus(pid, idxs[0]);
 
         vm.prank(originator);

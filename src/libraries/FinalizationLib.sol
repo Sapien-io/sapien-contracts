@@ -270,6 +270,11 @@ library FinalizationLib {
             revert ISapienCore.ProjectHasActivePipeline();
         }
 
+        // POQ-8: Require at least one accepted contribution
+        if (proj.acceptedContributions == 0) {
+            revert ISapienCore.NoAcceptedContributions();
+        }
+
         proj.status = ProjectStatus.Completed;
         proj.completedAt = block.timestamp;
 

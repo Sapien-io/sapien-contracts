@@ -89,6 +89,11 @@ library ValidationLib {
         EngineStorage storage $ = _getStorage();
         Project storage proj = $.projects[projectId];
 
+        // POQ-8: Prevent originator from validating their own project
+        if (msg.sender == proj.originator) {
+            revert ISapienCore.OriginatorCannotValidate();
+        }
+
         if (proj.minValidatorReputation > 0) {
             uint256 rep = ReputationLib.getScore(msg.sender, proj.requiredSkill);
             if (rep < proj.minValidatorReputation) {
@@ -340,6 +345,9 @@ library ValidationLib {
             newStatus = ContributionStatus.Accepted;
             contrib.status = ContributionStatus.Accepted;
             contrib.challengeEndsAt = block.timestamp + challengePeriod_;
+
+            // POQ-8: Track accepted contributions
+            proj.acceptedContributions++;
 
             uint256 qualityBonus = (result.weightedAverage * 20) / C.BPS;
             ReputationLib.update(contrib.contributor, proj.requiredSkill, true, qualityBonus);

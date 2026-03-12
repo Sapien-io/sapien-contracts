@@ -9,6 +9,7 @@ library Constants {
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
     uint256 public constant MAX_CLAIM_QUANTITY = 20;
+    uint256 public constant MIN_NUMBER_OF_VALIDATIONS = 3; // POQ-8: Minimum validations to prevent Sybil farming
     uint256 public constant MAX_NUMBER_OF_VALIDATIONS = 10;
 
     uint256 public constant MAX_PROTOCOL_FEE_BPS = 1000; // 10%
