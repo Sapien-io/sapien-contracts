@@ -68,11 +68,11 @@ contract POQ_1_PrematureCompletion is BaseTest {
         _commitAndReveal(validator3, projectId, idx, 3000, VALIDATOR_STAKE);
         engine.computeConsensus(projectId, idx);
 
-        // Rejection decrements pendingContributions, so completeProject succeeds
+        // POQ-8: Rejection decrements pendingContributions but zero accepted
+        // contributions means completeProject is blocked
         vm.prank(originator);
+        vm.expectRevert(ISapienCore.NoAcceptedContributions.selector);
         engine.completeProject(projectId);
-
-        assertEq(uint8(engine.getProject(projectId).status), uint8(3), "project should be Completed");
     }
 
     function test_POQ_1_escrowSafeAfterProperCompletion() public {
