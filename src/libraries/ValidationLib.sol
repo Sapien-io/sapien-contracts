@@ -84,6 +84,7 @@ library ValidationLib {
 
     function _selectEligibleTargets(bytes32 projectId, uint256 quantity)
         private
+        view
         returns (uint256[] memory eligible, uint256 assignCount)
     {
         EngineStorage storage $ = _getStorage();
@@ -92,6 +93,10 @@ library ValidationLib {
         // POQ-8 FIX: Prevent originator from validating their own project
         if (msg.sender == proj.originator) {
             revert ISapienCore.OriginatorCannotValidate();
+        }
+        // POQ-4: Block validation claims on non-active projects
+        if (proj.status != ProjectStatus.Active && proj.status != ProjectStatus.Funded) {
+            revert ISapienCore.ProjectNotActive();
         }
 
         if (proj.minValidatorReputation > 0) {
@@ -146,6 +151,14 @@ library ValidationLib {
         address adapter
     ) public {
         EngineStorage storage $ = _getStorage();
+
+        // POQ-4: Block commits on cancelled/completed projects
+        {
+            ProjectStatus status = $.projects[projectId].status;
+            if (status == ProjectStatus.Cancelled || status == ProjectStatus.Completed) {
+                revert ISapienCore.ProjectNotActive();
+            }
+        }
 
         uint256 nonce = $.submissionNonce[projectId][index];
 
@@ -207,6 +220,15 @@ library ValidationLib {
         if (score > 10_000) revert ISapienCore.InvalidScore();
 
         EngineStorage storage $ = _getStorage();
+
+        // POQ-4: Block reveals on cancelled/completed projects
+        {
+            ProjectStatus status = $.projects[projectId].status;
+            if (status == ProjectStatus.Cancelled || status == ProjectStatus.Completed) {
+                revert ISapienCore.ProjectNotActive();
+            }
+        }
+
         uint256 nonce = $.submissionNonce[projectId][index];
 
         ValidatorCommit storage vc = $.validatorCommits[projectId][index][nonce][msg.sender];
