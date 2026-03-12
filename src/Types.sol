@@ -170,11 +170,11 @@ struct Project {
     uint256 validatorRewardBps; // 0-2500
     uint256 numberOfValidations;
     uint256 minValidatorReputation;
-    uint256 acceptedContributions; // POQ-8 FIX: Track accepted contributions to prevent zero-contribution completion
     ProjectStatus status;
     uint256 activatedAt;
     uint256 completedAt;
     uint256 cancelledAt;
+    uint256 acceptedContributions;
 }
 
 struct Claim {
