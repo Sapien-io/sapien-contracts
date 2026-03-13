@@ -105,23 +105,45 @@ library DisputeLib {
             if ($.pendingContributions[projectId] > 0) {
                 $.pendingContributions[projectId]--;
             }
+
+            $.submissionNonce[projectId][index]++;
+
+            uint256 rsTop = $.returnStackTop[projectId];
+            $.returnStack[projectId][rsTop] = index;
+            $.returnStackTop[projectId] = rsTop + 1;
+            proj.availableSlots++;
         } else if (contrib.status == ContributionStatus.Rejected) {
             // SEC-H-04: Cap total payout to rewardRate (contributor + challenger share a single budget)
             uint256 maxPayout = contrib.rewardRate;
             uint256 challengerReward = (maxPayout * C.DISPUTE_CHALLENGER_REWARD_BPS) / C.BPS;
             uint256 compensation = maxPayout - challengerReward;
+            uint256 totalRequired = compensation + challengerReward;
+            uint256 availableEscrow = $.projectEscrow[projectId][rewardToken];
 
-            if (compensation > 0 && $.projectEscrow[projectId][rewardToken] >= compensation) {
-                $.pendingRewards[contrib.contributor][rewardToken] += compensation;
-                $.projectEscrow[projectId][rewardToken] -= compensation;
-                contrib.rewardReleased = true;
+            if (availableEscrow >= totalRequired) {
+                if (compensation > 0) {
+                    $.pendingRewards[contrib.contributor][rewardToken] += compensation;
+                    contrib.rewardReleased = true;
+                }
+                if (challengerReward > 0) {
+                    $.pendingRewards[dispute.challenger][rewardToken] += challengerReward;
+                }
+                $.projectEscrow[projectId][rewardToken] -= totalRequired;
+            } else if (availableEscrow > 0) {
+                uint256 contributorShare = (availableEscrow * compensation) / totalRequired;
+                uint256 challengerShare = availableEscrow - contributorShare;
+
+                if (contributorShare > 0) {
+                    $.pendingRewards[contrib.contributor][rewardToken] += contributorShare;
+                    contrib.rewardReleased = true;
+                }
+                if (challengerShare > 0) {
+                    $.pendingRewards[dispute.challenger][rewardToken] += challengerShare;
+                }
+                $.projectEscrow[projectId][rewardToken] = 0;
             }
+
             ReputationLib.update(contrib.contributor, proj.requiredSkill, true, 0);
-
-            if (challengerReward > 0 && $.projectEscrow[projectId][rewardToken] >= challengerReward) {
-                $.pendingRewards[dispute.challenger][rewardToken] += challengerReward;
-                $.projectEscrow[projectId][rewardToken] -= challengerReward;
-            }
         }
     }
 
