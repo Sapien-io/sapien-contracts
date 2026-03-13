@@ -27,17 +27,18 @@ contract POQ_010_SingleValidationCollapsesSecurity is BaseTest {
             totalRewards: 0,
             totalQuantity: 0,
             availableSlots: 0,
-            consensusThreshold: 7000,
             minStakeToClaim: STAKE_AMOUNT,
+            minValidationStake: 0,
+            requiredSkill: SKILL_ID,
+            consensusThreshold: 7000,
             validatorRewardBps: 2000,
             numberOfValidations: 2, // Less than minimum 3
-            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
-            minValidationStake: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
             completedAt: 0,
-            cancelledAt: 0
+            cancelledAt: 0,
+            acceptedContributions: 0
         });
 
         vm.expectRevert(
@@ -58,17 +59,18 @@ contract POQ_010_SingleValidationCollapsesSecurity is BaseTest {
             totalRewards: 0,
             totalQuantity: 0,
             availableSlots: 0,
-            consensusThreshold: 7000,
             minStakeToClaim: STAKE_AMOUNT,
+            minValidationStake: 0,
+            requiredSkill: SKILL_ID,
+            consensusThreshold: 7000,
             validatorRewardBps: 2000,
             numberOfValidations: 1, // Critically broken
-            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
-            minValidationStake: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
             completedAt: 0,
-            cancelledAt: 0
+            cancelledAt: 0,
+            acceptedContributions: 0
         });
 
         vm.expectRevert(
@@ -177,17 +179,18 @@ contract POQ_010_SingleValidationCollapsesSecurity is BaseTest {
             totalRewards: 0,
             totalQuantity: 0,
             availableSlots: 0,
-            consensusThreshold: 7000,
             minStakeToClaim: STAKE_AMOUNT,
+            minValidationStake: 0,
+            requiredSkill: SKILL_ID,
+            consensusThreshold: 7000,
             validatorRewardBps: 2000,
             numberOfValidations: numValidations,
-            requiredSkill: SKILL_ID,
             minValidatorReputation: 0,
-            minValidationStake: 0,
             status: ProjectStatus.Created,
             activatedAt: 0,
             completedAt: 0,
-            cancelledAt: 0
+            cancelledAt: 0,
+            acceptedContributions: 0
         });
 
         engine.createProject(projectId, "", config);
