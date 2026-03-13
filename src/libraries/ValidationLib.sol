@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Constants as C} from "src/Constants.sol";
 import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 import {ConsensusLib} from "src/libraries/ConsensusLib.sol";
@@ -370,6 +371,11 @@ library ValidationLib {
 
             // POQ-8 FIX: Track accepted contributions
             proj.acceptedContributions++;
+
+            // POQ-15 FIX: Reserve contributor liability at consensus time
+            uint256 contributorShare = Math.mulDiv(contrib.rewardRate, C.BPS - proj.validatorRewardBps, C.BPS);
+            $.contributorLiability[projectId][index] = contributorShare;
+            $.unsettledContributorRewards[projectId]++;
 
             uint256 qualityBonus = (result.weightedAverage * 20) / C.BPS;
             ReputationLib.update(contrib.contributor, proj.requiredSkill, true, qualityBonus);

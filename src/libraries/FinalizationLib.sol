@@ -219,15 +219,35 @@ library FinalizationLib {
         if (dispute.status == DisputeStatus.Open) revert ISapienCore.DisputeInProgress();
         if (dispute.status == DisputeStatus.Upheld) revert ISapienCore.DisputeInProgress();
 
-        contrib.rewardReleased = true;
-
         address token = proj.rewardToken;
 
-        uint256 contributorShare = Math.mulDiv(contrib.rewardRate, C.BPS - proj.validatorRewardBps, C.BPS);
+        // POQ-15 FIX: Use reserved liability instead of recalculating
+        uint256 contributorShare = $.contributorLiability[projectId][index];
 
-        // Cap to available escrow before computing fees to prevent accounting debt
+        // POQ-15 FIX: Implement pro-rata allocation if escrow insufficient
         uint256 availableEscrow = $.projectEscrow[projectId][token];
-        uint256 actualContributorShare = contributorShare > availableEscrow ? availableEscrow : contributorShare;
+        uint256 actualContributorShare = contributorShare;
+
+        // If escrow is insufficient, allocate pro-rata based on unsettled contributors
+        uint256 unsettled = $.unsettledContributorRewards[projectId];
+        if (unsettled > 0 && availableEscrow < contributorShare * unsettled) {
+            // Pro-rata: share of remaining escrow proportional to this contributor's liability
+            actualContributorShare = availableEscrow / unsettled;
+        }
+
+        // Final cap to prevent over-allocation
+        if (actualContributorShare > availableEscrow) {
+            actualContributorShare = availableEscrow;
+        }
+
+        // POQ-15 FIX: Set rewardReleased AFTER computing payout
+        contrib.rewardReleased = true;
+
+        // POQ-15 FIX: Decrement unsettled count
+        if ($.unsettledContributorRewards[projectId] > 0) {
+            $.unsettledContributorRewards[projectId]--;
+        }
+
         uint256 reward = actualContributorShare;
 
         address adapter = $.contributionAdapter[contrib.claimId];
@@ -274,14 +294,30 @@ library FinalizationLib {
             if (dispute.status == DisputeStatus.Open) continue;
             if (dispute.status == DisputeStatus.Upheld) continue;
 
-            contrib.rewardReleased = true;
-
-            uint256 contributorShare = Math.mulDiv(contrib.rewardRate, C.BPS - uint256(proj.validatorRewardBps), C.BPS);
+            // POQ-15 FIX: Use reserved liability
+            uint256 contributorShare = $.contributorLiability[projectId][i];
 
             uint256 availableEscrow = $.projectEscrow[projectId][token];
             if (availableEscrow == 0) break;
 
-            uint256 actualContributorShare = contributorShare > availableEscrow ? availableEscrow : contributorShare;
+            // POQ-15 FIX: Pro-rata allocation
+            uint256 actualContributorShare = contributorShare;
+            uint256 unsettled = $.unsettledContributorRewards[projectId];
+            if (unsettled > 0 && availableEscrow < contributorShare * unsettled) {
+                actualContributorShare = availableEscrow / unsettled;
+            }
+            if (actualContributorShare > availableEscrow) {
+                actualContributorShare = availableEscrow;
+            }
+
+            // POQ-15 FIX: Set rewardReleased after computing payout
+            contrib.rewardReleased = true;
+
+            // POQ-15 FIX: Decrement unsettled count
+            if ($.unsettledContributorRewards[projectId] > 0) {
+                $.unsettledContributorRewards[projectId]--;
+            }
+
             uint256 reward = actualContributorShare;
 
             address adapter = $.contributionAdapter[contrib.claimId];
@@ -415,6 +451,11 @@ library FinalizationLib {
             }
         } else {
             revert ISapienCore.ProjectNotCompleted();
+        }
+
+        // POQ-15 FIX: Block refund until all contributor settlements complete
+        if ($.unsettledContributorRewards[projectId] > 0) {
+            revert ISapienCore.PendingContributorSettlements();
         }
 
         address token = proj.rewardToken;

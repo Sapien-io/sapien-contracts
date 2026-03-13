@@ -97,6 +97,12 @@ struct EngineStorage {
 
     // ── Paginated Reward Settlement (POQ-7) ─────────────────────────────
     mapping(bytes32 => uint256) rewardSettlementCursor;
+
+    // ── POQ-15: Liability Tracking for Fair Escrow Settlement ───────────
+    // Track reserved contributor shares to prevent order-dependent payouts
+    mapping(bytes32 => mapping(uint256 => uint256)) contributorLiability; // projectId => index => reserved amount
+    // Track number of unsettled contributor rewards per project
+    mapping(bytes32 => uint256) unsettledContributorRewards; // projectId => count
 }
 
 // ============================================

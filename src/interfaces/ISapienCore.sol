@@ -139,6 +139,10 @@ interface ISapienCore {
     /// @dev A zero amount was provided where a non-zero amount is required.
     error ZeroAmount();
 
+    /// @dev Escrow refund blocked: contributor settlements still pending.
+    /// POQ-15 FIX: Prevents originator from draining escrow before all contributors claim.
+    error PendingContributorSettlements();
+
     /// @dev The validation score is outside the valid range.
     error InvalidScore();
 
