@@ -125,9 +125,10 @@ library FinalizationLib {
                         $.pendingRewards[validator][proj.rewardToken] += reward;
                         $.projectEscrow[projectId][proj.rewardToken] -= actualValidatorShare;
                     }
+
+                    ReputationLib.update(validator, proj.requiredSkill, true, 0);
                 }
             }
-            ReputationLib.update(validator, proj.requiredSkill, true, 0);
         }
 
         emit ISapienCore.ValidatorSettled(projectId, index, validator, outlier);
