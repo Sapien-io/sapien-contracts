@@ -135,8 +135,11 @@ library FinalizationLib {
                 $.vault.releaseCommit(validator, committedStake);
             }
 
-            _settleValidatorReward(projectId, index, nonce, validator);
-            ReputationLib.update(validator, proj.requiredSkill, true, 0);
+            // POQ-14 FIX: Only give positive reputation if validator receives rewards
+            bool rewardSettled = _settleValidatorReward(projectId, index, nonce, validator);
+            if (rewardSettled) {
+                ReputationLib.update(validator, proj.requiredSkill, true, 0);
+            }
         }
 
         ConsensusReport storage report_ = $.consensusReports[projectId][index][nonce];
@@ -147,20 +150,23 @@ library FinalizationLib {
         emit ISapienCore.ValidatorSettled(projectId, index, validator, outlier);
     }
 
-    function _settleValidatorReward(bytes32 projectId, uint256 index, uint256 nonce, address validator) private {
+    function _settleValidatorReward(bytes32 projectId, uint256 index, uint256 nonce, address validator)
+        private
+        returns (bool)
+    {
         EngineStorage storage $ = _getStorage();
 
         uint256 challengeEndsAt;
         {
             Contribution storage contrib = $.contributions[projectId][index];
-            if (contrib.status != ContributionStatus.Accepted) return;
+            if (contrib.status != ContributionStatus.Accepted) return false;
             challengeEndsAt = contrib.challengeEndsAt;
         }
 
         {
             Dispute storage dispute = $.disputes[projectId][index][nonce];
             if (dispute.status == DisputeStatus.Open) revert ISapienCore.DisputeInProgress();
-            if (dispute.status == DisputeStatus.Upheld) return;
+            if (dispute.status == DisputeStatus.Upheld) return false;
         }
 
         if (block.timestamp < challengeEndsAt) revert ISapienCore.ChallengeNotElapsed();
@@ -173,7 +179,7 @@ library FinalizationLib {
             ValidatorConsensusResult storage vcr = $.validatorConsensus[projectId][index][nonce][validator];
             uint256 weight = vcr.weight;
             uint256 totalAccWeight = report.totalAccurateWeight;
-            if (totalAccWeight == 0 || weight == 0) return;
+            if (totalAccWeight == 0 || weight == 0) return false;
             validatorShare = Math.mulDiv(
                 proj.totalRewards * proj.validatorRewardBps * weight, 1, C.BPS * proj.totalQuantity * totalAccWeight
             );
@@ -195,6 +201,7 @@ library FinalizationLib {
 
         $.pendingRewards[validator][proj.rewardToken] += reward;
         $.projectEscrow[projectId][proj.rewardToken] -= actualValidatorShare;
+        return true;
     }
 
     function releaseContributorReward(bytes32 projectId, uint256 index) public {
