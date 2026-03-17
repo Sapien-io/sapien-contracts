@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {Constants as C} from "src/Constants.sol";
 import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 import {ReputationLib} from "src/libraries/ReputationLib.sol";
+import {PauseAwareLib} from "src/libraries/PauseAwareLib.sol";
 import {
     EngineStorage,
     Project,
@@ -46,7 +47,7 @@ library DisputeLib {
         }
 
         if (contrib.challengeEndsAt == 0) revert ISapienCore.ConsensusNotComputed();
-        if (block.timestamp > contrib.challengeEndsAt) revert ISapienCore.DisputeWindowClosed();
+        if (PauseAwareLib.isAfterDeadline($, contrib.challengeEndsAt)) revert ISapienCore.DisputeWindowClosed();
 
         // SEC-C-01: disputes keyed by nonce to prevent cross-nonce poisoning
         Dispute storage dispute = $.disputes[projectId][index][nonce];

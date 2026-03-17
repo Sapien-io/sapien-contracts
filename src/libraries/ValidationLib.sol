@@ -5,6 +5,7 @@ import {Constants as C} from "src/Constants.sol";
 import {ISapienCore} from "src/interfaces/ISapienCore.sol";
 import {ConsensusLib} from "src/libraries/ConsensusLib.sol";
 import {ReputationLib} from "src/libraries/ReputationLib.sol";
+import {PauseAwareLib} from "src/libraries/PauseAwareLib.sol";
 import {
     EngineStorage,
     Project,
@@ -172,7 +173,7 @@ library ValidationLib {
 
         ValidationClaim storage vclaim = $.validationClaims[vcClaimId];
         if (vclaim.status != ValidationClaimStatus.Active) revert ISapienCore.ClaimDeadlinePassed();
-        if (block.timestamp > vclaim.deadline) revert ISapienCore.ClaimDeadlinePassed();
+        if (PauseAwareLib.isAfterDeadline($, vclaim.deadline)) revert ISapienCore.ClaimDeadlinePassed();
 
         if (stakeAmount == 0) revert ISapienCore.InsufficientStake(1, 0);
         {
@@ -237,11 +238,11 @@ library ValidationLib {
         if (vc.revealedAt != 0) revert ISapienCore.AlreadyRevealed();
 
         // Enforce commit phase completion before allowing reveals
-        if (block.timestamp < vc.commitTimestamp + $.commitDeadline) {
+        if (PauseAwareLib.hasNotElapsed($, vc.commitTimestamp, $.commitDeadline)) {
             revert ISapienCore.CommitPhaseActive();
         }
 
-        if (block.timestamp > vc.commitTimestamp + $.commitDeadline + $.revealDeadline) {
+        if (PauseAwareLib.hasStrictlyElapsed($, vc.commitTimestamp, $.commitDeadline + $.revealDeadline)) {
             revert ISapienCore.RevealWindowClosed();
         }
 
@@ -282,7 +283,7 @@ library ValidationLib {
         ValidationClaim storage vclaim = $.validationClaims[claimId];
 
         if (vclaim.status != ValidationClaimStatus.Active) revert ISapienCore.ClaimDeadlineNotPassed();
-        if (block.timestamp <= vclaim.deadline) revert ISapienCore.ClaimDeadlineNotPassed();
+        if (PauseAwareLib.isBeforeOrAtDeadline($, vclaim.deadline)) revert ISapienCore.ClaimDeadlineNotPassed();
 
         uint256 released = 0;
         {
