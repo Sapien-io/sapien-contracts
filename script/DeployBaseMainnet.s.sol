@@ -34,7 +34,7 @@ contract DeployBaseMainnet is Script {
 
         string memory json = vm.serializeUint(obj, "startBlock", block.number);
         string memory path = string.concat(vm.projectRoot(), "/deployments/base-mainnet.json");
-        
+
         vm.writeJson(json, path);
     }
 }

@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {ERC4626Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import {
+    ERC4626Upgradeable
+} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
-import {AccessControlUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
+import {
+    AccessControlUpgradeable
+} from "lib/openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {UUPSUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {ISapienVault} from "src/interfaces/ISapienVault.sol";
@@ -108,7 +112,7 @@ contract SapienVault is
         if (amount == 0) revert ZeroAmount();
         address user = msg.sender;
         SapienVaultStorage storage $ = _getSapienVaultStorage();
-        
+
         _requireDepositAgeMet(user);
 
         uint256 avail = availableBalance(user);
@@ -160,7 +164,7 @@ contract SapienVault is
     }
 
     // ── Withdrawal guard ───────────────────────────────────────────────
-    
+
     /// @dev Override maxRedeem to limit withdrawals to unlocked balance
     ///      and enforce the MEV-protection time-lock (minDepositAge).
     function maxRedeem(address owner) public view override returns (uint256) {
@@ -199,7 +203,7 @@ contract SapienVault is
     function _update(address from, address to, uint256 value) internal override {
         if (from != address(0) && to != address(0)) {
             _requireNotPaused();
-            
+
             // MEV / front-running protection: enforce time-lock on all share transfers
             _requireDepositAgeMet(from);
 

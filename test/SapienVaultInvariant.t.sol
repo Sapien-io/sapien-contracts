@@ -56,15 +56,15 @@ contract SapienVaultInvariantTest is Test {
 
     /// @notice Global Solvency: The vault must always hold enough assets to cover all locked stake
     function invariant_TotalAssetsGteTotalLocked() public view {
-        assertGe(vault.totalAssets(), handler.totalLockedAmount(), "Global solvency broken: Total assets < Total locked");
+        assertGe(
+            vault.totalAssets(), handler.totalLockedAmount(), "Global solvency broken: Total assets < Total locked"
+        );
     }
 
     /// @notice Token-level Solvency: Real token balance must back totalAssets()
     function invariant_VaultTokenBalance() public view {
         assertGe(
-            token.balanceOf(address(vault)),
-            vault.totalAssets(),
-            "Token solvency broken: token balance < totalAssets"
+            token.balanceOf(address(vault)), vault.totalAssets(), "Token solvency broken: token balance < totalAssets"
         );
     }
 

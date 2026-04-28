@@ -7,7 +7,9 @@ import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.so
 import {IAccessControl} from "lib/openzeppelin-contracts/contracts/access/IAccessControl.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
-import {ERC4626Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import {
+    ERC4626Upgradeable
+} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {SapienVault} from "../src/SapienVault.sol";
 import {ISapienVault} from "../src/interfaces/ISapienVault.sol";
 import {MockERC20} from "../test/mocks/MockERC20.sol";
@@ -91,7 +93,9 @@ contract SapienVaultTest is Test {
         vault.deposit(DEPOSIT_AMOUNT, user1);
 
         vm.expectRevert(
-            abi.encodeWithSelector(ISapienVault.InsufficientAvailableBalance.selector, DEPOSIT_AMOUNT + 1, DEPOSIT_AMOUNT)
+            abi.encodeWithSelector(
+                ISapienVault.InsufficientAvailableBalance.selector, DEPOSIT_AMOUNT + 1, DEPOSIT_AMOUNT
+            )
         );
         vm.prank(user1);
         vault.lockStake(DEPOSIT_AMOUNT + 1);
@@ -723,9 +727,7 @@ contract SapienVaultTest is Test {
         vm.prank(admin);
         vault.pause();
 
-        vm.expectRevert(
-            abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector, user1, shares, 0)
-        );
+        vm.expectRevert(abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector, user1, shares, 0));
         vm.prank(user1);
         vault.redeem(shares, user1, user1);
     }
@@ -739,9 +741,7 @@ contract SapienVaultTest is Test {
 
         uint256 shares = vault.balanceOf(user1);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector, user1, shares, 0)
-        );
+        vm.expectRevert(abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector, user1, shares, 0));
         vm.prank(user1);
         vault.redeem(shares, user1, user1);
 
