@@ -212,6 +212,8 @@ contract SapienVault is
     ///      Sets the receiver's deposit timestamp on receipt to prevent bypassing
     ///      minDepositAge via share transfers (note: this allows inbound griefing).
     ///      Mints (from == 0) and burns (to == 0) are unrestricted.
+    ///      Uses previewWithdraw (rounds up) to reserve shares for the locked
+    ///      amount so that transfers never undercollateralise the lock.
     function _update(address from, address to, uint256 value) internal override {
         if (from != address(0) && to != address(0)) {
             _requireNotPaused();
@@ -222,7 +224,7 @@ contract SapienVault is
             SapienVaultStorage storage $ = _getSapienVaultStorage();
             StakeAccount storage acct = $.accounts[from];
             uint256 totalLocked = acct.lockedAmount;
-            uint256 lockedShares = convertToShares(totalLocked);
+            uint256 lockedShares = totalLocked > 0 ? previewWithdraw(totalLocked) : 0;
             if (balanceOf(from) < value + lockedShares) revert TransferExceedsUnlockedShares();
 
             // Set deposit timestamp for any recipient to prevent bypassing

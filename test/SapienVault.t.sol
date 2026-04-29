@@ -1538,4 +1538,150 @@ contract SapienVaultTest is Test {
         uint256 locked = vault.getStakeAccount(user1).lockedAmount;
         assertGe(remainingAssets, locked, "Lock invariant violated on partial lock + donation");
     }
+
+    // ── Transfer guard rounding-up fix tests ────────────────────────
+
+    /// @dev Reproduce the undercollateralisation bug: with a high exchange rate,
+    ///      convertToShares(lockedAmount) rounds down to 0, letting the user
+    ///      transfer all shares despite having a non-zero lockedAmount.
+    ///      After the fix (previewWithdraw rounds up), this transfer must revert.
+    function test_transferGuard_preventsUndercollateralisation_highExchangeRate() public {
+        vm.prank(user1);
+        vault.deposit(1e18, user1);
+
+        uint256 sharesBefore = vault.balanceOf(user1);
+        assertGt(sharesBefore, 0, "User should have shares after deposit");
+
+        token.mint(address(this), 1000e18);
+        token.transfer(address(vault), 1000e18);
+
+        vm.prank(user1);
+        vault.lockStake(1);
+
+        uint256 lockedShares = vault.previewWithdraw(1);
+        assertGt(lockedShares, 0, "previewWithdraw should round up to at least 1 share");
+
+        vm.expectRevert(ISapienVault.TransferExceedsUnlockedShares.selector);
+        vm.prank(user1);
+        vault.transfer(user2, sharesBefore);
+    }
+
+    /// @dev Even with small locked amounts and high exchange rate, the user
+    ///      cannot transfer away shares that would leave lockedAmount undercollateralised.
+    function test_transferGuard_roundUpReservation_smallLock() public {
+        vm.prank(user1);
+        vault.deposit(10e18, user1);
+
+        token.mint(address(this), 10_000e18);
+        token.transfer(address(vault), 10_000e18);
+
+        uint256 userShares = vault.balanceOf(user1);
+        uint256 userAssets = vault.convertToAssets(userShares);
+        uint256 lockAmt = userAssets / 100;
+        assertGt(lockAmt, 0, "lockAmt must be > 0");
+
+        vm.prank(user1);
+        vault.lockStake(lockAmt);
+
+        uint256 lockedSharesNeeded = vault.previewWithdraw(lockAmt);
+        uint256 maxTransferable = userShares > lockedSharesNeeded ? userShares - lockedSharesNeeded : 0;
+
+        if (maxTransferable < userShares) {
+            vm.expectRevert(ISapienVault.TransferExceedsUnlockedShares.selector);
+            vm.prank(user1);
+            vault.transfer(user2, userShares);
+        }
+
+        if (maxTransferable > 0) {
+            vm.prank(user1);
+            vault.transfer(user2, maxTransferable);
+        }
+
+        uint256 remainingAssets = vault.convertToAssets(vault.balanceOf(user1));
+        uint256 locked = vault.getStakeAccount(user1).lockedAmount;
+        assertGe(remainingAssets, locked, "Lock invariant violated after transfer");
+    }
+
+    /// @dev Verify that transferring exactly the unlocked portion succeeds
+    ///      and the lock invariant holds, even after a large donation.
+    function test_transferGuard_allowsMaxUnlocked_postDonation() public {
+        vm.prank(user1);
+        vault.deposit(100e18, user1);
+
+        token.mint(address(this), 5000e18);
+        token.transfer(address(vault), 5000e18);
+
+        uint256 userShares = vault.balanceOf(user1);
+        uint256 userAssets = vault.convertToAssets(userShares);
+        uint256 lockAmt = userAssets / 2;
+
+        vm.prank(user1);
+        vault.lockStake(lockAmt);
+
+        uint256 lockedSharesNeeded = vault.previewWithdraw(lockAmt);
+        uint256 maxTransferable = userShares > lockedSharesNeeded ? userShares - lockedSharesNeeded : 0;
+
+        if (maxTransferable > 0) {
+            vm.prank(user1);
+            vault.transfer(user2, maxTransferable);
+        }
+
+        uint256 remainingAssets = vault.convertToAssets(vault.balanceOf(user1));
+        uint256 locked = vault.getStakeAccount(user1).lockedAmount;
+        assertGe(remainingAssets, locked, "Lock invariant violated after max transfer");
+    }
+
+    /// @dev Fuzz test: after a donation that raises the exchange rate, the transfer
+    ///      guard must never allow transferring shares that undercollateralise the lock.
+    function testFuzz_transferGuard_roundUp_invariant(uint256 depositAmt, uint256 donationAmt, uint256 lockFraction)
+        public
+    {
+        depositAmt = bound(depositAmt, 1e6, 1e24);
+        donationAmt = bound(donationAmt, 1, 1e24);
+        lockFraction = bound(lockFraction, 1, 1e18);
+
+        token.mint(user1, depositAmt);
+        vm.prank(user1);
+        vault.deposit(depositAmt, user1);
+
+        token.mint(address(this), donationAmt);
+        token.transfer(address(vault), donationAmt);
+
+        uint256 userShares = vault.balanceOf(user1);
+        uint256 userAssets = vault.convertToAssets(userShares);
+        uint256 lockAmt = (userAssets * lockFraction) / 1e18;
+        if (lockAmt == 0 || lockAmt > userAssets) return;
+
+        vm.prank(user1);
+        vault.lockStake(lockAmt);
+
+        uint256 lockedSharesNeeded = vault.previewWithdraw(lockAmt);
+        uint256 maxTransferable = userShares > lockedSharesNeeded ? userShares - lockedSharesNeeded : 0;
+
+        if (maxTransferable > 0) {
+            vm.prank(user1);
+            vault.transfer(user2, maxTransferable);
+        }
+
+        uint256 remainingAssets = vault.convertToAssets(vault.balanceOf(user1));
+        uint256 locked = vault.getStakeAccount(user1).lockedAmount;
+        assertGe(remainingAssets, locked, "Fuzz: lock invariant violated after transfer");
+    }
+
+    /// @dev Transferring all shares when nothing is locked should still work fine.
+    function test_transferGuard_noLock_fullTransfer_postDonation() public {
+        vm.prank(user1);
+        vault.deposit(100e18, user1);
+
+        token.mint(address(this), 5000e18);
+        token.transfer(address(vault), 5000e18);
+
+        uint256 userShares = vault.balanceOf(user1);
+
+        vm.prank(user1);
+        vault.transfer(user2, userShares);
+
+        assertEq(vault.balanceOf(user1), 0);
+        assertEq(vault.balanceOf(user2), userShares);
+    }
 }
