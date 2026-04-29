@@ -1423,11 +1423,9 @@ contract SapienVaultTest is Test {
 
     /// @dev Fuzz test: for any deposit, donation, and lock, withdrawing
     ///      maxWithdraw must preserve the locked-amount invariant.
-    function testFuzz_maxWithdraw_preservesLockInvariant(
-        uint256 depositAmt,
-        uint256 donationAmt,
-        uint256 lockAmt
-    ) public {
+    function testFuzz_maxWithdraw_preservesLockInvariant(uint256 depositAmt, uint256 donationAmt, uint256 lockAmt)
+        public
+    {
         depositAmt = bound(depositAmt, 1, 1e24);
         donationAmt = bound(donationAmt, 0, 1e24);
 
@@ -1458,20 +1456,14 @@ contract SapienVaultTest is Test {
         }
 
         uint256 remainingAssets = vault.convertToAssets(vault.balanceOf(user1));
-        assertGe(
-            remainingAssets,
-            vault.getStakeAccount(user1).lockedAmount,
-            "Lock invariant violated"
-        );
+        assertGe(remainingAssets, vault.getStakeAccount(user1).lockedAmount, "Lock invariant violated");
     }
 
     /// @dev Fuzz test: for any deposit, donation, and lock, redeeming
     ///      maxRedeem must preserve the locked-amount invariant.
-    function testFuzz_maxRedeem_preservesLockInvariant(
-        uint256 depositAmt,
-        uint256 donationAmt,
-        uint256 lockAmt
-    ) public {
+    function testFuzz_maxRedeem_preservesLockInvariant(uint256 depositAmt, uint256 donationAmt, uint256 lockAmt)
+        public
+    {
         depositAmt = bound(depositAmt, 1, 1e24);
         donationAmt = bound(donationAmt, 0, 1e24);
 
@@ -1502,11 +1494,7 @@ contract SapienVaultTest is Test {
         }
 
         uint256 remainingAssets = vault.convertToAssets(vault.balanceOf(user1));
-        assertGe(
-            remainingAssets,
-            vault.getStakeAccount(user1).lockedAmount,
-            "Lock invariant violated after maxRedeem"
-        );
+        assertGe(remainingAssets, vault.getStakeAccount(user1).lockedAmount, "Lock invariant violated after maxRedeem");
     }
 
     /// @dev Verifies that the fix doesn't break normal (no-lock) withdrawals.
