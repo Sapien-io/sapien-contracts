@@ -19,8 +19,10 @@ contract SlashRoundingTest is Test {
     address public engine = makeAddr("engine");
     address public user1 = makeAddr("user1");
     address public donor = makeAddr("donor");
+    address public treasury = makeAddr("treasury");
 
     uint256 public constant DEPOSIT = 1000e18;
+    uint256 public constant TREASURY_SEED = 1e18;
 
     function setUp() public {
         token = new MockERC20("Sapien Token", "SPN");
@@ -33,10 +35,22 @@ contract SlashRoundingTest is Test {
         vault.grantRole(vault.ENGINE_ROLE(), engine);
         vm.stopPrank();
 
+        // Treasury seeds the vault so user1 is never the sole shareholder.
+        // This ensures share burns have real economic impact on redeemable assets.
+        _seedTreasury(vault, token);
+
         token.mint(user1, DEPOSIT * 10);
         vm.startPrank(user1);
         token.approve(address(vault), type(uint256).max);
         vault.deposit(DEPOSIT, user1);
+        vm.stopPrank();
+    }
+
+    function _seedTreasury(SapienVault v, MockERC20 t) internal {
+        t.mint(treasury, TREASURY_SEED);
+        vm.startPrank(treasury);
+        t.approve(address(v), type(uint256).max);
+        v.deposit(TREASURY_SEED, treasury);
         vm.stopPrank();
     }
 
@@ -79,6 +93,7 @@ contract SlashRoundingTest is Test {
         _donateToVault(DEPOSIT * 9);
 
         uint256 sharesBefore = vault.balanceOf(user1);
+        uint256 assetsBefore = vault.convertToAssets(sharesBefore);
         uint256 slashAmount = 50e18;
 
         uint256 expectedSharesBurned = vault.previewWithdraw(slashAmount);
@@ -88,7 +103,13 @@ contract SlashRoundingTest is Test {
         vault.slashContributor(user1, slashAmount);
 
         uint256 sharesAfter = vault.balanceOf(user1);
+        uint256 assetsAfter = vault.convertToAssets(sharesAfter);
         assertEq(sharesBefore - sharesAfter, expectedSharesBurned, "Shares burned should match previewWithdraw");
+        assertLt(assetsAfter, assetsBefore, "Redeemable assets must decrease after slash");
+
+        // Treasury gains value from the burned shares (redistributed assets)
+        uint256 treasuryAssets = vault.convertToAssets(vault.balanceOf(treasury));
+        assertGt(treasuryAssets, TREASURY_SEED, "Treasury should gain value from slashed shares");
     }
 
     // ─── slashValidator rounding tests ───────────────────────────────
@@ -121,6 +142,7 @@ contract SlashRoundingTest is Test {
         _donateToVault(DEPOSIT * 9);
 
         uint256 sharesBefore = vault.balanceOf(user1);
+        uint256 assetsBefore = vault.convertToAssets(sharesBefore);
         uint256 slashAmount = 30e18;
 
         uint256 expectedSharesBurned = vault.previewWithdraw(slashAmount);
@@ -129,7 +151,12 @@ contract SlashRoundingTest is Test {
         vault.slashValidator(user1, slashAmount);
 
         uint256 sharesAfter = vault.balanceOf(user1);
+        uint256 assetsAfter = vault.convertToAssets(sharesAfter);
         assertEq(sharesBefore - sharesAfter, expectedSharesBurned, "Validator slash should burn rounded-up shares");
+        assertLt(assetsAfter, assetsBefore, "Validator redeemable assets must decrease after slash");
+
+        uint256 treasuryAssets = vault.convertToAssets(vault.balanceOf(treasury));
+        assertGt(treasuryAssets, TREASURY_SEED, "Treasury should gain value from slashed validator shares");
     }
 
     // ─── slashAndUnlockContributor rounding tests ────────────────────
@@ -171,13 +198,16 @@ contract SlashRoundingTest is Test {
         vault.lockContributor(user1, 500e18);
 
         uint256 sharesBefore = vault.balanceOf(user1);
+        uint256 assetsBefore = vault.convertToAssets(sharesBefore);
         uint256 slashAmount = 100e18;
 
         vm.prank(engine);
         vault.slashContributor(user1, slashAmount);
 
         uint256 sharesAfter = vault.balanceOf(user1);
+        uint256 assetsAfter = vault.convertToAssets(sharesAfter);
         assertGt(sharesBefore - sharesAfter, 0, "Should burn shares at normal rate");
+        assertLt(assetsAfter, assetsBefore, "Redeemable assets must decrease after slash");
     }
 
     function test_slashValidator_normalRate_works() public {
@@ -187,12 +217,71 @@ contract SlashRoundingTest is Test {
         vm.stopPrank();
 
         uint256 sharesBefore = vault.balanceOf(user1);
+        uint256 assetsBefore = vault.convertToAssets(sharesBefore);
 
         vm.prank(engine);
         vault.slashValidator(user1, 100e18);
 
         uint256 sharesAfter = vault.balanceOf(user1);
+        uint256 assetsAfter = vault.convertToAssets(sharesAfter);
         assertGt(sharesBefore - sharesAfter, 0, "Should burn shares at normal rate");
+        assertLt(assetsAfter, assetsBefore, "Redeemable assets must decrease after slash");
+    }
+
+    // ─── Multi-holder economic impact ─────────────────────────────────
+
+    function test_slash_economicImpact_multiHolder() public {
+        // Create a vault with equal-weight holders so slashed value is clearly redistributed
+        MockERC20 freshToken = new MockERC20("Sapien Token", "SPN");
+        SapienVault freshVault = SapienVault(
+            address(
+                new ERC1967Proxy(
+                    address(new SapienVault()),
+                    abi.encodeCall(SapienVault.initialize, (IERC20(address(freshToken)), admin))
+                )
+            )
+        );
+
+        vm.startPrank(admin);
+        freshVault.grantRole(freshVault.ENGINE_ROLE(), engine);
+        vm.stopPrank();
+
+        // Treasury and user1 each deposit 1000 tokens (equal shareholders)
+        address user = makeAddr("slashTarget");
+        freshToken.mint(treasury, DEPOSIT);
+        vm.startPrank(treasury);
+        freshToken.approve(address(freshVault), type(uint256).max);
+        freshVault.deposit(DEPOSIT, treasury);
+        vm.stopPrank();
+
+        freshToken.mint(user, DEPOSIT);
+        vm.startPrank(user);
+        freshToken.approve(address(freshVault), type(uint256).max);
+        freshVault.deposit(DEPOSIT, user);
+        vm.stopPrank();
+
+        vm.prank(engine);
+        freshVault.lockContributor(user, 500e18);
+
+        uint256 slashAmount = 100e18;
+        uint256 userAssetsBefore = freshVault.convertToAssets(freshVault.balanceOf(user));
+        uint256 treasuryAssetsBefore = freshVault.convertToAssets(freshVault.balanceOf(treasury));
+
+        vm.prank(engine);
+        freshVault.slashContributor(user, slashAmount);
+
+        uint256 userAssetsAfter = freshVault.convertToAssets(freshVault.balanceOf(user));
+        uint256 treasuryAssetsAfter = freshVault.convertToAssets(freshVault.balanceOf(treasury));
+
+        uint256 userLoss = userAssetsBefore - userAssetsAfter;
+        uint256 treasuryGain = treasuryAssetsAfter - treasuryAssetsBefore;
+
+        // User loses redeemable value
+        assertGt(userLoss, 0, "User must lose redeemable assets");
+        // Treasury (other shareholder) gains value from the burned shares
+        assertGt(treasuryGain, 0, "Treasury must gain value from slash redistribution");
+        // Combined loss + gain approximates the slash (minus rounding)
+        assertGe(userLoss + treasuryGain, slashAmount, "Total value impact must cover slash amount");
     }
 
     // ─── Slash rounds up rather than down (property test) ────────────
@@ -216,6 +305,8 @@ contract SlashRoundingTest is Test {
             freshVault.grantRole(freshVault.ENGINE_ROLE(), engine);
             vm.stopPrank();
 
+            _seedTreasury(freshVault, freshToken);
+
             freshToken.mint(user1, DEPOSIT * 10);
             vm.startPrank(user1);
             freshToken.approve(address(freshVault), type(uint256).max);
@@ -233,11 +324,13 @@ contract SlashRoundingTest is Test {
 
             uint256 expectedShares = freshVault.previewWithdraw(slashAmounts[i]);
             uint256 sharesBefore = freshVault.balanceOf(user1);
+            uint256 assetsBefore = freshVault.convertToAssets(sharesBefore);
 
             vm.prank(engine);
             freshVault.slashContributor(user1, slashAmounts[i]);
 
             uint256 sharesAfter = freshVault.balanceOf(user1);
+            uint256 assetsAfter = freshVault.convertToAssets(sharesAfter);
             uint256 actualBurned = sharesBefore - sharesAfter;
 
             assertEq(
@@ -246,6 +339,14 @@ contract SlashRoundingTest is Test {
                 string.concat("Iteration ", vm.toString(i), ": shares burned should equal previewWithdraw")
             );
             assertGt(actualBurned, 0, string.concat("Iteration ", vm.toString(i), ": must burn at least 1 share"));
+            // For larger slashes, verify redeemable asset value actually decreases
+            if (slashAmounts[i] >= 1e18) {
+                assertLt(
+                    assetsAfter,
+                    assetsBefore,
+                    string.concat("Iteration ", vm.toString(i), ": redeemable assets must decrease after slash")
+                );
+            }
         }
     }
 }
