@@ -215,21 +215,35 @@ contract SapienVault is
     }
 
     // ── Withdrawal guard ───────────────────────────────────────────────
+
+    /// @dev Returns the number of shares that are not needed to back locked assets.
+    ///      Uses previewWithdraw (rounds up) to compute the share requirement,
+    ///      ensuring that withdrawing maxWithdraw/maxRedeem can never leave the
+    ///      account undercollateralised.
+    function _availableShares(address owner) internal view returns (uint256) {
+        StakeAccount storage acct = _getSapienVaultStorage().accounts[owner];
+        uint256 totalLocked = acct.contributorLock + acct.validatorCapacity + acct.inFlight;
+        if (totalLocked == 0) return balanceOf(owner);
+        uint256 lockedShares = previewWithdraw(totalLocked);
+        uint256 ownerShares = balanceOf(owner);
+        return ownerShares > lockedShares ? ownerShares - lockedShares : 0;
+    }
+
     /// @dev Override maxRedeem to limit withdrawals to unlocked balance.
     function maxRedeem(address owner) public view override returns (uint256) {
         if (paused()) return 0; // SEC-M-01: block redemptions when paused
-        uint256 avail = availableBalance(owner);
-        uint256 availShares = convertToShares(avail);
-        uint256 parentMax = super.maxRedeem(owner); // balanceOf(owner)
+        uint256 availShares = _availableShares(owner);
+        uint256 parentMax = super.maxRedeem(owner);
         return availShares < parentMax ? availShares : parentMax;
     }
 
     /// @dev Override maxWithdraw — OZ's default does NOT delegate to maxRedeem.
     function maxWithdraw(address owner) public view override returns (uint256) {
         if (paused()) return 0; // SEC-M-01: block withdrawals when paused
-        uint256 avail = availableBalance(owner);
+        uint256 availShares = _availableShares(owner);
+        uint256 maxAssets = convertToAssets(availShares);
         uint256 parentMax = super.maxWithdraw(owner);
-        return avail < parentMax ? avail : parentMax;
+        return maxAssets < parentMax ? maxAssets : parentMax;
     }
 
     // SEC-M-01: Block ERC4626 deposits/mints when paused
