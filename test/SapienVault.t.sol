@@ -1584,9 +1584,7 @@ contract SapienVaultTest is Test {
         vault.lockStake(lockAmt);
 
         uint256 lockedSharesNeeded = vault.previewWithdraw(lockAmt);
-        uint256 maxTransferable = userShares > lockedSharesNeeded
-            ? userShares - lockedSharesNeeded
-            : 0;
+        uint256 maxTransferable = userShares > lockedSharesNeeded ? userShares - lockedSharesNeeded : 0;
 
         if (maxTransferable < userShares) {
             vm.expectRevert(ISapienVault.TransferExceedsUnlockedShares.selector);
@@ -1621,9 +1619,7 @@ contract SapienVaultTest is Test {
         vault.lockStake(lockAmt);
 
         uint256 lockedSharesNeeded = vault.previewWithdraw(lockAmt);
-        uint256 maxTransferable = userShares > lockedSharesNeeded
-            ? userShares - lockedSharesNeeded
-            : 0;
+        uint256 maxTransferable = userShares > lockedSharesNeeded ? userShares - lockedSharesNeeded : 0;
 
         if (maxTransferable > 0) {
             vm.prank(user1);
@@ -1637,11 +1633,9 @@ contract SapienVaultTest is Test {
 
     /// @dev Fuzz test: after a donation that raises the exchange rate, the transfer
     ///      guard must never allow transferring shares that undercollateralise the lock.
-    function testFuzz_transferGuard_roundUp_invariant(
-        uint256 depositAmt,
-        uint256 donationAmt,
-        uint256 lockFraction
-    ) public {
+    function testFuzz_transferGuard_roundUp_invariant(uint256 depositAmt, uint256 donationAmt, uint256 lockFraction)
+        public
+    {
         depositAmt = bound(depositAmt, 1e6, 1e24);
         donationAmt = bound(donationAmt, 1, 1e24);
         lockFraction = bound(lockFraction, 1, 1e18);
@@ -1662,9 +1656,7 @@ contract SapienVaultTest is Test {
         vault.lockStake(lockAmt);
 
         uint256 lockedSharesNeeded = vault.previewWithdraw(lockAmt);
-        uint256 maxTransferable = userShares > lockedSharesNeeded
-            ? userShares - lockedSharesNeeded
-            : 0;
+        uint256 maxTransferable = userShares > lockedSharesNeeded ? userShares - lockedSharesNeeded : 0;
 
         if (maxTransferable > 0) {
             vm.prank(user1);
