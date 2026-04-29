@@ -1,157 +1,88 @@
-// SPDX-License-Identifier: BSD-3-Clause
-pragma solidity 0.8.30;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.30;
 
-import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
+import {StakeAccount} from "src/Types.sol";
 
+/// @title ISapienVault
+/// @notice Interface for the SapienVault — the staking and escrow layer.
+/// @dev Manages a single locked stake bucket per user.
+///      lockStake is called by the owner; unlockStake and slashStake require ENGINE_ROLE.
 interface ISapienVault {
-    // -------------------------------------------------------------
-    // Structs
-    // -------------------------------------------------------------
-
-    struct UserStake {
-        uint128 amount; // 16 bytes - Total staked amount
-        uint128 cooldownAmount; // 16 bytes - Amount in cooldown (slot 1)
-        uint64 weightedStartTime; // 8 bytes - Weighted average start time
-        uint64 effectiveLockUpPeriod; // 8 bytes - Effective lockup period
-        uint64 cooldownStart; // 8 bytes - When cooldown was initiated (slot 2)
-        uint64 lastUpdateTime; // 8 bytes - Last time stake was modified (slot 3)
-        uint64 earlyUnstakeCooldownStart; // 8 bytes - When early unstake cooldown was initiated (slot 4)
-        uint32 effectiveMultiplier; // 4 bytes - Calculated multiplier (slot 4)
-        uint128 earlyUnstakeCooldownAmount; // 16 bytes - Amount requested for early unstake (slot 5)
-    }
-
-    struct UserStakingSummary {
-        uint256 userTotalStaked; // Total amount staked by the user
-        uint256 effectiveStakeAmount; // Effective stake amount (excluding cooldown and early unstake cooldown amounts)
-        uint256 effectiveMultiplier; // Current multiplier for rewards (basis points)
-        uint256 effectiveLockUpPeriod; // Lockup period (seconds)
-        uint256 totalLocked; // Amount still in lockup period
-        uint256 totalUnlocked; // Amount available for unstaking initiation
-        uint256 timeUntilUnlock; // Time remaining until unlock (seconds, 0 if unlocked)
-        uint256 totalReadyForUnstake; // Amount ready for immediate withdrawal
-        uint256 timeUntilUnstake; // Time remaining until cooldown unstake (seconds, 0 if not in cooldown)
-        uint256 totalInCooldown; // Amount currently in unstaking cooldown
-        uint256 timeUntilEarlyUnstake; // Time remaining until early unstake (seconds, 0 if not in cooldown)
-        uint256 totalInEarlyCooldown; // Amount requested for early unstake (slot 5)
-    }
-
-    // -------------------------------------------------------------
-    // Events
-    // -------------------------------------------------------------
-
-    event Staked(address indexed user, uint256 amount, uint256 effectiveMultiplier, uint256 lockUpPeriod);
-    event AmountIncreased(
-        address indexed user, uint256 additionalAmount, uint256 newTotalAmount, uint256 newEffectiveMultiplier
-    );
-    event LockupIncreased(
-        address indexed user, uint256 additionalLockup, uint256 newEffectiveLockup, uint256 newEffectiveMultiplier
-    );
-    event UnstakingInitiated(address indexed user, uint256 cooldownStart, uint256 cooldownAmount);
-    event Unstaked(address indexed user, uint256 amount);
-    event EarlyUnstake(address indexed user, uint256 amount, uint256 penalty);
-    event EarlyUnstakeCooldownInitiated(address indexed user, uint256 cooldownStart, uint256 amount);
-    event SapienTreasuryUpdated(address indexed newSapienTreasury);
-    event EmergencyWithdraw(address indexed token, address indexed to, uint256 amount);
-    event QAPenaltyProcessed(address indexed user, uint256 penaltyAmount, address indexed qaContract);
-    event QAStakeReduced(address indexed user, uint256 fromActiveStake, uint256 fromCooldownStake);
-    event QACooldownAdjusted(address indexed user, uint256 adjustedAmount);
-    event QAUserStakeReset(address indexed user);
-    event MaximumStakeAmountUpdated(uint256 oldMaximumStakeAmount, uint256 newMaximumStakeAmount);
-    event UserStakeUpdated(address indexed user, UserStake userStake);
-    event UserStakeReset(address indexed user, UserStake userStake);
-    // -------------------------------------------------------------
-    // Errors
-    // -------------------------------------------------------------
-
+    // ── Errors ─────────────────────────────────────────────────────────
+    error InsufficientAvailableBalance(uint256 required, uint256 available);
+    error InsufficientLockedAmount(uint256 required, uint256 locked);
+    error TransferExceedsUnlockedShares();
+    error DepositTooRecent(uint256 required, uint256 actual);
+    error MinDepositAgeTooHigh(uint256 requested, uint256 max);
+    error ZeroAmount();
     error ZeroAddress();
-    error MinimumStakeAmountRequired();
-    error MinimumUnstakeAmountRequired();
-    error InvalidLockupPeriod();
 
-    error InvalidAmount();
-    error NoStakeFound();
-    error ExistingStakeFound(); // Users with existing stakes must use increaseAmount() or increaseLockup()
-    error CannotIncreaseStakeInCooldown();
-    error StakeAmountTooLarge();
-    error MinimumLockupIncreaseRequired();
-    error StakeStillLocked();
-    error AmountExceedsAvailableBalance();
-    error NotReadyForUnstake();
-    error AmountExceedsCooldownAmount();
-    error LockPeriodCompleted();
-    error RemainingStakeBelowMinimum();
-    error EarlyUnstakeCooldownActive();
-    error StakeInCooldown();
-    error InvalidRecipient();
-    error InsufficientSurplusForEmergencyWithdraw(uint256 surplus, uint256 amount);
+    // ── Events ─────────────────────────────────────────────────────────
+    event StakeLocked(address indexed user, uint256 amount);
+    event StakeUnlocked(address indexed user, uint256 amount);
+    event StakeSlashed(address indexed user, uint256 amount);
+    event MinDepositAgeUpdated(uint256 newAge);
 
-    // QA specific errors
+    // ── Stake Operations ───────────────────────────────────────────────
 
-    error InsufficientStakeForPenalty();
-    error EarlyUnstakeCooldownRequired();
+    /// @notice Lock stake from the caller's available balance.
+    /// @dev Called by the owner directly. Enforces minimum stake age before
+    ///      locking and then marks the specified asset amount as locked.
+    ///      Any deposit or inbound share transfer resets this time-lock timer.
+    /// @param amount Amount of tokens (asset terms) to lock.
+    function lockStake(uint256 amount) external;
 
-    error AmountExceedsEarlyUnstakeRequest();
+    /// @notice Unlock locked stake back to the user's available balance.
+    /// @dev Called by the engine role only.
+    /// @param user Address of the user.
+    /// @param amount Amount of tokens (asset terms) to unlock.
+    function unlockStake(address user, uint256 amount) external;
 
-    // -------------------------------------------------------------
-    // Initialization Functions
-    // -------------------------------------------------------------
+    /// @notice Slash locked stake (e.g., for being an outlier in consensus).
+    /// @dev Called by the engine role only. Reduces locked stake and burns
+    ///      corresponding vault shares.
+    /// @param user Address of the user.
+    /// @param amount Amount of tokens (asset terms) to slash.
+    function slashStake(address user, uint256 amount) external;
 
-    function initialize(address token, address admin, address pauseManager, address treasury, address sapienQA) external;
+    // ── Views ──────────────────────────────────────────────────────────
 
-    function version() external view returns (string memory);
-    // -------------------------------------------------------------
-    // Administrative Functions
-    // -------------------------------------------------------------
+    /// @notice Retrieve the full stake account for a user.
+    /// @param user Address of the user.
+    /// @return The StakeAccount struct containing the locked amount.
+    function getStakeAccount(address user) external view returns (StakeAccount memory);
 
-    function PAUSER_ROLE() external view returns (bytes32);
-    function SAPIEN_QA_ROLE() external view returns (bytes32);
+    /// @notice Retrieve a user's available (unlocked) token balance.
+    /// @param user Address of the user.
+    /// @return The available balance.
+    function availableBalance(address user) external view returns (uint256);
+
+    /// @notice Retrieve the total staked amount for a user.
+    /// @param user Address of the user.
+    /// @return The total staked amount in asset terms.
+    function getUserStakeBalance(address user) external view returns (uint256);
+
+    /// @notice Verify that the vault's ERC-7201 storage location is correctly initialized.
+    /// @return True if the storage slot matches the expected value.
+    function verifyStorageLocation() external pure returns (bool);
+
+    // ── Admin ──────────────────────────────────────────────────────────
+
+    /// @notice Set minimum stake age required before lockStake, transfer, or withdraw.
+    /// @dev Reverts if `age` is greater than MAX_MIN_DEPOSIT_AGE in the implementation.
+    ///      This acts as an MEV front-running and flash-loan protection mechanism.
+    /// @param age Required minimum age in seconds.
+    function setMinDepositAge(uint256 age) external;
+
+    /// @notice Read the configured minimum stake age for lockStake, transfer, or withdraw.
+    /// @return Minimum age in seconds.
+    function minDepositAge() external view returns (uint256);
+
+    /// @notice Pause vault operations.
+    /// @dev While paused, ERC-4626 max deposit/mint/withdraw/redeem are zero and
+    ///      wallet-to-wallet share transfers are blocked.
     function pause() external;
+
+    /// @notice Unpause vault operations.
     function unpause() external;
-    function setTreasury(address newTreasury) external;
-    function setMaximumStakeAmount(uint256 newMaximumStakeAmount) external;
-
-    // -------------------------------------------------------------
-    // Staking Functions
-    // -------------------------------------------------------------
-
-    function stake(uint256 amount, uint256 lockUpPeriod) external;
-    function increaseAmount(uint256 additionalAmount) external;
-    function increaseLockup(uint256 additionalLockup) external;
-    function increaseStake(uint256 additionalAmount, uint256 additionalLockup) external;
-    function initiateUnstake(uint256 amount) external;
-    function unstake(uint256 amount) external;
-    function initiateEarlyUnstake(uint256 amount) external;
-    function earlyUnstake(uint256 amount) external;
-
-    // -------------------------------------------------------------
-    // View Functions
-    // -------------------------------------------------------------
-
-    function totalStaked() external view returns (uint256);
-    function maximumStakeAmount() external view returns (uint256);
-    function getTotalStaked(address user) external view returns (uint256);
-    function getTotalUnlocked(address user) external view returns (uint256);
-    function getTotalLocked(address user) external view returns (uint256);
-    function getTotalReadyForUnstake(address user) external view returns (uint256);
-    function getTotalInCooldown(address user) external view returns (uint256);
-    function getUserMultiplier(address user) external view returns (uint256);
-    function getEarlyUnstakeCooldownAmount(address user) external view returns (uint256);
-    function getTimeUntilEarlyUnstake(address user) external view returns (uint256);
-    function getTimeUntilUnstake(address user) external view returns (uint256);
-
-    function getUserStake(address user) external view returns (UserStake memory);
-    function getUserStakingSummary(address user) external view returns (UserStakingSummary memory summary);
-    function getTimeUntilUnlock(address user) external view returns (uint256);
-    function getUserLockupPeriod(address user) external view returns (uint256);
-    function getEffectiveStakeAmount(address user) external view returns (uint256);
-
-    function isEarlyUnstakeReady(address user) external view returns (bool);
-    function hasActiveStake(address user) external view returns (bool);
-    function calculateMultiplier(uint256 amount, uint256 effectiveLockup) external view returns (uint256);
-
-    // -------------------------------------------------------------
-    // QA Functions
-    // -------------------------------------------------------------
-
-    function processQAPenalty(address userAddress, uint256 penaltyAmount) external returns (uint256 actualPenalty);
 }

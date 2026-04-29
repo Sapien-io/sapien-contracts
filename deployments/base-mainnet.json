@@ -1,0 +1,8 @@
+{
+  "network": "base-mainnet",
+  "chainId": 8453,
+  "sapienAddress": "0xC729777d0470F30612B1564Fd96E8Dd26f5814E3",
+  "vaultAddress": "0x60Bf63729f688287a450299962b36Cef0aFfaa42",
+  "usdcAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "startBlock": 44404373
+}
