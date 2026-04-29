@@ -167,21 +167,33 @@ contract SapienVault is
 
     /// @dev Override maxRedeem to limit withdrawals to unlocked balance
     ///      and enforce the MEV-protection time-lock (minDepositAge).
+    ///      Uses previewWithdraw (rounds up) to reserve shares for the locked
+    ///      amount so that a subsequent withdraw/redeem never undercollateralises
+    ///      the lock.
     function maxRedeem(address owner) public view override returns (uint256) {
-        if (paused() || !_hasMetDepositAge(owner)) return 0; // SEC-M-01: block redemptions when paused or time-lock active
-        uint256 avail = availableBalance(owner);
-        uint256 availShares = convertToShares(avail);
-        uint256 parentMax = super.maxRedeem(owner); // balanceOf(owner)
+        if (paused() || !_hasMetDepositAge(owner)) return 0;
+        uint256 lockedAmt = _getSapienVaultStorage().accounts[owner].lockedAmount;
+        uint256 shares = balanceOf(owner);
+        uint256 lockedShares = lockedAmt > 0 ? previewWithdraw(lockedAmt) : 0;
+        uint256 availShares = shares > lockedShares ? shares - lockedShares : 0;
+        uint256 parentMax = super.maxRedeem(owner);
         return availShares < parentMax ? availShares : parentMax;
     }
 
     /// @dev Override maxWithdraw — OZ's default does NOT delegate to maxRedeem.
-    ///      Limits withdrawals to unlocked balance and enforces MEV-protection.
+    ///      Computes available shares after reserving enough (rounded up via
+    ///      previewWithdraw) for the locked amount, then converts to assets.
+    ///      This avoids the rounding mismatch where availableBalance's floor
+    ///      asset surplus could cause withdraw() to burn more shares than safe.
     function maxWithdraw(address owner) public view override returns (uint256) {
-        if (paused() || !_hasMetDepositAge(owner)) return 0; // SEC-M-01: block withdrawals when paused or time-lock active
-        uint256 avail = availableBalance(owner);
+        if (paused() || !_hasMetDepositAge(owner)) return 0;
+        uint256 lockedAmt = _getSapienVaultStorage().accounts[owner].lockedAmount;
+        uint256 shares = balanceOf(owner);
+        uint256 lockedShares = lockedAmt > 0 ? previewWithdraw(lockedAmt) : 0;
+        uint256 availShares = shares > lockedShares ? shares - lockedShares : 0;
+        uint256 maxAssets = convertToAssets(availShares);
         uint256 parentMax = super.maxWithdraw(owner);
-        return avail < parentMax ? avail : parentMax;
+        return maxAssets < parentMax ? maxAssets : parentMax;
     }
 
     function maxDeposit(address) public view override returns (uint256) {
