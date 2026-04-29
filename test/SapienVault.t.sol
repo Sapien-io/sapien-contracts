@@ -1329,4 +1329,225 @@ contract SapienVaultTest is Test {
         uint256 balAfter = token.balanceOf(user1);
         assertEq(balAfter - balBefore, expectedAssets);
     }
+
+    // ── maxWithdraw rounding mismatch fix ─────────────────────────────
+
+    /// @dev Reproduces the exact scenario from the bug report:
+    ///      1. Deposit 1 wei → mints 1000 shares (decimalsOffset = 3)
+    ///      2. Donate 4 wei directly to the vault (raises exchange rate)
+    ///      3. Lock 1 wei
+    ///      4. maxWithdraw must be conservative enough that withdrawing it
+    ///         does NOT leave lockedAmount undercollateralised.
+    function test_maxWithdraw_conservativeAfterDonation() public {
+        vm.prank(user1);
+        vault.deposit(1, user1);
+
+        uint256 sharesAfterDeposit = vault.balanceOf(user1);
+        assertEq(sharesAfterDeposit, 1000, "1 wei deposit should mint 1000 shares with offset=3");
+
+        token.mint(address(this), 4);
+        token.transfer(address(vault), 4);
+
+        vm.prank(user1);
+        vault.lockStake(1);
+
+        uint256 maxW = vault.maxWithdraw(user1);
+
+        if (maxW > 0) {
+            vm.prank(user1);
+            vault.withdraw(maxW, user1, user1);
+        }
+
+        uint256 remainingAssets = vault.convertToAssets(vault.balanceOf(user1));
+        assertGe(
+            remainingAssets,
+            vault.getStakeAccount(user1).lockedAmount,
+            "Remaining assets must cover lockedAmount after maxWithdraw withdrawal"
+        );
+    }
+
+    /// @dev After a donation that skews the exchange rate, withdrawing
+    ///      maxWithdraw should never revert and should always preserve the
+    ///      locked-amount collateral invariant.
+    function test_maxWithdraw_doesNotRevert_afterDonation() public {
+        vm.prank(user1);
+        vault.deposit(100, user1);
+
+        token.mint(address(this), 50);
+        token.transfer(address(vault), 50);
+
+        vm.prank(user1);
+        vault.lockStake(50);
+
+        uint256 maxW = vault.maxWithdraw(user1);
+
+        if (maxW > 0) {
+            vm.prank(user1);
+            vault.withdraw(maxW, user1, user1);
+        }
+
+        uint256 remainingAssets = vault.convertToAssets(vault.balanceOf(user1));
+        assertGe(
+            remainingAssets,
+            vault.getStakeAccount(user1).lockedAmount,
+            "Lock invariant violated after withdrawing maxWithdraw"
+        );
+    }
+
+    /// @dev maxRedeem should also be conservative: redeeming maxRedeem shares
+    ///      must not undercollateralise the lock after a donation.
+    function test_maxRedeem_conservativeAfterDonation() public {
+        vm.prank(user1);
+        vault.deposit(1, user1);
+
+        token.mint(address(this), 4);
+        token.transfer(address(vault), 4);
+
+        vm.prank(user1);
+        vault.lockStake(1);
+
+        uint256 maxR = vault.maxRedeem(user1);
+
+        if (maxR > 0) {
+            vm.prank(user1);
+            vault.redeem(maxR, user1, user1);
+        }
+
+        uint256 remainingAssets = vault.convertToAssets(vault.balanceOf(user1));
+        assertGe(
+            remainingAssets,
+            vault.getStakeAccount(user1).lockedAmount,
+            "Remaining assets must cover lockedAmount after maxRedeem redemption"
+        );
+    }
+
+    /// @dev Fuzz test: for any deposit, donation, and lock, withdrawing
+    ///      maxWithdraw must preserve the locked-amount invariant.
+    function testFuzz_maxWithdraw_preservesLockInvariant(
+        uint256 depositAmt,
+        uint256 donationAmt,
+        uint256 lockAmt
+    ) public {
+        depositAmt = bound(depositAmt, 1, 1e24);
+        donationAmt = bound(donationAmt, 0, 1e24);
+
+        token.mint(user1, depositAmt);
+        vm.prank(user1);
+        token.approve(address(vault), depositAmt);
+        vm.prank(user1);
+        vault.deposit(depositAmt, user1);
+
+        if (donationAmt > 0) {
+            token.mint(address(this), donationAmt);
+            token.transfer(address(vault), donationAmt);
+        }
+
+        uint256 userAssets = vault.convertToAssets(vault.balanceOf(user1));
+        lockAmt = bound(lockAmt, 0, userAssets);
+
+        if (lockAmt > 0) {
+            vm.prank(user1);
+            vault.lockStake(lockAmt);
+        }
+
+        uint256 maxW = vault.maxWithdraw(user1);
+
+        if (maxW > 0) {
+            vm.prank(user1);
+            vault.withdraw(maxW, user1, user1);
+        }
+
+        uint256 remainingAssets = vault.convertToAssets(vault.balanceOf(user1));
+        assertGe(
+            remainingAssets,
+            vault.getStakeAccount(user1).lockedAmount,
+            "Lock invariant violated"
+        );
+    }
+
+    /// @dev Fuzz test: for any deposit, donation, and lock, redeeming
+    ///      maxRedeem must preserve the locked-amount invariant.
+    function testFuzz_maxRedeem_preservesLockInvariant(
+        uint256 depositAmt,
+        uint256 donationAmt,
+        uint256 lockAmt
+    ) public {
+        depositAmt = bound(depositAmt, 1, 1e24);
+        donationAmt = bound(donationAmt, 0, 1e24);
+
+        token.mint(user1, depositAmt);
+        vm.prank(user1);
+        token.approve(address(vault), depositAmt);
+        vm.prank(user1);
+        vault.deposit(depositAmt, user1);
+
+        if (donationAmt > 0) {
+            token.mint(address(this), donationAmt);
+            token.transfer(address(vault), donationAmt);
+        }
+
+        uint256 userAssets = vault.convertToAssets(vault.balanceOf(user1));
+        lockAmt = bound(lockAmt, 0, userAssets);
+
+        if (lockAmt > 0) {
+            vm.prank(user1);
+            vault.lockStake(lockAmt);
+        }
+
+        uint256 maxR = vault.maxRedeem(user1);
+
+        if (maxR > 0) {
+            vm.prank(user1);
+            vault.redeem(maxR, user1, user1);
+        }
+
+        uint256 remainingAssets = vault.convertToAssets(vault.balanceOf(user1));
+        assertGe(
+            remainingAssets,
+            vault.getStakeAccount(user1).lockedAmount,
+            "Lock invariant violated after maxRedeem"
+        );
+    }
+
+    /// @dev Verifies that the fix doesn't break normal (no-lock) withdrawals.
+    function test_maxWithdraw_fullWithdraw_noLock() public {
+        vm.prank(user1);
+        vault.deposit(DEPOSIT_AMOUNT, user1);
+
+        token.mint(address(this), 500e18);
+        token.transfer(address(vault), 500e18);
+
+        uint256 maxW = vault.maxWithdraw(user1);
+        assertGt(maxW, 0, "maxWithdraw should be positive with no lock");
+
+        uint256 balBefore = token.balanceOf(user1);
+        vm.prank(user1);
+        vault.withdraw(maxW, user1, user1);
+        uint256 balAfter = token.balanceOf(user1);
+
+        assertEq(balAfter - balBefore, maxW, "Should withdraw exact maxWithdraw amount");
+    }
+
+    /// @dev Withdrawing exactly maxWithdraw on a partially-locked account
+    ///      should succeed and maintain the invariant.
+    function test_maxWithdraw_partialLock_postDonation() public {
+        vm.prank(user1);
+        vault.deposit(1000, user1);
+
+        token.mint(address(this), 3000);
+        token.transfer(address(vault), 3000);
+
+        vm.prank(user1);
+        vault.lockStake(500);
+
+        uint256 maxW = vault.maxWithdraw(user1);
+        assertGt(maxW, 0, "Should be able to withdraw something");
+
+        vm.prank(user1);
+        vault.withdraw(maxW, user1, user1);
+
+        uint256 remainingAssets = vault.convertToAssets(vault.balanceOf(user1));
+        uint256 locked = vault.getStakeAccount(user1).lockedAmount;
+        assertGe(remainingAssets, locked, "Lock invariant violated on partial lock + donation");
+    }
 }
