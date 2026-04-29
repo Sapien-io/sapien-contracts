@@ -16,6 +16,7 @@ interface ISapienVault {
     error MinDepositAgeTooHigh(uint256 requested, uint256 max);
     error ZeroAmount();
     error ZeroAddress();
+    error ZeroShareSlash();
 
     // ── Events ─────────────────────────────────────────────────────────
     event StakeLocked(address indexed user, uint256 amount);
