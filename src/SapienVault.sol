@@ -9,6 +9,7 @@ import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Pau
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ISapienVault} from "src/interfaces/ISapienVault.sol";
 import {SapienVaultStorage, StakeAccount} from "src/Types.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title SapienVault
 /// @notice ERC-4626 vault for SAPIEN token staking with typed lock categories
@@ -249,7 +250,7 @@ contract SapienVault is
         if (from != address(0) && to != address(0)) {
             StakeAccount storage acct = _getSapienVaultStorage().accounts[from];
             uint256 totalLocked = acct.contributorLock + acct.validatorCapacity + acct.inFlight;
-            uint256 lockedShares = convertToShares(totalLocked);
+            uint256 lockedShares = _convertToShares(totalLocked, Math.Rounding.Ceil);
             if (balanceOf(from) - value < lockedShares) revert TransferExceedsUnlockedShares();
         }
         super._update(from, to, value);
