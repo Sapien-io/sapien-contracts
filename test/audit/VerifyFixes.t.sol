@@ -12,4 +12,5 @@ contract VerifyFixesTest is ReproduceIssuesTest {
     // - test_RISK005_escrowInsufficientForAllValidators (documents flow)
     // - test_RISK006_validatorLockedOutAfterResubmission (documents locked-out scenario)
     // - test_RISK007_zeroStakeGetsWeight (expects revert)
-}
+
+    }
