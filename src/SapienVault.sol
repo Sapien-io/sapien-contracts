@@ -275,6 +275,22 @@ contract SapienVault is
         _unpause();
     }
 
+    // ── ETH rescue ─────────────────────────────────────────────────────
+
+    /// @inheritdoc ISapienVault
+    /// @dev Resolves the "locked-ETH" detector: although the vault's asset is ERC-20,
+    ///      OZ's `upgradeToAndCall(address,bytes)` is payable, so an admin upgrade
+    ///      with non-zero `msg.value` could leave ETH stuck on the proxy. This
+    ///      function is the recovery path. Admin-only, full balance, low-level call.
+    function rescueETH(address payable to) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (to == address(0)) revert ZeroAddress();
+        uint256 amount = address(this).balance;
+        if (amount == 0) revert ZeroAmount();
+        (bool ok,) = to.call{value: amount}("");
+        if (!ok) revert EthTransferFailed();
+        emit EthRescued(to, amount);
+    }
+
     // ── UUPS ───────────────────────────────────────────────────────────
 
     function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}

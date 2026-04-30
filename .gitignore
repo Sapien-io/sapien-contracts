@@ -31,3 +31,5 @@ whitepaper.toc
 
 lcov.info
 venv
+
+.venv-security

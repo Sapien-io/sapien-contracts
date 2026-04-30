@@ -17,12 +17,14 @@ interface ISapienVault {
     error ZeroAmount();
     error ZeroAddress();
     error ZeroShareSlash();
+    error EthTransferFailed();
 
     // ── Events ─────────────────────────────────────────────────────────
     event StakeLocked(address indexed user, uint256 amount);
     event StakeUnlocked(address indexed user, uint256 amount);
     event StakeSlashed(address indexed user, uint256 amount);
     event MinDepositAgeUpdated(uint256 newAge);
+    event EthRescued(address indexed to, uint256 amount);
 
     // ── Stake Operations ───────────────────────────────────────────────
 
@@ -86,4 +88,11 @@ interface ISapienVault {
 
     /// @notice Unpause vault operations.
     function unpause() external;
+
+    /// @notice Rescue ETH that was sent to the vault (e.g. via the inherited
+    ///         payable `upgradeToAndCall`) and forward it to `to`.
+    /// @dev Admin-only. The vault's asset is ERC-20; it never holds ETH by design.
+    ///      Provided so any accidentally-stuck ETH is recoverable.
+    /// @param to Recipient of the rescued ETH.
+    function rescueETH(address payable to) external;
 }

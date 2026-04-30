@@ -1820,4 +1820,81 @@ contract SapienVaultTest is Test {
         assertEq(vault.balanceOf(user1), 0);
         assertEq(vault.balanceOf(user2), userShares);
     }
+
+    // ── ETH rescue (Aderyn H-1) ────────────────────────────────────────
+
+    /// @dev Admin can recover ETH that lands on the proxy (e.g. via the inherited
+    ///      payable `upgradeToAndCall`). Validates the H-1 mitigation.
+    function test_rescueETH_adminCanRecover() public {
+        address payable recipient = payable(makeAddr("recipient"));
+        vm.deal(address(vault), 1 ether);
+
+        assertEq(address(vault).balance, 1 ether);
+        assertEq(recipient.balance, 0);
+
+        vm.expectEmit(true, false, false, true, address(vault));
+        emit ISapienVault.EthRescued(recipient, 1 ether);
+
+        vm.prank(admin);
+        vault.rescueETH(recipient);
+
+        assertEq(address(vault).balance, 0);
+        assertEq(recipient.balance, 1 ether);
+    }
+
+    function test_rescueETH_revertsForNonAdmin() public {
+        vm.deal(address(vault), 1 ether);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, ADMIN_ROLE)
+        );
+        vm.prank(user1);
+        vault.rescueETH(payable(user1));
+    }
+
+    function test_rescueETH_revertsOnZeroAddress() public {
+        vm.deal(address(vault), 1 ether);
+
+        vm.expectRevert(ISapienVault.ZeroAddress.selector);
+        vm.prank(admin);
+        vault.rescueETH(payable(address(0)));
+    }
+
+    function test_rescueETH_revertsWhenNoBalance() public {
+        assertEq(address(vault).balance, 0);
+
+        vm.expectRevert(ISapienVault.ZeroAmount.selector);
+        vm.prank(admin);
+        vault.rescueETH(payable(makeAddr("recipient")));
+    }
+
+    function test_rescueETH_revertsWhenRecipientRejects() public {
+        EthRejector rejector = new EthRejector();
+        vm.deal(address(vault), 1 ether);
+
+        vm.expectRevert(ISapienVault.EthTransferFailed.selector);
+        vm.prank(admin);
+        vault.rescueETH(payable(address(rejector)));
+
+        assertEq(address(vault).balance, 1 ether, "ETH must remain on revert");
+    }
+
+    function testFuzz_rescueETH_anyBalance(uint96 amount) public {
+        vm.assume(amount > 0);
+        address payable recipient = payable(makeAddr("recipient"));
+        vm.deal(address(vault), amount);
+
+        vm.prank(admin);
+        vault.rescueETH(recipient);
+
+        assertEq(address(vault).balance, 0);
+        assertEq(recipient.balance, amount);
+    }
+}
+
+/// @dev Receiver that always rejects ETH; used to exercise the rescue failure path.
+contract EthRejector {
+    receive() external payable {
+        revert("nope");
+    }
 }
