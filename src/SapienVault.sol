@@ -240,12 +240,13 @@ contract SapienVault is
 
     // ── Internal ───────────────────────────────────────────────────────
 
-    /// @dev Burn shares equivalent to `assetAmount` for slashing
+    /// @dev Burn shares equivalent to `assetAmount` for slashing.
+    ///      Uses previewWithdraw (rounds up) so the penalty is never
+    ///      smaller than intended, and reverts when rounding yields 0 shares.
     function _burnShares(address user, uint256 assetAmount) internal {
-        uint256 shares = convertToShares(assetAmount);
-        if (shares > 0) {
-            _burn(user, shares);
-        }
+        uint256 shares = previewWithdraw(assetAmount);
+        if (shares == 0) revert ZeroShareSlash();
+        _burn(user, shares);
     }
 
     // ── Admin ──────────────────────────────────────────────────────────

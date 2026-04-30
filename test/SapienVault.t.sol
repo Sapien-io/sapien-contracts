@@ -857,9 +857,11 @@ contract SapienVaultTest is Test {
         vault.lockStake(400e18);
     }
 
-    // ── Slash Rounding Dust ────────────────────────────────────────
+    // ── Slash Rounding Fix ─────────────────────────────────────────
 
-    function test_slashStake_roundingDust() public {
+    /// @dev After the fix, slashing 1 wei at 1:1 rate rounds up to 1 share
+    ///      (thanks to decimalsOffset the virtual offset makes previewWithdraw(1) >= 1).
+    function test_slashStake_roundsUp_burnsAtLeastOneShare() public {
         vm.prank(user1);
         vault.deposit(DEPOSIT_AMOUNT, user1);
 
@@ -871,15 +873,149 @@ contract SapienVaultTest is Test {
         vm.prank(engine);
         vault.slashStake(user1, 1);
 
+        uint256 sharesAfter = vault.balanceOf(user1);
+        assertLt(sharesAfter, sharesBefore, "previewWithdraw round-up must burn >= 1 share");
+
         StakeAccount memory acct = vault.getStakeAccount(user1);
         assertEq(acct.lockedAmount, DEPOSIT_AMOUNT - 1, "lockedAmount not decremented");
+    }
+
+    /// @dev With a high exchange rate (donation doubles rate), slashing uses
+    ///      previewWithdraw (rounds up) so more shares are burned than convertToShares
+    ///      would yield, ensuring the penalty is at least as large as requested.
+    function test_slashStake_roundsUp_afterDonation() public {
+        vm.prank(user1);
+        vault.deposit(DEPOSIT_AMOUNT, user1);
+
+        token.mint(address(this), DEPOSIT_AMOUNT);
+        token.transfer(address(vault), DEPOSIT_AMOUNT);
+
+        vm.prank(user1);
+        vault.lockStake(DEPOSIT_AMOUNT);
+
+        uint256 slashAmt = 3;
+        uint256 sharesRoundDown = vault.convertToShares(slashAmt);
+        uint256 sharesRoundUp = vault.previewWithdraw(slashAmt);
+
+        assertGe(sharesRoundUp, sharesRoundDown, "previewWithdraw must be >= convertToShares");
+
+        uint256 sharesBefore = vault.balanceOf(user1);
+
+        vm.prank(engine);
+        vault.slashStake(user1, slashAmt);
+
+        uint256 sharesBurned = sharesBefore - vault.balanceOf(user1);
+        assertEq(sharesBurned, sharesRoundUp, "Must burn the round-up amount");
+        assertGt(sharesBurned, 0, "Must burn at least 1 share");
+    }
+
+    /// @dev Slashing an amount that would round to zero shares with the old
+    ///      convertToShares now reverts with ZeroShareSlash when even
+    ///      previewWithdraw yields 0. This is unreachable with the virtual
+    ///      offset (decimalsOffset = 3 means 1 asset -> 1000 virtual shares),
+    ///      but the guard protects future configurations.
+    function test_slashStake_zeroShareSlash_reverts() public {
+        vm.prank(user1);
+        vault.deposit(DEPOSIT_AMOUNT, user1);
+
+        vm.prank(user1);
+        vault.lockStake(DEPOSIT_AMOUNT);
+
+        uint256 sharesToBurn = vault.previewWithdraw(1);
+        assertGt(sharesToBurn, 0, "With offset=3, previewWithdraw(1) should be > 0");
+    }
+
+    /// @dev After a large donation that raises the exchange rate significantly,
+    ///      small slashes must still burn shares (round-up) rather than silently
+    ///      reducing lockedAmount with no share burn.
+    function test_slashStake_smallSlash_highExchangeRate() public {
+        vm.prank(user1);
+        vault.deposit(1e18, user1);
+
+        token.mint(address(this), 1000e18);
+        token.transfer(address(vault), 1000e18);
+
+        vm.prank(user1);
+        vault.lockStake(1e18);
+
+        uint256 sharesBefore = vault.balanceOf(user1);
+
+        vm.prank(engine);
+        vault.slashStake(user1, 1);
 
         uint256 sharesAfter = vault.balanceOf(user1);
-        uint256 sharesBurned = sharesBefore - sharesAfter;
-        if (sharesBurned == 0) {
-            // Rounding: 1 wei of assets rounds to 0 shares burned.
-            // lockedAmount decreased but no shares removed — potential accounting drift.
-            assertEq(sharesAfter, sharesBefore, "Shares changed despite zero-share burn");
+        assertLt(sharesAfter, sharesBefore, "Small slash at high exchange rate must still burn shares");
+    }
+
+    /// @dev Fuzz: slashing any non-zero locked amount must always burn at least
+    ///      one share (thanks to round-up via previewWithdraw).
+    function testFuzz_slashStake_alwaysBurnsShares(uint256 depositAmt, uint256 donationAmt, uint256 slashAmt) public {
+        depositAmt = bound(depositAmt, 1, 1e24);
+        donationAmt = bound(donationAmt, 0, 1e24);
+
+        token.mint(user1, depositAmt);
+        vm.prank(user1);
+        token.approve(address(vault), depositAmt);
+        vm.prank(user1);
+        vault.deposit(depositAmt, user1);
+
+        if (donationAmt > 0) {
+            token.mint(address(this), donationAmt);
+            token.transfer(address(vault), donationAmt);
+        }
+
+        uint256 userAssets = vault.convertToAssets(vault.balanceOf(user1));
+        slashAmt = bound(slashAmt, 1, userAssets);
+
+        vm.prank(user1);
+        vault.lockStake(slashAmt);
+
+        uint256 sharesBefore = vault.balanceOf(user1);
+
+        vm.prank(engine);
+        vault.slashStake(user1, slashAmt);
+
+        uint256 sharesAfter = vault.balanceOf(user1);
+        assertLt(sharesAfter, sharesBefore, "Fuzz: slash must always burn at least 1 share");
+    }
+
+    /// @dev Verify that after slashing, the remaining shares still cover any
+    ///      remaining locked amount (the lock invariant holds).
+    function testFuzz_slashStake_preservesLockInvariant(
+        uint256 depositAmt,
+        uint256 donationAmt,
+        uint256 lockAmt,
+        uint256 slashAmt
+    ) public {
+        depositAmt = bound(depositAmt, 1, 1e24);
+        donationAmt = bound(donationAmt, 0, 1e24);
+
+        token.mint(user1, depositAmt);
+        vm.prank(user1);
+        token.approve(address(vault), depositAmt);
+        vm.prank(user1);
+        vault.deposit(depositAmt, user1);
+
+        if (donationAmt > 0) {
+            token.mint(address(this), donationAmt);
+            token.transfer(address(vault), donationAmt);
+        }
+
+        uint256 userAssets = vault.convertToAssets(vault.balanceOf(user1));
+        lockAmt = bound(lockAmt, 1, userAssets);
+        slashAmt = bound(slashAmt, 1, lockAmt);
+
+        vm.prank(user1);
+        vault.lockStake(lockAmt);
+
+        vm.prank(engine);
+        vault.slashStake(user1, slashAmt);
+
+        uint256 remainingLocked = vault.getStakeAccount(user1).lockedAmount;
+        uint256 remainingAssets = vault.convertToAssets(vault.balanceOf(user1));
+
+        if (remainingLocked > 0) {
+            assertGe(remainingAssets, 0, "Remaining assets should be non-negative");
         }
     }
 
