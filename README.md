@@ -36,7 +36,7 @@ Trust assumptions:
   transfers DO reset the recipient's timer; this is a known griefing trade-off
   preferred over the alternative of allowing instant lock bypass via sybil
   share transfers.
-- Asset is assumed to be a non-fee, non-rebasing ERC-20 (USDC on Base in
+- Asset is assumed to be a non-fee, non-rebasing ERC-20 (SAPIEN on Base in
   production deployments). Slashing math assumes a stable asset/share map.
 
 ## Build & test
