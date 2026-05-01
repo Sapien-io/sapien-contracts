@@ -65,7 +65,13 @@ contract SapienVaultHandler is Test {
         vm.prank(caller);
         vault.deposit(amount, receiver);
 
-        actorLastDepositTs[receiver] = block.timestamp;
+        // SEC-M-01: when caller != receiver the contract no longer resets the
+        // receiver's deposit-age timer, so the handler's mirror must mirror
+        // that. When caller == receiver this code path is equivalent to a
+        // self-deposit and we must update the timer.
+        if (caller == receiver) {
+            actorLastDepositTs[receiver] = block.timestamp;
+        }
     }
 
     function mintShares(uint256 actorSeed, uint256 shares) public {
