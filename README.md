@@ -22,23 +22,6 @@ both to a multisig and route admin actions through a timelock.
 | `DEFAULT_ADMIN_ROLE` | Multisig behind a `TimelockController` | `setMinDepositAge`, `pause` / `unpause`, `rescueETH`, `_authorizeUpgrade` (UUPS), `grantRole` / `revokeRole` |
 | `ENGINE_ROLE` | Multisig or attestation-validated key | `unlockStake`, `slashStake` (burns user shares — irreversible) |
 
-Trust assumptions:
-
-- The admin can deploy a malicious implementation via UUPS at any time. There
-  is no on-chain timelock at the contract level; users rely on whatever
-  governance wraps `DEFAULT_ADMIN_ROLE`.
-- The engine can slash any user up to their `lockedAmount`. Slashes are
-  pause-gated (SEC-M-03): pressing pause halts both `unlockStake` and
-  `slashStake`. To stop a compromised engine permanently, admin must
-  `revokeRole(ENGINE_ROLE, …)`.
-- Deposits made on behalf of a third party (caller != receiver) do NOT reset
-  the receiver's MEV deposit-age timer (SEC-M-01). Wallet-to-wallet share
-  transfers DO reset the recipient's timer; this is a known griefing trade-off
-  preferred over the alternative of allowing instant lock bypass via sybil
-  share transfers.
-- Asset is assumed to be a non-fee, non-rebasing ERC-20 (SAPIEN on Base in
-  production deployments). Slashing math assumes a stable asset/share map.
-
 ## Build & test
 
 ```bash
