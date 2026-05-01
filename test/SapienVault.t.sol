@@ -361,9 +361,54 @@ contract SapienVaultTest is Test {
         assertEq(acct.lockedAmount, 400e18);
     }
 
+    /// @dev SEC-M-03: pause must halt engine-driven mutations. Admin remains
+    ///      able to neutralise a misbehaving engine by `revokeRole` while
+    ///      paused; this test only asserts the pause modifier itself.
+    function test_unlockStake_revertsWhenPaused() public {
+        vm.prank(user1);
+        vault.deposit(DEPOSIT_AMOUNT, user1);
+        vm.prank(user1);
+        vault.lockStake(400e18);
+
+        vm.prank(admin);
+        vault.pause();
+
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        vm.prank(engine);
+        vault.unlockStake(user1, 100e18);
+    }
+
+    /// @dev SEC-M-03: slashStake also gated by pause for symmetry with
+    ///      unlockStake. Unblocks once admin unpauses.
+    function test_slashStake_revertsWhenPaused() public {
+        vm.prank(user1);
+        vault.deposit(DEPOSIT_AMOUNT, user1);
+        vm.prank(user1);
+        vault.lockStake(400e18);
+
+        vm.prank(admin);
+        vault.pause();
+
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        vm.prank(engine);
+        vault.slashStake(user1, 100e18);
+
+        vm.prank(admin);
+        vault.unpause();
+
+        vm.prank(engine);
+        vault.slashStake(user1, 100e18);
+
+        assertEq(vault.getStakeAccount(user1).lockedAmount, 300e18);
+    }
+
     // ── Deposit-timestamp time-lock bypass resistance ───────────────
 
-    function test_depositOnBehalf_resetsTimestamp() public {
+    /// @dev SEC-M-01 regression: a deposit made by an attacker on behalf of
+    ///      `user1` (caller != receiver) must NOT reset the receiver's
+    ///      deposit-age timer; otherwise dust deposits become a DoS griefing
+    ///      vector against any staker.
+    function test_depositOnBehalf_doesNotResetTimestamp() public {
         vm.prank(admin);
         vault.setMinDepositAge(1 days);
 
@@ -378,9 +423,11 @@ contract SapienVaultTest is Test {
         vm.prank(user2);
         vault.deposit(1, user1);
 
-        vm.expectRevert(abi.encodeWithSelector(ISapienVault.DepositTooRecent.selector, 1 days, 0));
         vm.prank(user1);
         vault.lockStake(400e18);
+
+        StakeAccount memory acct = vault.getStakeAccount(user1);
+        assertEq(acct.lockedAmount, 400e18, "user1 should still be able to lockStake after on-behalf-of dust deposit");
     }
 
     function test_transfer_resetsTimestampOfExistingStaker() public {
@@ -402,7 +449,13 @@ contract SapienVaultTest is Test {
         vault.lockStake(400e18);
     }
 
-    function test_bypass_thirdPartyDeposit_ZeroTimestamp() public {
+    /// @dev SEC-M-01: when a third party funds `user1`'s vault position and
+    ///      `user1` has never self-deposited, the receiver's stored timestamp
+    ///      stays at 0 (the "no prior deposit" sentinel). user1 is therefore
+    ///      free to lock the granted shares immediately — the third party
+    ///      cannot weaponise the timer against them, and the time-lock is only
+    ///      meaningful for shares the user themselves brought in.
+    function test_thirdPartyDeposit_doesNotSetTimestamp() public {
         vm.prank(admin);
         vault.setMinDepositAge(1 days);
 
@@ -413,9 +466,11 @@ contract SapienVaultTest is Test {
         vm.prank(user2);
         vault.deposit(DEPOSIT_AMOUNT, user1);
 
-        vm.expectRevert(abi.encodeWithSelector(ISapienVault.DepositTooRecent.selector, 1 days, 0));
         vm.prank(user1);
         vault.lockStake(DEPOSIT_AMOUNT);
+
+        StakeAccount memory acct = vault.getStakeAccount(user1);
+        assertEq(acct.lockedAmount, DEPOSIT_AMOUNT);
     }
 
     function test_bypass_warmSybilTransfer() public {
@@ -1025,7 +1080,7 @@ contract SapienVaultTest is Test {
         vm.prank(user1);
         vault.deposit(DEPOSIT_AMOUNT, user1);
 
-        vm.expectEmit(true, false, false, true, address(vault));
+        vm.expectEmit(true, true, false, true, address(vault));
         emit ISapienVault.StakeLocked(user1, 400e18);
 
         vm.prank(user1);
@@ -1038,7 +1093,7 @@ contract SapienVaultTest is Test {
         vm.prank(user1);
         vault.lockStake(400e18);
 
-        vm.expectEmit(true, false, false, true, address(vault));
+        vm.expectEmit(true, true, false, true, address(vault));
         emit ISapienVault.StakeUnlocked(user1, 150e18);
 
         vm.prank(engine);
@@ -1051,7 +1106,7 @@ contract SapienVaultTest is Test {
         vm.prank(user1);
         vault.lockStake(400e18);
 
-        vm.expectEmit(true, false, false, true, address(vault));
+        vm.expectEmit(true, true, false, true, address(vault));
         emit ISapienVault.StakeSlashed(user1, 100e18);
 
         vm.prank(engine);
@@ -1059,7 +1114,7 @@ contract SapienVaultTest is Test {
     }
 
     function test_setMinDepositAge_emitsMinDepositAgeUpdated() public {
-        vm.expectEmit(false, false, false, true, address(vault));
+        vm.expectEmit(true, false, false, true, address(vault));
         emit ISapienVault.MinDepositAgeUpdated(1 days);
 
         vm.prank(admin);
@@ -1832,7 +1887,7 @@ contract SapienVaultTest is Test {
         assertEq(address(vault).balance, 1 ether);
         assertEq(recipient.balance, 0);
 
-        vm.expectEmit(true, false, false, true, address(vault));
+        vm.expectEmit(true, true, false, true, address(vault));
         emit ISapienVault.EthRescued(recipient, 1 ether);
 
         vm.prank(admin);

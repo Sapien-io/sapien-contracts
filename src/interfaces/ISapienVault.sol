@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity 0.8.30;
 
 import {StakeAccount} from "src/Types.sol";
 
 /// @title ISapienVault
+/// @author Sapien
 /// @notice Interface for the SapienVault — the staking and escrow layer.
 /// @dev Manages a single locked stake bucket per user.
 ///      lockStake is called by the owner; unlockStake and slashStake require ENGINE_ROLE.
@@ -20,11 +21,30 @@ interface ISapienVault {
     error EthTransferFailed();
 
     // ── Events ─────────────────────────────────────────────────────────
-    event StakeLocked(address indexed user, uint256 amount);
-    event StakeUnlocked(address indexed user, uint256 amount);
-    event StakeSlashed(address indexed user, uint256 amount);
-    event MinDepositAgeUpdated(uint256 newAge);
-    event EthRescued(address indexed to, uint256 amount);
+
+    /// @notice Emitted when a user moves stake from available to locked.
+    /// @param user Address whose stake was locked.
+    /// @param amount Asset-denominated amount that became locked.
+    event StakeLocked(address indexed user, uint256 indexed amount);
+
+    /// @notice Emitted when the engine returns locked stake to available balance.
+    /// @param user Address whose stake was unlocked.
+    /// @param amount Asset-denominated amount that was unlocked.
+    event StakeUnlocked(address indexed user, uint256 indexed amount);
+
+    /// @notice Emitted when the engine slashes locked stake (shares are burned).
+    /// @param user Address whose stake was slashed.
+    /// @param amount Asset-denominated amount that was slashed.
+    event StakeSlashed(address indexed user, uint256 indexed amount);
+
+    /// @notice Emitted when the admin updates the minimum deposit-age timer.
+    /// @param newAge New minimum deposit age, in seconds.
+    event MinDepositAgeUpdated(uint256 indexed newAge);
+
+    /// @notice Emitted when admin rescues stuck ETH from the proxy.
+    /// @param to Recipient of the rescued ETH.
+    /// @param amount Wei amount transferred.
+    event EthRescued(address indexed to, uint256 indexed amount);
 
     // ── Stake Operations ───────────────────────────────────────────────
 

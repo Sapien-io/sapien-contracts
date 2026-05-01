@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity 0.8.30;
 
 import {
     ERC4626Upgradeable
 } from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {
     AccessControlUpgradeable
 } from "lib/openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
+import {
+    ReentrancyGuardUpgradeable
+} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol";
 import {UUPSUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {ISapienVault} from "src/interfaces/ISapienVault.sol";
 import {SapienVaultStorage, StakeAccount} from "src/Types.sol";
@@ -22,19 +24,23 @@ contract SapienVault is
     ERC4626Upgradeable,
     AccessControlUpgradeable,
     PausableUpgradeable,
+    ReentrancyGuardUpgradeable,
     UUPSUpgradeable,
     ISapienVault
 {
-    using SafeERC20 for IERC20;
-
     // ── Roles ──────────────────────────────────────────────────────────
+
+    /// @notice Role permitted to call `unlockStake` and `slashStake`.
     bytes32 public constant ENGINE_ROLE = keccak256("ENGINE_ROLE");
 
+    /// @notice Upper bound (in seconds) on the configurable `minDepositAge` MEV guard.
     uint256 public constant MAX_MIN_DEPOSIT_AGE = 7 days;
 
-    function _getSapienVaultStorage() private pure returns (SapienVaultStorage storage $) {
+    /// @notice Returns the ERC-7201 namespaced storage struct for SapienVault.
+    /// @return s Reference to the namespaced `SapienVaultStorage` struct.
+    function _getSapienVaultStorage() private pure returns (SapienVaultStorage storage s) {
         assembly {
-            $.slot := 0x4d6e6410717d1c28e2e2dce6e8ac53def1f84cd7244221b7a072c02c51460000
+            s.slot := 0x4d6e6410717d1c28e2e2dce6e8ac53def1f84cd7244221b7a072c02c51460000
         }
     }
 
@@ -66,7 +72,10 @@ contract SapienVault is
         __ERC20_init("Sapien PoQ Vault", "vSAPIEN");
         __AccessControl_init();
         __Pausable_init();
-        _grantRole(DEFAULT_ADMIN_ROLE, admin_);
+        __ReentrancyGuard_init();
+        // SEC-L-04: assert the role grant succeeded; on a fresh initializer this
+        // is always true, but we no longer silently discard the return value.
+        assert(_grantRole(DEFAULT_ADMIN_ROLE, admin_));
     }
 
     // ── ERC-4626 inflation attack mitigation ───────────────────────────
@@ -99,9 +108,18 @@ contract SapienVault is
         }
     }
 
-    /// @dev Tracks the timestamp of any inbound deposit, resetting the MEV time-lock.
+    /// @dev Tracks the timestamp of a self-deposit, resetting the MEV time-lock.
+    ///      Deposits made on behalf of another address (caller != receiver) do
+    ///      NOT update the receiver's timestamp — otherwise an attacker could
+    ///      grief any user by dust-depositing to their address every
+    ///      `minDepositAge` seconds and freezing their lock/transfer/withdraw
+    ///      flows (SEC-M-01). Third-party-funded shares still arrive at the
+    ///      receiver and remain subject to whatever timer the receiver already
+    ///      has from their own prior deposits or inbound transfers.
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
-        _getSapienVaultStorage().lastDepositTimestamp[receiver] = block.timestamp;
+        if (caller == receiver) {
+            _getSapienVaultStorage().lastDepositTimestamp[receiver] = block.timestamp;
+        }
         super._deposit(caller, receiver, assets, shares);
     }
 
@@ -123,7 +141,7 @@ contract SapienVault is
     }
 
     /// @inheritdoc ISapienVault
-    function unlockStake(address user, uint256 amount) external onlyRole(ENGINE_ROLE) {
+    function unlockStake(address user, uint256 amount) external onlyRole(ENGINE_ROLE) whenNotPaused {
         if (amount == 0) revert ZeroAmount();
         StakeAccount storage acct = _getSapienVaultStorage().accounts[user];
         if (acct.lockedAmount < amount) revert InsufficientLockedAmount(amount, acct.lockedAmount);
@@ -133,7 +151,7 @@ contract SapienVault is
     }
 
     /// @inheritdoc ISapienVault
-    function slashStake(address user, uint256 amount) external onlyRole(ENGINE_ROLE) {
+    function slashStake(address user, uint256 amount) external onlyRole(ENGINE_ROLE) whenNotPaused {
         if (amount == 0) revert ZeroAmount();
         StakeAccount storage acct = _getSapienVaultStorage().accounts[user];
         if (acct.lockedAmount < amount) revert InsufficientLockedAmount(amount, acct.lockedAmount);
@@ -165,11 +183,15 @@ contract SapienVault is
 
     // ── Withdrawal guard ───────────────────────────────────────────────
 
-    /// @dev Override maxRedeem to limit withdrawals to unlocked balance
-    ///      and enforce the MEV-protection time-lock (minDepositAge).
-    ///      Uses previewWithdraw (rounds up) to reserve shares for the locked
-    ///      amount so that a subsequent withdraw/redeem never undercollateralises
-    ///      the lock.
+    /// @notice Maximum shares that `owner` can redeem at the current block.
+    /// @dev Overrides ERC4626Upgradeable to limit redemptions to unlocked balance
+    ///      and enforce the MEV-protection time-lock (minDepositAge). Returns 0
+    ///      while paused or while the owner is still inside their deposit-age
+    ///      window. Uses previewWithdraw (rounds up) to reserve shares for the
+    ///      locked amount so that a subsequent withdraw/redeem never
+    ///      undercollateralises the lock.
+    /// @param owner Address whose redeemable shares are being queried.
+    /// @return Maximum number of shares redeemable by `owner`.
     function maxRedeem(address owner) public view override returns (uint256) {
         if (paused() || !_hasMetDepositAge(owner)) return 0;
         uint256 lockedAmt = _getSapienVaultStorage().accounts[owner].lockedAmount;
@@ -180,11 +202,16 @@ contract SapienVault is
         return availShares < parentMax ? availShares : parentMax;
     }
 
-    /// @dev Override maxWithdraw — OZ's default does NOT delegate to maxRedeem.
-    ///      Computes available shares after reserving enough (rounded up via
-    ///      previewWithdraw) for the locked amount, then converts to assets.
-    ///      This avoids the rounding mismatch where availableBalance's floor
-    ///      asset surplus could cause withdraw() to burn more shares than safe.
+    /// @notice Maximum assets that `owner` can withdraw at the current block.
+    /// @dev Overrides ERC4626Upgradeable; OZ's default does NOT delegate to
+    ///      maxRedeem. Computes available shares after reserving enough (rounded
+    ///      up via previewWithdraw) for the locked amount, then converts to
+    ///      assets. This avoids the rounding mismatch where availableBalance's
+    ///      floor asset surplus could cause withdraw() to burn more shares than
+    ///      safe. Returns 0 while paused or before the deposit-age timer has
+    ///      elapsed.
+    /// @param owner Address whose withdrawable assets are being queried.
+    /// @return Maximum amount of assets withdrawable by `owner`.
     function maxWithdraw(address owner) public view override returns (uint256) {
         if (paused() || !_hasMetDepositAge(owner)) return 0;
         uint256 lockedAmt = _getSapienVaultStorage().accounts[owner].lockedAmount;
@@ -196,11 +223,23 @@ contract SapienVault is
         return maxAssets < parentMax ? maxAssets : parentMax;
     }
 
-    function maxDeposit(address) public view override returns (uint256) {
+    /// @notice Maximum assets that may be deposited into the vault.
+    /// @dev Returns 0 while paused; otherwise unbounded (subject to caller's
+    ///      asset balance and approval). The receiver argument is unused.
+    /// @param receiver Account credited with the deposited shares (unused).
+    /// @return Maximum depositable asset amount.
+    function maxDeposit(address receiver) public view override returns (uint256) {
+        receiver;
         return paused() ? 0 : type(uint256).max;
     }
 
-    function maxMint(address) public view override returns (uint256) {
+    /// @notice Maximum shares that may be minted from the vault.
+    /// @dev Returns 0 while paused; otherwise unbounded (subject to caller's
+    ///      asset balance and approval). The receiver argument is unused.
+    /// @param receiver Account credited with the minted shares (unused).
+    /// @return Maximum mintable share amount.
+    function maxMint(address receiver) public view override returns (uint256) {
+        receiver;
         return paused() ? 0 : type(uint256).max;
     }
 
@@ -282,13 +321,17 @@ contract SapienVault is
     ///      OZ's `upgradeToAndCall(address,bytes)` is payable, so an admin upgrade
     ///      with non-zero `msg.value` could leave ETH stuck on the proxy. This
     ///      function is the recovery path. Admin-only, full balance, low-level call.
-    function rescueETH(address payable to) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ///      `nonReentrant` is defense-in-depth — there are no post-call state
+    ///      writes, but the recipient is admin-chosen and unconstrained
+    ///      (SEC-L-03). The event is emitted before the external call to keep
+    ///      strict checks-effects-interactions ordering.
+    function rescueETH(address payable to) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         if (to == address(0)) revert ZeroAddress();
         uint256 amount = address(this).balance;
         if (amount == 0) revert ZeroAmount();
+        emit EthRescued(to, amount);
         (bool ok,) = to.call{value: amount}("");
         if (!ok) revert EthTransferFailed();
-        emit EthRescued(to, amount);
     }
 
     // ── UUPS ───────────────────────────────────────────────────────────
