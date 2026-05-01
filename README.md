@@ -17,10 +17,10 @@ The vault concentrates several privileged actions in two roles. Operators
 holding either role are explicitly trusted; deploy-time policy SHOULD assign
 both to a multisig and route admin actions through a timelock.
 
-| Role | Holder (recommended) | Privileged actions |
+| Role | Holder | Privileged actions |
 |------|---------------------|--------------------|
 | `DEFAULT_ADMIN_ROLE` | Multisig behind a `TimelockController` | `setMinDepositAge`, `pause` / `unpause`, `rescueETH`, `_authorizeUpgrade` (UUPS), `grantRole` / `revokeRole` |
-| `ENGINE_ROLE` | Multisig or attestation-validated key | `unlockStake`, `slashStake` (burns user shares — irreversible) |
+| `ENGINE_ROLE` | Smart Account | `unlockStake`, `slashStake` (burns user shares — irreversible) |
 
 ## Build & test
 
