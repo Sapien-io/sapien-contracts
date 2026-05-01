@@ -6,6 +6,24 @@ The implementation is **upgradeable (UUPS)** and is meant to be used behind an *
 
 ---
 
+## Role in the protocol
+
+SapienVault is the **economic-security layer** for Sapien's Proof-of-Quality (PoQ) network — purely an **asset-locking and slashing mechanism**. It does not score, evaluate, or judge contribution quality on-chain; it only escrows collateral and applies penalties when instructed.
+
+The validation work itself lives **off-chain** in the **PoQ engine**: a server (or set of servers) operated by Sapien that ingests contributions, runs the PoQ scoring pipeline, reaches consensus on outcomes, and produces the unlock/slash decisions that the vault then enforces on-chain. The vault holds `ENGINE_ROLE` open for that server's smart account.
+
+Lifecycle as seen by the vault:
+
+1. A contributor **deposits** the asset and **`lockStake`s** an amount as collateral against future contributions.
+2. The off-chain PoQ engine evaluates their contributions. Outcomes are committed back on-chain by the engine calling either:
+   - **`unlockStake(user, amount)`** — contribution accepted; collateral returned to available balance.
+   - **`slashStake(user, amount)`** — contribution rejected as low-quality, dishonest, or otherwise penalty-worthy; the corresponding shares are burned, redistributing value to the remaining honest stakers.
+3. The contributor `withdraw`s whatever remains.
+
+In short: the **vault** is the on-chain custodian and slashing tool; the **engine** is the off-chain authority that decides when slashing happens. Trust in the engine is concentrated in `ENGINE_ROLE` and is therefore the protocol's primary off-chain trust assumption (see [Roles](#roles) and the repository [README](../README.md#roles--trust-assumptions)).
+
+---
+
 ## Architecture
 
 | Layer | Contracts |
@@ -20,12 +38,14 @@ Custom state (per-user locks, deposit timestamps, `minDepositAge`) lives in **ER
 
 ## Roles
 
-| Role | Purpose |
-|------|---------|
-| `DEFAULT_ADMIN_ROLE` | Grant/revoke roles, `setMinDepositAge`, `pause` / `unpause`, UUPS upgrades (`upgradeToAndCall`) |
-| `ENGINE_ROLE` | `unlockStake`, `slashStake` only |
+| Role | Held by | On-chain capabilities |
+|------|---------|-----------------------|
+| `DEFAULT_ADMIN_ROLE` | Sapien governance multisig (production) | Grant/revoke roles, `setMinDepositAge`, `pause` / `unpause`, `rescueETH`, UUPS upgrades (`upgradeToAndCall`) |
+| `ENGINE_ROLE` | The off-chain **PoQ engine** signing key | `unlockStake`, `slashStake` only |
 
-`lockStake` is **not** gated by `ENGINE_ROLE`; the **share holder** calls it to move value from “available” into “locked” within their own position.
+`ENGINE_ROLE` is the on-chain identity of the off-chain PoQ validation server. The engine never holds user funds directly: it only signs transactions that mutate `lockedAmount` and burn shares. Pause halts both `unlockStake` and `slashStake`, so admin can stop a misbehaving or compromised engine instantly; permanent neutralisation is `revokeRole(ENGINE_ROLE, …)`.
+
+`lockStake` is **not** gated by `ENGINE_ROLE`; the **share holder** calls it themselves to move value from “available” into “locked” within their own position, signalling willingness to be evaluated by the engine.
 
 ---
 
