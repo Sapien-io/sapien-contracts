@@ -13,8 +13,9 @@ import {
     ReentrancyGuardUpgradeable
 } from "lib/openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol";
 import {UUPSUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {SafeCast} from "lib/openzeppelin-contracts/contracts/utils/math/SafeCast.sol";
 import {ISapienVault} from "src/interfaces/ISapienVault.sol";
-import {SapienVaultStorage, StakeAccount} from "src/Types.sol";
+import {SapienVaultStorage, StakeAccount, Tranche} from "src/Types.sol";
 
 /// @title SapienVault
 /// @notice ERC-4626 vault for SAPIEN token staking with lock and slashing
@@ -28,6 +29,8 @@ contract SapienVault is
     UUPSUpgradeable,
     ISapienVault
 {
+    using SafeCast for uint256;
+
     // ── Roles ──────────────────────────────────────────────────────────
 
     /// @notice Role permitted to call `unlockStake` and `slashStake`.
@@ -35,6 +38,14 @@ contract SapienVault is
 
     /// @notice Upper bound (in seconds) on the configurable `minDepositAge` MEV guard.
     uint256 public constant MAX_MIN_DEPOSIT_AGE = 7 days;
+
+    /// @notice Maximum number of concurrent immature tranches tracked per user.
+    /// @dev Bounds the gas of `_settle` so an attacker cannot grief a user by
+    ///      spamming dust deposits to their address. When the cap is reached a
+    ///      new inflow coalesces into the newest cohort (its clock resets to
+    ///      `block.timestamp`), so a griefing deposit can only delay the
+    ///      freshest cohort and never the user's older, near-mature shares.
+    uint256 internal constant MAX_IMMATURE_TRANCHES = 32;
 
     /// @notice Returns the ERC-7201 namespaced storage struct for SapienVault.
     /// @return s Reference to the namespaced `SapienVaultStorage` struct.
@@ -78,49 +89,117 @@ contract SapienVault is
         assert(_grantRole(DEFAULT_ADMIN_ROLE, admin_));
     }
 
+    /// @notice Reinitializer for the SAP-1 tranche-accounting upgrade.
+    /// @dev No global state needs seeding: each user's pre-upgrade balance and
+    ///      age are migrated lazily on their first post-upgrade interaction
+    ///      (see `_lazyMigrate`). This bumps the initializer version so the
+    ///      upgrade call is idempotent and future migrations can chain from it.
+    function initializeV2() external reinitializer(2) {}
+
     // ── ERC-4626 inflation attack mitigation ───────────────────────────
     function _decimalsOffset() internal pure override returns (uint8) {
         return 3;
     }
 
-    // ── Deposit timestamp tracking ──────────────────────────────────────
+    // ── Tranche age accounting (SAP-1) ──────────────────────────────────
 
-    /// @dev Internal helper to check if the user's latest inbound transfer/deposit
-    ///      has satisfied the minimum age. This prevents flash-loans and MEV.
-    function _hasMetDepositAge(address user) internal view returns (bool) {
-        uint256 minAge = _getSapienVaultStorage().minDepositAge;
-        if (minAge == 0) return true;
-        uint256 depositTs = _getSapienVaultStorage().lastDepositTimestamp[user];
-        if (depositTs == 0) return true;
-        return (block.timestamp - depositTs) >= minAge;
+    /// @dev Seed a user's tranche state from their pre-upgrade balance the
+    ///      first time they are touched after the upgrade. Existing balances
+    ///      keep their original age via `lastDepositTimestamp`; a `0` timestamp
+    ///      meant "exempt" under the old logic, so it migrates as fully mature.
+    ///      Idempotent — runs at most once per address.
+    function _lazyMigrate(SapienVaultStorage storage $, address user) private {
+        if ($.migrated[user]) return;
+        $.migrated[user] = true;
+        uint256 bal = balanceOf(user);
+        if (bal == 0) return;
+        uint256 ts = $.lastDepositTimestamp[user];
+        if (ts == 0) {
+            $.matureShares[user] = bal;
+        } else {
+            $.immature[user][0] = Tranche({shares: bal.toUint128(), startTime: uint64(ts)});
+            $.immatureTail[user] = 1;
+        }
     }
 
-    /// @dev Reverts if the user's latest inbound transfer/deposit has not
-    ///      satisfied the minimum age requirement.
-    function _requireDepositAgeMet(address user) internal view {
-        uint256 minAge = _getSapienVaultStorage().minDepositAge;
-        if (minAge > 0) {
-            uint256 depositTs = _getSapienVaultStorage().lastDepositTimestamp[user];
-            if (depositTs > 0) {
-                uint256 age = block.timestamp - depositTs;
-                if (age < minAge) revert DepositTooRecent(minAge, age);
+    /// @dev Promote every head cohort that has cleared `minDepositAge` into the
+    ///      aggregated `matureShares` bucket and return the resulting mature
+    ///      total. Cohorts are pushed in time order, so FIFO popping is correct
+    ///      and iteration is bounded by `MAX_IMMATURE_TRANCHES`.
+    function _settle(SapienVaultStorage storage $, address user) private returns (uint256) {
+        _lazyMigrate($, user);
+        uint256 minAge = $.minDepositAge;
+        uint256 head = $.immatureHead[user];
+        uint256 tail = $.immatureTail[user];
+        uint256 mature = $.matureShares[user];
+        while (head < tail) {
+            Tranche storage t = $.immature[user][head];
+            if (minAge != 0 && block.timestamp - t.startTime < minAge) break;
+            mature += t.shares;
+            delete $.immature[user][head];
+            unchecked {
+                ++head;
             }
         }
+        if (head == tail) {
+            // Fully drained: reset pointers so indices stay small.
+            head = 0;
+            $.immatureTail[user] = 0;
+        }
+        $.immatureHead[user] = head;
+        $.matureShares[user] = mature;
+        return mature;
     }
 
-    /// @dev Tracks the timestamp of a self-deposit, resetting the MEV time-lock.
-    ///      Deposits made on behalf of another address (caller != receiver) do
-    ///      NOT update the receiver's timestamp — otherwise an attacker could
-    ///      grief any user by dust-depositing to their address every
-    ///      `minDepositAge` seconds and freezing their lock/transfer/withdraw
-    ///      flows (SEC-M-01). Third-party-funded shares still arrive at the
-    ///      receiver and remain subject to whatever timer the receiver already
-    ///      has from their own prior deposits or inbound transfers.
-    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
-        if (caller == receiver) {
-            _getSapienVaultStorage().lastDepositTimestamp[receiver] = block.timestamp;
+    /// @dev Record `value` freshly-arrived shares for `user` as a new immature
+    ///      cohort. When `minDepositAge` is zero the shares are immediately
+    ///      mature. When the per-user tranche cap is reached the shares coalesce
+    ///      into the newest cohort and reset its clock (conservative: they can
+    ///      only mature later, never earlier), bounding `_settle` gas.
+    function _pushImmature(SapienVaultStorage storage $, address user, uint256 value) private {
+        if (value == 0) return;
+        if ($.minDepositAge == 0) {
+            _lazyMigrate($, user);
+            $.matureShares[user] += value;
+            return;
         }
-        super._deposit(caller, receiver, assets, shares);
+        _settle($, user);
+        uint256 head = $.immatureHead[user];
+        uint256 tail = $.immatureTail[user];
+        if (tail - head >= MAX_IMMATURE_TRANCHES) {
+            Tranche storage newest = $.immature[user][tail - 1];
+            newest.shares += value.toUint128();
+            newest.startTime = uint64(block.timestamp);
+        } else {
+            $.immature[user][tail] = Tranche({shares: value.toUint128(), startTime: uint64(block.timestamp)});
+            $.immatureTail[user] = tail + 1;
+        }
+    }
+
+    /// @dev Write-free mirror of migrate+settle for view functions: returns the
+    ///      shares that are (or migrate as) mature at the current block.
+    function _matureSharesView(address user) internal view returns (uint256) {
+        SapienVaultStorage storage $ = _getSapienVaultStorage();
+        uint256 minAge = $.minDepositAge;
+        if (!$.migrated[user]) {
+            uint256 bal = balanceOf(user);
+            if (bal == 0) return 0;
+            uint256 ts = $.lastDepositTimestamp[user];
+            if (ts == 0) return bal;
+            return (minAge == 0 || block.timestamp - ts >= minAge) ? bal : 0;
+        }
+        uint256 head = $.immatureHead[user];
+        uint256 tail = $.immatureTail[user];
+        uint256 mature = $.matureShares[user];
+        while (head < tail) {
+            Tranche storage t = $.immature[user][head];
+            if (minAge != 0 && block.timestamp - t.startTime < minAge) break;
+            mature += t.shares;
+            unchecked {
+                ++head;
+            }
+        }
+        return mature;
     }
 
     // ── Stake operations ────────────────────────────────────────────────
@@ -131,12 +210,14 @@ contract SapienVault is
         address user = msg.sender;
         SapienVaultStorage storage $ = _getSapienVaultStorage();
 
-        _requireDepositAgeMet(user);
-
-        uint256 avail = availableBalance(user);
+        uint256 mature = _settle($, user);
+        uint256 locked = $.accounts[user].lockedAmount;
+        uint256 lockedShares = locked > 0 ? previewWithdraw(locked) : 0;
+        uint256 availShares = mature > lockedShares ? mature - lockedShares : 0;
+        uint256 avail = convertToAssets(availShares);
         if (avail < amount) revert InsufficientAvailableBalance(amount, avail);
 
-        $.accounts[user].lockedAmount += amount;
+        $.accounts[user].lockedAmount = locked + amount;
         emit StakeLocked(user, amount);
     }
 
@@ -170,10 +251,11 @@ contract SapienVault is
 
     /// @inheritdoc ISapienVault
     function availableBalance(address user) public view returns (uint256) {
-        StakeAccount storage acct = _getSapienVaultStorage().accounts[user];
-        uint256 totalLocked = acct.lockedAmount;
-        uint256 totalAssets_ = convertToAssets(balanceOf(user));
-        return totalAssets_ > totalLocked ? totalAssets_ - totalLocked : 0;
+        uint256 locked = _getSapienVaultStorage().accounts[user].lockedAmount;
+        uint256 mature = _matureSharesView(user);
+        uint256 lockedShares = locked > 0 ? previewWithdraw(locked) : 0;
+        uint256 availShares = mature > lockedShares ? mature - lockedShares : 0;
+        return convertToAssets(availShares);
     }
 
     /// @inheritdoc ISapienVault
@@ -181,43 +263,70 @@ contract SapienVault is
         return convertToAssets(balanceOf(user));
     }
 
+    /// @inheritdoc ISapienVault
+    function maturedShares(address user) external view returns (uint256) {
+        return _matureSharesView(user);
+    }
+
+    /// @inheritdoc ISapienVault
+    function pendingShares(address user) external view returns (uint256) {
+        SapienVaultStorage storage $ = _getSapienVaultStorage();
+        uint256 minAge = $.minDepositAge;
+        if (!$.migrated[user]) {
+            uint256 ts = $.lastDepositTimestamp[user];
+            if (ts == 0) return 0;
+            return (minAge == 0 || block.timestamp - ts >= minAge) ? 0 : balanceOf(user);
+        }
+        uint256 head = $.immatureHead[user];
+        uint256 tail = $.immatureTail[user];
+        uint256 sum;
+        for (uint256 i = head; i < tail; ++i) {
+            Tranche storage t = $.immature[user][i];
+            if (minAge != 0 && block.timestamp - t.startTime < minAge) {
+                sum += t.shares;
+            }
+        }
+        return sum;
+    }
+
     // ── Withdrawal guard ───────────────────────────────────────────────
 
     /// @notice Maximum shares that `owner` can redeem at the current block.
-    /// @dev Overrides ERC4626Upgradeable to limit redemptions to unlocked balance
-    ///      and enforce the MEV-protection time-lock (minDepositAge). Returns 0
-    ///      while paused or while the owner is still inside their deposit-age
-    ///      window. Uses previewWithdraw (rounds up) to reserve shares for the
-    ///      locked amount so that a subsequent withdraw/redeem never
-    ///      undercollateralises the lock.
+    /// @dev Overrides ERC4626Upgradeable to limit redemptions to matured,
+    ///      unlocked shares. Only shares that have cleared `minDepositAge`
+    ///      count, so recently-deposited shares are excluded while already-aged
+    ///      shares stay redeemable (SAP-6). Returns 0 while paused. Uses
+    ///      previewWithdraw (rounds up) to reserve shares for the locked amount
+    ///      so that a subsequent withdraw/redeem never undercollateralises the
+    ///      lock.
     /// @param owner Address whose redeemable shares are being queried.
     /// @return Maximum number of shares redeemable by `owner`.
     function maxRedeem(address owner) public view override returns (uint256) {
-        if (paused() || !_hasMetDepositAge(owner)) return 0;
+        if (paused()) return 0;
         uint256 lockedAmt = _getSapienVaultStorage().accounts[owner].lockedAmount;
-        uint256 shares = balanceOf(owner);
+        uint256 mature = _matureSharesView(owner);
         uint256 lockedShares = lockedAmt > 0 ? previewWithdraw(lockedAmt) : 0;
-        uint256 availShares = shares > lockedShares ? shares - lockedShares : 0;
+        uint256 availShares = mature > lockedShares ? mature - lockedShares : 0;
         uint256 parentMax = super.maxRedeem(owner);
         return availShares < parentMax ? availShares : parentMax;
     }
 
     /// @notice Maximum assets that `owner` can withdraw at the current block.
     /// @dev Overrides ERC4626Upgradeable; OZ's default does NOT delegate to
-    ///      maxRedeem. Computes available shares after reserving enough (rounded
-    ///      up via previewWithdraw) for the locked amount, then converts to
-    ///      assets. This avoids the rounding mismatch where availableBalance's
-    ///      floor asset surplus could cause withdraw() to burn more shares than
-    ///      safe. Returns 0 while paused or before the deposit-age timer has
-    ///      elapsed.
+    ///      maxRedeem. Computes available shares from the owner's matured
+    ///      balance after reserving enough (rounded up via previewWithdraw) for
+    ///      the locked amount, then converts to assets. This avoids the rounding
+    ///      mismatch where availableBalance's floor asset surplus could cause
+    ///      withdraw() to burn more shares than safe. Returns 0 while paused;
+    ///      recently-deposited (immature) shares are not yet withdrawable.
     /// @param owner Address whose withdrawable assets are being queried.
     /// @return Maximum amount of assets withdrawable by `owner`.
     function maxWithdraw(address owner) public view override returns (uint256) {
-        if (paused() || !_hasMetDepositAge(owner)) return 0;
+        if (paused()) return 0;
         uint256 lockedAmt = _getSapienVaultStorage().accounts[owner].lockedAmount;
-        uint256 shares = balanceOf(owner);
+        uint256 mature = _matureSharesView(owner);
         uint256 lockedShares = lockedAmt > 0 ? previewWithdraw(lockedAmt) : 0;
-        uint256 availShares = shares > lockedShares ? shares - lockedShares : 0;
+        uint256 availShares = mature > lockedShares ? mature - lockedShares : 0;
         uint256 maxAssets = convertToAssets(availShares);
         uint256 parentMax = super.maxWithdraw(owner);
         return maxAssets < parentMax ? maxAssets : parentMax;
@@ -243,36 +352,40 @@ contract SapienVault is
         return paused() ? 0 : type(uint256).max;
     }
 
-    // ── Transfer guard ─────────────────────────────────────
+    // ── Transfer / mint / burn hook ────────────────────────────────────
 
-    /// @dev For wallet-to-wallet transfers, enforce pause state, ensure the
-    ///      sender keeps enough shares to cover locked stake, and enforce the
-    ///      MEV-protection time-lock (sender must have met minDepositAge).
-    ///      Sets the receiver's deposit timestamp on receipt to prevent bypassing
-    ///      minDepositAge via share transfers (note: this allows inbound griefing).
-    ///      Mints (from == 0) and burns (to == 0) are unrestricted.
+    /// @dev Routes every balance change through tranche accounting:
+    ///      - Mints (`from == 0`, deposit/mint by any caller) record the new
+    ///        shares as an immature cohort for the receiver, so freshly-minted
+    ///        shares must age before they can be locked/withdrawn/transferred.
+    ///        Applying this uniformly closes the delegate-deposit bypass (SAP-3).
+    ///      - Burns (`to == 0`, withdraw/redeem/slash) draw from matured shares;
+    ///        `maxWithdraw`/`maxRedeem` and the lock reservation guarantee the
+    ///        burned amount never exceeds the sender's matured balance.
+    ///      - Transfers move only matured, unlocked shares and credit them to
+    ///        the recipient as matured ("age travels with the shares"), so a
+    ///        dust transfer can no longer reset a victim's global timer (SAP-1).
     ///      Uses previewWithdraw (rounds up) to reserve shares for the locked
     ///      amount so that transfers never undercollateralise the lock.
     function _update(address from, address to, uint256 value) internal override {
-        if (from != address(0) && to != address(0)) {
+        SapienVaultStorage storage $ = _getSapienVaultStorage();
+        if (from == address(0)) {
+            _pushImmature($, to, value);
+        } else if (to == address(0)) {
+            uint256 mature = _settle($, from);
+            $.matureShares[from] = mature - value;
+        } else {
             _requireNotPaused();
 
-            // MEV / front-running protection: enforce time-lock on all share transfers
-            _requireDepositAgeMet(from);
-
-            SapienVaultStorage storage $ = _getSapienVaultStorage();
-            StakeAccount storage acct = $.accounts[from];
-            uint256 totalLocked = acct.lockedAmount;
+            uint256 mature = _settle($, from);
+            uint256 totalLocked = $.accounts[from].lockedAmount;
             uint256 lockedShares = totalLocked > 0 ? previewWithdraw(totalLocked) : 0;
-            if (balanceOf(from) < value + lockedShares) revert TransferExceedsUnlockedShares();
+            uint256 availMature = mature > lockedShares ? mature - lockedShares : 0;
+            if (value > availMature) revert TransferExceedsUnlockedShares();
 
-            // Set deposit timestamp for any recipient to prevent bypassing
-            // minDepositAge via share transfers. Note this opens a known
-            // griefing vector where an attacker can reset a staker's timer,
-            // but this is preferred over allowing instant lock bypass.
-            if (value > 0) {
-                $.lastDepositTimestamp[to] = block.timestamp;
-            }
+            $.matureShares[from] = mature - value;
+            _settle($, to);
+            $.matureShares[to] += value;
         }
         super._update(from, to, value);
     }

@@ -29,10 +29,10 @@ In short: the **vault** is the on-chain custodian and slashing tool; the **engin
 | Layer | Contracts |
 |-------|-----------|
 | Vault logic | `SapienVault` — `ERC4626Upgradeable`, `AccessControlUpgradeable`, `PausableUpgradeable`, `UUPSUpgradeable` |
-| Types | `Types.sol` — `StakeAccount`, `SapienVaultStorage` (namespaced storage layout) |
+| Types | `Types.sol` — `StakeAccount`, `Tranche`, `SapienVaultStorage` (namespaced storage layout) |
 | Interface | `ISapienVault` — errors, events, external API |
 
-Custom state (per-user locks, deposit timestamps, `minDepositAge`) lives in **ERC-7201-style namespaced storage** (`SapienVaultStorage`), not in the default OpenZeppelin storage slots, to reduce upgrade collision risk. The namespace string is `"sapien.storage.SapienVault"`. The pure function `verifyStorageLocation()` checks that the derived slot matches the implementation’s hard-coded slot.
+Custom state (per-user locks, share tranches, `minDepositAge`) lives in **ERC-7201-style namespaced storage** (`SapienVaultStorage`), not in the default OpenZeppelin storage slots, to reduce upgrade collision risk. The namespace string is `"sapien.storage.SapienVault"`. The pure function `verifyStorageLocation()` checks that the derived slot matches the implementation’s hard-coded slot. The tranche-accounting fields are appended to the struct, so the namespaced slot is unchanged across the SAP-1 upgrade.
 
 ---
 
@@ -66,11 +66,11 @@ Integrators should use **`maxDeposit` / `maxMint` / `maxWithdraw` / `maxRedeem`*
 Each address has one logical **stake account**:
 
 - **`lockedAmount`** (asset terms): portion of the user’s economic stake that is **locked** and cannot be withdrawn or transferred as shares (except as constrained by `maxRedeem` / transfers).
-- **Available** balance (conceptually): total position in asset terms minus `lockedAmount` — exposed as `availableBalance(user)`.
+- **Available** balance (conceptually): **matured** position in asset terms minus `lockedAmount` — exposed as `availableBalance(user)`. Only shares that have cleared `minDepositAge` count; immature shares are excluded until they age (see below).
 
 Operations:
 
-1. **`lockStake(amount)`** (holder, `whenNotPaused`): moves `amount` from available to locked. Requires `amount <= availableBalance(msg.sender)`, non-zero amount, and **deposit age** satisfied (see below).
+1. **`lockStake(amount)`** (holder, `whenNotPaused`): moves `amount` from available to locked. Requires `amount <= availableBalance(msg.sender)` (matured, unlocked balance) and a non-zero amount.
 2. **`unlockStake(user, amount)`** (`ENGINE_ROLE`): reduces `user`’s `lockedAmount` only (no share mint/burn).
 3. **`slashStake(user, amount)`** (`ENGINE_ROLE`): reduces `lockedAmount` and **burns** shares corresponding to `amount` in asset terms via `convertToShares` / `_burn`. Remaining stakers gain pro-rata on the underlying (standard ERC-4626 behavior after burn).
 
@@ -80,15 +80,22 @@ Operations:
 
 Configurable by admin up to **`MAX_MIN_DEPOSIT_AGE` (7 days)**.
 
+The cooldown is enforced **per share cohort (tranche)**, not on a user’s whole balance (SAP-1 refactor). Each address tracks:
+
+- **immature tranches** — `{shares, startTime}` cohorts still inside the `minDepositAge` window, and
+- an aggregated **`matureShares`** bucket — shares that have cleared the window and are freely actionable.
+
 When `minDepositAge > 0`:
 
-- On every **`deposit` / `mint`**, the **`receiver`**’s `lastDepositTimestamp` is set to `block.timestamp` (in `_deposit`).
-- For **peer-to-peer share transfers** (`transfer` / `transferFrom`, both sides non-zero), the **recipient**’s `lastDepositTimestamp` is set when `value > 0`. **Zero-value transfers do not reset** the recipient’s timer.
-- **`lockStake`**, **outgoing transfers** (sender), **`maxWithdraw`**, and **`maxRedeem`** require the relevant address to have “aged” its last inbound event by at least `minDepositAge`, or `lastDepositTimestamp == 0` is treated as exempt for the age check where implemented.
+- On every **`deposit` / `mint`** (by **any** caller, including third-party/delegate deposits), the minted shares are recorded as a new immature tranche for the receiver. This closes the delegate-deposit bypass (SAP-3).
+- A cohort **matures** once `block.timestamp - startTime >= minDepositAge`, after which it folds into `matureShares`.
+- **`lockStake`**, **outgoing transfers**, **`maxWithdraw`**, and **`maxRedeem`** act only on **matured, unlocked** shares.
+- **Peer-to-peer transfers** move only matured shares, and the recipient receives them as matured — **age travels with the shares**. A transfer therefore cannot reset a recipient’s cooldown, so the previous dust-transfer griefing vector is gone (SAP-1). It also means already-matured funds are never re-frozen by a later deposit (SAP-6).
+- The number of concurrent immature tranches per user is capped (`MAX_IMMATURE_TRANCHES`); at the cap a new inflow coalesces into the newest cohort, bounding the gas of maturation so dust deposits cannot grief.
 
-This slows flash-loan style positioning and immediate exits after inbound liquidity, at the cost of a **known griefing trade-off**: anyone can send a user a tiny share transfer to reset that user’s timer (documented in-code). Product and UX should account for that.
+`maturedShares(user)` and `pendingShares(user)` expose the split (`matured + pending == balanceOf`).
 
-If `minDepositAge == 0`, these time checks are effectively disabled (timestamps may still be written).
+If `minDepositAge == 0`, deposits are immediately mature and the time checks are effectively disabled.
 
 ---
 
@@ -109,7 +116,7 @@ Admin can `pause` / `unpause` with `DEFAULT_ADMIN_ROLE`.
 
 Withdrawals and redemptions are limited so users cannot exit **locked** value as assets:
 
-- `maxWithdraw` / `maxRedeem` cap by **`availableBalance(owner)`** (converted to shares where needed) and by the parent ERC-4626 caps.
+- `maxWithdraw` / `maxRedeem` cap by the owner’s **matured, unlocked** balance (converted to shares where needed) and by the parent ERC-4626 caps. Recently-deposited (immature) shares are excluded until they age, but already-matured shares stay withdrawable regardless of later deposits.
 
 Users must **`unlockStake`** (via engine) or be **`slashStake`**’d to reduce locked amounts before that value becomes withdrawable.
 
@@ -119,6 +126,8 @@ Users must **`unlockStake`** (via engine) or be **`slashStake`**’d to reduce l
 
 UUPS pattern: only **`DEFAULT_ADMIN_ROLE`** may authorize upgrades (`_authorizeUpgrade`). Always validate new implementations with your tooling (e.g. OpenZeppelin Upgrades) and follow a timelock / multisig process in production.
 
+The SAP-1 tranche upgrade is applied via `upgradeToAndCall(newImpl, initializeV2())` (see `script/UpgradeVault.s.sol`). `initializeV2()` is a `reinitializer(2)` no-op: each user's pre-upgrade balance and age migrate **lazily** into the tranche model the first time their account is touched after the upgrade (a `0` legacy timestamp migrates as fully matured). No batch migration is required.
+
 ---
 
 ## Errors (custom)
@@ -127,8 +136,7 @@ UUPS pattern: only **`DEFAULT_ADMIN_ROLE`** may authorize upgrades (`_authorizeU
 |-------|------|
 | `InsufficientAvailableBalance(required, available)` | `lockStake` exceeds available |
 | `InsufficientLockedAmount(required, locked)` | `unlockStake` / `slashStake` exceeds locked |
-| `TransferExceedsUnlockedShares()` | Transfer would leave sender with fewer shares than needed to cover locked stake |
-| `DepositTooRecent(requiredMinAge, actualAge)` | `minDepositAge` not satisfied |
+| `TransferExceedsUnlockedShares()` | Transfer exceeds the sender's matured, unlocked shares (covers both locked stake and not-yet-matured shares) |
 | `MinDepositAgeTooHigh(requested, max)` | Admin set age above `MAX_MIN_DEPOSIT_AGE` |
 | `ZeroAmount()` | Zero amount on lock/unlock/slash |
 | `ZeroAddress()` | `initialize` with zero asset or admin |
@@ -151,7 +159,7 @@ Standard ERC-4626 `Deposit`, `Withdraw`, and ERC-20 `Transfer` events also apply
 ## Integrator checklist
 
 1. Treat the vault as **ERC-4626**: use previews and `max*` functions.
-2. If **`minDepositAge > 0`**, expect **delayed** `lockStake`, transfers, and full withdrawals after any **deposit, mint, or inbound transfer** to the user.
+2. If **`minDepositAge > 0`**, expect freshly **deposited/minted** shares to be **delayed** for `lockStake`, transfers, and withdrawals until they mature; already-matured shares (including matured shares received via transfer) are actionable immediately. Use `maturedShares` / `pendingShares` to inspect the split.
 3. **Locked stake** reduces **`maxWithdraw` / `maxRedeem`**; unlocking is **off-chain policy + `ENGINE_ROLE`** on-chain.
 4. **Slashing** burns shares; indexers should track `StakeSlashed` and share supply, not only `lockedAmount`.
 5. Deploy behind **ERC-1967 proxy**; call **`initialize(asset, admin)`** once; never rely on unproxied implementation for user funds.

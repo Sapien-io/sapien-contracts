@@ -13,7 +13,6 @@ interface ISapienVault {
     error InsufficientAvailableBalance(uint256 required, uint256 available);
     error InsufficientLockedAmount(uint256 required, uint256 locked);
     error TransferExceedsUnlockedShares();
-    error DepositTooRecent(uint256 required, uint256 actual);
     error MinDepositAgeTooHigh(uint256 requested, uint256 max);
     error ZeroAmount();
     error ZeroAddress();
@@ -49,9 +48,10 @@ interface ISapienVault {
     // ── Stake Operations ───────────────────────────────────────────────
 
     /// @notice Lock stake from the caller's available balance.
-    /// @dev Called by the owner directly. Enforces minimum stake age before
-    ///      locking and then marks the specified asset amount as locked.
-    ///      Any deposit or inbound share transfer resets this time-lock timer.
+    /// @dev Called by the owner directly. Only shares that have cleared
+    ///      `minDepositAge` (matured) and are not already locked can be locked.
+    ///      Recently-deposited (immature) shares are excluded until they age;
+    ///      already-matured shares are unaffected by later deposits/transfers.
     /// @param amount Amount of tokens (asset terms) to lock.
     function lockStake(uint256 amount) external;
 
@@ -84,6 +84,19 @@ interface ISapienVault {
     /// @param user Address of the user.
     /// @return The total staked amount in asset terms.
     function getUserStakeBalance(address user) external view returns (uint256);
+
+    /// @notice Shares held by `user` that have cleared `minDepositAge` and are
+    ///         therefore actionable (lockable / withdrawable / transferable),
+    ///         before subtracting any locked reservation.
+    /// @param user Address of the user.
+    /// @return Matured share amount.
+    function maturedShares(address user) external view returns (uint256);
+
+    /// @notice Shares held by `user` that are still inside the `minDepositAge`
+    ///         cooldown window. `maturedShares + pendingShares == balanceOf`.
+    /// @param user Address of the user.
+    /// @return Immature share amount.
+    function pendingShares(address user) external view returns (uint256);
 
     /// @notice Verify that the vault's ERC-7201 storage location is correctly initialized.
     /// @return True if the storage slot matches the expected value.
