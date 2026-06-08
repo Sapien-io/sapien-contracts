@@ -104,18 +104,29 @@ contract SapienVaultInvariantTest is Test {
         assertEq(sum, handler.totalLockedAmount(), "Ghost locked amount desynced from on-chain state");
     }
 
-    /// @notice Time-Lock Enforcement: Users within minDepositAge must be restricted from withdrawing
-    function invariant_TimeLockSafety() public view {
-        uint256 minAge = vault.minDepositAge();
-
+    /// @notice Tranche Accounting Integrity: a user's matured + pending shares
+    ///         must always equal their ERC-20 share balance.
+    function invariant_TrancheAccountingMatchesBalance() public view {
         for (uint256 i = 0; i < 5; i++) {
             address actor = handler.getActor(i);
-            uint256 lastTs = handler.actorLastDepositTs(actor);
+            assertEq(
+                vault.maturedShares(actor) + vault.pendingShares(actor),
+                vault.balanceOf(actor),
+                "Tranche accounting desynced: matured + pending != balanceOf"
+            );
+        }
+    }
 
-            if (lastTs > 0 && block.timestamp - lastTs < minAge) {
-                assertEq(vault.maxWithdraw(actor), 0, "Time-lock broken: maxWithdraw > 0");
-                assertEq(vault.maxRedeem(actor), 0, "Time-lock broken: maxRedeem > 0");
-            }
+    /// @notice Time-Lock Enforcement: immature shares are never redeemable, and
+    ///         redeemable shares never exceed the matured balance.
+    function invariant_ImmatureSharesNotRedeemable() public view {
+        for (uint256 i = 0; i < 5; i++) {
+            address actor = handler.getActor(i);
+            assertLe(
+                vault.maxRedeem(actor),
+                vault.maturedShares(actor),
+                "Time-lock broken: redeemable shares exceed matured balance"
+            );
         }
     }
 

@@ -13,8 +13,6 @@ contract SapienVaultHandler is Test {
     address[] public actors;
     uint256 public totalLockedAmount;
 
-    mapping(address => uint256) public actorLastDepositTs;
-
     address public engine;
     address public admin;
 
@@ -49,8 +47,6 @@ contract SapienVaultHandler is Test {
 
         vm.prank(actor);
         vault.deposit(amount, actor);
-
-        actorLastDepositTs[actor] = block.timestamp;
     }
 
     function depositOnBehalf(uint256 callerSeed, uint256 receiverSeed, uint256 amount) public {
@@ -64,14 +60,6 @@ contract SapienVaultHandler is Test {
 
         vm.prank(caller);
         vault.deposit(amount, receiver);
-
-        // SEC-M-01: when caller != receiver the contract no longer resets the
-        // receiver's deposit-age timer, so the handler's mirror must mirror
-        // that. When caller == receiver this code path is equivalent to a
-        // self-deposit and we must update the timer.
-        if (caller == receiver) {
-            actorLastDepositTs[receiver] = block.timestamp;
-        }
     }
 
     function mintShares(uint256 actorSeed, uint256 shares) public {
@@ -85,8 +73,6 @@ contract SapienVaultHandler is Test {
 
         vm.prank(actor);
         vault.mint(shares, actor);
-
-        actorLastDepositTs[actor] = block.timestamp;
     }
 
     function withdraw(uint256 actorSeed, uint256 amount) public {
@@ -124,9 +110,7 @@ contract SapienVaultHandler is Test {
         amount = bound(amount, 1, bal);
 
         vm.startPrank(from);
-        try vault.transfer(to, amount) {
-            actorLastDepositTs[to] = block.timestamp;
-        } catch {}
+        try vault.transfer(to, amount) {} catch {}
         vm.stopPrank();
     }
 
