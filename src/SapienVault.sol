@@ -39,6 +39,12 @@ contract SapienVault is
     /// @notice Upper bound (in seconds) on the configurable `minDepositAge` MEV guard.
     uint256 public constant MAX_MIN_DEPOSIT_AGE = 7 days;
 
+    /// @notice Default `minDepositAge` seeded at initialization so the flash-deposit
+    ///         MEV guard is active out of the box rather than disabled until an
+    ///         admin intervenes (SEC/SAP-5). Admin can retune within
+    ///         `[0, MAX_MIN_DEPOSIT_AGE]` via `setMinDepositAge`.
+    uint256 public constant DEFAULT_MIN_DEPOSIT_AGE = 1 days;
+
     /// @notice Maximum number of concurrent immature tranches tracked per user.
     /// @dev Bounds the gas of `_settle` so an attacker cannot grief a user by
     ///      spamming dust deposits to their address. When the cap is reached a
@@ -87,6 +93,10 @@ contract SapienVault is
         // SEC-L-04: assert the role grant succeeded; on a fresh initializer this
         // is always true, but we no longer silently discard the return value.
         assert(_grantRole(DEFAULT_ADMIN_ROLE, admin_));
+        // SAP-5: seed the MEV guard so it is enabled at deployment instead of
+        // defaulting to 0 (disabled). Admin can still retune via setMinDepositAge.
+        _getSapienVaultStorage().minDepositAge = DEFAULT_MIN_DEPOSIT_AGE;
+        emit MinDepositAgeUpdated(DEFAULT_MIN_DEPOSIT_AGE);
     }
 
     /// @notice Reinitializer for the SAP-1 tranche-accounting upgrade.
@@ -94,7 +104,16 @@ contract SapienVault is
     ///      age are migrated lazily on their first post-upgrade interaction
     ///      (see `_lazyMigrate`). This bumps the initializer version so the
     ///      upgrade call is idempotent and future migrations can chain from it.
-    function initializeV2() external reinitializer(2) {}
+    function initializeV2() external reinitializer(2) {
+        // SAP-5: enable the MEV guard on upgrade if it was never configured on
+        // the live (pre-upgrade) vault. Guarded on `== 0` so an admin value set
+        // before the upgrade is preserved rather than clobbered.
+        SapienVaultStorage storage $ = _getSapienVaultStorage();
+        if ($.minDepositAge == 0) {
+            $.minDepositAge = DEFAULT_MIN_DEPOSIT_AGE;
+            emit MinDepositAgeUpdated(DEFAULT_MIN_DEPOSIT_AGE);
+        }
+    }
 
     // ── ERC-4626 inflation attack mitigation ───────────────────────────
     function _decimalsOffset() internal pure override returns (uint8) {
@@ -149,6 +168,16 @@ contract SapienVault is
         $.immatureHead[user] = head;
         $.matureShares[user] = mature;
         return mature;
+    }
+
+    /// @dev Reverts when an immature cohort would be recorded below `minTrancheSize`.
+    ///      Checked on the deposited asset amount so integrators see a stable floor.
+    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
+        SapienVaultStorage storage $ = _getSapienVaultStorage();
+        if ($.minDepositAge > 0 && $.minTrancheSize > 0 && assets < $.minTrancheSize) {
+            revert BelowMinTrancheSize(assets, $.minTrancheSize);
+        }
+        super._deposit(caller, receiver, assets, shares);
     }
 
     /// @dev Record `value` freshly-arrived shares for `user` as a new immature
@@ -413,6 +442,17 @@ contract SapienVault is
     /// @inheritdoc ISapienVault
     function minDepositAge() external view returns (uint256) {
         return _getSapienVaultStorage().minDepositAge;
+    }
+
+    /// @inheritdoc ISapienVault
+    function setMinTrancheSize(uint256 size) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _getSapienVaultStorage().minTrancheSize = size;
+        emit MinTrancheSizeUpdated(size);
+    }
+
+    /// @inheritdoc ISapienVault
+    function minTrancheSize() external view returns (uint256) {
+        return _getSapienVaultStorage().minTrancheSize;
     }
 
     // ── Pausable hooks ─────────────────────────────────────────────────

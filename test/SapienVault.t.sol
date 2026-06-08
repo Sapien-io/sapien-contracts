@@ -41,6 +41,12 @@ contract SapienVaultTest is Test {
 
         vm.startPrank(admin);
         vault.grantRole(ENGINE_ROLE, engine);
+        // initialize() now seeds minDepositAge with DEFAULT_MIN_DEPOSIT_AGE
+        // (SAP-5). These mechanics tests exercise lock/slash/transfer/withdraw
+        // logic independently of the cooldown, so disable the guard here; the
+        // cooldown-specific tests set their own non-zero age, and the seeded
+        // default is verified by test_initialize_seedsDefaultMinDepositAge.
+        vault.setMinDepositAge(0);
         vm.stopPrank();
 
         token.mint(user1, DEPOSIT_AMOUNT * 10);
@@ -452,6 +458,18 @@ contract SapienVaultTest is Test {
         assertEq(vault.minDepositAge(), 1 days);
     }
 
+    /// @dev SAP-5: a freshly initialized vault seeds the MEV guard with
+    ///      DEFAULT_MIN_DEPOSIT_AGE rather than leaving it at 0. (The shared
+    ///      fixture disables it afterwards for the mechanics tests.)
+    function test_initialize_seedsDefaultMinDepositAge() public {
+        SapienVault impl = new SapienVault();
+        bytes memory initData = abi.encodeCall(SapienVault.initialize, (IERC20(address(token)), admin));
+        SapienVault fresh = SapienVault(address(new ERC1967Proxy(address(impl), initData)));
+
+        assertEq(fresh.minDepositAge(), fresh.DEFAULT_MIN_DEPOSIT_AGE());
+        assertEq(fresh.minDepositAge(), 1 days);
+    }
+
     function test_setMinDepositAge_tooHigh() public {
         uint256 maxAge = vault.MAX_MIN_DEPOSIT_AGE();
         uint256 tooHigh = maxAge + 1;
@@ -459,6 +477,52 @@ contract SapienVaultTest is Test {
         vm.expectRevert(abi.encodeWithSelector(ISapienVault.MinDepositAgeTooHigh.selector, tooHigh, maxAge));
         vm.prank(admin);
         vault.setMinDepositAge(tooHigh);
+    }
+
+    function test_minTrancheSize_view() public {
+        assertEq(vault.minTrancheSize(), 0);
+
+        vm.prank(admin);
+        vault.setMinTrancheSize(1e18);
+
+        assertEq(vault.minTrancheSize(), 1e18);
+    }
+
+    function test_deposit_belowMinTrancheSize_revertsWhenAgeEnabled() public {
+        vm.startPrank(admin);
+        vault.setMinDepositAge(1 days);
+        vault.setMinTrancheSize(1e18);
+        vm.stopPrank();
+
+        uint256 dustAssets = 1;
+        vm.expectRevert(abi.encodeWithSelector(ISapienVault.BelowMinTrancheSize.selector, dustAssets, 1e18));
+        vm.prank(user1);
+        vault.deposit(dustAssets, user1);
+
+        vm.prank(user1);
+        vault.deposit(1e18, user1);
+        assertGt(vault.balanceOf(user1), 0);
+    }
+
+    function test_deposit_belowMinTrancheSize_allowedWhenAgeDisabled() public {
+        vm.prank(admin);
+        vault.setMinTrancheSize(1e18);
+
+        vm.prank(user1);
+        vault.deposit(1, user1);
+        assertGt(vault.balanceOf(user1), 0);
+    }
+
+    function test_delegateDeposit_belowMinTrancheSize_reverts() public {
+        vm.startPrank(admin);
+        vault.setMinDepositAge(1 days);
+        vault.setMinTrancheSize(1e18);
+        vm.stopPrank();
+
+        uint256 dustAssets = 1;
+        vm.expectRevert(abi.encodeWithSelector(ISapienVault.BelowMinTrancheSize.selector, dustAssets, 1e18));
+        vm.prank(user2);
+        vault.deposit(dustAssets, user1);
     }
 
     function test_authorizeUpgrade() public {

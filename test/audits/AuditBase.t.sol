@@ -36,8 +36,13 @@ abstract contract AuditBase is Test {
         ENGINE_ROLE = vault.ENGINE_ROLE();
         ADMIN_ROLE = vault.DEFAULT_ADMIN_ROLE();
 
-        vm.prank(admin);
+        vm.startPrank(admin);
         vault.grantRole(ENGINE_ROLE, engine);
+        // initialize() now seeds DEFAULT_MIN_DEPOSIT_AGE (SAP-5). Findings that
+        // depend on a specific cooldown set their own age; the rest exercise
+        // guard-independent mechanics, so disable it here for a clean baseline.
+        vault.setMinDepositAge(0);
+        vm.stopPrank();
 
         token.mint(user1, DEPOSIT_AMOUNT * 10);
         token.mint(user2, DEPOSIT_AMOUNT * 10);

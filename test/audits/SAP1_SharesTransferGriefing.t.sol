@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {AuditBase} from "./AuditBase.t.sol";
+import {ISapienVault} from "../../src/interfaces/ISapienVault.sol";
 import {StakeAccount} from "../../src/Types.sol";
 
 /// @title SAP-1 — Shares Transfer Griefing Vector (High, Resolved)
@@ -15,6 +16,26 @@ import {StakeAccount} from "../../src/Types.sol";
 ///      actionable regardless of inbound dust (transfer or delegate deposit),
 ///      and the per-user tranche cap bounds the work an attacker can impose.
 contract SAP1_SharesTransferGriefingTest is AuditBase {
+    /// @dev With `minTrancheSize` set, dust delegate deposits revert outright
+    ///      instead of creating immature cohorts on the victim.
+    function test_resolved_minTrancheSizeBlocksDustDelegateDeposit() public {
+        vm.startPrank(admin);
+        vault.setMinDepositAge(1 days);
+        vault.setMinTrancheSize(1e18);
+        vm.stopPrank();
+
+        vm.prank(user1);
+        vault.deposit(DEPOSIT_AMOUNT, user1);
+        skip(1 days);
+
+        uint256 dustAssets = 1;
+        vm.expectRevert(abi.encodeWithSelector(ISapienVault.BelowMinTrancheSize.selector, dustAssets, 1e18));
+        vm.prank(user2);
+        vault.deposit(dustAssets, user1);
+
+        assertGt(vault.maxWithdraw(user1), 0);
+    }
+
     /// @dev A mature-share transfer to a victim can no longer freeze them: the
     ///      received shares simply arrive as matured and the victim's prior
     ///      matured balance remains lockable/withdrawable in the same block.

@@ -2,7 +2,7 @@
 
 Source: `audits/QS_SapienVault_Initial_Report.pdf` (Quantstamp, DRAFT)
 Timeline: 2026-05-18 → 2026-05-20 · Commit: `#e9ecac2`
-Total findings: 7 (1 High, 2 Medium, 1 Low, 3 Informational). SAP-1/SAP-3/SAP-6 **Resolved**, SAP-4 **Mitigated**, SAP-7 **Documented** by the tranche refactor; SAP-2/SAP-5 **Unresolved**.
+Total findings: 7 (1 High, 2 Medium, 1 Low, 3 Informational). SAP-1/SAP-3/SAP-5/SAP-6 **Resolved**, SAP-4 **Mitigated**, SAP-7 **Documented** by the tranche refactor; SAP-2 **Unresolved**.
 
 ## Summary
 
@@ -12,7 +12,7 @@ Total findings: 7 (1 High, 2 Medium, 1 Low, 3 Informational). SAP-1/SAP-3/SAP-6 
 | SAP-2 | Partial Slashes Are Self-Redistributed Back to the Slashed Holder | Medium | Unresolved |
 | SAP-3 | MEV: Protection Bypass via Delegate Deposits | Medium | Resolved (all mints age the receiver) |
 | SAP-4 | MEV: Fresh Deposits Capture Slash Redistribution | Low | Mitigated (fresh shares immature in slash window) |
-| SAP-5 | minDepositAge Is Not Initialized | Informational | Unresolved |
+| SAP-5 | minDepositAge Is Not Initialized | Informational | Resolved (seeded at init/upgrade) |
 | SAP-6 | Global Token Age Requirement May Punish Active Users | Informational | Resolved (cooldown is per-tranche) |
 | SAP-7 | MEV Guard May Break Composability | Informational | Documented (receive-side improved; same-tx deposit+forward still limited) |
 
@@ -24,7 +24,7 @@ Total findings: 7 (1 High, 2 Medium, 1 Low, 3 Informational). SAP-1/SAP-3/SAP-6 
   - File(s): `SapienVault.sol`, `Types.sol`
   - Problem: The MEV-protection cooldown applies globally to a user's entire token balance and is triggered by incoming share transfers, not just self-deposits. An attacker can repeatedly send dust shares so the recipient never passes the deposit-age check, locking that account out of staking, transferring, and redeeming/withdrawing.
   - Recommendation: Refactor the MEV protection to track individual stakes/tranches rather than a single global age on the full balance. Each stake enforces a minimum `stakeAmount`, a `startDate`, and optionally an earliest withdrawable `maturityDate`; mature stakes squash into an aggregated `stakedBalance`. This also lets users withdraw unused assets immediately.
-  - Resolution: Replaced the per-user global `lastDepositTimestamp` with per-user share tranches `{shares, startTime}` plus an aggregated `matureShares` bucket (`_settle`/`_pushImmature`/`_matureSharesView`). The cooldown now binds to the specific shares that arrive; transfers move only matured shares and the recipient receives them as matured (age travels with the shares), so an inbound dust transfer can no longer freeze a victim. A per-user tranche cap (`MAX_IMMATURE_TRANCHES`) bounds maturation gas. Shipped as a UUPS upgrade with lazy per-user migration (`initializeV2`). Tests: `test/audits/SAP1_SharesTransferGriefing.t.sol`, `test/SapienVaultMigration.t.sol`.
+  - Resolution: Replaced the per-user global `lastDepositTimestamp` with per-user share tranches `{shares, startTime}` plus an aggregated `matureShares` bucket (`_settle`/`_pushImmature`/`_matureSharesView`). The cooldown now binds to the specific shares that arrive; transfers move only matured shares and the recipient receives them as matured (age travels with the shares), so an inbound dust transfer can no longer freeze a victim. A per-user tranche cap (`MAX_IMMATURE_TRANCHES`) bounds maturation gas. Admin-configurable `minTrancheSize` rejects sub-threshold immature cohorts when `minDepositAge > 0`. Shipped as a UUPS upgrade with lazy per-user migration (`initializeV2`). Tests: `test/audits/SAP1_SharesTransferGriefing.t.sol`, `test/SapienVaultMigration.t.sol`.
 
 - [ ] **SAP-2 — Partial Slashes Are Self-Redistributed Back to the Slashed Holder** · Medium · Unresolved
   - File(s): `src/SapienVault.sol`
@@ -60,10 +60,11 @@ Total findings: 7 (1 High, 2 Medium, 1 Low, 3 Informational). SAP-1/SAP-3/SAP-6 
   - Recommendation: Delay minting of shares on deposits. Link buying/redeeming of shares to locked stakes so only active stakes profit from redistribution. Users supply assets via a new entrypoint, then later deposit/mint (equivalent to locking a stake); override internal ERC-4626 so share value is not derived from the vault's total asset balance.
   - Resolution (partial): The SAP-1 tranche refactor closes the SAP-3 delegate path and makes all freshly-deposited shares immature, so they cannot be redeemed or transferred in the slash window — flash-positioned fresh capital can no longer capture redistribution. Capture now requires aged, at-risk capital (the incumbent reward the design intends). The deeper "share value not derived from total assets" redesign (which also addresses SAP-2) remains out of scope. Test: `test/audits/SAP4_FreshDepositsCaptureSlashRedistribution.t.sol`.
 
-- [ ] **SAP-5 — minDepositAge Is Not Initialized** · Informational · Unresolved
+- [x] **SAP-5 — minDepositAge Is Not Initialized** · Informational · Resolved
   - File(s): `SapienVault.sol`
   - Problem: `minDepositAge` is admin-configurable but not initialized at setup, so it defaults to 0 and the MEV protection is initially disabled.
   - Recommendation: Set `minDepositAge` to a constant or `initialize()` parameter, and emit a `MinDepositAgeUpdated` event.
+  - Resolution: Added the `DEFAULT_MIN_DEPOSIT_AGE = 1 days` constant and seed it in `initialize` (fresh deployments) and `initializeV2` (the live UUPS upgrade path, guarded on `minDepositAge == 0` so a pre-upgrade admin value is preserved), each emitting `MinDepositAgeUpdated`. The MEV guard is now active out of the box and admin-retunable within `[0, MAX_MIN_DEPOSIT_AGE]`. Test: `test/audits/SAP5_MinDepositAgeNotInitialized.t.sol` (now asserts the seeded default), plus `test_initialize_seedsDefaultMinDepositAge` in `test/SapienVault.t.sol`.
 
 - [x] **SAP-6 — Global Token Age Requirement May Punish Active Users** · Informational · Resolved
   - File(s): `SapienVault.sol`

@@ -92,6 +92,7 @@ When `minDepositAge > 0`:
 - **`lockStake`**, **outgoing transfers**, **`maxWithdraw`**, and **`maxRedeem`** act only on **matured, unlocked** shares.
 - **Peer-to-peer transfers** move only matured shares, and the recipient receives them as matured — **age travels with the shares**. A transfer therefore cannot reset a recipient’s cooldown, so the previous dust-transfer griefing vector is gone (SAP-1). It also means already-matured funds are never re-frozen by a later deposit (SAP-6).
 - The number of concurrent immature tranches per user is capped (`MAX_IMMATURE_TRANCHES`); at the cap a new inflow coalesces into the newest cohort, bounding the gas of maturation so dust deposits cannot grief.
+- **`minTrancheSize`** (asset terms, admin-configurable, default `0` = disabled) rejects deposits/mints that would record an immature cohort below the threshold when `minDepositAge > 0`. This blocks dust-deposit griefing without affecting small deposits when the MEV guard is off.
 
 `maturedShares(user)` and `pendingShares(user)` expose the split (`matured + pending == balanceOf`).
 

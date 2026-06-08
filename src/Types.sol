@@ -28,4 +28,7 @@ struct SapienVaultStorage {
     mapping(address => uint256) immatureTail;
     // Set once a user's balance has been migrated into the tranche model.
     mapping(address => bool) migrated;
+    // Minimum asset amount for a new immature tranche when `minDepositAge > 0`.
+    // Sub-threshold mints revert, blocking dust-deposit griefing. Zero disables.
+    uint256 minTrancheSize;
 }

@@ -14,6 +14,7 @@ interface ISapienVault {
     error InsufficientLockedAmount(uint256 required, uint256 locked);
     error TransferExceedsUnlockedShares();
     error MinDepositAgeTooHigh(uint256 requested, uint256 max);
+    error BelowMinTrancheSize(uint256 assets, uint256 minSize);
     error ZeroAmount();
     error ZeroAddress();
     error ZeroShareSlash();
@@ -39,6 +40,10 @@ interface ISapienVault {
     /// @notice Emitted when the admin updates the minimum deposit-age timer.
     /// @param newAge New minimum deposit age, in seconds.
     event MinDepositAgeUpdated(uint256 indexed newAge);
+
+    /// @notice Emitted when the admin updates the minimum immature-tranche size.
+    /// @param newSize New minimum tranche size, in asset terms.
+    event MinTrancheSizeUpdated(uint256 indexed newSize);
 
     /// @notice Emitted when admin rescues stuck ETH from the proxy.
     /// @param to Recipient of the rescued ETH.
@@ -113,6 +118,16 @@ interface ISapienVault {
     /// @notice Read the configured minimum stake age for lockStake, transfer, or withdraw.
     /// @return Minimum age in seconds.
     function minDepositAge() external view returns (uint256);
+
+    /// @notice Set the minimum asset amount for a new immature tranche.
+    /// @dev Only enforced when `minDepositAge > 0`. Deposits/mints that would
+    ///      record fewer asset-equivalent shares revert. Zero disables the check.
+    /// @param size Minimum tranche size, in asset terms.
+    function setMinTrancheSize(uint256 size) external;
+
+    /// @notice Read the configured minimum immature-tranche size.
+    /// @return Minimum tranche size, in asset terms (0 = disabled).
+    function minTrancheSize() external view returns (uint256);
 
     /// @notice Pause vault operations.
     /// @dev While paused, ERC-4626 max deposit/mint/withdraw/redeem are zero and
