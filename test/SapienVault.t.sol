@@ -824,7 +824,7 @@ contract SapienVaultTest is Test {
 
     /// @dev After the fix, slashing 1 wei at 1:1 rate rounds up to 1 share
     ///      (thanks to decimalsOffset the virtual offset makes previewWithdraw(1) >= 1).
-    function test_slashStake_roundsUp_burnsAtLeastOneShare() public {
+    function test_slashStake_burnsAtLeastOneShare() public {
         vm.prank(user1);
         vault.deposit(DEPOSIT_AMOUNT, user1);
 
@@ -837,39 +837,41 @@ contract SapienVaultTest is Test {
         vault.slashStake(user1, 1);
 
         uint256 sharesAfter = vault.balanceOf(user1);
-        assertLt(sharesAfter, sharesBefore, "previewWithdraw round-up must burn >= 1 share");
+        assertLt(sharesAfter, sharesBefore, "slash must burn >= 1 share");
 
         StakeAccount memory acct = vault.getStakeAccount(user1);
         assertEq(acct.lockedAmount, DEPOSIT_AMOUNT - 1, "lockedAmount not decremented");
     }
 
-    /// @dev With a high exchange rate (donation doubles rate), slashing uses
-    ///      previewWithdraw (rounds up) so more shares are burned than convertToShares
-    ///      would yield, ensuring the penalty is at least as large as requested.
-    function test_slashStake_roundsUp_afterDonation() public {
+    /// @dev With a high exchange rate (donation) and a second staker, the
+    ///      dilution-compensated slash still inflicts ~the intended net damage on
+    ///      the user (never more) and burns strictly more than the naive
+    ///      convertToShares equivalent (SAP-2).
+    function test_slashStake_netDamage_afterDonation() public {
         vm.prank(user1);
         vault.deposit(DEPOSIT_AMOUNT, user1);
+        vm.prank(user2);
+        vault.deposit(DEPOSIT_AMOUNT, user2);
 
-        token.mint(address(this), DEPOSIT_AMOUNT);
-        token.transfer(address(vault), DEPOSIT_AMOUNT);
+        token.mint(address(this), 2 * DEPOSIT_AMOUNT);
+        token.transfer(address(vault), 2 * DEPOSIT_AMOUNT);
 
         vm.prank(user1);
-        vault.lockStake(DEPOSIT_AMOUNT);
+        vault.lockStake(400e18);
 
-        uint256 slashAmt = 3;
-        uint256 sharesRoundDown = vault.convertToShares(slashAmt);
-        uint256 sharesRoundUp = vault.previewWithdraw(slashAmt);
-
-        assertGe(sharesRoundUp, sharesRoundDown, "previewWithdraw must be >= convertToShares");
-
+        uint256 naiveShares = vault.convertToShares(400e18);
         uint256 sharesBefore = vault.balanceOf(user1);
+        uint256 valueBefore = vault.convertToAssets(vault.balanceOf(user1));
 
         vm.prank(engine);
-        vault.slashStake(user1, slashAmt);
+        vault.slashStake(user1, 400e18);
 
         uint256 sharesBurned = sharesBefore - vault.balanceOf(user1);
-        assertEq(sharesBurned, sharesRoundUp, "Must burn the round-up amount");
-        assertGt(sharesBurned, 0, "Must burn at least 1 share");
+        uint256 loss = valueBefore - vault.convertToAssets(vault.balanceOf(user1));
+
+        assertGt(sharesBurned, naiveShares, "dilution-compensated burn exceeds naive convertToShares");
+        assertLe(loss, 400e18, "slash must never over-penalize");
+        assertApproxEqAbs(loss, 400e18, 1e16, "net damage equals the intended amount");
     }
 
     /// @dev Slashing an amount that would round to zero shares with the old
@@ -888,9 +890,11 @@ contract SapienVaultTest is Test {
         assertGt(sharesToBurn, 0, "With offset=3, previewWithdraw(1) should be > 0");
     }
 
-    /// @dev After a large donation that raises the exchange rate significantly,
-    ///      small slashes must still burn shares (round-up) rather than silently
-    ///      reducing lockedAmount with no share burn.
+    /// @dev After a large donation pushes the exchange rate so high that one wei
+    ///      of asset value is worth less than a single share, a sub-share slash
+    ///      rounds to zero shares and reverts with ZeroShareSlash (never silently
+    ///      reducing lockedAmount without a burn). A slash at/above one share's
+    ///      value still burns. Rounding is *down* to keep slashing solvency-safe.
     function test_slashStake_smallSlash_highExchangeRate() public {
         vm.prank(user1);
         vault.deposit(1e18, user1);
@@ -901,17 +905,22 @@ contract SapienVaultTest is Test {
         vm.prank(user1);
         vault.lockStake(1e18);
 
-        uint256 sharesBefore = vault.balanceOf(user1);
-
+        // 1 wei of damage is below one share's value at this rate -> reverts.
+        assertEq(vault.convertToShares(1), 0, "1 wei should round to 0 shares at this rate");
         vm.prank(engine);
+        vm.expectRevert(ISapienVault.ZeroShareSlash.selector);
         vault.slashStake(user1, 1);
 
-        uint256 sharesAfter = vault.balanceOf(user1);
-        assertLt(sharesAfter, sharesBefore, "Small slash at high exchange rate must still burn shares");
+        // A slash worth at least one share burns shares as expected.
+        uint256 minSlash = vault.convertToAssets(1) + 2;
+        uint256 sharesBefore = vault.balanceOf(user1);
+        vm.prank(engine);
+        vault.slashStake(user1, minSlash);
+        assertLt(vault.balanceOf(user1), sharesBefore, "slash >= one share must burn shares");
     }
 
     /// @dev Fuzz: slashing any non-zero locked amount must always burn at least
-    ///      one share (thanks to round-up via previewWithdraw).
+    ///      one share (the dilution-compensated burn is >= the naive equivalent).
     function testFuzz_slashStake_alwaysBurnsShares(uint256 depositAmt, uint256 donationAmt, uint256 slashAmt) public {
         depositAmt = bound(depositAmt, 1, 1e24);
         donationAmt = bound(donationAmt, 0, 1e24);
@@ -928,7 +937,11 @@ contract SapienVaultTest is Test {
         }
 
         uint256 userAssets = vault.convertToAssets(vault.balanceOf(user1));
-        slashAmt = bound(slashAmt, 1, userAssets);
+        // A slash must be worth at least one share to burn anything; sub-share
+        // amounts correctly revert with ZeroShareSlash (see unit test).
+        uint256 minSlash = vault.previewMint(1);
+        vm.assume(userAssets >= minSlash);
+        slashAmt = bound(slashAmt, minSlash, userAssets);
 
         vm.prank(user1);
         vault.lockStake(slashAmt);
@@ -939,7 +952,7 @@ contract SapienVaultTest is Test {
         vault.slashStake(user1, slashAmt);
 
         uint256 sharesAfter = vault.balanceOf(user1);
-        assertLt(sharesAfter, sharesBefore, "Fuzz: slash must always burn at least 1 share");
+        assertLt(sharesAfter, sharesBefore, "Fuzz: slash >= one share must burn at least 1 share");
     }
 
     /// @dev Verify that after slashing, the remaining shares still cover any
@@ -965,8 +978,11 @@ contract SapienVaultTest is Test {
         }
 
         uint256 userAssets = vault.convertToAssets(vault.balanceOf(user1));
-        lockAmt = bound(lockAmt, 1, userAssets);
-        slashAmt = bound(slashAmt, 1, lockAmt);
+        // Keep the slash at/above one share's value (sub-share slashes revert).
+        uint256 minSlash = vault.previewMint(1);
+        vm.assume(userAssets >= minSlash);
+        lockAmt = bound(lockAmt, minSlash, userAssets);
+        slashAmt = bound(slashAmt, minSlash, lockAmt);
 
         vm.prank(user1);
         vault.lockStake(lockAmt);
@@ -977,9 +993,10 @@ contract SapienVaultTest is Test {
         uint256 remainingLocked = vault.getStakeAccount(user1).lockedAmount;
         uint256 remainingAssets = vault.convertToAssets(vault.balanceOf(user1));
 
-        if (remainingLocked > 0) {
-            assertGe(remainingAssets, 0, "Remaining assets should be non-negative");
-        }
+        // SAP-2: rounding the compensated burn down guarantees the user is never
+        // left under-collateralised — their surviving value still covers any
+        // remaining locked stake.
+        assertGe(remainingAssets, remainingLocked, "Remaining assets must still cover remaining locked stake");
     }
 
     // ── Event Emission Assertions ──────────────────────────────────

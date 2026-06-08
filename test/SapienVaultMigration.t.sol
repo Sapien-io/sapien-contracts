@@ -25,6 +25,7 @@ contract SapienVaultMigrationTest is Test {
     address internal aged = makeAddr("aged"); // matured + locked pre-upgrade
     address internal fresh = makeAddr("fresh"); // mid-cooldown pre-upgrade
     address internal recipient = makeAddr("recipient"); // got shares via transfer
+    address internal exempt = makeAddr("exempt"); // delegated deposit: ts==0 pre-upgrade
 
     uint256 internal constant MIN_AGE = 1 days;
     uint256 internal constant AMOUNT = 1000e18;
@@ -62,6 +63,13 @@ contract SapienVaultMigrationTest is Test {
         // on receipt). Do this right after aged matured so the transfer passes.
         vm.prank(aged);
         v1.transfer(recipient, 100e18);
+
+        // exempt: receives a *delegated* deposit (caller != receiver), which under
+        // V1 never stamps the receiver's lastDepositTimestamp. This reproduces the
+        // legacy "exempt" holder (ts == 0) that migrates as fully mature.
+        vm.prank(aged);
+        v1.deposit(AMOUNT, exempt);
+        assertEq(v1.lastDepositTimestamp(exempt), 0, "exempt should have no V1 timer");
 
         // fresh: deposits just 12h before the upgrade (still mid-cooldown).
         skip(MIN_AGE - 12 hours);
@@ -123,9 +131,7 @@ contract SapienVaultMigrationTest is Test {
             vm.prank(u);
             vault.transfer(u, 0);
             assertEq(
-                vault.maturedShares(u) + vault.pendingShares(u),
-                vault.balanceOf(u),
-                "matured + pending != balanceOf"
+                vault.maturedShares(u) + vault.pendingShares(u), vault.balanceOf(u), "matured + pending != balanceOf"
             );
         }
     }
@@ -134,5 +140,57 @@ contract SapienVaultMigrationTest is Test {
         _upgrade();
         vm.expectRevert();
         vault.initializeV2();
+    }
+
+    /// @notice A pre-upgrade holder whose V1 `lastDepositTimestamp` was never set
+    ///         (e.g. shares acquired via a delegated deposit) migrates as fully
+    ///         mature: all shares are immediately mature and none are pending.
+    ///         Exercises the `ts == 0` exempt branch in `_matureSharesView`,
+    ///         `pendingShares`, and `_lazyMigrate`.
+    function test_migration_exemptHolderIsFullyMature() public {
+        uint256 exemptBal = vault.balanceOf(exempt);
+        assertGt(exemptBal, 0, "exempt should hold shares pre-upgrade");
+
+        _upgrade();
+
+        // Views run before the first touch, so `migrated[exempt]` is still false
+        // and these hit the legacy ts == 0 fast paths.
+        assertEq(vault.maturedShares(exempt), exemptBal, "exempt shares should be fully mature");
+        assertEq(vault.pendingShares(exempt), 0, "exempt should have no pending shares");
+
+        // First touch triggers _lazyMigrate's ts == 0 branch (mature = balance).
+        vm.prank(exempt);
+        vault.transfer(exempt, 0);
+        assertEq(vault.maturedShares(exempt), exemptBal, "mature preserved after lazy migration");
+        assertEq(
+            vault.maturedShares(exempt) + vault.pendingShares(exempt),
+            vault.balanceOf(exempt),
+            "matured + pending != balanceOf"
+        );
+
+        // Exempt shares are immediately withdrawable post-migration.
+        assertEq(vault.maxWithdraw(exempt), vault.convertToAssets(exemptBal), "exempt fully withdrawable");
+    }
+
+    /// @notice If the pre-upgrade vault never configured `minDepositAge` (left at
+    ///         the default 0), the V2 reinitializer seeds the MEV guard with
+    ///         `DEFAULT_MIN_DEPOSIT_AGE` (SAP-5). Exercises the `== 0` branch in
+    ///         `initializeV2`.
+    function test_migration_initializeV2SeedsDefaultWhenUnset() public {
+        SapienVaultV1 freshImpl = new SapienVaultV1();
+        bytes memory initData = abi.encodeCall(SapienVaultV1.initialize, (IERC20(address(token)), admin));
+        address proxy = address(new ERC1967Proxy(address(freshImpl), initData));
+        SapienVault freshVault = SapienVault(proxy);
+
+        // Note: no setMinDepositAge call, so the legacy vault leaves it at 0.
+        SapienVault impl = new SapienVault();
+        vm.prank(admin);
+        freshVault.upgradeToAndCall(address(impl), abi.encodeCall(SapienVault.initializeV2, ()));
+
+        assertEq(
+            freshVault.minDepositAge(),
+            freshVault.DEFAULT_MIN_DEPOSIT_AGE(),
+            "initializeV2 should seed default when unset"
+        );
     }
 }

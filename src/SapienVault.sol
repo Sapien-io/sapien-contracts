@@ -14,6 +14,7 @@ import {
 } from "lib/openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol";
 import {UUPSUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {SafeCast} from "lib/openzeppelin-contracts/contracts/utils/math/SafeCast.sol";
+import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {ISapienVault} from "src/interfaces/ISapienVault.sol";
 import {SapienVaultStorage, StakeAccount, Tranche} from "src/Types.sol";
 
@@ -261,14 +262,25 @@ contract SapienVault is
     }
 
     /// @inheritdoc ISapienVault
+    /// @dev SAP-2: `amount` is the *intended net damage* in asset terms, gated by
+    ///      the user's locked stake. Because slashing burns shares without moving
+    ///      assets out, the surviving shares (including the user's own) would
+    ///      otherwise recapture part of the penalty via the exchange-rate bump.
+    ///      `_slashShareAmount` sizes the burn to compensate for that dilution so
+    ///      the user's value drops by exactly `amount` (capped at their whole
+    ///      stake), and the recaptured value accrues to the *other* stakers.
     function slashStake(address user, uint256 amount) external onlyRole(ENGINE_ROLE) whenNotPaused {
         if (amount == 0) revert ZeroAmount();
         StakeAccount storage acct = _getSapienVaultStorage().accounts[user];
         if (acct.lockedAmount < amount) revert InsufficientLockedAmount(amount, acct.lockedAmount);
 
+        uint256 shares = _slashShareAmount(user, amount);
+        if (shares == 0) revert ZeroShareSlash();
+
         acct.lockedAmount -= amount;
-        _burnShares(user, amount);
+        _burn(user, shares);
         emit StakeSlashed(user, amount);
+        emit SharesSlashed(user, shares);
     }
 
     // ── Views ──────────────────────────────────────────────────────────
@@ -402,7 +414,38 @@ contract SapienVault is
             _pushImmature($, to, value);
         } else if (to == address(0)) {
             uint256 mature = _settle($, from);
-            $.matureShares[from] = mature - value;
+            if (value <= mature) {
+                $.matureShares[from] = mature - value;
+            } else {
+                // A slash can burn more than the matured balance (SAP-2 sizes the
+                // burn above the matured/locked-equivalent to defeat dilution
+                // recapture). Drain matured first, then spill the remainder from
+                // the user's immature cohorts FIFO. Normal withdraw/redeem never
+                // reach this branch because maxWithdraw/maxRedeem cap at matured.
+                $.matureShares[from] = 0;
+                uint256 remaining = value - mature;
+                uint256 head = $.immatureHead[from];
+                uint256 tail = $.immatureTail[from];
+                while (remaining > 0 && head < tail) {
+                    Tranche storage t = $.immature[from][head];
+                    uint256 ts = t.shares;
+                    if (ts > remaining) {
+                        t.shares = uint128(ts - remaining);
+                        remaining = 0;
+                    } else {
+                        remaining -= ts;
+                        delete $.immature[from][head];
+                        unchecked {
+                            ++head;
+                        }
+                    }
+                }
+                if (head == tail) {
+                    head = 0;
+                    $.immatureTail[from] = 0;
+                }
+                $.immatureHead[from] = head;
+            }
         } else {
             _requireNotPaused();
 
@@ -421,13 +464,34 @@ contract SapienVault is
 
     // ── Internal ───────────────────────────────────────────────────────
 
-    /// @dev Burn shares equivalent to `assetAmount` for slashing.
-    ///      Uses previewWithdraw (rounds up) so the penalty is never
-    ///      smaller than intended, and reverts when rounding yields 0 shares.
-    function _burnShares(address user, uint256 assetAmount) internal {
-        uint256 shares = previewWithdraw(assetAmount);
-        if (shares == 0) revert ZeroShareSlash();
-        _burn(user, shares);
+    /// @dev Shares to burn so a slash inflicts exactly `assetDamage` of net value
+    ///      loss on `user`, compensating for the exchange-rate dilution that
+    ///      would otherwise return part of the penalty to the user's own shares.
+    ///
+    ///      With virtual pool totals A = totalAssets()+1 and S = totalSupply()+
+    ///      10^offset, user balance b, and s_D = convertToShares(assetDamage)
+    ///      (shares for the damage at the current rate), the burn is:
+    ///
+    ///          x = s_D * S / (S + s_D - b)
+    ///
+    ///      derived from holding assets constant and requiring the user's value
+    ///      convertToAssets(b) - convertToAssets(b - x) to equal `assetDamage`.
+    ///      The denominator is always positive (the inflation-mitigation virtual
+    ///      shares guarantee S > totalSupply() >= b). All rounding is *down* so
+    ///      the realized net damage never exceeds `assetDamage`; this keeps the
+    ///      post-slash invariant convertToAssets(balanceOf) >= lockedAmount
+    ///      intact (the user can never be left under-collateralised by rounding).
+    ///      Caps at the user's full balance ("up to that amount of shares, if
+    ///      available").
+    function _slashShareAmount(address user, uint256 assetDamage) internal view returns (uint256) {
+        uint256 sD = convertToShares(assetDamage);
+        if (sD == 0) return 0;
+        uint256 b = balanceOf(user);
+        if (b == 0) return 0;
+        uint256 s = totalSupply() + 10 ** _decimalsOffset();
+        // denom > 0: s includes the virtual share offset, so s > totalSupply() >= b.
+        uint256 x = Math.mulDiv(sD, s, s + sD - b, Math.Rounding.Floor);
+        return x > b ? b : x;
     }
 
     // ── Admin ──────────────────────────────────────────────────────────

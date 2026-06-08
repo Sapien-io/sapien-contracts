@@ -17,7 +17,7 @@ Lifecycle as seen by the vault:
 1. A contributor **deposits** the asset and **`lockStake`s** an amount as collateral against future contributions.
 2. The off-chain PoQ engine evaluates their contributions. Outcomes are committed back on-chain by the engine calling either:
    - **`unlockStake(user, amount)`** — contribution accepted; collateral returned to available balance.
-   - **`slashStake(user, amount)`** — contribution rejected as low-quality, dishonest, or otherwise penalty-worthy; the corresponding shares are burned, redistributing value to the remaining honest stakers.
+   - **`slashStake(user, amount)`** — contribution rejected as low-quality, dishonest, or otherwise penalty-worthy; shares are burned so the user loses exactly `amount` of value, which redistributes to the remaining honest stakers (see [Slashing](#slashing-sap-2) for the dilution-compensated burn).
 3. The contributor `withdraw`s whatever remains.
 
 In short: the **vault** is the on-chain custodian and slashing tool; the **engine** is the off-chain authority that decides when slashing happens. Trust in the engine is concentrated in `ENGINE_ROLE` and is therefore the protocol's primary off-chain trust assumption (see [Roles](#roles) and the repository [README](../README.md#roles--trust-assumptions)).
@@ -72,7 +72,20 @@ Operations:
 
 1. **`lockStake(amount)`** (holder, `whenNotPaused`): moves `amount` from available to locked. Requires `amount <= availableBalance(msg.sender)` (matured, unlocked balance) and a non-zero amount.
 2. **`unlockStake(user, amount)`** (`ENGINE_ROLE`): reduces `user`’s `lockedAmount` only (no share mint/burn).
-3. **`slashStake(user, amount)`** (`ENGINE_ROLE`): reduces `lockedAmount` and **burns** shares corresponding to `amount` in asset terms via `convertToShares` / `_burn`. Remaining stakers gain pro-rata on the underlying (standard ERC-4626 behavior after burn).
+3. **`slashStake(user, amount)`** (`ENGINE_ROLE`): reduces `lockedAmount` and **burns** shares so the user's value drops by exactly `amount` (see [Slashing](#slashing-sap-2)). Remaining stakers gain the slashed value on the underlying.
+
+<a id="slashing-sap-2"></a>
+### Slashing (SAP-2)
+
+Because a slash burns shares without moving any SAPIEN out of the vault, `totalAssets()` is unchanged and the surviving shares appreciate. A naive burn of `convertToShares(amount)` would let the slashed user **recapture** part of the penalty through that exchange-rate bump (and recapture ~all of it if they dominated the pool) — the original SAP-2 finding.
+
+To neutralise this, the burn is **dilution-compensated**. With virtual pool totals `A = totalAssets()+1`, `S = totalSupply()+10^offset`, user balance `b`, and `s_D = convertToShares(amount)`:
+
+```
+sharesBurned = s_D * S / (S + s_D - b)   (rounded down, capped at b)
+```
+
+This is the share quantity whose removal lowers `convertToAssets(b)` by exactly `amount`, so the slashed user bears the full intended damage and the recaptured value flows to the **other** stakers. Rounding is **down** so realized damage never exceeds `amount`, keeping the post-slash invariant `convertToAssets(balanceOf(user)) >= lockedAmount` intact. The denominator is always positive (the inflation-mitigation virtual shares guarantee `S > totalSupply() >= b`). A slash worth less than one share rounds to zero and reverts `ZeroShareSlash`. When the burn exceeds the user's matured shares it spills into their immature tranches (FIFO), so the full penalty is always realizable.
 
 ---
 
@@ -140,6 +153,7 @@ The SAP-1 tranche upgrade is applied via `upgradeToAndCall(newImpl, initializeV2
 | `TransferExceedsUnlockedShares()` | Transfer exceeds the sender's matured, unlocked shares (covers both locked stake and not-yet-matured shares) |
 | `MinDepositAgeTooHigh(requested, max)` | Admin set age above `MAX_MIN_DEPOSIT_AGE` |
 | `ZeroAmount()` | Zero amount on lock/unlock/slash |
+| `ZeroShareSlash()` | Slash amount rounds to zero shares (below one share's value) |
 | `ZeroAddress()` | `initialize` with zero asset or admin |
 
 OpenZeppelin **`AccessControlUnauthorizedAccount`** may surface on role-gated calls. ERC-4626 **`ERC4626ExceededMaxWithdraw`** / **`ERC4626ExceededMaxRedeem`** (etc.) apply when callers exceed `max*` limits.
@@ -150,7 +164,8 @@ OpenZeppelin **`AccessControlUnauthorizedAccount`** may surface on role-gated ca
 
 - `StakeLocked(user, amount)`
 - `StakeUnlocked(user, amount)`
-- `StakeSlashed(user, amount)`
+- `StakeSlashed(user, amount)` — intended net asset damage
+- `SharesSlashed(user, shares)` — exact shares burned (exceeds the naive `amount`-equivalent; see [Slashing](#slashing-sap-2))
 - `MinDepositAgeUpdated(newAge)`
 
 Standard ERC-4626 `Deposit`, `Withdraw`, and ERC-20 `Transfer` events also apply.
@@ -162,7 +177,7 @@ Standard ERC-4626 `Deposit`, `Withdraw`, and ERC-20 `Transfer` events also apply
 1. Treat the vault as **ERC-4626**: use previews and `max*` functions.
 2. If **`minDepositAge > 0`**, expect freshly **deposited/minted** shares to be **delayed** for `lockStake`, transfers, and withdrawals until they mature; already-matured shares (including matured shares received via transfer) are actionable immediately. Use `maturedShares` / `pendingShares` to inspect the split.
 3. **Locked stake** reduces **`maxWithdraw` / `maxRedeem`**; unlocking is **off-chain policy + `ENGINE_ROLE`** on-chain.
-4. **Slashing** burns shares; indexers should track `StakeSlashed` and share supply, not only `lockedAmount`.
+4. **Slashing** burns shares (more than the naive `amount`-equivalent, by design — SAP-2); indexers should track `StakeSlashed`/`SharesSlashed` and share supply, not only `lockedAmount`.
 5. Deploy behind **ERC-1967 proxy**; call **`initialize(asset, admin)`** once; never rely on unproxied implementation for user funds.
 
 ---
