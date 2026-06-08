@@ -65,7 +65,7 @@ contract SapienVaultTest is Test {
         vault.deposit(DEPOSIT_AMOUNT, user1);
 
         assertGt(vault.balanceOf(user1), 0);
-        assertEq(vault.getUserStakeBalance(user1), DEPOSIT_AMOUNT);
+        assertEq(vault.assetsOf(user1), DEPOSIT_AMOUNT);
     }
 
     function test_withdraw() public {
@@ -629,12 +629,12 @@ contract SapienVaultTest is Test {
         vm.prank(user1);
         vault.deposit(DEPOSIT_AMOUNT, user1);
 
-        uint256 stakeBalBefore = vault.getUserStakeBalance(user1);
+        uint256 stakeBalBefore = vault.assetsOf(user1);
 
         token.mint(address(this), 500e18);
         token.transfer(address(vault), 500e18);
 
-        assertGe(vault.getUserStakeBalance(user1), stakeBalBefore, "Donation decreased user's stake value");
+        assertGe(vault.assetsOf(user1), stakeBalBefore, "Donation decreased user's stake value");
     }
 
     // ── Mint & Redeem Paths ────────────────────────────────────────
@@ -646,7 +646,7 @@ contract SapienVaultTest is Test {
         vault.mint(sharesToMint, user1);
 
         assertEq(vault.balanceOf(user1), sharesToMint);
-        assertGt(vault.getUserStakeBalance(user1), 0);
+        assertGt(vault.assetsOf(user1), 0);
     }
 
     function test_redeem() public {
@@ -1039,11 +1039,24 @@ contract SapienVaultTest is Test {
     }
 
     function test_setMinDepositAge_emitsMinDepositAgeUpdated() public {
-        vm.expectEmit(true, false, false, true, address(vault));
-        emit ISapienVault.MinDepositAgeUpdated(1 days);
+        // setUp set the guard to 0, so this transition is 0 -> 1 days.
+        vm.expectEmit(true, true, false, true, address(vault));
+        emit ISapienVault.MinDepositAgeUpdated(0, 1 days);
 
         vm.prank(admin);
         vault.setMinDepositAge(1 days);
+    }
+
+    /// @dev S3: a redundant set (new == stored) must not emit or write.
+    function test_setMinDepositAge_noopDoesNotEmit() public {
+        vm.prank(admin);
+        vault.setMinDepositAge(2 days);
+
+        vm.recordLogs();
+        vm.prank(admin);
+        vault.setMinDepositAge(2 days);
+        assertEq(vm.getRecordedLogs().length, 0, "no-op set should not emit");
+        assertEq(vault.minDepositAge(), 2 days);
     }
 
     // ── Multi-User Interaction Tests ───────────────────────────────
@@ -1054,7 +1067,7 @@ contract SapienVaultTest is Test {
         vm.prank(user2);
         vault.deposit(DEPOSIT_AMOUNT, user2);
 
-        uint256 user2BalBefore = vault.getUserStakeBalance(user2);
+        uint256 user2BalBefore = vault.assetsOf(user2);
 
         vm.prank(user1);
         vault.lockStake(400e18);
@@ -1062,7 +1075,7 @@ contract SapienVaultTest is Test {
         vm.prank(engine);
         vault.slashStake(user1, 400e18);
 
-        assertGe(vault.getUserStakeBalance(user2), user2BalBefore, "Slash reduced other user's value");
+        assertGe(vault.assetsOf(user2), user2BalBefore, "Slash reduced other user's value");
         assertGe(vault.maxWithdraw(user2), DEPOSIT_AMOUNT, "Slash blocked other user's withdrawal");
     }
 
@@ -1164,7 +1177,7 @@ contract SapienVaultTest is Test {
         vm.prank(user1);
         vault.deposit(DEPOSIT_AMOUNT, user1);
 
-        uint256 totalAssets = vault.getUserStakeBalance(user1);
+        uint256 totalAssets = vault.assetsOf(user1);
 
         vm.prank(user1);
         vault.lockStake(totalAssets);
@@ -1216,21 +1229,18 @@ contract SapienVaultTest is Test {
         assertEq(vault.getStakeAccount(user1).lockedAmount, 200e18);
     }
 
-    function test_adminRenounce_blocksAdminOps() public {
+    /// @dev S2: renouncing `DEFAULT_ADMIN_ROLE` is hard-disabled so the vault can
+    ///      never be left without an admin. Admin handover must go through the
+    ///      two-step, time-locked transfer flow instead.
+    function test_adminRenounce_isDisabled() public {
+        vm.expectRevert(ISapienVault.DefaultAdminRenounceDisabled.selector);
         vm.prank(admin);
         vault.renounceRole(ADMIN_ROLE, admin);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, admin, ADMIN_ROLE)
-        );
+        // Admin retains all privileges.
         vm.prank(admin);
         vault.pause();
-
-        vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, admin, ADMIN_ROLE)
-        );
-        vm.prank(admin);
-        vault.setMinDepositAge(1 days);
+        assertTrue(vault.paused());
     }
 
     // ── SAP-1: Inbound Transfers Cannot Grief (Resolved) ───────────
@@ -1277,7 +1287,7 @@ contract SapienVaultTest is Test {
         vault.deposit(amount, user1);
 
         assertGt(vault.balanceOf(user1), 0);
-        assertEq(vault.getUserStakeBalance(user1), amount);
+        assertEq(vault.assetsOf(user1), amount);
     }
 
     function testFuzz_withdraw(uint256 amount, uint256 withdrawAmount) public {

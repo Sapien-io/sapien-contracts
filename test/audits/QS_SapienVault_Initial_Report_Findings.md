@@ -83,19 +83,21 @@ Total findings: 7 (1 High, 2 Medium, 1 Low, 3 Informational). SAP-1/SAP-2/SAP-3/
 
 ## Auditor Suggestions
 
-- [ ] **S1 — Expose Explicit Cooldown State for Users and Integrators** · Unresolved
+- [x] **S1 — Expose Explicit Cooldown State for Users and Integrators** · Resolved
   - File(s): `src/SapienVault.sol`
   - Problem: `lastDepositTimestamp` drives cooldown enforcement but is only used internally (`_hasMetDepositAge` / `_requireDepositAgeMet`). The public surface does not expose the per-user timestamp or remaining cooldown, so when `maxWithdraw(owner) == 0` an integrator cannot distinguish paused, locked, in-cooldown, no-shares, or other caps.
   - Recommendation: Add cooldown read helpers, e.g.
     - `function lastDepositTimestamp(address user) external view returns (uint256);`
     - `function depositAgeStatus(address user) external view returns (bool hasMetAge, uint256 lastTimestamp, uint256 minAge, uint256 remaining);`
     - Emit both old and new values in `MinDepositAgeUpdated` for off-chain monitoring.
+  - Resolution: Adapted to the tranche model — there is no longer a single per-user `lastDepositTimestamp`, so the literal getter is moot. Added `depositAgeStatus(user) -> (matured, pending, minAge, nextMaturityRemaining)`, where `nextMaturityRemaining` counts down to the user's oldest still-immature cohort (0 when nothing is pending or the guard is off). This, together with the existing `maturedShares`/`pendingShares`, lets integrators tell a cooldown apart from a pause, a lock, or an empty balance when `maxWithdraw == 0`. `MinDepositAgeUpdated` now carries `(oldAge, newAge)`. Test: `test/audits/S1_ExposeCooldownState.t.sol`.
 
-- [ ] **S2 — Improved Role Management** · Unresolved
+- [x] **S2 — Improved Role Management** · Resolved
   - File(s): `SapienVault.sol`
   - Recommendation: Switch from `AccessControlUpgradeable` to `AccessControlDefaultAdminRulesUpgradeable` for two-step admin transfers with time locks and strict single-admin enforcement. Also override/disable the ability to renounce ownership.
+  - Resolution: `SapienVault` now extends `AccessControlDefaultAdminRulesUpgradeable` (single `DEFAULT_ADMIN_ROLE` holder, two-step time-locked handover via `beginDefaultAdminTransfer`/`acceptDefaultAdminTransfer`, initial delay `DEFAULT_ADMIN_TRANSFER_DELAY = 3 days`). `renounceRole(DEFAULT_ADMIN_ROLE, …)` is hard-disabled (`DefaultAdminRenounceDisabled`) so the vault can never be left ownerless; other roles renounce normally. `initialize` installs the admin via `__AccessControlDefaultAdminRules_init`. Per the "still on V1" deployment state, the migration is folded into the existing `initializeV2(currentAdmin_)` (no V3): it seeds the rules storage to the incumbent admin and reverts unless `currentAdmin_` already holds the role. Tests: `test/audits/S2_ImprovedRoleManagement.t.sol`, `test/SapienVaultMigration.t.sol`.
 
-- [ ] **S3 — Code Improvements** · Unresolved
+- [x] **S3 — Code Improvements** · Resolved (a kept by decision)
   - File(s): `SapienVault.sol`, `Types.sol`
   - Recommendations:
     - In `Types.sol`, the `StakeAccount` struct is not strictly needed — use `uint256` directly or store `lastDepositTimestamp` here.
@@ -103,6 +105,13 @@ Total findings: 7 (1 High, 2 Medium, 1 Low, 3 Informational). SAP-1/SAP-2/SAP-3/
     - Avoid code duplication between `maxRedeem()` and `maxWithdraw()`.
     - Rename `getUserStakeBalance()` (it returns total asset value, not staked amount) to avoid a misleading name.
     - `setMinDepositAge()` emits an event even when the new age equals the stored `minDepositAge`.
+  - Resolution:
+    - (a) **Kept by decision**: `StakeAccount` remains a struct — it is the public return type of `getStakeAccount`, so collapsing it to a bare `uint256` is an ABI break for zero benefit.
+    - (b) **Already resolved** by the SAP-1 refactor: `_hasMetDepositAge`/`_requireDepositAgeMet` no longer exist (replaced by tranche settling).
+    - (c) `maxRedeem`, `maxWithdraw`, and `availableBalance` now share one `_availableMatureShares(owner)` helper (mature shares minus the rounded-up locked reservation).
+    - (d) `getUserStakeBalance` renamed to `assetsOf` (the asset value of the user's whole share balance, `convertToAssets(balanceOf)`).
+    - (e) `setMinDepositAge` returns early on a no-op (new age equals stored), so it neither writes nor emits.
+    - Test: `test/audits/S3_CodeImprovements.t.sol`.
 
 ---
 

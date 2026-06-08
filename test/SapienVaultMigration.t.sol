@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SapienVault} from "../src/SapienVault.sol";
+import {ISapienVault} from "../src/interfaces/ISapienVault.sol";
 import {SapienVaultV1} from "./mocks/SapienVaultV1.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 
@@ -81,7 +82,7 @@ contract SapienVaultMigrationTest is Test {
     function _upgrade() internal {
         v2Impl = new SapienVault();
         vm.prank(admin);
-        vault.upgradeToAndCall(address(v2Impl), abi.encodeCall(SapienVault.initializeV2, ()));
+        vault.upgradeToAndCall(address(v2Impl), abi.encodeCall(SapienVault.initializeV2, (admin)));
     }
 
     function test_migration_preservesBalancesAndLockedStake() public {
@@ -139,7 +140,34 @@ contract SapienVaultMigrationTest is Test {
     function test_migration_cannotReinitialize() public {
         _upgrade();
         vm.expectRevert();
-        vault.initializeV2();
+        vault.initializeV2(admin);
+    }
+
+    /// @notice S2: the upgrade seeds `AccessControlDefaultAdminRules` storage to
+    ///         the incumbent admin, so `defaultAdmin()` / `owner()` resolve and
+    ///         renouncing `DEFAULT_ADMIN_ROLE` is hard-disabled post-upgrade.
+    function test_migration_seedsDefaultAdminRules() public {
+        _upgrade();
+
+        assertEq(vault.defaultAdmin(), admin, "default admin not seeded");
+        assertEq(vault.owner(), admin, "owner not seeded");
+        assertEq(vault.defaultAdminDelay(), vault.DEFAULT_ADMIN_TRANSFER_DELAY(), "delay not seeded");
+
+        bytes32 adminRole = vault.DEFAULT_ADMIN_ROLE();
+        vm.expectRevert(ISapienVault.DefaultAdminRenounceDisabled.selector);
+        vm.prank(admin);
+        vault.renounceRole(adminRole, admin);
+    }
+
+    /// @notice S2: `initializeV2` only blesses an address that already holds the
+    ///         role on the live vault, so the upgrade calldata cannot smuggle in a
+    ///         fresh admin.
+    function test_migration_initializeV2RejectsNonAdmin() public {
+        v2Impl = new SapienVault();
+        address notAdmin = makeAddr("notAdmin");
+        vm.prank(admin);
+        vm.expectRevert(ISapienVault.ZeroAddress.selector);
+        vault.upgradeToAndCall(address(v2Impl), abi.encodeCall(SapienVault.initializeV2, (notAdmin)));
     }
 
     /// @notice A pre-upgrade holder whose V1 `lastDepositTimestamp` was never set
@@ -185,7 +213,7 @@ contract SapienVaultMigrationTest is Test {
         // Note: no setMinDepositAge call, so the legacy vault leaves it at 0.
         SapienVault impl = new SapienVault();
         vm.prank(admin);
-        freshVault.upgradeToAndCall(address(impl), abi.encodeCall(SapienVault.initializeV2, ()));
+        freshVault.upgradeToAndCall(address(impl), abi.encodeCall(SapienVault.initializeV2, (admin)));
 
         assertEq(
             freshVault.minDepositAge(),

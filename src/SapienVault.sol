@@ -6,8 +6,8 @@ import {
 } from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {
-    AccessControlUpgradeable
-} from "lib/openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
+    AccessControlDefaultAdminRulesUpgradeable
+} from "lib/openzeppelin-contracts-upgradeable/contracts/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {
     ReentrancyGuardUpgradeable
@@ -24,7 +24,7 @@ import {SapienVaultStorage, StakeAccount, Tranche} from "src/Types.sol";
 ///      stake locking and share-burn slashing.
 contract SapienVault is
     ERC4626Upgradeable,
-    AccessControlUpgradeable,
+    AccessControlDefaultAdminRulesUpgradeable,
     PausableUpgradeable,
     ReentrancyGuardUpgradeable,
     UUPSUpgradeable,
@@ -39,6 +39,11 @@ contract SapienVault is
 
     /// @notice Upper bound (in seconds) on the configurable `minDepositAge` MEV guard.
     uint256 public constant MAX_MIN_DEPOSIT_AGE = 7 days;
+
+    /// @notice Initial mandatory delay between scheduling and accepting a
+    ///         `DEFAULT_ADMIN_ROLE` transfer (S2). The admin can retune this via
+    ///         the inherited `changeDefaultAdminDelay` (itself time-locked).
+    uint48 public constant DEFAULT_ADMIN_TRANSFER_DELAY = 3 days;
 
     /// @notice Default `minDepositAge` seeded at initialization so the flash-deposit
     ///         MEV guard is active out of the box rather than disabled until an
@@ -88,31 +93,46 @@ contract SapienVault is
         if (admin_ == address(0)) revert ZeroAddress();
         __ERC4626_init(asset_);
         __ERC20_init("Sapien PoQ Vault", "vSAPIEN");
-        __AccessControl_init();
+        // S2: install `admin_` as the single `DEFAULT_ADMIN_ROLE` holder under the
+        // two-step, time-locked transfer rules. This also records `admin_` as the
+        // current default admin (`defaultAdmin()` / `owner()`).
+        __AccessControlDefaultAdminRules_init(DEFAULT_ADMIN_TRANSFER_DELAY, admin_);
         __Pausable_init();
         __ReentrancyGuard_init();
-        // SEC-L-04: assert the role grant succeeded; on a fresh initializer this
-        // is always true, but we no longer silently discard the return value.
-        assert(_grantRole(DEFAULT_ADMIN_ROLE, admin_));
         // SAP-5: seed the MEV guard so it is enabled at deployment instead of
         // defaulting to 0 (disabled). Admin can still retune via setMinDepositAge.
         _getSapienVaultStorage().minDepositAge = DEFAULT_MIN_DEPOSIT_AGE;
-        emit MinDepositAgeUpdated(DEFAULT_MIN_DEPOSIT_AGE);
+        emit MinDepositAgeUpdated(0, DEFAULT_MIN_DEPOSIT_AGE);
     }
 
-    /// @notice Reinitializer for the SAP-1 tranche-accounting upgrade.
-    /// @dev No global state needs seeding: each user's pre-upgrade balance and
-    ///      age are migrated lazily on their first post-upgrade interaction
-    ///      (see `_lazyMigrate`). This bumps the initializer version so the
-    ///      upgrade call is idempotent and future migrations can chain from it.
-    function initializeV2() external reinitializer(2) {
+    /// @notice Reinitializer for the SAP-1 tranche-accounting + S2 role-management
+    ///         upgrade from the live (V1, global-timer) implementation.
+    /// @dev SAP-1 needs no global seeding: each user's pre-upgrade balance and age
+    ///      migrate lazily on their first post-upgrade interaction (`_lazyMigrate`).
+    ///
+    ///      S2: the live vault granted `DEFAULT_ADMIN_ROLE` through plain
+    ///      `AccessControlUpgradeable`, so the `AccessControlDefaultAdminRules`
+    ///      storage (`_currentDefaultAdmin`, `_currentDelay`) is unset. Seed it to
+    ///      the *existing* admin so `defaultAdmin()` / `owner()` and the single-admin
+    ///      invariant are consistent post-upgrade. `currentAdmin_` must already hold
+    ///      the role, so this can only bless the incumbent — never grant the role to
+    ///      a fresh address via the upgrade calldata.
+    /// @param currentAdmin_ The address that currently holds `DEFAULT_ADMIN_ROLE`.
+    function initializeV2(address currentAdmin_) external reinitializer(2) {
+        if (!hasRole(DEFAULT_ADMIN_ROLE, currentAdmin_)) revert ZeroAddress();
+        // Seeds `_currentDelay` and records `currentAdmin_` as the default admin.
+        // `defaultAdmin()` is still 0 here (never set under V1), so the inherited
+        // `_grantRole` guard passes; the role mapping already has it, so no
+        // duplicate `RoleGranted` is emitted.
+        __AccessControlDefaultAdminRules_init(DEFAULT_ADMIN_TRANSFER_DELAY, currentAdmin_);
+
         // SAP-5: enable the MEV guard on upgrade if it was never configured on
         // the live (pre-upgrade) vault. Guarded on `== 0` so an admin value set
         // before the upgrade is preserved rather than clobbered.
         SapienVaultStorage storage $ = _getSapienVaultStorage();
         if ($.minDepositAge == 0) {
             $.minDepositAge = DEFAULT_MIN_DEPOSIT_AGE;
-            emit MinDepositAgeUpdated(DEFAULT_MIN_DEPOSIT_AGE);
+            emit MinDepositAgeUpdated(0, DEFAULT_MIN_DEPOSIT_AGE);
         }
     }
 
@@ -290,17 +310,25 @@ contract SapienVault is
         return _getSapienVaultStorage().accounts[user];
     }
 
-    /// @inheritdoc ISapienVault
-    function availableBalance(address user) public view returns (uint256) {
-        uint256 locked = _getSapienVaultStorage().accounts[user].lockedAmount;
-        uint256 mature = _matureSharesView(user);
-        uint256 lockedShares = locked > 0 ? previewWithdraw(locked) : 0;
-        uint256 availShares = mature > lockedShares ? mature - lockedShares : 0;
-        return convertToAssets(availShares);
+    /// @dev S3: matured shares free of the locked-stake reservation, shared by
+    ///      `availableBalance`, `maxWithdraw`, and `maxRedeem` so the
+    ///      mature-minus-locked computation lives in one place. Reserves shares
+    ///      for the lock with `previewWithdraw` (rounds up) so a subsequent
+    ///      withdraw/redeem can never undercollateralise the lock.
+    function _availableMatureShares(address owner) internal view returns (uint256) {
+        uint256 lockedAmt = _getSapienVaultStorage().accounts[owner].lockedAmount;
+        uint256 mature = _matureSharesView(owner);
+        uint256 lockedShares = lockedAmt > 0 ? previewWithdraw(lockedAmt) : 0;
+        return mature > lockedShares ? mature - lockedShares : 0;
     }
 
     /// @inheritdoc ISapienVault
-    function getUserStakeBalance(address user) external view returns (uint256) {
+    function availableBalance(address user) public view returns (uint256) {
+        return convertToAssets(_availableMatureShares(user));
+    }
+
+    /// @inheritdoc ISapienVault
+    function assetsOf(address user) external view returns (uint256) {
         return convertToAssets(balanceOf(user));
     }
 
@@ -330,6 +358,41 @@ contract SapienVault is
         return sum;
     }
 
+    /// @inheritdoc ISapienVault
+    function depositAgeStatus(address user)
+        external
+        view
+        returns (uint256 matured, uint256 pending, uint256 minAge, uint256 nextMaturityRemaining)
+    {
+        SapienVaultStorage storage $ = _getSapienVaultStorage();
+        minAge = $.minDepositAge;
+        matured = _matureSharesView(user);
+        uint256 bal = balanceOf(user);
+        pending = bal > matured ? bal - matured : 0;
+        if (pending == 0 || minAge == 0) return (matured, pending, minAge, 0);
+
+        // Earliest start time among the still-immature shares. Tranches are pushed
+        // in time order, so the first immature cohort is the soonest to mature.
+        uint256 earliestStart;
+        if (!$.migrated[user]) {
+            // Unmigrated holder with pending shares: the legacy timer is non-zero
+            // (a `0` timestamp migrates as fully mature, contributing no pending).
+            earliestStart = $.lastDepositTimestamp[user];
+        } else {
+            uint256 head = $.immatureHead[user];
+            uint256 tail = $.immatureTail[user];
+            for (uint256 i = head; i < tail; ++i) {
+                Tranche storage t = $.immature[user][i];
+                if (block.timestamp - t.startTime < minAge) {
+                    earliestStart = t.startTime;
+                    break;
+                }
+            }
+        }
+        uint256 maturesAt = earliestStart + minAge;
+        nextMaturityRemaining = maturesAt > block.timestamp ? maturesAt - block.timestamp : 0;
+    }
+
     // ── Withdrawal guard ───────────────────────────────────────────────
 
     /// @notice Maximum shares that `owner` can redeem at the current block.
@@ -344,10 +407,7 @@ contract SapienVault is
     /// @return Maximum number of shares redeemable by `owner`.
     function maxRedeem(address owner) public view override returns (uint256) {
         if (paused()) return 0;
-        uint256 lockedAmt = _getSapienVaultStorage().accounts[owner].lockedAmount;
-        uint256 mature = _matureSharesView(owner);
-        uint256 lockedShares = lockedAmt > 0 ? previewWithdraw(lockedAmt) : 0;
-        uint256 availShares = mature > lockedShares ? mature - lockedShares : 0;
+        uint256 availShares = _availableMatureShares(owner);
         uint256 parentMax = super.maxRedeem(owner);
         return availShares < parentMax ? availShares : parentMax;
     }
@@ -364,11 +424,7 @@ contract SapienVault is
     /// @return Maximum amount of assets withdrawable by `owner`.
     function maxWithdraw(address owner) public view override returns (uint256) {
         if (paused()) return 0;
-        uint256 lockedAmt = _getSapienVaultStorage().accounts[owner].lockedAmount;
-        uint256 mature = _matureSharesView(owner);
-        uint256 lockedShares = lockedAmt > 0 ? previewWithdraw(lockedAmt) : 0;
-        uint256 availShares = mature > lockedShares ? mature - lockedShares : 0;
-        uint256 maxAssets = convertToAssets(availShares);
+        uint256 maxAssets = convertToAssets(_availableMatureShares(owner));
         uint256 parentMax = super.maxWithdraw(owner);
         return maxAssets < parentMax ? maxAssets : parentMax;
     }
@@ -494,13 +550,34 @@ contract SapienVault is
         return x > b ? b : x;
     }
 
+    // ── Access control (S2) ────────────────────────────────────────────
+
+    /// @notice Renounce a role held by `account`.
+    /// @dev S2: renouncing `DEFAULT_ADMIN_ROLE` is hard-disabled — leaving the
+    ///      vault with no admin would permanently freeze pausing, upgrades, role
+    ///      management, `minDepositAge`, and ETH rescue. Admin handover must go
+    ///      through the two-step, time-locked `beginDefaultAdminTransfer` /
+    ///      `acceptDefaultAdminTransfer` flow instead. All other roles renounce
+    ///      normally.
+    /// @param role The role being renounced.
+    /// @param account The account renouncing the role (must be the caller).
+    function renounceRole(bytes32 role, address account) public override(AccessControlDefaultAdminRulesUpgradeable) {
+        if (role == DEFAULT_ADMIN_ROLE) revert DefaultAdminRenounceDisabled();
+        super.renounceRole(role, account);
+    }
+
     // ── Admin ──────────────────────────────────────────────────────────
 
     /// @inheritdoc ISapienVault
+    /// @dev S3: no-op writes are skipped so a redundant set neither bumps storage
+    ///      nor emits a spurious `MinDepositAgeUpdated`.
     function setMinDepositAge(uint256 age) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (age > MAX_MIN_DEPOSIT_AGE) revert MinDepositAgeTooHigh(age, MAX_MIN_DEPOSIT_AGE);
-        _getSapienVaultStorage().minDepositAge = age;
-        emit MinDepositAgeUpdated(age);
+        SapienVaultStorage storage $ = _getSapienVaultStorage();
+        uint256 oldAge = $.minDepositAge;
+        if (age == oldAge) return;
+        $.minDepositAge = age;
+        emit MinDepositAgeUpdated(oldAge, age);
     }
 
     /// @inheritdoc ISapienVault
