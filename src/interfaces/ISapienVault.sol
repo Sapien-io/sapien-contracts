@@ -34,8 +34,15 @@ interface ISapienVault {
 
     /// @notice Emitted when the engine slashes locked stake (shares are burned).
     /// @param user Address whose stake was slashed.
-    /// @param amount Asset-denominated amount that was slashed.
+    /// @param amount Asset-denominated intended net damage applied to the user.
     event StakeSlashed(address indexed user, uint256 indexed amount);
+
+    /// @notice Emitted alongside `StakeSlashed` with the exact share quantity
+    ///         burned. Burned shares exceed the naive `amount`-equivalent because
+    ///         the burn is sized to defeat exchange-rate dilution recapture (SAP-2).
+    /// @param user Address whose shares were burned.
+    /// @param shares Number of vault shares burned by the slash.
+    event SharesSlashed(address indexed user, uint256 indexed shares);
 
     /// @notice Emitted when the admin updates the minimum deposit-age timer.
     /// @param newAge New minimum deposit age, in seconds.

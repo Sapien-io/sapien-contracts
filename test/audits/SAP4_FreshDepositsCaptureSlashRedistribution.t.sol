@@ -40,7 +40,9 @@ contract SAP4_FreshDepositsCaptureSlashRedistributionTest is AuditBase {
         vault.slashStake(user1, 400e18);
 
         vm.expectRevert(
-            abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxWithdraw.selector, user2, DEPOSIT_AMOUNT * 10, 0)
+            abi.encodeWithSelector(
+                ERC4626Upgradeable.ERC4626ExceededMaxWithdraw.selector, user2, DEPOSIT_AMOUNT * 10, 0
+            )
         );
         vm.prank(user2);
         vault.withdraw(DEPOSIT_AMOUNT * 10, user2, user2);

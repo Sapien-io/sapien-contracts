@@ -45,9 +45,7 @@ contract SAP5_MinDepositAgeNotInitializedTest is AuditBase {
         vm.prank(user1);
         fresh.deposit(DEPOSIT_AMOUNT, user1);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(ISapienVault.InsufficientAvailableBalance.selector, DEPOSIT_AMOUNT, 0)
-        );
+        vm.expectRevert(abi.encodeWithSelector(ISapienVault.InsufficientAvailableBalance.selector, DEPOSIT_AMOUNT, 0));
         vm.prank(user1);
         fresh.lockStake(DEPOSIT_AMOUNT);
     }

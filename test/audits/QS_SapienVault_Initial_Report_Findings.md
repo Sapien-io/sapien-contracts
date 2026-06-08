@@ -2,14 +2,14 @@
 
 Source: `audits/QS_SapienVault_Initial_Report.pdf` (Quantstamp, DRAFT)
 Timeline: 2026-05-18 → 2026-05-20 · Commit: `#e9ecac2`
-Total findings: 7 (1 High, 2 Medium, 1 Low, 3 Informational). SAP-1/SAP-3/SAP-5/SAP-6 **Resolved**, SAP-4 **Mitigated**, SAP-7 **Documented** by the tranche refactor; SAP-2 **Unresolved**.
+Total findings: 7 (1 High, 2 Medium, 1 Low, 3 Informational). SAP-1/SAP-2/SAP-3/SAP-5/SAP-6 **Resolved**, SAP-4 **Mitigated**, SAP-7 **Documented**.
 
 ## Summary
 
 | ID | Description | Severity | Status |
 |------|-------------|----------|--------|
 | SAP-1 | Shares Transfer Griefing Vector | High | Resolved (per-stake tranche refactor) |
-| SAP-2 | Partial Slashes Are Self-Redistributed Back to the Slashed Holder | Medium | Unresolved |
+| SAP-2 | Partial Slashes Are Self-Redistributed Back to the Slashed Holder | Medium | Resolved (dilution-compensated burn) |
 | SAP-3 | MEV: Protection Bypass via Delegate Deposits | Medium | Resolved (all mints age the receiver) |
 | SAP-4 | MEV: Fresh Deposits Capture Slash Redistribution | Low | Mitigated (fresh shares immature in slash window) |
 | SAP-5 | minDepositAge Is Not Initialized | Informational | Resolved (seeded at init/upgrade) |
@@ -26,9 +26,9 @@ Total findings: 7 (1 High, 2 Medium, 1 Low, 3 Informational). SAP-1/SAP-3/SAP-5/
   - Recommendation: Refactor the MEV protection to track individual stakes/tranches rather than a single global age on the full balance. Each stake enforces a minimum `stakeAmount`, a `startDate`, and optionally an earliest withdrawable `maturityDate`; mature stakes squash into an aggregated `stakedBalance`. This also lets users withdraw unused assets immediately.
   - Resolution: Replaced the per-user global `lastDepositTimestamp` with per-user share tranches `{shares, startTime}` plus an aggregated `matureShares` bucket (`_settle`/`_pushImmature`/`_matureSharesView`). The cooldown now binds to the specific shares that arrive; transfers move only matured shares and the recipient receives them as matured (age travels with the shares), so an inbound dust transfer can no longer freeze a victim. A per-user tranche cap (`MAX_IMMATURE_TRANCHES`) bounds maturation gas. Admin-configurable `minTrancheSize` rejects sub-threshold immature cohorts when `minDepositAge > 0`. Shipped as a UUPS upgrade with lazy per-user migration (`initializeV2`). Tests: `test/audits/SAP1_SharesTransferGriefing.t.sol`, `test/SapienVaultMigration.t.sol`.
 
-- [ ] **SAP-2 — Partial Slashes Are Self-Redistributed Back to the Slashed Holder** · Medium · Unresolved
+- [x] **SAP-2 — Partial Slashes Are Self-Redistributed Back to the Slashed Holder** · Medium · Resolved
   - File(s): `src/SapienVault.sol`
-  - Problem: `slashStake` reduces `lockedAmount` and burns `previewWithdraw(amount)` shares, but no SAPIEN leaves the vault. Because OZ's `totalAssets()` is the raw token balance (`ERC4626Upgradeable.sol:138-140`), the slashed value stays in the pool and lifts the exchange rate for all remaining shares — including those still held by the slashed user, who can redeem ~their full deposit.
+  - Problem: `slashStake` reduced `lockedAmount` and burned `previewWithdraw(amount)` shares, but no SAPIEN leaves the vault. Because OZ's `totalAssets()` is the raw token balance (`ERC4626Upgradeable.sol:138-140`), the slashed value stays in the pool and lifts the exchange rate for all remaining shares — including those still held by the slashed user, who could redeem ~their full deposit.
   - Exploit scenario:
     - User deposits 1000 SAPIEN into an empty/attacker-dominated vault.
     - After `minDepositAge`, user locks 400 via `lockStake`.
@@ -36,6 +36,7 @@ Total findings: 7 (1 High, 2 Medium, 1 Low, 3 Informational). SAP-1/SAP-3/SAP-5/
     - Shares burn but 400 SAPIEN stays in `totalAssets()`.
     - User's remaining shares absorb the rate bump and redeem ~the full deposit.
   - Recommendation: Change slashing so the intended damage is the input parameter; the function should compute the dilution effect and burn up to that amount of shares from the user, if available.
+  - Resolution: `slashStake` now treats `amount` as the *intended net damage* and sizes the burn to compensate for the exchange-rate dilution via `_slashShareAmount`. With virtual pool totals `A = totalAssets()+1`, `S = totalSupply()+10^offset`, balance `b`, and `s_D = convertToShares(amount)`, it burns `x = s_D·S/(S + s_D − b)` (rounded down, capped at `b`) — the share quantity whose removal lowers `convertToAssets(b)` by exactly `amount`, so the recaptured value flows to the *other* stakers instead of back to the slashed user. Rounding down keeps `convertToAssets(balanceOf) >= lockedAmount` intact; the `_update` burn branch spills into immature tranches when the burn exceeds matured shares; a sub-share slash reverts `ZeroShareSlash`. A new `SharesSlashed(user, shares)` event reports the exact burn. Per the operating model there is never a sole staker, so the slash is always effective. Tests: `test/audits/SAP2_PartialSlashSelfRedistribution.t.sol` (now proving the resolution, incl. a two-staker fuzz), plus updated slash tests in `test/SapienVault.t.sol`.
 
 - [x] **SAP-3 — MEV: Protection Bypass via Delegate Deposits** · Medium · Resolved
   - File(s): `src/SapienVault.sol`

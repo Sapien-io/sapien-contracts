@@ -59,9 +59,7 @@ contract SAP3_MevBypassViaDelegateDepositsTest is AuditBase {
         vault.deposit(DEPOSIT_AMOUNT, user1);
 
         assertEq(vault.availableBalance(user1), 0, "granted shares must be immature");
-        vm.expectRevert(
-            abi.encodeWithSelector(ISapienVault.InsufficientAvailableBalance.selector, DEPOSIT_AMOUNT, 0)
-        );
+        vm.expectRevert(abi.encodeWithSelector(ISapienVault.InsufficientAvailableBalance.selector, DEPOSIT_AMOUNT, 0));
         vm.prank(user1);
         vault.lockStake(DEPOSIT_AMOUNT);
 
