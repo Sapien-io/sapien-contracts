@@ -1,0 +1,21 @@
+# Halmos configuration for SapienVault formal verification.
+#
+# Fast property suite (~30s):
+#   FOUNDRY_PROFILE=halmos forge build && halmos
+#
+# Stateful invariants (depth 1, ~10s):
+#   FOUNDRY_PROFILE=halmos halmos --contract SapienVaultHalmosInvariantTest
+#
+# Known Halmos limits (see test/halmos/HalmosInvestigation.t.sol):
+#   - Fully symbolic SAP-2 net damage (deposit/slash): solver timeout
+#   - Fully symbolic multi-cohort (two deposit amounts): solver timeout
+#   - Invariant depth >= 2 with ERC-4626 handlers: solver shutdown
+# Mitigations: SapienVaultHalmosMathTest (pure slash formula), concrete grids,
+# Forge fuzz (testFuzz_slashStake_*), and depth-1 stateful invariants.
+
+[global]
+match-contract = "^SapienVaultHalmos(Test|CooldownTest|SlashTest|MathTest|ExtendedTest)$"
+loop = 4
+invariant-depth = 1
+solver-timeout-assertion = 0
+forge-build-out = "out-halmos"
