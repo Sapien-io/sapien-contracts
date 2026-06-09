@@ -7,8 +7,7 @@ import {
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {
     AccessControlDefaultAdminRulesUpgradeable
-} from
-    "lib/openzeppelin-contracts-upgradeable/contracts/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
+} from "lib/openzeppelin-contracts-upgradeable/contracts/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {
     ReentrancyGuardUpgradeable
@@ -562,10 +561,7 @@ contract SapienVault is
     ///      normally.
     /// @param role The role being renounced.
     /// @param account The account renouncing the role (must be the caller).
-    function renounceRole(bytes32 role, address account)
-        public
-        override(AccessControlDefaultAdminRulesUpgradeable)
-    {
+    function renounceRole(bytes32 role, address account) public override(AccessControlDefaultAdminRulesUpgradeable) {
         if (role == DEFAULT_ADMIN_ROLE) revert DefaultAdminRenounceDisabled();
         super.renounceRole(role, account);
     }
@@ -623,7 +619,7 @@ contract SapienVault is
     ///      writes, but the recipient is admin-chosen and unconstrained
     ///      (SEC-L-03). The event is emitted before the external call to keep
     ///      strict checks-effects-interactions ordering.
-    function rescueETH(address payable to) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE)  {
+    function rescueETH(address payable to) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         if (to == address(0)) revert ZeroAddress();
         uint256 amount = address(this).balance;
         if (amount == 0) revert ZeroAmount();
