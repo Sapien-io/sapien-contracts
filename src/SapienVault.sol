@@ -432,20 +432,16 @@ contract SapienVault is
     /// @notice Maximum assets that may be deposited into the vault.
     /// @dev Returns 0 while paused; otherwise unbounded (subject to caller's
     ///      asset balance and approval). The receiver argument is unused.
-    /// @param receiver Account credited with the deposited shares (unused).
     /// @return Maximum depositable asset amount.
-    function maxDeposit(address receiver) public view override returns (uint256) {
-        receiver;
+    function maxDeposit(address) public view override returns (uint256) {
         return paused() ? 0 : type(uint256).max;
     }
 
     /// @notice Maximum shares that may be minted from the vault.
     /// @dev Returns 0 while paused; otherwise unbounded (subject to caller's
     ///      asset balance and approval). The receiver argument is unused.
-    /// @param receiver Account credited with the minted shares (unused).
     /// @return Maximum mintable share amount.
-    function maxMint(address receiver) public view override returns (uint256) {
-        receiver;
+    function maxMint(address) public view override returns (uint256) {
         return paused() ? 0 : type(uint256).max;
     }
 
@@ -630,5 +626,7 @@ contract SapienVault is
 
     // ── UUPS ───────────────────────────────────────────────────────────
 
-    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {
+        // Authorization is enforced entirely by the onlyRole(DEFAULT_ADMIN_ROLE) modifier.
+    }
 }
