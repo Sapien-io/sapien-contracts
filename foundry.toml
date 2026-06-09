@@ -43,3 +43,10 @@ base-sepolia = { key = "${BASESCAN_API_KEY}", url = "https://api-sepolia.basesca
 base = { key = "${BASESCAN_API_KEY}", url = "https://api.basescan.org/api" }
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+# Halmos symbolic testing: requires AST in artifacts (ast = true).
+# via_ir is compatible when ast is enabled (Foundry >= recent).
+[profile.halmos]
+via_ir = true
+ast = true
+out = "out-halmos"

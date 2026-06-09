@@ -432,20 +432,16 @@ contract SapienVault is
     /// @notice Maximum assets that may be deposited into the vault.
     /// @dev Returns 0 while paused; otherwise unbounded (subject to caller's
     ///      asset balance and approval). The receiver argument is unused.
-    /// @param receiver Account credited with the deposited shares (unused).
     /// @return Maximum depositable asset amount.
-    function maxDeposit(address receiver) public view override returns (uint256) {
-        receiver;
+    function maxDeposit(address) public view override returns (uint256) {
         return paused() ? 0 : type(uint256).max;
     }
 
     /// @notice Maximum shares that may be minted from the vault.
     /// @dev Returns 0 while paused; otherwise unbounded (subject to caller's
     ///      asset balance and approval). The receiver argument is unused.
-    /// @param receiver Account credited with the minted shares (unused).
     /// @return Maximum mintable share amount.
-    function maxMint(address receiver) public view override returns (uint256) {
-        receiver;
+    function maxMint(address) public view override returns (uint256) {
         return paused() ? 0 : type(uint256).max;
     }
 
@@ -619,7 +615,7 @@ contract SapienVault is
     ///      writes, but the recipient is admin-chosen and unconstrained
     ///      (SEC-L-03). The event is emitted before the external call to keep
     ///      strict checks-effects-interactions ordering.
-    function rescueETH(address payable to) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+    function rescueETH(address payable to) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         if (to == address(0)) revert ZeroAddress();
         uint256 amount = address(this).balance;
         if (amount == 0) revert ZeroAmount();
@@ -630,5 +626,7 @@ contract SapienVault is
 
     // ── UUPS ───────────────────────────────────────────────────────────
 
-    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {
+        // Authorization is enforced entirely by the onlyRole(DEFAULT_ADMIN_ROLE) modifier.
+    }
 }

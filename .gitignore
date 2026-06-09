@@ -1,6 +1,7 @@
 # Compiler files
 cache/
 out/
+out-halmos/
 
 # Dependencies (installed via forge install / git submodules)
 /lib/
@@ -33,3 +34,6 @@ lcov.info
 venv
 
 .venv-security
+.halmos-loop/
+
+report.md
