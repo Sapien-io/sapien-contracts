@@ -47,7 +47,7 @@ Total findings: 7 (1 High, 2 Medium, 1 Low, 3 Informational). SAP-1/SAP-2/SAP-3/
     - A immediately uses the tokens since A's `lastDepositTimestamp` is never updated.
     - Both contracts can be set up and executed atomically, enabling MEV exploits.
   - Recommendation: Ensure MEV protection holds equally for all balance-modifying vectors. Consider the SAP-1 staking refactor to avoid introducing a new griefing vector.
-  - Resolution: Tranche creation moved into the `_update` mint branch (`from == 0`), which fires for every mint regardless of caller, so delegate/third-party deposits land as immature shares for the receiver. The `_deposit` override was removed. Test: `test/audits/SAP3_MevBypassViaDelegateDeposits.t.sol`.
+  - Resolution: Tranche creation moved into the `_update` mint branch (`from == 0`), which fires for every mint regardless of caller, so delegate/third-party deposits land as immature shares for the receiver. The original timestamp-stamping `_deposit` override was removed; a slimmer `_deposit` override was later re-introduced solely to enforce `minTrancheSize` on new immature cohorts (it does no age accounting). Test: `test/audits/SAP3_MevBypassViaDelegateDeposits.t.sol`.
 
 - [x] **SAP-4 — MEV: Fresh Deposits Capture Slash Redistribution** · Low · Mitigated
   - File(s): `src/SapienVault.sol`

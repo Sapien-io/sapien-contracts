@@ -7,7 +7,7 @@ import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/E
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
 /// @notice Deploy SapienVault to Base Sepolia.
-/// @dev Requires: SAPIEN_TOKEN, ADMIN (proxy admin, e.g. Safe). Use --account for deployer.
+/// @dev Testnet token and dev-team Safe are hardcoded below. Use --account for deployer.
 contract DeployBaseSepolia is Script {
     function run() external returns (address vaultProxy) {
         address token = 0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6; // sapien token

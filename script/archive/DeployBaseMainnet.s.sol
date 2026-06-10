@@ -6,9 +6,22 @@ import {SapienVault} from "src/SapienVault.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
-/// @notice Deploy SapienVault to Base Mainnet.
+/// @notice ARCHIVED — DO NOT RUN (SEC-3).
+/// @dev The Base mainnet vault is already deployed
+///      (0x60Bf63729f688287a450299962b36Cef0aFfaa42; see
+///      deployments/base-mainnet.json). This script hardcodes the token and the
+///      admin key; running it with a stale admin would deploy a *second* vault
+///      governed by the wrong key and overwrite deployments/base-mainnet.json.
+///      The canonical, env-driven deploy path is script/DeployBase.s.sol
+///      (SAPIEN_TOKEN + ADMIN env vars). Kept only as a historical record of
+///      the original mainnet deployment parameters.
 contract DeployBaseMainnet is Script {
-    function run() external returns (address vaultProxy) {
+    function run() external pure {
+        revert("ARCHIVED: vault already deployed; use script/DeployBase.s.sol (see SEC-3)");
+    }
+
+    /// @dev Original deployment body, preserved for the historical record.
+    function _originalRun() internal returns (address vaultProxy) {
         vm.startBroadcast();
 
         address token = 0xC729777d0470F30612B1564Fd96E8Dd26f5814E3;

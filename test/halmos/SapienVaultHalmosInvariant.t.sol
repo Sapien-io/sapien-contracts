@@ -61,12 +61,14 @@ contract SapienVaultHalmosInvariantTest is Test {
 
     function deposit0(uint256 amount) external {
         _assumeAmount(amount, 100_000e18);
+        if (token.balanceOf(ACTOR0) < amount) token.mint(ACTOR0, amount);
         vm.prank(ACTOR0);
         vault.deposit(amount, ACTOR0);
     }
 
     function deposit1(uint256 amount) external {
         _assumeAmount(amount, 100_000e18);
+        if (token.balanceOf(ACTOR1) < amount) token.mint(ACTOR1, amount);
         vm.prank(ACTOR1);
         vault.deposit(amount, ACTOR1);
     }
@@ -75,17 +77,19 @@ contract SapienVaultHalmosInvariantTest is Test {
         uint256 avail = vault.availableBalance(ACTOR0);
         if (avail == 0) return;
         _assumeAmount(amount, avail);
-        vm.startPrank(ACTOR0);
-        try vault.lockStake(amount) {
-            totalLockedAmount += amount;
-        } catch {}
-        vm.stopPrank();
+        // availableBalance and lockStake's internal check share the same math,
+        // so a bounded amount can never revert (revert-safe for fail_on_revert).
+        vm.prank(ACTOR0);
+        vault.lockStake(amount);
+        totalLockedAmount += amount;
     }
 
     function slashStake0(uint256 amount) external {
         StakeAccount memory acct = vault.getStakeAccount(ACTOR0);
         if (acct.lockedAmount == 0) return;
         _assumeAmount(amount, acct.lockedAmount);
+        // A slash worth less than one share reverts ZeroShareSlash by design.
+        if (vault.convertToShares(amount) == 0) return;
         vm.prank(ENGINE);
         vault.slashStake(ACTOR0, amount);
         totalLockedAmount -= amount;

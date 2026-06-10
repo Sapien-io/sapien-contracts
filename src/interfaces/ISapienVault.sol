@@ -19,6 +19,13 @@ interface ISapienVault {
     error ZeroAddress();
     error ZeroShareSlash();
     error EthTransferFailed();
+    /// @notice Thrown when `initializeV2` is called with an address that does not
+    ///         already hold `DEFAULT_ADMIN_ROLE` on the live vault.
+    /// @dev S2: the upgrade calldata can only bless the incumbent admin, never
+    ///      install a fresh one. A distinct error (rather than the previous
+    ///      `ZeroAddress`) makes a mis-built Safe payload immediately diagnosable.
+    /// @param account The address supplied as `currentAdmin_`.
+    error NotCurrentAdmin(address account);
     /// @notice Thrown when an account attempts to renounce `DEFAULT_ADMIN_ROLE`.
     /// @dev S2: the vault must never be left without an admin. Admin rotation is
     ///      only possible via the two-step, time-locked `beginDefaultAdminTransfer`

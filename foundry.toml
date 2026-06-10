@@ -8,11 +8,23 @@ via_ir = true
 solc_version = "0.8.30"
 fs_permissions = [{ access = "read-write", path = "./deployments" }]
 
-# Invariant test configuration
+# Invariant test configuration (full load — used for local runs; PR CI uses
+# the reduced [profile.ci.invariant] below).
+# fail_on_revert: the handler is revert-safe by construction (TEST-1), so any
+# revert inside a run is a real regression and must fail the suite.
 [invariant]
 runs = 1024
 depth = 50
-fail_on_revert = false
+fail_on_revert = true
+
+# CI profile: fast PR feedback. Inherits everything from the default profile
+# (via-IR, optimizer, solc) and only reduces the invariant load. The workflow
+# sets FOUNDRY_PROFILE=ci; run the full default-profile load locally before
+# releases (`forge test --match-path test/SapienVaultInvariant.t.sol`).
+[profile.ci.invariant]
+runs = 256
+depth = 25
+fail_on_revert = true
 
 [lint]
 lint_on_build = false

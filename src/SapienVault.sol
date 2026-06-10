@@ -71,8 +71,7 @@ contract SapienVault is
     function verifyStorageLocation() external pure returns (bool) {
         // SEC-M-06: Use Solidity-level keccak256 instead of inline assembly
         // to avoid incorrect string length issues (was 30 instead of 25)
-        // keccak256(abi.encode(uint256(keccak256("sapien.storage.SapienCore")) - 1)) & ~bytes32(uint256(0xff))
-        // solhint-disable-next-line solidity-formatting
+        // keccak256(abi.encode(uint256(keccak256("sapien.storage.SapienVault")) - 1)) & ~bytes32(uint256(0xff))
         bytes32 namespaceHash = keccak256("sapien.storage.SapienVault");
         bytes32 derived = keccak256(abi.encode(uint256(namespaceHash) - 1));
         bytes32 expected = derived & ~bytes32(uint256(0xff));
@@ -119,7 +118,7 @@ contract SapienVault is
     ///      a fresh address via the upgrade calldata.
     /// @param currentAdmin_ The address that currently holds `DEFAULT_ADMIN_ROLE`.
     function initializeV2(address currentAdmin_) external reinitializer(2) {
-        if (!hasRole(DEFAULT_ADMIN_ROLE, currentAdmin_)) revert ZeroAddress();
+        if (!hasRole(DEFAULT_ADMIN_ROLE, currentAdmin_)) revert NotCurrentAdmin(currentAdmin_);
         // Seeds `_currentDelay` and records `currentAdmin_` as the default admin.
         // `defaultAdmin()` is still 0 here (never set under V1), so the inherited
         // `_grantRole` guard passes; the role mapping already has it, so no

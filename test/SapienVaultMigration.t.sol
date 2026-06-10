@@ -166,7 +166,7 @@ contract SapienVaultMigrationTest is Test {
         v2Impl = new SapienVault();
         address notAdmin = makeAddr("notAdmin");
         vm.prank(admin);
-        vm.expectRevert(ISapienVault.ZeroAddress.selector);
+        vm.expectRevert(abi.encodeWithSelector(ISapienVault.NotCurrentAdmin.selector, notAdmin));
         vault.upgradeToAndCall(address(v2Impl), abi.encodeCall(SapienVault.initializeV2, (notAdmin)));
     }
 

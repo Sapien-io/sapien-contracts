@@ -7,8 +7,10 @@ implementation behind it. Only `DEFAULT_ADMIN_ROLE` can authorize an upgrade
 
 | Script | Purpose |
 |--------|---------|
-| `DeployBase.s.sol` / `DeployBaseSepolia.s.sol` / `DeployBaseMainnet.s.sol` | First-time deploy of impl + proxy (`initialize`) |
+| `DeployBase.s.sol` | **Canonical** first-time deploy of impl + proxy (`initialize`); env-driven (`SAPIEN_TOKEN`, `ADMIN`) |
+| `DeployBaseSepolia.s.sol` | Base Sepolia deploy (hardcoded testnet token + dev Safe) |
 | `UpgradeVault.s.sol` | Upgrade a live proxy to a new implementation (`upgradeToAndCall` + `initializeV2`), with post-upgrade verification |
+| `archive/DeployBaseMainnet.s.sol` | **Archived, reverts on run** — original mainnet deploy with hardcoded admin; the vault is already live (SEC-3) |
 
 Live addresses are in the repo [README](../README.md). Design and upgrade
 background: [docs/SapienVault.md](../docs/SapienVault.md#upgrades).

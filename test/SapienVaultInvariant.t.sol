@@ -35,7 +35,7 @@ contract SapienVaultInvariantTest is Test {
 
         targetContract(address(handler));
 
-        bytes4[] memory actionSelectors = new bytes4[](11);
+        bytes4[] memory actionSelectors = new bytes4[](13);
         actionSelectors[0] = handler.deposit.selector;
         actionSelectors[1] = handler.depositOnBehalf.selector;
         actionSelectors[2] = handler.mintShares.selector;
@@ -47,6 +47,10 @@ contract SapienVaultInvariantTest is Test {
         actionSelectors[8] = handler.slashStake.selector;
         actionSelectors[9] = handler.togglePause.selector;
         actionSelectors[10] = handler.passTime.selector;
+        // T8: fuzz admin parameters so invariants are checked across the
+        // minDepositAge 0 <-> nonzero transition and varying tranche floors.
+        actionSelectors[11] = handler.setMinDepositAge.selector;
+        actionSelectors[12] = handler.setMinTrancheSize.selector;
         targetSelector(FuzzSelector({addr: address(handler), selectors: actionSelectors}));
 
         vm.warp(100 days);

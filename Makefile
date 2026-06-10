@@ -27,16 +27,6 @@ deploy-base-dry :; forge script script/DeployBase.s.sol:DeployBase \
 	--rpc-url $${BASE_MAINNET_RPC_URL} \
 	--account deployer
 
-# Base mainnet (token + vault)
-deploy-base-full :; forge script script/DeployBaseMainnet.s.sol:DeployBaseMainnet \
-	--rpc-url $${BASE_MAINNET_RPC_URL} \
-	--account $${DEPLOYER_ADDRESS} \
-	--verify \
-	--broadcast
-deploy-base-full-dry :; forge script script/DeployBaseMainnet.s.sol:DeployBaseMainnet \
-	--rpc-url $${BASE_MAINNET_RPC_URL} \
-	--account $${DEPLOYER_ADDRESS}
-
 # ── Upgrade (UUPS) ───────────────────────────────────────────────────────
 # Requires: VAULT_PROXY, VAULT_ADMIN, and the network RPC URL. See script/README.md.
 #   *-calldata : deploy new impl + print upgradeToAndCall calldata for the Safe

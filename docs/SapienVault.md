@@ -165,7 +165,8 @@ The SAP-1 tranche + S2 role-rules upgrade is applied via `upgradeToAndCall(newIm
 | `MinDepositAgeTooHigh(requested, max)` | Admin set age above `MAX_MIN_DEPOSIT_AGE` |
 | `ZeroAmount()` | Zero amount on lock/unlock/slash |
 | `ZeroShareSlash()` | Slash amount rounds to zero shares (below one share's value) |
-| `ZeroAddress()` | `initialize` with zero asset/admin, or `initializeV2` with a non-admin `currentAdmin_` |
+| `ZeroAddress()` | `initialize` with zero asset/admin, or `rescueETH` to the zero address |
+| `NotCurrentAdmin(account)` | `initializeV2` with a `currentAdmin_` that does not already hold `DEFAULT_ADMIN_ROLE` (S2) |
 | `DefaultAdminRenounceDisabled()` | Attempt to renounce `DEFAULT_ADMIN_ROLE` (S2) |
 
 OpenZeppelin **`AccessControlUnauthorizedAccount`** may surface on role-gated calls. ERC-4626 **`ERC4626ExceededMaxWithdraw`** / **`ERC4626ExceededMaxRedeem`** (etc.) apply when callers exceed `max*` limits.
@@ -182,6 +183,8 @@ OpenZeppelin **`AccessControlUnauthorizedAccount`** may surface on role-gated ca
 - `MinTrancheSizeUpdated(newSize)`
 
 Standard ERC-4626 `Deposit`, `Withdraw`, and ERC-20 `Transfer` events also apply, as do the `AccessControlDefaultAdminRules` admin-transfer/delay events (S2).
+
+> **Indexer note:** every custom event above declares its `uint256` amount/share parameter as `indexed`. Amounts therefore live in the **log topics**, not the data payload (the `data` field of these logs is empty). Decoders that expect numeric values in `data` — the conventional layout — will read nothing; read the values from `topics[2]` instead. This is unconventional but ABI-frozen on the live mainnet deployment and will not change.
 
 ---
 
