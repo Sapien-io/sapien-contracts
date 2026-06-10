@@ -191,7 +191,36 @@ Standard ERC-4626 `Deposit`, `Withdraw`, and ERC-20 `Transfer` events also apply
 2. If **`minDepositAge > 0`**, expect freshly **deposited/minted** shares to be **delayed** for `lockStake`, transfers, and withdrawals until they mature; already-matured shares (including matured shares received via transfer) are actionable immediately. Use `maturedShares` / `pendingShares` (or `depositAgeStatus` for the full split plus time-to-maturity) to inspect the state.
 3. **Locked stake** reduces **`maxWithdraw` / `maxRedeem`**; unlocking is **off-chain policy + `ENGINE_ROLE`** on-chain.
 4. **Slashing** burns shares (more than the naive `amount`-equivalent, by design — SAP-2); indexers should track `StakeSlashed`/`SharesSlashed` and share supply, not only `lockedAmount`.
-5. Deploy behind **ERC-1967 proxy**; call **`initialize(asset, admin)`** once; never rely on unproxied implementation for user funds.
+5. **Do not issue slippage-blind ERC-4626 calls.** Share value strictly increases over time (slashes appreciate survivors), so quotes go stale. Reject `previewDeposit(assets) == 0`, pass a `minShares` / `minAssets` bound on `deposit` / `mint` / `withdraw` / `redeem`, and never deposit into a zero-supply-but-positive-assets state (the `_decimalsOffset` of 3 mitigates but does not eliminate first-depositor rounding). A reverted preview or a zero quote means "wait", not "send anyway".
+6. Deploy behind **ERC-1967 proxy**; call **`initialize(asset, admin)`** once; never rely on unproxied implementation for user funds.
+
+---
+
+## Operational considerations
+
+These are not contract bugs; they are constraints integrators and operators must design around (carried over from the Quantstamp report's operational notes).
+
+### Pooled adapters must keep their own per-user accounting
+
+The vault's cooldown, lock, and slash are all **address-scoped** — they apply to the holder of the shares, which for a pooled integration is the **adapter contract**, not the underlying users. If a single adapter address holds shares for many users:
+
+- **Cooldown is shared.** One user's fresh deposit records an immature tranche on the adapter address, so the adapter's matured/available balance — and therefore *every* user's exit through it — can be delayed by any single participant's recent inflow.
+- **Slashing is socialized.** `slashStake(adapter, amount)` burns shares from the adapter's balance. Unless the adapter tracks per-user ownership and attributes the burn to the offending user, the penalty is spread pro-rata across all of the adapter's depositors.
+
+A pooled adapter must therefore maintain its own internal ledger of per-user shares, cooldown, and slash attribution; it cannot rely on the vault to isolate one user's penalty or cooldown from another's.
+
+### Asymmetric, engine-dependent stake lifecycle
+
+The stake lifecycle is **asymmetrically permissioned**:
+
+- **`lockStake` is permissionless** — the holder locks their own matured balance once `minDepositAge` is met.
+- **`unlockStake` and `slashStake` are `ENGINE_ROLE`-only** — a user **cannot exit a locked position on their own**. Locked value becomes withdrawable only after the engine unlocks (or slashes) it.
+
+This makes **engine liveness — not just engine honesty — part of the trust model**: if the engine stops submitting unlocks, locked stake stays locked. Admin can `pause` to stop a misbehaving engine and `revokeRole(ENGINE_ROLE, …)` to neutralise it, but neither action unlocks already-locked stakes. Operators should treat engine availability (and a recovery plan for a stalled engine) as a first-class operational requirement.
+
+### Privileged keys are part of the security boundary
+
+`DEFAULT_ADMIN_ROLE` (pause, upgrade, role management, `setMinDepositAge` / `setMinTrancheSize`, `rescueETH`) and `ENGINE_ROLE` (unlock/slash) directly configure or move user value. Compromise of either key materially expands the impact of every other finding, so both should be held behind **multisig quorums and/or hardware wallets**. The S2 admin rules (single admin, two-step time-locked handover, renounce disabled) harden `DEFAULT_ADMIN_ROLE` but do not remove the need for a secure signer.
 
 ---
 
