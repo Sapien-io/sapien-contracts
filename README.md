@@ -40,6 +40,17 @@ make deploy-sepolia-dry  # Simulate
 make deploy-sepolia      # Deploy + verify
 ```
 
+## Upgrade
+
+The vault is a UUPS proxy; upgrades are admin-gated and applied with
+`script/UpgradeVault.s.sol`. Full runbook (env vars, Safe flow, verification,
+breaking changes): **[script/README.md](script/README.md)**.
+
+```bash
+make upgrade-base-calldata  # Deploy new impl + print Safe calldata
+make upgrade-base-verify    # Read-only post-upgrade checks
+```
+
 ## Prerequisites
 
 - [Foundry](https://book.getfoundry.sh/getting-started/installation)

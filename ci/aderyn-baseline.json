@@ -1,0 +1,11 @@
+{
+  "_comment": "Triaged Aderyn baseline (see report.md). CI fails on any high issue or on a low-severity detector exceeding its baselined instance count. All five lows are accepted by design: centralization-risk = role-gated admin/engine model, costly-loop = bounded tranche maturation (MAX_IMMATURE_TRANCHES), empty-block = _authorizeUpgrade body (auth via modifier), unchecked-return = internal _settle calls whose return is intentionally unused, unused-public-function = availableBalance kept public for integrators/ABI.",
+  "high": 0,
+  "low": {
+    "centralization-risk": 8,
+    "costly-loop": 2,
+    "empty-block": 1,
+    "unchecked-return": 2,
+    "unused-public-function": 1
+  }
+}

@@ -6,6 +6,10 @@ import {SapienVault} from "../src/SapienVault.sol";
 import {MockERC20} from "../test/mocks/MockERC20.sol";
 import {StakeAccount} from "../src/Types.sol";
 
+/// @notice Invariant-test handler. Every action is revert-safe (preconditions
+///         are checked or bounded away) so the suite runs with
+///         `fail_on_revert = true`: an unexpected revert in the vault is a
+///         test failure, not silently swallowed state-space shrinkage (TEST-1).
 contract SapienVaultHandler is Test {
     SapienVault public vault;
     MockERC20 public token;
@@ -13,10 +17,13 @@ contract SapienVaultHandler is Test {
     address[] public actors;
     uint256 public totalLockedAmount;
 
-    mapping(address => uint256) public actorLastDepositTs;
-
     address public engine;
     address public admin;
+
+    /// @dev Upper bound for the fuzzed `setMinTrancheSize` action. Kept below
+    ///      the deposit bound so a valid deposit amount always exists.
+    uint256 internal constant MAX_FUZZED_TRANCHE_SIZE = 10_000e18;
+    uint256 internal constant MAX_DEPOSIT = 100_000e18;
 
     constructor(SapienVault _vault, MockERC20 _token, address _engine, address _admin) {
         vault = _vault;
@@ -39,9 +46,17 @@ contract SapienVaultHandler is Test {
         return actors[index % actors.length];
     }
 
+    /// @dev Smallest depositable amount under the current admin config:
+    ///      `minTrancheSize` only binds while the MEV guard is on.
+    function _minDeposit() internal view returns (uint256) {
+        uint256 minSize = vault.minDepositAge() > 0 ? vault.minTrancheSize() : 0;
+        return minSize > 0 ? minSize : 1;
+    }
+
     function deposit(uint256 actorSeed, uint256 amount) public {
-        amount = bound(amount, 1, 100_000e18);
+        if (vault.paused()) return;
         address actor = getActor(actorSeed);
+        amount = bound(amount, _minDeposit(), MAX_DEPOSIT);
 
         if (token.balanceOf(actor) < amount) {
             token.mint(actor, amount);
@@ -49,14 +64,13 @@ contract SapienVaultHandler is Test {
 
         vm.prank(actor);
         vault.deposit(amount, actor);
-
-        actorLastDepositTs[actor] = block.timestamp;
     }
 
     function depositOnBehalf(uint256 callerSeed, uint256 receiverSeed, uint256 amount) public {
-        amount = bound(amount, 1, 100_000e18);
+        if (vault.paused()) return;
         address caller = getActor(callerSeed);
         address receiver = getActor(receiverSeed);
+        amount = bound(amount, _minDeposit(), MAX_DEPOSIT);
 
         if (token.balanceOf(caller) < amount) {
             token.mint(caller, amount);
@@ -64,29 +78,22 @@ contract SapienVaultHandler is Test {
 
         vm.prank(caller);
         vault.deposit(amount, receiver);
-
-        // SEC-M-01: when caller != receiver the contract no longer resets the
-        // receiver's deposit-age timer, so the handler's mirror must mirror
-        // that. When caller == receiver this code path is equivalent to a
-        // self-deposit and we must update the timer.
-        if (caller == receiver) {
-            actorLastDepositTs[receiver] = block.timestamp;
-        }
     }
 
     function mintShares(uint256 actorSeed, uint256 shares) public {
+        if (vault.paused()) return;
         shares = bound(shares, 1, 100_000e21);
         address actor = getActor(actorSeed);
 
         uint256 assetsNeeded = vault.previewMint(shares);
+        // BelowMinTrancheSize is checked on the asset amount in _deposit.
+        if (assetsNeeded < _minDeposit()) return;
         if (token.balanceOf(actor) < assetsNeeded) {
             token.mint(actor, assetsNeeded);
         }
 
         vm.prank(actor);
         vault.mint(shares, actor);
-
-        actorLastDepositTs[actor] = block.timestamp;
     }
 
     function withdraw(uint256 actorSeed, uint256 amount) public {
@@ -118,33 +125,33 @@ contract SapienVaultHandler is Test {
         address to = getActor(toSeed);
         if (from == to) return;
 
-        uint256 bal = vault.balanceOf(from);
-        if (bal == 0) return;
+        // Transferable shares == matured minus the locked reservation, which is
+        // exactly maxRedeem (and 0 while paused), so the transfer guard in
+        // _update can never fire on a bounded amount.
+        uint256 transferable = vault.maxRedeem(from);
+        if (transferable == 0) return;
 
-        amount = bound(amount, 1, bal);
+        amount = bound(amount, 1, transferable);
 
-        vm.startPrank(from);
-        try vault.transfer(to, amount) {
-            actorLastDepositTs[to] = block.timestamp;
-        } catch {}
-        vm.stopPrank();
+        vm.prank(from);
+        vault.transfer(to, amount);
     }
 
     function lockStake(uint256 actorSeed, uint256 amount) public {
+        if (vault.paused()) return;
         address actor = getActor(actorSeed);
 
         uint256 avail = vault.availableBalance(actor);
         if (avail == 0) return;
         amount = bound(amount, 1, avail);
 
-        vm.startPrank(actor);
-        try vault.lockStake(amount) {
-            totalLockedAmount += amount;
-        } catch {}
-        vm.stopPrank();
+        vm.prank(actor);
+        vault.lockStake(amount);
+        totalLockedAmount += amount;
     }
 
     function unlockStake(uint256 actorSeed, uint256 amount) public {
+        if (vault.paused()) return;
         address actor = getActor(actorSeed);
         StakeAccount memory acct = vault.getStakeAccount(actor);
 
@@ -158,11 +165,14 @@ contract SapienVaultHandler is Test {
     }
 
     function slashStake(uint256 actorSeed, uint256 amount) public {
+        if (vault.paused()) return;
         address actor = getActor(actorSeed);
         StakeAccount memory acct = vault.getStakeAccount(actor);
 
         if (acct.lockedAmount == 0) return;
         amount = bound(amount, 1, acct.lockedAmount);
+        // A slash worth less than one share reverts ZeroShareSlash by design.
+        if (vault.convertToShares(amount) == 0) return;
 
         vm.prank(engine);
         vault.slashStake(actor, amount);
@@ -178,6 +188,22 @@ contract SapienVaultHandler is Test {
             vault.pause();
         }
         vm.stopPrank();
+    }
+
+    /// @notice T8: fuzz the MEV-guard age across the 0 <-> nonzero transition,
+    ///         where `_pushImmature` switches code paths and `_matureSharesView`
+    ///         changes semantics.
+    function setMinDepositAge(uint256 age) public {
+        age = bound(age, 0, vault.MAX_MIN_DEPOSIT_AGE());
+        vm.prank(admin);
+        vault.setMinDepositAge(age);
+    }
+
+    /// @notice T8: fuzz the dust-deposit floor (0 = disabled).
+    function setMinTrancheSize(uint256 size) public {
+        size = bound(size, 0, MAX_FUZZED_TRANCHE_SIZE);
+        vm.prank(admin);
+        vault.setMinTrancheSize(size);
     }
 
     function passTime(uint256 timeDelta) public {

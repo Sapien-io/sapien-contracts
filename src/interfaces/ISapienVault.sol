@@ -13,12 +13,24 @@ interface ISapienVault {
     error InsufficientAvailableBalance(uint256 required, uint256 available);
     error InsufficientLockedAmount(uint256 required, uint256 locked);
     error TransferExceedsUnlockedShares();
-    error DepositTooRecent(uint256 required, uint256 actual);
     error MinDepositAgeTooHigh(uint256 requested, uint256 max);
+    error BelowMinTrancheSize(uint256 assets, uint256 minSize);
     error ZeroAmount();
     error ZeroAddress();
     error ZeroShareSlash();
     error EthTransferFailed();
+    /// @notice Thrown when `initializeV2` is called with an address that does not
+    ///         already hold `DEFAULT_ADMIN_ROLE` on the live vault.
+    /// @dev S2: the upgrade calldata can only bless the incumbent admin, never
+    ///      install a fresh one. A distinct error (rather than the previous
+    ///      `ZeroAddress`) makes a mis-built Safe payload immediately diagnosable.
+    /// @param account The address supplied as `currentAdmin_`.
+    error NotCurrentAdmin(address account);
+    /// @notice Thrown when an account attempts to renounce `DEFAULT_ADMIN_ROLE`.
+    /// @dev S2: the vault must never be left without an admin. Admin rotation is
+    ///      only possible via the two-step, time-locked `beginDefaultAdminTransfer`
+    ///      / `acceptDefaultAdminTransfer` flow.
+    error DefaultAdminRenounceDisabled();
 
     // ── Events ─────────────────────────────────────────────────────────
 
@@ -34,12 +46,27 @@ interface ISapienVault {
 
     /// @notice Emitted when the engine slashes locked stake (shares are burned).
     /// @param user Address whose stake was slashed.
-    /// @param amount Asset-denominated amount that was slashed.
+    /// @param amount Asset-denominated intended net damage applied to the user.
     event StakeSlashed(address indexed user, uint256 indexed amount);
 
+    /// @notice Emitted alongside `StakeSlashed` with the exact share quantity
+    ///         burned. Burned shares exceed the naive `amount`-equivalent because
+    ///         the burn is sized to defeat exchange-rate dilution recapture (SAP-2).
+    /// @param user Address whose shares were burned.
+    /// @param shares Number of vault shares burned by the slash.
+    event SharesSlashed(address indexed user, uint256 indexed shares);
+
     /// @notice Emitted when the admin updates the minimum deposit-age timer.
+    /// @dev Carries both the previous and new value so off-chain monitors can
+    ///      detect every transition without snapshotting prior state (S1). Only
+    ///      emitted when the value actually changes.
+    /// @param oldAge Previous minimum deposit age, in seconds.
     /// @param newAge New minimum deposit age, in seconds.
-    event MinDepositAgeUpdated(uint256 indexed newAge);
+    event MinDepositAgeUpdated(uint256 indexed oldAge, uint256 indexed newAge);
+
+    /// @notice Emitted when the admin updates the minimum immature-tranche size.
+    /// @param newSize New minimum tranche size, in asset terms.
+    event MinTrancheSizeUpdated(uint256 indexed newSize);
 
     /// @notice Emitted when admin rescues stuck ETH from the proxy.
     /// @param to Recipient of the rescued ETH.
@@ -49,9 +76,10 @@ interface ISapienVault {
     // ── Stake Operations ───────────────────────────────────────────────
 
     /// @notice Lock stake from the caller's available balance.
-    /// @dev Called by the owner directly. Enforces minimum stake age before
-    ///      locking and then marks the specified asset amount as locked.
-    ///      Any deposit or inbound share transfer resets this time-lock timer.
+    /// @dev Called by the owner directly. Only shares that have cleared
+    ///      `minDepositAge` (matured) and are not already locked can be locked.
+    ///      Recently-deposited (immature) shares are excluded until they age;
+    ///      already-matured shares are unaffected by later deposits/transfers.
     /// @param amount Amount of tokens (asset terms) to lock.
     function lockStake(uint256 amount) external;
 
@@ -80,10 +108,46 @@ interface ISapienVault {
     /// @return The available balance.
     function availableBalance(address user) external view returns (uint256);
 
-    /// @notice Retrieve the total staked amount for a user.
+    /// @notice Asset value of all vault shares held by `user`.
+    /// @dev S3: renamed from the misleading `getUserStakeBalance` — this is the
+    ///      asset-denominated value of the user's *entire* share balance
+    ///      (locked + unlocked, matured + immature), i.e.
+    ///      `convertToAssets(balanceOf(user))`, not the locked stake. Use
+    ///      `getStakeAccount(user).lockedAmount` for the locked stake and
+    ///      `availableBalance(user)` for the withdrawable portion.
     /// @param user Address of the user.
-    /// @return The total staked amount in asset terms.
-    function getUserStakeBalance(address user) external view returns (uint256);
+    /// @return The asset value of the user's shares.
+    function assetsOf(address user) external view returns (uint256);
+
+    /// @notice Shares held by `user` that have cleared `minDepositAge` and are
+    ///         therefore actionable (lockable / withdrawable / transferable),
+    ///         before subtracting any locked reservation.
+    /// @param user Address of the user.
+    /// @return Matured share amount.
+    function maturedShares(address user) external view returns (uint256);
+
+    /// @notice Shares held by `user` that are still inside the `minDepositAge`
+    ///         cooldown window. `maturedShares + pendingShares == balanceOf`.
+    /// @param user Address of the user.
+    /// @return Immature share amount.
+    function pendingShares(address user) external view returns (uint256);
+
+    /// @notice Explicit cooldown state for a user, for integrators and monitors.
+    /// @dev S1: when `maxWithdraw(user) == 0` callers could not previously tell a
+    ///      cooldown apart from a pause, a lock, or an empty balance. This bundles
+    ///      the matured/immature share split, the configured `minAge`, and the
+    ///      time remaining until the user's oldest immature cohort matures so the
+    ///      cause is unambiguous. `nextMaturityRemaining` is `0` when no shares
+    ///      are pending (nothing is maturing) and when `minAge == 0`.
+    /// @param user Address of the user.
+    /// @return matured Shares that have cleared `minDepositAge`.
+    /// @return pending Shares still inside the cooldown window.
+    /// @return minAge The configured minimum deposit age, in seconds.
+    /// @return nextMaturityRemaining Seconds until the next cohort matures (0 if none).
+    function depositAgeStatus(address user)
+        external
+        view
+        returns (uint256 matured, uint256 pending, uint256 minAge, uint256 nextMaturityRemaining);
 
     /// @notice Verify that the vault's ERC-7201 storage location is correctly initialized.
     /// @return True if the storage slot matches the expected value.
@@ -100,6 +164,16 @@ interface ISapienVault {
     /// @notice Read the configured minimum stake age for lockStake, transfer, or withdraw.
     /// @return Minimum age in seconds.
     function minDepositAge() external view returns (uint256);
+
+    /// @notice Set the minimum asset amount for a new immature tranche.
+    /// @dev Only enforced when `minDepositAge > 0`. Deposits/mints that would
+    ///      record fewer asset-equivalent shares revert. Zero disables the check.
+    /// @param size Minimum tranche size, in asset terms.
+    function setMinTrancheSize(uint256 size) external;
+
+    /// @notice Read the configured minimum immature-tranche size.
+    /// @return Minimum tranche size, in asset terms (0 = disabled).
+    function minTrancheSize() external view returns (uint256);
 
     /// @notice Pause vault operations.
     /// @dev While paused, ERC-4626 max deposit/mint/withdraw/redeem are zero and

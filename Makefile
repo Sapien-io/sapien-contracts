@@ -27,12 +27,34 @@ deploy-base-dry :; forge script script/DeployBase.s.sol:DeployBase \
 	--rpc-url $${BASE_MAINNET_RPC_URL} \
 	--account deployer
 
-# Base mainnet (token + vault)
-deploy-base-full :; forge script script/DeployBaseMainnet.s.sol:DeployBaseMainnet \
+# ── Upgrade (UUPS) ───────────────────────────────────────────────────────
+# Requires: VAULT_PROXY, VAULT_ADMIN, and the network RPC URL. See script/README.md.
+#   *-calldata : deploy new impl + print upgradeToAndCall calldata for the Safe
+#   *-execute  : deploy + upgrade directly (broadcaster must hold the admin role)
+#   *-verify   : read-only post-upgrade state assertions (run after the Safe executes)
+
+upgrade-base-calldata :; forge script script/UpgradeVault.s.sol:UpgradeVault \
 	--rpc-url $${BASE_MAINNET_RPC_URL} \
-	--account $${DEPLOYER_ADDRESS} \
-	--verify \
-	--broadcast
-deploy-base-full-dry :; forge script script/DeployBaseMainnet.s.sol:DeployBaseMainnet \
+	--account deployer \
+	--broadcast \
+	--verify
+upgrade-base-execute :; EXECUTE=true forge script script/UpgradeVault.s.sol:UpgradeVault \
 	--rpc-url $${BASE_MAINNET_RPC_URL} \
-	--account $${DEPLOYER_ADDRESS}
+	--account deployer \
+	--broadcast \
+	--verify
+upgrade-base-verify :; VERIFY_ONLY=true forge script script/UpgradeVault.s.sol:UpgradeVault \
+	--rpc-url $${BASE_MAINNET_RPC_URL}
+
+upgrade-sepolia-calldata :; forge script script/UpgradeVault.s.sol:UpgradeVault \
+	--rpc-url $${BASE_SEPOLIA_RPC_URL} \
+	--account $${DEPLOYER} \
+	--broadcast \
+	--verify
+upgrade-sepolia-execute :; EXECUTE=true forge script script/UpgradeVault.s.sol:UpgradeVault \
+	--rpc-url $${BASE_SEPOLIA_RPC_URL} \
+	--account $${DEPLOYER} \
+	--broadcast \
+	--verify
+upgrade-sepolia-verify :; VERIFY_ONLY=true forge script script/UpgradeVault.s.sol:UpgradeVault \
+	--rpc-url $${BASE_SEPOLIA_RPC_URL}

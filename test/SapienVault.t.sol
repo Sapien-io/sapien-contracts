@@ -41,6 +41,12 @@ contract SapienVaultTest is Test {
 
         vm.startPrank(admin);
         vault.grantRole(ENGINE_ROLE, engine);
+        // initialize() now seeds minDepositAge with DEFAULT_MIN_DEPOSIT_AGE
+        // (SAP-5). These mechanics tests exercise lock/slash/transfer/withdraw
+        // logic independently of the cooldown, so disable the guard here; the
+        // cooldown-specific tests set their own non-zero age, and the seeded
+        // default is verified by test_initialize_seedsDefaultMinDepositAge.
+        vault.setMinDepositAge(0);
         vm.stopPrank();
 
         token.mint(user1, DEPOSIT_AMOUNT * 10);
@@ -59,7 +65,7 @@ contract SapienVaultTest is Test {
         vault.deposit(DEPOSIT_AMOUNT, user1);
 
         assertGt(vault.balanceOf(user1), 0);
-        assertEq(vault.getUserStakeBalance(user1), DEPOSIT_AMOUNT);
+        assertEq(vault.assetsOf(user1), DEPOSIT_AMOUNT);
     }
 
     function test_withdraw() public {
@@ -117,7 +123,8 @@ contract SapienVaultTest is Test {
         vm.prank(user1);
         vault.deposit(DEPOSIT_AMOUNT, user1);
 
-        vm.expectRevert(abi.encodeWithSelector(ISapienVault.DepositTooRecent.selector, 1 days, 0));
+        // Freshly-deposited shares are immature, so none are available to lock.
+        vm.expectRevert(abi.encodeWithSelector(ISapienVault.InsufficientAvailableBalance.selector, 400e18, 0));
         vm.prank(user1);
         vault.lockStake(400e18);
 
@@ -130,7 +137,10 @@ contract SapienVaultTest is Test {
         assertEq(acct.lockedAmount, 400e18);
     }
 
-    function test_lockStake_revertsForFreshTransferWhenMinDepositAgeSet() public {
+    /// @dev Age travels with shares: a recipient of MATURE shares can lock them
+    ///      immediately (the SAP-1 refactor binds the cooldown to the shares,
+    ///      not to the receiving address).
+    function test_lockStake_allowsMatureTransferRecipient() public {
         vm.prank(admin);
         vault.setMinDepositAge(1 days);
 
@@ -145,12 +155,7 @@ contract SapienVaultTest is Test {
         vm.prank(user1);
         vault.transfer(user2, sharesToTransfer);
 
-        vm.expectRevert(abi.encodeWithSelector(ISapienVault.DepositTooRecent.selector, 1 days, 0));
-        vm.prank(user2);
-        vault.lockStake(transferredAssets);
-
-        skip(1 days);
-
+        // Recipient received matured shares, so it can lock without waiting.
         vm.prank(user2);
         vault.lockStake(transferredAssets);
 
@@ -402,129 +407,6 @@ contract SapienVaultTest is Test {
         assertEq(vault.getStakeAccount(user1).lockedAmount, 300e18);
     }
 
-    // ── Deposit-timestamp time-lock bypass resistance ───────────────
-
-    /// @dev SEC-M-01 regression: a deposit made by an attacker on behalf of
-    ///      `user1` (caller != receiver) must NOT reset the receiver's
-    ///      deposit-age timer; otherwise dust deposits become a DoS griefing
-    ///      vector against any staker.
-    function test_depositOnBehalf_doesNotResetTimestamp() public {
-        vm.prank(admin);
-        vault.setMinDepositAge(1 days);
-
-        vm.prank(user1);
-        vault.deposit(DEPOSIT_AMOUNT, user1);
-
-        vm.warp(block.timestamp + 1 days);
-
-        token.mint(user2, 1);
-        vm.prank(user2);
-        token.approve(address(vault), 1);
-        vm.prank(user2);
-        vault.deposit(1, user1);
-
-        vm.prank(user1);
-        vault.lockStake(400e18);
-
-        StakeAccount memory acct = vault.getStakeAccount(user1);
-        assertEq(acct.lockedAmount, 400e18, "user1 should still be able to lockStake after on-behalf-of dust deposit");
-    }
-
-    function test_transfer_resetsTimestampOfExistingStaker() public {
-        vm.prank(admin);
-        vault.setMinDepositAge(1 days);
-
-        vm.prank(user1);
-        vault.deposit(DEPOSIT_AMOUNT, user1);
-        vm.prank(user2);
-        vault.deposit(DEPOSIT_AMOUNT, user2);
-
-        vm.warp(block.timestamp + 1 days);
-
-        vm.prank(user2);
-        vault.transfer(user1, 1);
-
-        vm.expectRevert(abi.encodeWithSelector(ISapienVault.DepositTooRecent.selector, 1 days, 0));
-        vm.prank(user1);
-        vault.lockStake(400e18);
-    }
-
-    /// @dev SEC-M-01: when a third party funds `user1`'s vault position and
-    ///      `user1` has never self-deposited, the receiver's stored timestamp
-    ///      stays at 0 (the "no prior deposit" sentinel). user1 is therefore
-    ///      free to lock the granted shares immediately — the third party
-    ///      cannot weaponise the timer against them, and the time-lock is only
-    ///      meaningful for shares the user themselves brought in.
-    function test_thirdPartyDeposit_doesNotSetTimestamp() public {
-        vm.prank(admin);
-        vault.setMinDepositAge(1 days);
-
-        token.mint(user2, DEPOSIT_AMOUNT);
-        vm.prank(user2);
-        token.approve(address(vault), DEPOSIT_AMOUNT);
-
-        vm.prank(user2);
-        vault.deposit(DEPOSIT_AMOUNT, user1);
-
-        vm.prank(user1);
-        vault.lockStake(DEPOSIT_AMOUNT);
-
-        StakeAccount memory acct = vault.getStakeAccount(user1);
-        assertEq(acct.lockedAmount, DEPOSIT_AMOUNT);
-    }
-
-    function test_bypass_warmSybilTransfer() public {
-        vm.prank(admin);
-        vault.setMinDepositAge(1 days);
-
-        vm.prank(user1);
-        vault.deposit(1, user1);
-
-        skip(1 days);
-
-        vm.prank(user2);
-        vault.deposit(DEPOSIT_AMOUNT, user2);
-
-        skip(1 days);
-
-        uint256 user2Bal = vault.balanceOf(user2);
-        vm.prank(user2);
-        vault.transfer(user1, user2Bal);
-
-        uint256 avail = vault.availableBalance(user1);
-        vm.expectRevert(abi.encodeWithSelector(ISapienVault.DepositTooRecent.selector, 1 days, 0));
-        vm.prank(user1);
-        vault.lockStake(avail);
-    }
-
-    function test_transfer_setsTimestampForFirstTimeRecipient() public {
-        vm.prank(admin);
-        vault.setMinDepositAge(1 days);
-
-        vm.prank(user1);
-        vault.deposit(DEPOSIT_AMOUNT, user1);
-
-        skip(1 days);
-
-        uint256 sharesToTransfer = vault.balanceOf(user1) / 2;
-        uint256 transferredAssets = vault.convertToAssets(sharesToTransfer);
-
-        vm.prank(user1);
-        vault.transfer(user2, sharesToTransfer);
-
-        vm.expectRevert(abi.encodeWithSelector(ISapienVault.DepositTooRecent.selector, 1 days, 0));
-        vm.prank(user2);
-        vault.lockStake(transferredAssets);
-
-        skip(1 days);
-
-        vm.prank(user2);
-        vault.lockStake(transferredAssets);
-
-        StakeAccount memory acct = vault.getStakeAccount(user2);
-        assertEq(acct.lockedAmount, transferredAssets);
-    }
-
     // ── Full lock/unlock lifecycle ─────────────────────────────────
 
     function test_lockUnlockLifecycle() public {
@@ -548,43 +430,6 @@ contract SapienVaultTest is Test {
         vm.prank(user1);
         vault.withdraw(DEPOSIT_AMOUNT, user1, user1);
         assertEq(vault.balanceOf(user1), 0);
-    }
-
-    // ── MEV Protection ─────────────────────────────────────────────
-
-    function test_mev_frontrunSlashStake() public {
-        vm.prank(admin);
-        vault.setMinDepositAge(1 days);
-
-        vm.prank(user1);
-        vault.deposit(DEPOSIT_AMOUNT, user1);
-
-        vm.warp(block.timestamp + 1 days);
-        vm.prank(user1);
-        vault.lockStake(400e18);
-
-        token.mint(user2, DEPOSIT_AMOUNT * 10);
-        vm.prank(user2);
-        token.approve(address(vault), DEPOSIT_AMOUNT * 10);
-
-        vm.prank(user2);
-        vault.deposit(DEPOSIT_AMOUNT * 10, user2);
-
-        vm.prank(engine);
-        vault.slashStake(user1, 400e18);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ERC4626Upgradeable.ERC4626ExceededMaxWithdraw.selector, user2, DEPOSIT_AMOUNT * 10, 0
-            )
-        );
-        vm.prank(user2);
-        vault.withdraw(DEPOSIT_AMOUNT * 10, user2, user2);
-
-        uint256 u2Bal = vault.balanceOf(user2);
-        vm.expectRevert(abi.encodeWithSelector(ISapienVault.DepositTooRecent.selector, 1 days, 0));
-        vm.prank(user2);
-        vault.transfer(user1, u2Bal);
     }
 
     // ── Coverage specific additions ────────────────────────────────
@@ -613,6 +458,18 @@ contract SapienVaultTest is Test {
         assertEq(vault.minDepositAge(), 1 days);
     }
 
+    /// @dev SAP-5: a freshly initialized vault seeds the MEV guard with
+    ///      DEFAULT_MIN_DEPOSIT_AGE rather than leaving it at 0. (The shared
+    ///      fixture disables it afterwards for the mechanics tests.)
+    function test_initialize_seedsDefaultMinDepositAge() public {
+        SapienVault impl = new SapienVault();
+        bytes memory initData = abi.encodeCall(SapienVault.initialize, (IERC20(address(token)), admin));
+        SapienVault fresh = SapienVault(address(new ERC1967Proxy(address(impl), initData)));
+
+        assertEq(fresh.minDepositAge(), fresh.DEFAULT_MIN_DEPOSIT_AGE());
+        assertEq(fresh.minDepositAge(), 1 days);
+    }
+
     function test_setMinDepositAge_tooHigh() public {
         uint256 maxAge = vault.MAX_MIN_DEPOSIT_AGE();
         uint256 tooHigh = maxAge + 1;
@@ -620,6 +477,52 @@ contract SapienVaultTest is Test {
         vm.expectRevert(abi.encodeWithSelector(ISapienVault.MinDepositAgeTooHigh.selector, tooHigh, maxAge));
         vm.prank(admin);
         vault.setMinDepositAge(tooHigh);
+    }
+
+    function test_minTrancheSize_view() public {
+        assertEq(vault.minTrancheSize(), 0);
+
+        vm.prank(admin);
+        vault.setMinTrancheSize(1e18);
+
+        assertEq(vault.minTrancheSize(), 1e18);
+    }
+
+    function test_deposit_belowMinTrancheSize_revertsWhenAgeEnabled() public {
+        vm.startPrank(admin);
+        vault.setMinDepositAge(1 days);
+        vault.setMinTrancheSize(1e18);
+        vm.stopPrank();
+
+        uint256 dustAssets = 1;
+        vm.expectRevert(abi.encodeWithSelector(ISapienVault.BelowMinTrancheSize.selector, dustAssets, 1e18));
+        vm.prank(user1);
+        vault.deposit(dustAssets, user1);
+
+        vm.prank(user1);
+        vault.deposit(1e18, user1);
+        assertGt(vault.balanceOf(user1), 0);
+    }
+
+    function test_deposit_belowMinTrancheSize_allowedWhenAgeDisabled() public {
+        vm.prank(admin);
+        vault.setMinTrancheSize(1e18);
+
+        vm.prank(user1);
+        vault.deposit(1, user1);
+        assertGt(vault.balanceOf(user1), 0);
+    }
+
+    function test_delegateDeposit_belowMinTrancheSize_reverts() public {
+        vm.startPrank(admin);
+        vault.setMinDepositAge(1 days);
+        vault.setMinTrancheSize(1e18);
+        vm.stopPrank();
+
+        uint256 dustAssets = 1;
+        vm.expectRevert(abi.encodeWithSelector(ISapienVault.BelowMinTrancheSize.selector, dustAssets, 1e18));
+        vm.prank(user2);
+        vault.deposit(dustAssets, user1);
     }
 
     function test_authorizeUpgrade() public {
@@ -726,12 +629,12 @@ contract SapienVaultTest is Test {
         vm.prank(user1);
         vault.deposit(DEPOSIT_AMOUNT, user1);
 
-        uint256 stakeBalBefore = vault.getUserStakeBalance(user1);
+        uint256 stakeBalBefore = vault.assetsOf(user1);
 
         token.mint(address(this), 500e18);
         token.transfer(address(vault), 500e18);
 
-        assertGe(vault.getUserStakeBalance(user1), stakeBalBefore, "Donation decreased user's stake value");
+        assertGe(vault.assetsOf(user1), stakeBalBefore, "Donation decreased user's stake value");
     }
 
     // ── Mint & Redeem Paths ────────────────────────────────────────
@@ -743,7 +646,7 @@ contract SapienVaultTest is Test {
         vault.mint(sharesToMint, user1);
 
         assertEq(vault.balanceOf(user1), sharesToMint);
-        assertGt(vault.getUserStakeBalance(user1), 0);
+        assertGt(vault.assetsOf(user1), 0);
     }
 
     function test_redeem() public {
@@ -876,7 +779,9 @@ contract SapienVaultTest is Test {
 
         uint256 transferAmount = vault.balanceOf(user1) / 2;
 
-        vm.expectRevert(abi.encodeWithSelector(ISapienVault.DepositTooRecent.selector, 1 days, 0));
+        // Sender's freshly-deposited shares are immature, so the transfer of
+        // unlocked shares it cannot yet move reverts.
+        vm.expectRevert(ISapienVault.TransferExceedsUnlockedShares.selector);
         vm.prank(user2);
         vault.transferFrom(user1, user2, transferAmount);
 
@@ -888,7 +793,9 @@ contract SapienVaultTest is Test {
         assertEq(vault.balanceOf(user2), transferAmount);
     }
 
-    function test_transferFrom_resetsReceiverTimestamp() public {
+    /// @dev A transferFrom recipient receives MATURE shares (age travels) and
+    ///      can act on them immediately; no global timer is reset.
+    function test_transferFrom_recipientReceivesMatureShares() public {
         vm.prank(admin);
         vault.setMinDepositAge(1 days);
 
@@ -907,16 +814,17 @@ contract SapienVaultTest is Test {
         vm.prank(user2);
         vault.transferFrom(user1, user2, transferAmount);
 
-        vm.expectRevert(abi.encodeWithSelector(ISapienVault.DepositTooRecent.selector, 1 days, 0));
+        // user2 was already matured and receives matured shares: lock succeeds.
         vm.prank(user2);
         vault.lockStake(400e18);
+        assertEq(vault.getStakeAccount(user2).lockedAmount, 400e18);
     }
 
     // ── Slash Rounding Fix ─────────────────────────────────────────
 
     /// @dev After the fix, slashing 1 wei at 1:1 rate rounds up to 1 share
     ///      (thanks to decimalsOffset the virtual offset makes previewWithdraw(1) >= 1).
-    function test_slashStake_roundsUp_burnsAtLeastOneShare() public {
+    function test_slashStake_burnsAtLeastOneShare() public {
         vm.prank(user1);
         vault.deposit(DEPOSIT_AMOUNT, user1);
 
@@ -929,39 +837,41 @@ contract SapienVaultTest is Test {
         vault.slashStake(user1, 1);
 
         uint256 sharesAfter = vault.balanceOf(user1);
-        assertLt(sharesAfter, sharesBefore, "previewWithdraw round-up must burn >= 1 share");
+        assertLt(sharesAfter, sharesBefore, "slash must burn >= 1 share");
 
         StakeAccount memory acct = vault.getStakeAccount(user1);
         assertEq(acct.lockedAmount, DEPOSIT_AMOUNT - 1, "lockedAmount not decremented");
     }
 
-    /// @dev With a high exchange rate (donation doubles rate), slashing uses
-    ///      previewWithdraw (rounds up) so more shares are burned than convertToShares
-    ///      would yield, ensuring the penalty is at least as large as requested.
-    function test_slashStake_roundsUp_afterDonation() public {
+    /// @dev With a high exchange rate (donation) and a second staker, the
+    ///      dilution-compensated slash still inflicts ~the intended net damage on
+    ///      the user (never more) and burns strictly more than the naive
+    ///      convertToShares equivalent (SAP-2).
+    function test_slashStake_netDamage_afterDonation() public {
         vm.prank(user1);
         vault.deposit(DEPOSIT_AMOUNT, user1);
+        vm.prank(user2);
+        vault.deposit(DEPOSIT_AMOUNT, user2);
 
-        token.mint(address(this), DEPOSIT_AMOUNT);
-        token.transfer(address(vault), DEPOSIT_AMOUNT);
+        token.mint(address(this), 2 * DEPOSIT_AMOUNT);
+        token.transfer(address(vault), 2 * DEPOSIT_AMOUNT);
 
         vm.prank(user1);
-        vault.lockStake(DEPOSIT_AMOUNT);
+        vault.lockStake(400e18);
 
-        uint256 slashAmt = 3;
-        uint256 sharesRoundDown = vault.convertToShares(slashAmt);
-        uint256 sharesRoundUp = vault.previewWithdraw(slashAmt);
-
-        assertGe(sharesRoundUp, sharesRoundDown, "previewWithdraw must be >= convertToShares");
-
+        uint256 naiveShares = vault.convertToShares(400e18);
         uint256 sharesBefore = vault.balanceOf(user1);
+        uint256 valueBefore = vault.convertToAssets(vault.balanceOf(user1));
 
         vm.prank(engine);
-        vault.slashStake(user1, slashAmt);
+        vault.slashStake(user1, 400e18);
 
         uint256 sharesBurned = sharesBefore - vault.balanceOf(user1);
-        assertEq(sharesBurned, sharesRoundUp, "Must burn the round-up amount");
-        assertGt(sharesBurned, 0, "Must burn at least 1 share");
+        uint256 loss = valueBefore - vault.convertToAssets(vault.balanceOf(user1));
+
+        assertGt(sharesBurned, naiveShares, "dilution-compensated burn exceeds naive convertToShares");
+        assertLe(loss, 400e18, "slash must never over-penalize");
+        assertApproxEqAbs(loss, 400e18, 1e16, "net damage equals the intended amount");
     }
 
     /// @dev Slashing an amount that would round to zero shares with the old
@@ -980,9 +890,11 @@ contract SapienVaultTest is Test {
         assertGt(sharesToBurn, 0, "With offset=3, previewWithdraw(1) should be > 0");
     }
 
-    /// @dev After a large donation that raises the exchange rate significantly,
-    ///      small slashes must still burn shares (round-up) rather than silently
-    ///      reducing lockedAmount with no share burn.
+    /// @dev After a large donation pushes the exchange rate so high that one wei
+    ///      of asset value is worth less than a single share, a sub-share slash
+    ///      rounds to zero shares and reverts with ZeroShareSlash (never silently
+    ///      reducing lockedAmount without a burn). A slash at/above one share's
+    ///      value still burns. Rounding is *down* to keep slashing solvency-safe.
     function test_slashStake_smallSlash_highExchangeRate() public {
         vm.prank(user1);
         vault.deposit(1e18, user1);
@@ -993,17 +905,22 @@ contract SapienVaultTest is Test {
         vm.prank(user1);
         vault.lockStake(1e18);
 
-        uint256 sharesBefore = vault.balanceOf(user1);
-
+        // 1 wei of damage is below one share's value at this rate -> reverts.
+        assertEq(vault.convertToShares(1), 0, "1 wei should round to 0 shares at this rate");
         vm.prank(engine);
+        vm.expectRevert(ISapienVault.ZeroShareSlash.selector);
         vault.slashStake(user1, 1);
 
-        uint256 sharesAfter = vault.balanceOf(user1);
-        assertLt(sharesAfter, sharesBefore, "Small slash at high exchange rate must still burn shares");
+        // A slash worth at least one share burns shares as expected.
+        uint256 minSlash = vault.convertToAssets(1) + 2;
+        uint256 sharesBefore = vault.balanceOf(user1);
+        vm.prank(engine);
+        vault.slashStake(user1, minSlash);
+        assertLt(vault.balanceOf(user1), sharesBefore, "slash >= one share must burn shares");
     }
 
     /// @dev Fuzz: slashing any non-zero locked amount must always burn at least
-    ///      one share (thanks to round-up via previewWithdraw).
+    ///      one share (the dilution-compensated burn is >= the naive equivalent).
     function testFuzz_slashStake_alwaysBurnsShares(uint256 depositAmt, uint256 donationAmt, uint256 slashAmt) public {
         depositAmt = bound(depositAmt, 1, 1e24);
         donationAmt = bound(donationAmt, 0, 1e24);
@@ -1020,7 +937,11 @@ contract SapienVaultTest is Test {
         }
 
         uint256 userAssets = vault.convertToAssets(vault.balanceOf(user1));
-        slashAmt = bound(slashAmt, 1, userAssets);
+        // A slash must be worth at least one share to burn anything; sub-share
+        // amounts correctly revert with ZeroShareSlash (see unit test).
+        uint256 minSlash = vault.previewMint(1);
+        vm.assume(userAssets >= minSlash);
+        slashAmt = bound(slashAmt, minSlash, userAssets);
 
         vm.prank(user1);
         vault.lockStake(slashAmt);
@@ -1031,7 +952,7 @@ contract SapienVaultTest is Test {
         vault.slashStake(user1, slashAmt);
 
         uint256 sharesAfter = vault.balanceOf(user1);
-        assertLt(sharesAfter, sharesBefore, "Fuzz: slash must always burn at least 1 share");
+        assertLt(sharesAfter, sharesBefore, "Fuzz: slash >= one share must burn at least 1 share");
     }
 
     /// @dev Verify that after slashing, the remaining shares still cover any
@@ -1057,8 +978,11 @@ contract SapienVaultTest is Test {
         }
 
         uint256 userAssets = vault.convertToAssets(vault.balanceOf(user1));
-        lockAmt = bound(lockAmt, 1, userAssets);
-        slashAmt = bound(slashAmt, 1, lockAmt);
+        // Keep the slash at/above one share's value (sub-share slashes revert).
+        uint256 minSlash = vault.previewMint(1);
+        vm.assume(userAssets >= minSlash);
+        lockAmt = bound(lockAmt, minSlash, userAssets);
+        slashAmt = bound(slashAmt, minSlash, lockAmt);
 
         vm.prank(user1);
         vault.lockStake(lockAmt);
@@ -1069,9 +993,10 @@ contract SapienVaultTest is Test {
         uint256 remainingLocked = vault.getStakeAccount(user1).lockedAmount;
         uint256 remainingAssets = vault.convertToAssets(vault.balanceOf(user1));
 
-        if (remainingLocked > 0) {
-            assertGe(remainingAssets, 0, "Remaining assets should be non-negative");
-        }
+        // SAP-2: rounding the compensated burn down guarantees the user is never
+        // left under-collateralised — their surviving value still covers any
+        // remaining locked stake.
+        assertGe(remainingAssets, remainingLocked, "Remaining assets must still cover remaining locked stake");
     }
 
     // ── Event Emission Assertions ──────────────────────────────────
@@ -1114,11 +1039,24 @@ contract SapienVaultTest is Test {
     }
 
     function test_setMinDepositAge_emitsMinDepositAgeUpdated() public {
-        vm.expectEmit(true, false, false, true, address(vault));
-        emit ISapienVault.MinDepositAgeUpdated(1 days);
+        // setUp set the guard to 0, so this transition is 0 -> 1 days.
+        vm.expectEmit(true, true, false, true, address(vault));
+        emit ISapienVault.MinDepositAgeUpdated(0, 1 days);
 
         vm.prank(admin);
         vault.setMinDepositAge(1 days);
+    }
+
+    /// @dev S3: a redundant set (new == stored) must not emit or write.
+    function test_setMinDepositAge_noopDoesNotEmit() public {
+        vm.prank(admin);
+        vault.setMinDepositAge(2 days);
+
+        vm.recordLogs();
+        vm.prank(admin);
+        vault.setMinDepositAge(2 days);
+        assertEq(vm.getRecordedLogs().length, 0, "no-op set should not emit");
+        assertEq(vault.minDepositAge(), 2 days);
     }
 
     // ── Multi-User Interaction Tests ───────────────────────────────
@@ -1129,7 +1067,7 @@ contract SapienVaultTest is Test {
         vm.prank(user2);
         vault.deposit(DEPOSIT_AMOUNT, user2);
 
-        uint256 user2BalBefore = vault.getUserStakeBalance(user2);
+        uint256 user2BalBefore = vault.assetsOf(user2);
 
         vm.prank(user1);
         vault.lockStake(400e18);
@@ -1137,7 +1075,7 @@ contract SapienVaultTest is Test {
         vm.prank(engine);
         vault.slashStake(user1, 400e18);
 
-        assertGe(vault.getUserStakeBalance(user2), user2BalBefore, "Slash reduced other user's value");
+        assertGe(vault.assetsOf(user2), user2BalBefore, "Slash reduced other user's value");
         assertGe(vault.maxWithdraw(user2), DEPOSIT_AMOUNT, "Slash blocked other user's withdrawal");
     }
 
@@ -1179,7 +1117,7 @@ contract SapienVaultTest is Test {
 
     // ── Self-Transfer and Edge Cases ───────────────────────────────
 
-    function test_selfTransfer_resetsOwnTimestamp() public {
+    function test_selfTransfer_preservesMaturedShares() public {
         vm.prank(admin);
         vault.setMinDepositAge(1 days);
 
@@ -1195,9 +1133,11 @@ contract SapienVaultTest is Test {
 
         assertEq(vault.balanceOf(user1), bal, "Balance changed on self-transfer");
 
-        vm.expectRevert(abi.encodeWithSelector(ISapienVault.DepositTooRecent.selector, 1 days, 0));
+        // Age travels with the shares (even to oneself): matured shares stay
+        // matured, so the lock succeeds and the timer is not re-armed.
         vm.prank(user1);
         vault.lockStake(400e18);
+        assertEq(vault.getStakeAccount(user1).lockedAmount, 400e18);
     }
 
     function test_zeroValueTransfer_doesNotResetTimestamp() public {
@@ -1237,7 +1177,7 @@ contract SapienVaultTest is Test {
         vm.prank(user1);
         vault.deposit(DEPOSIT_AMOUNT, user1);
 
-        uint256 totalAssets = vault.getUserStakeBalance(user1);
+        uint256 totalAssets = vault.assetsOf(user1);
 
         vm.prank(user1);
         vault.lockStake(totalAssets);
@@ -1289,26 +1229,27 @@ contract SapienVaultTest is Test {
         assertEq(vault.getStakeAccount(user1).lockedAmount, 200e18);
     }
 
-    function test_adminRenounce_blocksAdminOps() public {
+    /// @dev S2: renouncing `DEFAULT_ADMIN_ROLE` is hard-disabled so the vault can
+    ///      never be left without an admin. Admin handover must go through the
+    ///      two-step, time-locked transfer flow instead.
+    function test_adminRenounce_isDisabled() public {
+        vm.expectRevert(ISapienVault.DefaultAdminRenounceDisabled.selector);
         vm.prank(admin);
         vault.renounceRole(ADMIN_ROLE, admin);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, admin, ADMIN_ROLE)
-        );
+        // Admin retains all privileges.
         vm.prank(admin);
         vault.pause();
-
-        vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, admin, ADMIN_ROLE)
-        );
-        vm.prank(admin);
-        vault.setMinDepositAge(1 days);
+        assertTrue(vault.paused());
     }
 
-    // ── Griefing Scenario Documentation ────────────────────────────
+    // ── SAP-1: Inbound Transfers Cannot Grief (Resolved) ───────────
 
-    function test_griefing_resetTimestampViaDustTransfer() public {
+    /// @dev SAP-1 resolved: an inbound dust transfer no longer resets the
+    ///      victim's cooldown. Matured funds stay lockable and withdrawable in
+    ///      the same block. (See test/audits/SAP1_SharesTransferGriefing.t.sol
+    ///      for the full finding-level coverage.)
+    function test_inboundDustTransferDoesNotFreezeVictim() public {
         vm.prank(admin);
         vault.setMinDepositAge(1 days);
 
@@ -1316,28 +1257,18 @@ contract SapienVaultTest is Test {
         vault.deposit(DEPOSIT_AMOUNT, user1);
         skip(1 days);
 
-        // Attacker prepares dust shares
+        // Attacker prepares and ages a dust share, then sends it to the victim.
         token.mint(user2, 1);
         vm.prank(user2);
         token.approve(address(vault), 1);
         vm.prank(user2);
         vault.deposit(1, user2);
         skip(1 days);
-
-        // Attacker sends 1 share to victim, resetting their timestamp.
-        // This is a known trade-off: we accept inbound griefing to prevent
-        // bypassing minDepositAge via sybil share transfers.
         vm.prank(user2);
         vault.transfer(user1, 1);
 
-        vm.expectRevert(abi.encodeWithSelector(ISapienVault.DepositTooRecent.selector, 1 days, 0));
-        vm.prank(user1);
-        vault.lockStake(400e18);
-
-        assertEq(vault.maxWithdraw(user1), 0, "Griefed user can still withdraw");
-
-        // Victim recovers after waiting
-        skip(1 days);
+        // Victim is not frozen: matured funds remain withdrawable and lockable.
+        assertGt(vault.maxWithdraw(user1), 0, "victim wrongly frozen by inbound dust");
         vm.prank(user1);
         vault.lockStake(400e18);
         assertEq(vault.getStakeAccount(user1).lockedAmount, 400e18);
@@ -1356,7 +1287,7 @@ contract SapienVaultTest is Test {
         vault.deposit(amount, user1);
 
         assertGt(vault.balanceOf(user1), 0);
-        assertEq(vault.getUserStakeBalance(user1), amount);
+        assertEq(vault.assetsOf(user1), amount);
     }
 
     function testFuzz_withdraw(uint256 amount, uint256 withdrawAmount) public {
