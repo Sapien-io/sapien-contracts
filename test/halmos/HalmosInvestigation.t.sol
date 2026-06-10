@@ -44,6 +44,7 @@ contract HalmosInvestigationTest is SapienVaultHalmosBase {
     // Symbolic slash burn >= naive (pure mulDiv): times out even without ERC-4626.
     function check_slashBurnGteNaiveShares_symbolic(uint256 naiveShares, uint256 userBalance, uint256 totalSupply)
         external
+        pure
     {
         vm.assume(naiveShares > 0 && naiveShares <= 1e24);
         vm.assume(userBalance >= naiveShares && userBalance <= 1e24);

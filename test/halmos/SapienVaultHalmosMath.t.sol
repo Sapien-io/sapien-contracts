@@ -21,13 +21,13 @@ contract SapienVaultHalmosMathTest is Test {
     }
 
     /// @dev Burn >= naive shares — concrete grid (symbolic version times out).
-    function check_slashBurnGteNaiveShares_concrete() external {
+    function check_slashBurnGteNaiveShares_concrete() external pure {
         assert(_slashBurnShares(400e18, 1000e18, 1000e18) >= 400e18);
         assert(_slashBurnShares(3e18, 10e18, 10e18) >= 3e18);
     }
 
     /// @dev Burn never exceeds the user's balance.
-    function check_slashBurnLteBalance(uint256 naiveShares, uint256 userBalance, uint256 totalSupply) external {
+    function check_slashBurnLteBalance(uint256 naiveShares, uint256 userBalance, uint256 totalSupply) external pure {
         vm.assume(naiveShares > 0 && naiveShares <= 1e24);
         vm.assume(userBalance > 0 && userBalance <= 1e24);
         vm.assume(totalSupply >= userBalance && totalSupply <= 1e24);

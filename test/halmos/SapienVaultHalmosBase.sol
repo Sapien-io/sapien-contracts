@@ -35,7 +35,7 @@ abstract contract SapienVaultHalmosBase is Test {
         token.approve(address(vault), type(uint256).max);
     }
 
-    function _assumeReasonableAssets(uint256 assets) internal {
+    function _assumeReasonableAssets(uint256 assets) internal pure {
         vm.assume(assets > 0);
         // Tighter bound keeps ERC-4626 mulDiv paths tractable for the SMT solver.
         vm.assume(assets <= type(uint64).max);

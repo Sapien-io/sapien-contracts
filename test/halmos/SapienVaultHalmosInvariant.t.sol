@@ -54,7 +54,7 @@ contract SapienVaultHalmosInvariantTest is Test {
         vm.warp(100 days);
     }
 
-    function _assumeAmount(uint256 amount, uint256 maxAmt) internal {
+    function _assumeAmount(uint256 amount, uint256 maxAmt) internal pure {
         vm.assume(amount > 0);
         vm.assume(amount <= maxAmt);
     }
