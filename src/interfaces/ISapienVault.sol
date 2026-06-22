@@ -49,6 +49,7 @@ interface ISapienVault {
     event UnstakingInitiated(address indexed user, uint256 cooldownStart, uint256 cooldownAmount);
     event Unstaked(address indexed user, uint256 amount);
     event EarlyUnstake(address indexed user, uint256 amount, uint256 penalty);
+    event InstantUnstaked(address indexed user, uint256 amount);
     event EarlyUnstakeCooldownInitiated(address indexed user, uint256 cooldownStart, uint256 amount);
     event SapienTreasuryUpdated(address indexed newSapienTreasury);
     event EmergencyWithdraw(address indexed token, address indexed to, uint256 amount);
@@ -122,6 +123,7 @@ interface ISapienVault {
     function unstake(uint256 amount) external;
     function initiateEarlyUnstake(uint256 amount) external;
     function earlyUnstake(uint256 amount) external;
+    function instantUnstake(uint256 amount) external;
 
     // -------------------------------------------------------------
     // View Functions

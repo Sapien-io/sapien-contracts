@@ -735,6 +735,34 @@ contract SapienVault is ISapienVault, AccessControlUpgradeable, PausableUpgradea
         emit EarlyUnstake(msg.sender, payout, penalty);
     }
 
+    /**
+     * @notice Instantly unstakes a specified amount with no lockup, cooldown, or penalty.
+     * @param amount The amount to withdraw immediately.
+     * @dev Bypasses the lockup period, the unstaking cooldown, and the early-withdrawal penalty.
+     */
+    function instantUnstake(uint256 amount) external whenNotPaused nonReentrant {
+        UserStake storage userStake = userStakes[msg.sender];
+
+        if (amount == 0) revert InvalidAmount();
+        if (userStake.amount == 0) revert NoStakeFound();
+        if (amount > userStake.amount) revert AmountExceedsAvailableBalance();
+
+        uint256 newUserStakeAmount = userStake.amount - amount;
+
+        // Force full exit if the remainder would fall below the minimum stake
+        if (newUserStakeAmount > 0 && newUserStakeAmount < Const.MINIMUM_STAKE_AMOUNT) {
+            amount = userStake.amount;
+            newUserStakeAmount = 0;
+        }
+
+        totalStaked -= amount;
+
+        _updateUserStakeAfterUnstake(userStake, amount, newUserStakeAmount);
+
+        sapienToken.safeTransfer(msg.sender, amount);
+        emit InstantUnstaked(msg.sender, amount);
+    }
+
     function _validateInitiateUnstakeInputs(uint256 amount, UserStake storage userStake) private view {
         if (amount == 0) revert InvalidAmount();
         if (userStake.amount == 0) revert NoStakeFound();

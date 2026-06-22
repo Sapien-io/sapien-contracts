@@ -13,7 +13,7 @@ library Constants {
 
     string internal constant QA_VERSION = "1";
     string internal constant REWARDS_VERSION = "1";
-    string internal constant VAULT_VERSION = "1";
+    string internal constant VAULT_VERSION = "2";
 
     // -------------------------------------------------------------
     // Token Constants
