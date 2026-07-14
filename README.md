@@ -11,6 +11,8 @@ ERC-4626 vault for SAPIEN token staking with typed lock categories. Holds user f
 
 Full vault design, roles, ERC-4626 behavior, locking/slashing, and integration notes: **[docs/SapienVault.md](docs/SapienVault.md)**.
 
+Sapien token MiCA whitepaper: **[docs/Sapien_Token_White_Paper_MiCA_v1.pdf](docs/Sapien_Token_White_Paper_MiCA_v1.pdf)**.
+
 ## Roles & trust assumptions
 
 The vault concentrates several privileged actions in two roles. Operators
