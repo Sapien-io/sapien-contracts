@@ -1,6 +1,7 @@
 # Compiler files
 cache/
 out/
+out-halmos/
 
 # Ignores development broadcast logs
 !/broadcast

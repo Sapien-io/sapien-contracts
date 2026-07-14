@@ -163,6 +163,144 @@ contract SapienVaultInstantUnstakeTest is Test {
     }
 
     // =============================================================================
+    // STAKING STATE UPDATE: full UserStake struct correctness
+    // =============================================================================
+
+    /// @dev Verifies every field of the UserStake struct is zeroed after a full instant unstake.
+    function test_InstantUnstake_FullExit_ResetsEntireStakeStruct() public {
+        _stake(STAKE_AMOUNT, LOCK_30_DAYS);
+
+        vm.prank(user1);
+        sapienVault.instantUnstake(STAKE_AMOUNT);
+
+        ISapienVault.UserStake memory stake = sapienVault.getUserStake(user1);
+        assertEq(stake.amount, 0, "amount");
+        assertEq(stake.cooldownAmount, 0, "cooldownAmount");
+        assertEq(stake.weightedStartTime, 0, "weightedStartTime");
+        assertEq(stake.effectiveLockUpPeriod, 0, "effectiveLockUpPeriod");
+        assertEq(stake.cooldownStart, 0, "cooldownStart");
+        assertEq(stake.lastUpdateTime, 0, "lastUpdateTime");
+        assertEq(stake.earlyUnstakeCooldownStart, 0, "earlyUnstakeCooldownStart");
+        assertEq(stake.effectiveMultiplier, 0, "effectiveMultiplier");
+        assertEq(stake.earlyUnstakeCooldownAmount, 0, "earlyUnstakeCooldownAmount");
+    }
+
+    /// @dev Verifies the full struct is updated correctly after a partial instant unstake
+    ///      with no cooldowns active: amount/multiplier/lastUpdateTime updated, lockup fields preserved.
+    function test_InstantUnstake_Partial_UpdatesStakeStructCorrectly() public {
+        _stake(STAKE_AMOUNT, LOCK_30_DAYS);
+
+        ISapienVault.UserStake memory before = sapienVault.getUserStake(user1);
+
+        uint256 withdrawAmount = 40e18;
+        uint256 expectedRemaining = STAKE_AMOUNT - withdrawAmount;
+        uint256 expectedMultiplier = sapienVault.calculateMultiplier(expectedRemaining, LOCK_30_DAYS);
+
+        vm.prank(user1);
+        sapienVault.instantUnstake(withdrawAmount);
+
+        ISapienVault.UserStake memory afterStake = sapienVault.getUserStake(user1);
+
+        // Reduced amount and recalculated multiplier
+        assertEq(afterStake.amount, expectedRemaining, "amount");
+        assertEq(afterStake.effectiveMultiplier, expectedMultiplier, "effectiveMultiplier");
+        // lastUpdateTime bumped to the unstake block
+        assertEq(afterStake.lastUpdateTime, block.timestamp, "lastUpdateTime");
+
+        // Lockup-defining fields must be preserved on a partial unstake
+        assertEq(afterStake.weightedStartTime, before.weightedStartTime, "weightedStartTime");
+        assertEq(afterStake.effectiveLockUpPeriod, before.effectiveLockUpPeriod, "effectiveLockUpPeriod");
+
+        // No cooldowns were active, so they must remain cleared
+        assertEq(afterStake.cooldownAmount, 0, "cooldownAmount");
+        assertEq(afterStake.cooldownStart, 0, "cooldownStart");
+        assertEq(afterStake.earlyUnstakeCooldownAmount, 0, "earlyUnstakeCooldownAmount");
+        assertEq(afterStake.earlyUnstakeCooldownStart, 0, "earlyUnstakeCooldownStart");
+
+        // Cross-check against the public getters / summary for consistency
+        assertEq(sapienVault.getTotalStaked(user1), expectedRemaining, "getTotalStaked");
+        assertEq(sapienVault.getUserMultiplier(user1), expectedMultiplier, "getUserMultiplier");
+        assertEq(sapienVault.getEffectiveStakeAmount(user1), expectedRemaining, "getEffectiveStakeAmount");
+        assertEq(sapienVault.getUserLockupPeriod(user1), LOCK_30_DAYS, "getUserLockupPeriod");
+        assertTrue(sapienVault.hasActiveStake(user1), "hasActiveStake");
+    }
+
+    /// @dev Partial instant unstake must decrement (not just clear) an active normal cooldown amount.
+    function test_InstantUnstake_Partial_ReducesNormalCooldownAmount() public {
+        _stake(STAKE_AMOUNT, LOCK_30_DAYS);
+
+        // Move past lockup and queue part of the stake into the unstaking cooldown.
+        vm.warp(block.timestamp + LOCK_30_DAYS + 1);
+        vm.prank(user1);
+        sapienVault.initiateUnstake(60e18);
+
+        ISapienVault.UserStake memory before = sapienVault.getUserStake(user1);
+        assertEq(before.cooldownAmount, 60e18, "setup cooldownAmount");
+        assertGt(before.cooldownStart, 0, "setup cooldownStart");
+
+        uint256 withdrawAmount = 30e18;
+        uint256 expectedRemaining = STAKE_AMOUNT - withdrawAmount;
+        uint256 expectedCooldown = 60e18 - withdrawAmount;
+
+        vm.prank(user1);
+        sapienVault.instantUnstake(withdrawAmount);
+
+        ISapienVault.UserStake memory afterStake = sapienVault.getUserStake(user1);
+
+        assertEq(afterStake.amount, expectedRemaining, "amount");
+        assertEq(afterStake.cooldownAmount, expectedCooldown, "cooldownAmount decremented");
+        // Cooldown start is preserved because cooldown is only partially drained.
+        assertEq(afterStake.cooldownStart, before.cooldownStart, "cooldownStart preserved");
+        assertEq(
+            afterStake.effectiveMultiplier,
+            sapienVault.calculateMultiplier(expectedRemaining, LOCK_30_DAYS),
+            "effectiveMultiplier"
+        );
+        assertEq(afterStake.lastUpdateTime, block.timestamp, "lastUpdateTime");
+
+        // Getter consistency
+        assertEq(sapienVault.getTotalInCooldown(user1), expectedCooldown, "getTotalInCooldown");
+        assertEq(sapienVault.getEffectiveStakeAmount(user1), expectedRemaining - expectedCooldown, "effectiveStake");
+    }
+
+    /// @dev Partial instant unstake must decrement (not just clear) an active early-unstake cooldown amount.
+    function test_InstantUnstake_Partial_ReducesEarlyUnstakeCooldownAmount() public {
+        _stake(STAKE_AMOUNT, LOCK_30_DAYS);
+
+        // While still locked, queue part of the stake into the early-unstake cooldown.
+        vm.prank(user1);
+        sapienVault.initiateEarlyUnstake(60e18);
+
+        ISapienVault.UserStake memory before = sapienVault.getUserStake(user1);
+        assertEq(before.earlyUnstakeCooldownAmount, 60e18, "setup earlyUnstakeCooldownAmount");
+        assertGt(before.earlyUnstakeCooldownStart, 0, "setup earlyUnstakeCooldownStart");
+
+        uint256 withdrawAmount = 30e18;
+        uint256 expectedRemaining = STAKE_AMOUNT - withdrawAmount;
+        uint256 expectedEarlyCooldown = 60e18 - withdrawAmount;
+
+        vm.prank(user1);
+        sapienVault.instantUnstake(withdrawAmount);
+
+        ISapienVault.UserStake memory afterStake = sapienVault.getUserStake(user1);
+
+        assertEq(afterStake.amount, expectedRemaining, "amount");
+        assertEq(afterStake.earlyUnstakeCooldownAmount, expectedEarlyCooldown, "earlyUnstakeCooldownAmount decremented");
+        // Start is preserved because the early cooldown is only partially drained.
+        assertEq(afterStake.earlyUnstakeCooldownStart, before.earlyUnstakeCooldownStart, "earlyUnstakeCooldownStart preserved");
+        assertEq(
+            afterStake.effectiveMultiplier,
+            sapienVault.calculateMultiplier(expectedRemaining, LOCK_30_DAYS),
+            "effectiveMultiplier"
+        );
+        assertEq(afterStake.lastUpdateTime, block.timestamp, "lastUpdateTime");
+
+        // Getter consistency
+        assertEq(sapienVault.getEarlyUnstakeCooldownAmount(user1), expectedEarlyCooldown, "getEarlyUnstakeCooldownAmount");
+        assertEq(sapienVault.getEffectiveStakeAmount(user1), expectedRemaining - expectedEarlyCooldown, "effectiveStake");
+    }
+
+    // =============================================================================
     // REVERTS
     // =============================================================================
 
