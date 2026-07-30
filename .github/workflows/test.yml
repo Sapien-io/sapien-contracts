@@ -51,8 +51,8 @@ jobs:
         id: test
 
   # T6: fail on any static-analysis finding not in the triaged baseline
-  # (ci/aderyn-baseline.json). Slither remains a manual/deep-review tool — its
-  # via-IR interaction is too flaky to gate merges on.
+  # (ci/aderyn-baseline.json). Slither remains a manual/deep-review tool — too
+  # flaky to gate merges on.
   static-analysis:
     name: Aderyn baseline
     runs-on: ubuntu-latest
@@ -91,7 +91,7 @@ jobs:
 
       - name: Run Forge coverage
         run: |
-          forge coverage --ir-minimum --report lcov --report summary
+          forge coverage --report lcov --report summary
 
       - name: Upload lcov artifact
         uses: actions/upload-artifact@v4

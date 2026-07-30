@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity ^0.8.36;
 
 import {AuditBase} from "./AuditBase.t.sol";
 import {StakeAccount} from "../../src/Types.sol";
