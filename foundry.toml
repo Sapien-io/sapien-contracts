@@ -4,8 +4,16 @@ out = "out"
 libs = ["lib"]
 optimizer = true
 optimizer_runs = 200
-via_ir = true
-solc_version = "0.8.30"
+# Legacy codegen. Under via-IR, solc's output for a contract depends on every
+# other file in the compilation unit, so the pruned standard-JSON that
+# `forge --verify` submits does not reproduce the deployed bytecode
+# (solc#14829). Keep this off so explorer verification works unassisted.
+via_ir = false
+solc_version = "0.8.36"
+# Pinned: Foundry defaults to `osaka`, which Base has not activated. Targeting a
+# fork the chain does not support risks emitting unsupported opcodes and makes
+# the bytecode unreproducible for Etherscan verification.
+evm_version = "cancun"
 fs_permissions = [{ access = "read-write", path = "./deployments" }]
 
 # Invariant test configuration (full load — used for local runs; PR CI uses
@@ -18,9 +26,9 @@ depth = 50
 fail_on_revert = true
 
 # CI profile: fast PR feedback. Inherits everything from the default profile
-# (via-IR, optimizer, solc) and only reduces the invariant load. The workflow
-# sets FOUNDRY_PROFILE=ci; run the full default-profile load locally before
-# releases (`forge test --match-path test/SapienVaultInvariant.t.sol`).
+# (optimizer, solc, evm_version) and only reduces the invariant load. The
+# workflow sets FOUNDRY_PROFILE=ci; run the full default-profile load locally
+# before releases (`forge test --match-path test/SapienVaultInvariant.t.sol`).
 [profile.ci.invariant]
 runs = 256
 depth = 25
@@ -48,11 +56,13 @@ base = "${BASE_MAINNET_RPC_URL}"
 # ============================================
 # ETHERSCAN API KEYS (for verification)
 # ============================================
-# Set BASESCAN_API_KEY environment variable
+# Etherscan API V2: one ETHERSCAN_API_KEY works across Basescan / Etherscan /
+# etc. Do NOT point at api*.basescan.org (V1 — deprecated).
 
 [etherscan]
-base-sepolia = { key = "${BASESCAN_API_KEY}", url = "https://api-sepolia.basescan.org/api" }
-base = { key = "${BASESCAN_API_KEY}", url = "https://api.basescan.org/api" }
+# chainid must be in the URL query string for Etherscan API V2.
+base-sepolia = { key = "${ETHERSCAN_API_KEY}", chain = 84532, url = "https://api.etherscan.io/v2/api?chainid=84532" }
+base = { key = "${ETHERSCAN_API_KEY}", chain = 8453, url = "https://api.etherscan.io/v2/api?chainid=8453" }
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 

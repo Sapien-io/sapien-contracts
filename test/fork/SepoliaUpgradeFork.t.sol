@@ -6,44 +6,49 @@ import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.so
 import {SapienVault} from "../../src/SapienVault.sol";
 import {ISapienVault} from "../../src/interfaces/ISapienVault.sol";
 
-/// @title Base-mainnet fork rehearsal of the V1 -> V2 UUPS upgrade (SEC-1)
-/// @notice Executes the exact `upgradeToAndCall(newImpl, initializeV2(admin))`
-///         calldata destined for the governance Safe against the *live* proxy
-///         state on a Base mainnet fork — not against the hand-reconstructed
-///         `SapienVaultV1` mock used by `test/SapienVaultMigration.t.sol`.
-///         If any assumption the mock encodes by hand (storage slots, role
-///         grants, timer semantics) diverges from the deployed V1, it surfaces
-///         here instead of after an irreversible mainnet upgrade.
+/// @title Base-Sepolia fork rehearsal of the V1 -> V2 UUPS upgrade
+/// @notice Same shape as `UpgradeFork.t.sol`, but against the retired Sepolia
+///         V1 proxy (`0x58E72…`) which already holds real depositor state.
+///         Defaults to forking one block *before* the on-chain V2 upgrade
+///         (block 44794238 → impl `0x345999cc…`) so `initializeV2` is still
+///         available. Tip-of-chain is already V2 — see
+///         `test_fork_tip_initializeV2AlreadyConsumed`.
 ///
 /// @dev Environment:
-///        BASE_MAINNET_RPC_URL  - required; suite is skipped when unset so
-///                                local/CI runs without an RPC stay green.
-///        FORK_BLOCK            - optional; pin the fork block for determinism.
-///        VAULT_ADMIN           - optional; defaults to the known mainnet admin.
-///        FORK_HOLDERS          - optional; comma-separated real holder
-///                                addresses to assert migration invariants on.
+///        BASE_SEPOLIA_RPC_URL / FORK_RPC_URL — required; suite skips when unset.
+///        FORK_BLOCK                          — optional; default 44794237.
+///        VAULT_ADMIN                         — optional; defaults to the Safe.
+///        FORK_HOLDERS                        — optional; comma-separated holders.
 ///
-///      Run: BASE_MAINNET_RPC_URL=... forge test --match-path test/fork/UpgradeFork.t.sol -vvv
-contract UpgradeForkTest is Test {
-    /// @dev Live Base mainnet addresses (deployments/base-mainnet.json).
-    address internal constant PROXY = 0x60Bf63729f688287a450299962b36Cef0aFfaa42;
-    address internal constant SAPIEN = 0xC729777d0470F30612B1564Fd96E8Dd26f5814E3;
-    /// @dev Known DEFAULT_ADMIN_ROLE holder (script/DeployBaseMainnet.s.sol).
+///      Anvil:
+///        anvil --fork-url $BASE_SEPOLIA_RPC_URL --fork-block-number 44794237
+///        FORK_RPC_URL=http://127.0.0.1:8545 forge test \
+///          --match-path test/fork/SepoliaUpgradeFork.t.sol -vvv
+contract SepoliaUpgradeForkTest is Test {
+    address internal constant PROXY = 0x58E72Fa7fb92B100f2c652377465EEEe2642544C;
+    address internal constant SAPIEN = 0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6;
     address internal constant KNOWN_ADMIN = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
+    /// @dev Last V1 block; V2 upgrade landed in 44794238.
+    uint256 internal constant PRE_UPGRADE_BLOCK = 44794237;
 
-    /// @dev ERC-1967 implementation slot.
     bytes32 internal constant IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
     SapienVault internal vault = SapienVault(PROXY);
     address internal admin;
     address[] internal holders;
     bool internal forkEnabled;
+    uint256 internal forkBlock;
 
     function setUp() public {
-        string memory rpc = vm.envOr("BASE_MAINNET_RPC_URL", string(""));
-        if (bytes(rpc).length == 0) return; // tests skip via the modifier
+        string memory rpc = vm.envOr("FORK_RPC_URL", string(""));
+        if (bytes(rpc).length == 0) {
+            rpc = vm.envOr("BASE_SEPOLIA_RPC_URL", string(""));
+        }
+        if (bytes(rpc).length == 0) return;
 
-        uint256 forkBlock = vm.envOr("FORK_BLOCK", uint256(0));
+        // When pointing at a local anvil that was already started with
+        // --fork-block-number, FORK_BLOCK=0 means "use whatever tip anvil has".
+        forkBlock = vm.envOr("FORK_BLOCK", PRE_UPGRADE_BLOCK);
         if (forkBlock > 0) {
             vm.createSelectFork(rpc, forkBlock);
         } else {
@@ -54,9 +59,6 @@ contract UpgradeForkTest is Test {
         admin = vm.envOr("VAULT_ADMIN", KNOWN_ADMIN);
         holders = vm.envOr("FORK_HOLDERS", ",", new address[](0));
 
-        // Sanity: the supplied admin must hold the role on the live V1, and the
-        // proxy must still be pre-upgrade (initializeV2 is reinitializer(2), so
-        // a second run on an already-upgraded proxy would revert differently).
         assertTrue(vault.hasRole(vault.DEFAULT_ADMIN_ROLE(), admin), "fork: admin does not hold DEFAULT_ADMIN_ROLE");
     }
 
@@ -65,8 +67,6 @@ contract UpgradeForkTest is Test {
         _;
     }
 
-    /// @dev Build and execute the exact Safe payload: a raw call of
-    ///      `upgradeToAndCall(newImpl, initializeV2(admin))` from the admin.
     function _executeUpgrade() internal returns (address newImpl) {
         newImpl = address(new SapienVault());
         bytes memory initData = abi.encodeCall(SapienVault.initializeV2, (admin));
@@ -77,9 +77,11 @@ contract UpgradeForkTest is Test {
         assertTrue(ok, "fork: upgradeToAndCall failed");
     }
 
-    /// @notice Core rehearsal: real state in, exact calldata, script-equivalent
-    ///         post-upgrade assertions plus migration invariants on real holders.
     function test_fork_upgrade_stateAndAdminSeeding() public onlyFork {
+        // Guard: this suite expects a pre-initializeV2 (V1) tip.
+        (bool hasDefaultAdmin,) = PROXY.staticcall(abi.encodeWithSignature("defaultAdmin()"));
+        assertFalse(hasDefaultAdmin, "fork: tip is already V2; pin FORK_BLOCK to PRE_UPGRADE_BLOCK");
+
         uint256 supplyBefore = vault.totalSupply();
         uint256 assetsBefore = vault.totalAssets();
         uint256 minAgeBefore = vault.minDepositAge();
@@ -94,7 +96,6 @@ contract UpgradeForkTest is Test {
 
         address newImpl = _executeUpgrade();
 
-        // Mirror of script/UpgradeVault.s.sol _verify().
         assertTrue(vault.verifyStorageLocation(), "verify: ERC-7201 storage slot mismatch");
         assertEq(vault.defaultAdmin(), admin, "verify: defaultAdmin not seeded to admin");
         assertEq(vault.owner(), admin, "verify: owner() mismatch");
@@ -106,17 +107,13 @@ contract UpgradeForkTest is Test {
             "verify: implementation slot != new impl"
         );
 
-        // A pre-upgrade admin-configured minDepositAge must be preserved, not clobbered.
         if (minAgeBefore > 0) {
             assertEq(vault.minDepositAge(), minAgeBefore, "verify: pre-upgrade minDepositAge clobbered");
         }
 
-        // Upgrade moves no value and mints/burns nothing.
         assertEq(vault.totalSupply(), supplyBefore, "verify: totalSupply changed");
         assertEq(vault.totalAssets(), assetsBefore, "verify: totalAssets changed");
 
-        // Real-holder migration invariants (lazy migration is view-consistent
-        // before first touch and write-consistent after).
         for (uint256 i; i < n; ++i) {
             address u = holders[i];
             assertEq(vault.balanceOf(u), balBefore[i], "holder: balance changed by upgrade");
@@ -126,7 +123,6 @@ contract UpgradeForkTest is Test {
                 vault.balanceOf(u),
                 "holder: matured + pending != balanceOf (view)"
             );
-            // First post-upgrade touch triggers _lazyMigrate; invariant must hold after.
             vm.prank(u);
             vault.transfer(u, 0);
             assertEq(
@@ -136,24 +132,21 @@ contract UpgradeForkTest is Test {
             );
         }
 
-        // reinitializer(2) is consumed: the Safe cannot run initializeV2 twice.
         vm.prank(admin);
         vm.expectRevert();
         vault.initializeV2(admin);
     }
 
-    /// @notice A depositor whose state was written by the *live V1 bytecode*
-    ///         (not the mock) migrates with its cooldown preserved and can
-    ///         withdraw once aged.
     function test_fork_upgrade_syntheticDepositorLifecycle() public onlyFork {
+        (bool hasDefaultAdmin,) = PROXY.staticcall(abi.encodeWithSignature("defaultAdmin()"));
+        assertFalse(hasDefaultAdmin, "fork: tip is already V2; pin FORK_BLOCK to PRE_UPGRADE_BLOCK");
+
         address user = makeAddr("forkDepositor");
         uint256 amount = 1_000e18;
 
         deal(SAPIEN, user, amount);
         vm.startPrank(user);
         IERC20(SAPIEN).approve(PROXY, amount);
-        // Self-deposit through the live V1 implementation stamps the legacy
-        // lastDepositTimestamp — exactly the storage _lazyMigrate must honor.
         uint256 shares = vault.deposit(amount, user);
         vm.stopPrank();
         assertGt(shares, 0, "fork: live V1 deposit minted no shares");
@@ -164,7 +157,6 @@ contract UpgradeForkTest is Test {
 
         uint256 minAge = vault.minDepositAge();
         if (minAgeBefore > 0) {
-            // Mid-cooldown at upgrade: still immature, age preserved not reset.
             assertEq(vault.maturedShares(user), 0, "fork: fresh deposit should be immature");
             assertEq(vault.pendingShares(user), shares, "fork: pending != minted shares");
             assertEq(vault.maxWithdraw(user), 0, "fork: fresh deposit withdrawable too early");
@@ -180,10 +172,10 @@ contract UpgradeForkTest is Test {
         assertEq(IERC20(SAPIEN).balanceOf(user), maxOut, "fork: withdraw did not pay out");
     }
 
-    /// @notice The upgrade calldata cannot smuggle in a fresh admin: initializeV2
-    ///         rejects an address that does not already hold the role on the
-    ///         live vault (S2).
     function test_fork_upgrade_initializeV2RejectsNonAdmin() public onlyFork {
+        (bool hasDefaultAdmin,) = PROXY.staticcall(abi.encodeWithSignature("defaultAdmin()"));
+        assertFalse(hasDefaultAdmin, "fork: tip is already V2; pin FORK_BLOCK to PRE_UPGRADE_BLOCK");
+
         address newImpl = address(new SapienVault());
         address notAdmin = makeAddr("notAdmin");
         bytes memory initData = abi.encodeCall(SapienVault.initializeV2, (notAdmin));

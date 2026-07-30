@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity ^0.8.36;
 
 import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {Test} from "forge-std/Test.sol";
