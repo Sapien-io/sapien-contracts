@@ -3,41 +3,32 @@ pragma solidity ^0.8.36;
 
 import {Test} from "forge-std/Test.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {SapienVault} from "../../src/SapienVault.sol";
-import {ISapienVault} from "../../src/interfaces/ISapienVault.sol";
 
-/// @title Base-Sepolia fork rehearsal of the V1 -> V2 UUPS upgrade
-/// @notice Same shape as `UpgradeFork.t.sol`, but against the retired Sepolia
-///         V1 proxy (`0x58E72…`) which already holds real depositor state.
-///         Defaults to forking one block *before* the on-chain V2 upgrade
-///         (block 44794238 → impl `0x345999cc…`) so `initializeV2` is still
-///         available. Tip-of-chain is already V2 — see
-///         `test_fork_tip_initializeV2AlreadyConsumed`.
+/// @title Base-Sepolia fork of the live V2 vault
+/// @notice The V1 → V2 UUPS upgrade (`initializeV2`) has already been executed
+///         on this same proxy. This suite does **not** replay that calldata.
+///         It asserts the same post-upgrade invariants as `UpgradeFork.t.sol`.
 ///
 /// @dev Environment:
 ///        BASE_SEPOLIA_RPC_URL / FORK_RPC_URL — required; suite skips when unset.
-///        FORK_BLOCK                          — optional; default 44794237.
+///        FORK_BLOCK                          — optional; pin for determinism.
 ///        VAULT_ADMIN                         — optional; defaults to the Safe.
 ///        FORK_HOLDERS                        — optional; comma-separated holders.
 ///
-///      Anvil:
-///        anvil --fork-url $BASE_SEPOLIA_RPC_URL --fork-block-number 44794237
-///        FORK_RPC_URL=http://127.0.0.1:8545 forge test \
-///          --match-path test/fork/SepoliaUpgradeFork.t.sol -vvv
+///      Run: BASE_SEPOLIA_RPC_URL=... forge test --match-path test/fork/SepoliaUpgradeFork.t.sol -vvv
 contract SepoliaUpgradeForkTest is Test {
+    /// @dev Live Base Sepolia proxy (deployments/base-sepolia.json). V2 is a
+    ///      UUPS implementation swap; the proxy address does not change.
     address internal constant PROXY = 0x58E72Fa7fb92B100f2c652377465EEEe2642544C;
     address internal constant SAPIEN = 0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6;
     address internal constant KNOWN_ADMIN = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
-    /// @dev Last V1 block; V2 upgrade landed in 44794238.
-    uint256 internal constant PRE_UPGRADE_BLOCK = 44794237;
-
-    bytes32 internal constant IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
     SapienVault internal vault = SapienVault(PROXY);
     address internal admin;
     address[] internal holders;
     bool internal forkEnabled;
-    uint256 internal forkBlock;
 
     function setUp() public {
         string memory rpc = vm.envOr("FORK_RPC_URL", string(""));
@@ -46,9 +37,7 @@ contract SepoliaUpgradeForkTest is Test {
         }
         if (bytes(rpc).length == 0) return;
 
-        // When pointing at a local anvil that was already started with
-        // --fork-block-number, FORK_BLOCK=0 means "use whatever tip anvil has".
-        forkBlock = vm.envOr("FORK_BLOCK", PRE_UPGRADE_BLOCK);
+        uint256 forkBlock = vm.envOr("FORK_BLOCK", uint256(0));
         if (forkBlock > 0) {
             vm.createSelectFork(rpc, forkBlock);
         } else {
@@ -58,8 +47,6 @@ contract SepoliaUpgradeForkTest is Test {
 
         admin = vm.envOr("VAULT_ADMIN", KNOWN_ADMIN);
         holders = vm.envOr("FORK_HOLDERS", ",", new address[](0));
-
-        assertTrue(vault.hasRole(vault.DEFAULT_ADMIN_ROLE(), admin), "fork: admin does not hold DEFAULT_ADMIN_ROLE");
     }
 
     modifier onlyFork() {
@@ -67,103 +54,66 @@ contract SepoliaUpgradeForkTest is Test {
         _;
     }
 
-    function _executeUpgrade() internal returns (address newImpl) {
-        newImpl = address(new SapienVault());
-        bytes memory initData = abi.encodeCall(SapienVault.initializeV2, (admin));
-        bytes memory upgradeCalldata = abi.encodeWithSignature("upgradeToAndCall(address,bytes)", newImpl, initData);
-
-        vm.prank(admin);
-        (bool ok,) = PROXY.call(upgradeCalldata);
-        assertTrue(ok, "fork: upgradeToAndCall failed");
-    }
-
-    function test_fork_upgrade_stateAndAdminSeeding() public onlyFork {
-        // Guard: this suite expects a pre-initializeV2 (V1) tip.
-        (bool hasDefaultAdmin,) = PROXY.staticcall(abi.encodeWithSignature("defaultAdmin()"));
-        assertFalse(hasDefaultAdmin, "fork: tip is already V2; pin FORK_BLOCK to PRE_UPGRADE_BLOCK");
-
-        uint256 supplyBefore = vault.totalSupply();
-        uint256 assetsBefore = vault.totalAssets();
-        uint256 minAgeBefore = vault.minDepositAge();
-
-        uint256 n = holders.length;
-        uint256[] memory balBefore = new uint256[](n);
-        uint256[] memory lockedBefore = new uint256[](n);
-        for (uint256 i; i < n; ++i) {
-            balBefore[i] = vault.balanceOf(holders[i]);
-            lockedBefore[i] = vault.getStakeAccount(holders[i]).lockedAmount;
-        }
-
-        address newImpl = _executeUpgrade();
-
-        assertTrue(vault.verifyStorageLocation(), "verify: ERC-7201 storage slot mismatch");
-        assertEq(vault.defaultAdmin(), admin, "verify: defaultAdmin not seeded to admin");
-        assertEq(vault.owner(), admin, "verify: owner() mismatch");
-        assertGt(vault.minDepositAge(), 0, "verify: minDepositAge not seeded (SAP-5)");
-        assertEq(vault.defaultAdminDelay(), vault.DEFAULT_ADMIN_TRANSFER_DELAY(), "verify: admin delay not seeded");
+    function test_fork_liveV2_adminAndPause() public onlyFork {
+        assertTrue(vault.verifyStorageLocation(), "fork: ERC-7201 storage slot mismatch");
+        assertTrue(vault.hasRole(vault.DEFAULT_ADMIN_ROLE(), admin), "fork: admin missing DEFAULT_ADMIN_ROLE");
+        assertEq(vault.defaultAdmin(), admin, "fork: defaultAdmin != expected Safe");
+        assertEq(vault.owner(), admin, "fork: owner() != expected Safe");
         assertEq(
-            address(uint160(uint256(vm.load(PROXY, IMPLEMENTATION_SLOT)))),
-            newImpl,
-            "verify: implementation slot != new impl"
+            vault.defaultAdminDelay(), vault.DEFAULT_ADMIN_TRANSFER_DELAY(), "fork: admin delay not the S2 default"
         );
-
-        if (minAgeBefore > 0) {
-            assertEq(vault.minDepositAge(), minAgeBefore, "verify: pre-upgrade minDepositAge clobbered");
-        }
-
-        assertEq(vault.totalSupply(), supplyBefore, "verify: totalSupply changed");
-        assertEq(vault.totalAssets(), assetsBefore, "verify: totalAssets changed");
-
-        for (uint256 i; i < n; ++i) {
-            address u = holders[i];
-            assertEq(vault.balanceOf(u), balBefore[i], "holder: balance changed by upgrade");
-            assertEq(vault.getStakeAccount(u).lockedAmount, lockedBefore[i], "holder: locked stake changed");
-            assertEq(
-                vault.maturedShares(u) + vault.pendingShares(u),
-                vault.balanceOf(u),
-                "holder: matured + pending != balanceOf (view)"
-            );
-            vm.prank(u);
-            vault.transfer(u, 0);
-            assertEq(
-                vault.maturedShares(u) + vault.pendingShares(u),
-                vault.balanceOf(u),
-                "holder: matured + pending != balanceOf (post-touch)"
-            );
-        }
-
-        vm.prank(admin);
-        vm.expectRevert();
-        vault.initializeV2(admin);
+        assertFalse(vault.paused(), "fork: live vault is paused");
+        assertEq(vault.maxDeposit(address(0)), type(uint256).max, "fork: maxDeposit gated while unpaused");
     }
 
-    function test_fork_upgrade_syntheticDepositorLifecycle() public onlyFork {
-        (bool hasDefaultAdmin,) = PROXY.staticcall(abi.encodeWithSignature("defaultAdmin()"));
-        assertFalse(hasDefaultAdmin, "fork: tip is already V2; pin FORK_BLOCK to PRE_UPGRADE_BLOCK");
+    function test_fork_liveV2_minDepositAge() public onlyFork {
+        uint256 minAge = vault.minDepositAge();
+        assertGt(minAge, 0, "fork: minDepositAge disabled on live V2");
+        assertEq(minAge, vault.DEFAULT_MIN_DEPOSIT_AGE(), "fork: minDepositAge != DEFAULT_MIN_DEPOSIT_AGE");
+        assertLe(minAge, vault.MAX_MIN_DEPOSIT_AGE(), "fork: minDepositAge above MAX_MIN_DEPOSIT_AGE");
+    }
+
+    function test_fork_liveV2_shareRate() public onlyFork {
+        assertEq(address(vault.asset()), SAPIEN, "fork: asset() != SAPIEN");
+        uint256 assets = vault.totalAssets();
+        uint256 supply = vault.totalSupply();
+        assertEq(assets, IERC20(SAPIEN).balanceOf(PROXY), "fork: totalAssets != token balance");
+        assertGt(supply, 0, "fork: live vault has no shares");
+        assertGt(assets, 0, "fork: live vault has no assets");
+
+        uint256 oneShare = 10 ** vault.decimals();
+        uint256 assetsPerShare = vault.convertToAssets(oneShare);
+        assertGt(assetsPerShare, 0, "fork: convertToAssets(1 share) is zero");
+        assertEq(vault.convertToAssets(0), 0, "fork: convertToAssets(0) != 0");
+    }
+
+    function test_fork_liveV2_trancheSplit() public onlyFork {
+        for (uint256 i; i < holders.length; ++i) {
+            address u = holders[i];
+            assertEq(
+                vault.maturedShares(u) + vault.pendingShares(u),
+                vault.balanceOf(u),
+                "holder: matured + pending != balanceOf"
+            );
+        }
 
         address user = makeAddr("forkDepositor");
         uint256 amount = 1_000e18;
-
         deal(SAPIEN, user, amount);
         vm.startPrank(user);
         IERC20(SAPIEN).approve(PROXY, amount);
         uint256 shares = vault.deposit(amount, user);
         vm.stopPrank();
-        assertGt(shares, 0, "fork: live V1 deposit minted no shares");
+        assertGt(shares, 0, "fork: deposit minted no shares");
 
-        uint256 minAgeBefore = vault.minDepositAge();
+        assertEq(vault.maturedShares(user) + vault.pendingShares(user), shares, "fork: tranche split != minted");
+        assertEq(vault.maturedShares(user), 0, "fork: fresh deposit already mature");
+        assertEq(vault.pendingShares(user), shares, "fork: fresh deposit not pending");
+        assertEq(vault.maxWithdraw(user), 0, "fork: fresh deposit withdrawable too early");
 
-        _executeUpgrade();
-
-        uint256 minAge = vault.minDepositAge();
-        if (minAgeBefore > 0) {
-            assertEq(vault.maturedShares(user), 0, "fork: fresh deposit should be immature");
-            assertEq(vault.pendingShares(user), shares, "fork: pending != minted shares");
-            assertEq(vault.maxWithdraw(user), 0, "fork: fresh deposit withdrawable too early");
-        }
-
-        skip(minAge);
+        skip(vault.minDepositAge());
         assertEq(vault.maturedShares(user), shares, "fork: shares did not mature");
+        assertEq(vault.pendingShares(user), 0, "fork: pending leftover after maturity");
         uint256 maxOut = vault.maxWithdraw(user);
         assertGt(maxOut, 0, "fork: matured holder cannot withdraw");
 
@@ -172,16 +122,19 @@ contract SepoliaUpgradeForkTest is Test {
         assertEq(IERC20(SAPIEN).balanceOf(user), maxOut, "fork: withdraw did not pay out");
     }
 
-    function test_fork_upgrade_initializeV2RejectsNonAdmin() public onlyFork {
-        (bool hasDefaultAdmin,) = PROXY.staticcall(abi.encodeWithSignature("defaultAdmin()"));
-        assertFalse(hasDefaultAdmin, "fork: tip is already V2; pin FORK_BLOCK to PRE_UPGRADE_BLOCK");
-
-        address newImpl = address(new SapienVault());
-        address notAdmin = makeAddr("notAdmin");
-        bytes memory initData = abi.encodeCall(SapienVault.initializeV2, (notAdmin));
-
+    function test_fork_liveV2_pauseGatesFlows() public onlyFork {
         vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(ISapienVault.NotCurrentAdmin.selector, notAdmin));
-        SapienVault(PROXY).upgradeToAndCall(newImpl, initData);
+        vault.pause();
+        assertTrue(vault.paused(), "fork: pause() did not pause");
+        assertEq(vault.maxDeposit(address(0)), 0, "fork: maxDeposit not zero while paused");
+        assertEq(vault.maxMint(address(0)), 0, "fork: maxMint not zero while paused");
+        assertEq(vault.maxWithdraw(admin), 0, "fork: maxWithdraw not zero while paused");
+        assertEq(vault.maxRedeem(admin), 0, "fork: maxRedeem not zero while paused");
+    }
+
+    /// @notice `initializeV2` is consumed on this proxy (`reinitializer(2)`).
+    function test_fork_liveV2_initializeV2Consumed() public onlyFork {
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        vault.initializeV2(admin);
     }
 }

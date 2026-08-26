@@ -3,17 +3,14 @@ pragma solidity ^0.8.36;
 
 import {Test} from "forge-std/Test.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {SapienVault} from "../../src/SapienVault.sol";
-import {ISapienVault} from "../../src/interfaces/ISapienVault.sol";
 
-/// @title Base-mainnet fork rehearsal of the V1 -> V2 UUPS upgrade (SEC-1)
-/// @notice Executes the exact `upgradeToAndCall(newImpl, initializeV2(admin))`
-///         calldata destined for the governance Safe against the *live* proxy
-///         state on a Base mainnet fork — not against the hand-reconstructed
-///         `SapienVaultV1` mock used by `test/SapienVaultMigration.t.sol`.
-///         If any assumption the mock encodes by hand (storage slots, role
-///         grants, timer semantics) diverges from the deployed V1, it surfaces
-///         here instead of after an irreversible mainnet upgrade.
+/// @title Base-mainnet fork of the live V2 vault
+/// @notice The V1 → V2 UUPS upgrade (`initializeV2`) has already been executed
+///         on the live proxy. This suite does **not** replay that calldata.
+///         It asserts post-upgrade invariants against the live V2 state:
+///         admin, `minDepositAge`, tranche split, share rate, and pause.
 ///
 /// @dev Environment:
 ///        BASE_MAINNET_RPC_URL  - required; suite is skipped when unset so
@@ -21,18 +18,15 @@ import {ISapienVault} from "../../src/interfaces/ISapienVault.sol";
 ///        FORK_BLOCK            - optional; pin the fork block for determinism.
 ///        VAULT_ADMIN           - optional; defaults to the known mainnet admin.
 ///        FORK_HOLDERS          - optional; comma-separated real holder
-///                                addresses to assert migration invariants on.
+///                                addresses to assert tranche accounting on.
 ///
 ///      Run: BASE_MAINNET_RPC_URL=... forge test --match-path test/fork/UpgradeFork.t.sol -vvv
 contract UpgradeForkTest is Test {
     /// @dev Live Base mainnet addresses (deployments/base-mainnet.json).
     address internal constant PROXY = 0x60Bf63729f688287a450299962b36Cef0aFfaa42;
     address internal constant SAPIEN = 0xC729777d0470F30612B1564Fd96E8Dd26f5814E3;
-    /// @dev Known DEFAULT_ADMIN_ROLE holder (script/DeployBaseMainnet.s.sol).
+    /// @dev Known DEFAULT_ADMIN_ROLE holder (script/archive/DeployBaseMainnet.s.sol).
     address internal constant KNOWN_ADMIN = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
-
-    /// @dev ERC-1967 implementation slot.
-    bytes32 internal constant IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
     SapienVault internal vault = SapienVault(PROXY);
     address internal admin;
@@ -41,7 +35,7 @@ contract UpgradeForkTest is Test {
 
     function setUp() public {
         string memory rpc = vm.envOr("BASE_MAINNET_RPC_URL", string(""));
-        if (bytes(rpc).length == 0) return; // tests skip via the modifier
+        if (bytes(rpc).length == 0) return;
 
         uint256 forkBlock = vm.envOr("FORK_BLOCK", uint256(0));
         if (forkBlock > 0) {
@@ -53,11 +47,6 @@ contract UpgradeForkTest is Test {
 
         admin = vm.envOr("VAULT_ADMIN", KNOWN_ADMIN);
         holders = vm.envOr("FORK_HOLDERS", ",", new address[](0));
-
-        // Sanity: the supplied admin must hold the role on the live V1, and the
-        // proxy must still be pre-upgrade (initializeV2 is reinitializer(2), so
-        // a second run on an already-upgraded proxy would revert differently).
-        assertTrue(vault.hasRole(vault.DEFAULT_ADMIN_ROLE(), admin), "fork: admin does not hold DEFAULT_ADMIN_ROLE");
     }
 
     modifier onlyFork() {
@@ -65,113 +54,72 @@ contract UpgradeForkTest is Test {
         _;
     }
 
-    /// @dev Build and execute the exact Safe payload: a raw call of
-    ///      `upgradeToAndCall(newImpl, initializeV2(admin))` from the admin.
-    function _executeUpgrade() internal returns (address newImpl) {
-        newImpl = address(new SapienVault());
-        bytes memory initData = abi.encodeCall(SapienVault.initializeV2, (admin));
-        bytes memory upgradeCalldata = abi.encodeWithSignature("upgradeToAndCall(address,bytes)", newImpl, initData);
-
-        vm.prank(admin);
-        (bool ok,) = PROXY.call(upgradeCalldata);
-        assertTrue(ok, "fork: upgradeToAndCall failed");
-    }
-
-    /// @notice Core rehearsal: real state in, exact calldata, script-equivalent
-    ///         post-upgrade assertions plus migration invariants on real holders.
-    function test_fork_upgrade_stateAndAdminSeeding() public onlyFork {
-        uint256 supplyBefore = vault.totalSupply();
-        uint256 assetsBefore = vault.totalAssets();
-        uint256 minAgeBefore = vault.minDepositAge();
-
-        uint256 n = holders.length;
-        uint256[] memory balBefore = new uint256[](n);
-        uint256[] memory lockedBefore = new uint256[](n);
-        for (uint256 i; i < n; ++i) {
-            balBefore[i] = vault.balanceOf(holders[i]);
-            lockedBefore[i] = vault.getStakeAccount(holders[i]).lockedAmount;
-        }
-
-        address newImpl = _executeUpgrade();
-
-        // Mirror of script/UpgradeVault.s.sol _verify().
-        assertTrue(vault.verifyStorageLocation(), "verify: ERC-7201 storage slot mismatch");
-        assertEq(vault.defaultAdmin(), admin, "verify: defaultAdmin not seeded to admin");
-        assertEq(vault.owner(), admin, "verify: owner() mismatch");
-        assertGt(vault.minDepositAge(), 0, "verify: minDepositAge not seeded (SAP-5)");
-        assertEq(vault.defaultAdminDelay(), vault.DEFAULT_ADMIN_TRANSFER_DELAY(), "verify: admin delay not seeded");
+    /// @notice Admin, owner, storage slot, and pause match the live V2 proxy.
+    function test_fork_liveV2_adminAndPause() public onlyFork {
+        assertTrue(vault.verifyStorageLocation(), "fork: ERC-7201 storage slot mismatch");
+        assertTrue(vault.hasRole(vault.DEFAULT_ADMIN_ROLE(), admin), "fork: admin missing DEFAULT_ADMIN_ROLE");
+        assertEq(vault.defaultAdmin(), admin, "fork: defaultAdmin != expected Safe");
+        assertEq(vault.owner(), admin, "fork: owner() != expected Safe");
         assertEq(
-            address(uint160(uint256(vm.load(PROXY, IMPLEMENTATION_SLOT)))),
-            newImpl,
-            "verify: implementation slot != new impl"
+            vault.defaultAdminDelay(), vault.DEFAULT_ADMIN_TRANSFER_DELAY(), "fork: admin delay not the S2 default"
         );
-
-        // A pre-upgrade admin-configured minDepositAge must be preserved, not clobbered.
-        if (minAgeBefore > 0) {
-            assertEq(vault.minDepositAge(), minAgeBefore, "verify: pre-upgrade minDepositAge clobbered");
-        }
-
-        // Upgrade moves no value and mints/burns nothing.
-        assertEq(vault.totalSupply(), supplyBefore, "verify: totalSupply changed");
-        assertEq(vault.totalAssets(), assetsBefore, "verify: totalAssets changed");
-
-        // Real-holder migration invariants (lazy migration is view-consistent
-        // before first touch and write-consistent after).
-        for (uint256 i; i < n; ++i) {
-            address u = holders[i];
-            assertEq(vault.balanceOf(u), balBefore[i], "holder: balance changed by upgrade");
-            assertEq(vault.getStakeAccount(u).lockedAmount, lockedBefore[i], "holder: locked stake changed");
-            assertEq(
-                vault.maturedShares(u) + vault.pendingShares(u),
-                vault.balanceOf(u),
-                "holder: matured + pending != balanceOf (view)"
-            );
-            // First post-upgrade touch triggers _lazyMigrate; invariant must hold after.
-            vm.prank(u);
-            vault.transfer(u, 0);
-            assertEq(
-                vault.maturedShares(u) + vault.pendingShares(u),
-                vault.balanceOf(u),
-                "holder: matured + pending != balanceOf (post-touch)"
-            );
-        }
-
-        // reinitializer(2) is consumed: the Safe cannot run initializeV2 twice.
-        vm.prank(admin);
-        vm.expectRevert();
-        vault.initializeV2(admin);
+        assertFalse(vault.paused(), "fork: live vault is paused");
+        assertEq(vault.maxDeposit(address(0)), type(uint256).max, "fork: maxDeposit gated while unpaused");
     }
 
-    /// @notice A depositor whose state was written by the *live V1 bytecode*
-    ///         (not the mock) migrates with its cooldown preserved and can
-    ///         withdraw once aged.
-    function test_fork_upgrade_syntheticDepositorLifecycle() public onlyFork {
+    /// @notice SAP-5: MEV guard is seeded and within the admin-retunable bound.
+    function test_fork_liveV2_minDepositAge() public onlyFork {
+        uint256 minAge = vault.minDepositAge();
+        assertGt(minAge, 0, "fork: minDepositAge disabled on live V2");
+        assertEq(minAge, vault.DEFAULT_MIN_DEPOSIT_AGE(), "fork: minDepositAge != DEFAULT_MIN_DEPOSIT_AGE");
+        assertLe(minAge, vault.MAX_MIN_DEPOSIT_AGE(), "fork: minDepositAge above MAX_MIN_DEPOSIT_AGE");
+    }
+
+    /// @notice Share rate is well-defined: assets sit in the vault, supply is
+    ///         live, and convertToAssets of one full share is nonzero.
+    function test_fork_liveV2_shareRate() public onlyFork {
+        assertEq(address(vault.asset()), SAPIEN, "fork: asset() != SAPIEN");
+        uint256 assets = vault.totalAssets();
+        uint256 supply = vault.totalSupply();
+        assertEq(assets, IERC20(SAPIEN).balanceOf(PROXY), "fork: totalAssets != token balance");
+        assertGt(supply, 0, "fork: live vault has no shares");
+        assertGt(assets, 0, "fork: live vault has no assets");
+
+        uint256 oneShare = 10 ** vault.decimals();
+        uint256 assetsPerShare = vault.convertToAssets(oneShare);
+        assertGt(assetsPerShare, 0, "fork: convertToAssets(1 share) is zero");
+        assertEq(vault.convertToAssets(0), 0, "fork: convertToAssets(0) != 0");
+    }
+
+    /// @notice Tranche split is consistent for real holders (if provided) and
+    ///         for a fresh deposit that must age before it can exit.
+    function test_fork_liveV2_trancheSplit() public onlyFork {
+        for (uint256 i; i < holders.length; ++i) {
+            address u = holders[i];
+            assertEq(
+                vault.maturedShares(u) + vault.pendingShares(u),
+                vault.balanceOf(u),
+                "holder: matured + pending != balanceOf"
+            );
+        }
+
         address user = makeAddr("forkDepositor");
         uint256 amount = 1_000e18;
-
         deal(SAPIEN, user, amount);
         vm.startPrank(user);
         IERC20(SAPIEN).approve(PROXY, amount);
-        // Self-deposit through the live V1 implementation stamps the legacy
-        // lastDepositTimestamp — exactly the storage _lazyMigrate must honor.
         uint256 shares = vault.deposit(amount, user);
         vm.stopPrank();
-        assertGt(shares, 0, "fork: live V1 deposit minted no shares");
+        assertGt(shares, 0, "fork: deposit minted no shares");
 
-        uint256 minAgeBefore = vault.minDepositAge();
+        assertEq(vault.maturedShares(user) + vault.pendingShares(user), shares, "fork: tranche split != minted");
+        assertEq(vault.maturedShares(user), 0, "fork: fresh deposit already mature");
+        assertEq(vault.pendingShares(user), shares, "fork: fresh deposit not pending");
+        assertEq(vault.maxWithdraw(user), 0, "fork: fresh deposit withdrawable too early");
 
-        _executeUpgrade();
-
-        uint256 minAge = vault.minDepositAge();
-        if (minAgeBefore > 0) {
-            // Mid-cooldown at upgrade: still immature, age preserved not reset.
-            assertEq(vault.maturedShares(user), 0, "fork: fresh deposit should be immature");
-            assertEq(vault.pendingShares(user), shares, "fork: pending != minted shares");
-            assertEq(vault.maxWithdraw(user), 0, "fork: fresh deposit withdrawable too early");
-        }
-
-        skip(minAge);
+        skip(vault.minDepositAge());
         assertEq(vault.maturedShares(user), shares, "fork: shares did not mature");
+        assertEq(vault.pendingShares(user), 0, "fork: pending leftover after maturity");
         uint256 maxOut = vault.maxWithdraw(user);
         assertGt(maxOut, 0, "fork: matured holder cannot withdraw");
 
@@ -180,16 +128,21 @@ contract UpgradeForkTest is Test {
         assertEq(IERC20(SAPIEN).balanceOf(user), maxOut, "fork: withdraw did not pay out");
     }
 
-    /// @notice The upgrade calldata cannot smuggle in a fresh admin: initializeV2
-    ///         rejects an address that does not already hold the role on the
-    ///         live vault (S2).
-    function test_fork_upgrade_initializeV2RejectsNonAdmin() public onlyFork {
-        address newImpl = address(new SapienVault());
-        address notAdmin = makeAddr("notAdmin");
-        bytes memory initData = abi.encodeCall(SapienVault.initializeV2, (notAdmin));
-
+    /// @notice Pause zeroes ERC-4626 max inflows and outflows (fork-local).
+    function test_fork_liveV2_pauseGatesFlows() public onlyFork {
         vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(ISapienVault.NotCurrentAdmin.selector, notAdmin));
-        SapienVault(PROXY).upgradeToAndCall(newImpl, initData);
+        vault.pause();
+        assertTrue(vault.paused(), "fork: pause() did not pause");
+        assertEq(vault.maxDeposit(address(0)), 0, "fork: maxDeposit not zero while paused");
+        assertEq(vault.maxMint(address(0)), 0, "fork: maxMint not zero while paused");
+        assertEq(vault.maxWithdraw(admin), 0, "fork: maxWithdraw not zero while paused");
+        assertEq(vault.maxRedeem(admin), 0, "fork: maxRedeem not zero while paused");
+    }
+
+    /// @notice `initializeV2` is consumed on the live mainnet proxy
+    ///         (`reinitializer(2)` → `InvalidInitialization`).
+    function test_fork_liveV2_initializeV2Consumed() public onlyFork {
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        vault.initializeV2(admin);
     }
 }
