@@ -3,12 +3,13 @@ pragma solidity ^0.8.36;
 
 import {Test} from "forge-std/Test.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {SapienVault} from "../../src/SapienVault.sol";
 
 /// @title Base-Sepolia fork of the live V2 vault
-/// @notice Asserts the same post-V2 invariants as `UpgradeFork.t.sol` against
-///         the current Sepolia vault (`0xc6887D5a…`), a fresh V2 deploy — not
-///         the retired V1 proxy (`0x58E72Fa7…`). Does not call `initializeV2`.
+/// @notice The V1 → V2 UUPS upgrade (`initializeV2`) has already been executed
+///         on this same proxy. This suite does **not** replay that calldata.
+///         It asserts the same post-upgrade invariants as `UpgradeFork.t.sol`.
 ///
 /// @dev Environment:
 ///        BASE_SEPOLIA_RPC_URL / FORK_RPC_URL — required; suite skips when unset.
@@ -18,8 +19,9 @@ import {SapienVault} from "../../src/SapienVault.sol";
 ///
 ///      Run: BASE_SEPOLIA_RPC_URL=... forge test --match-path test/fork/SepoliaUpgradeFork.t.sol -vvv
 contract SepoliaUpgradeForkTest is Test {
-    /// @dev Current Base Sepolia V2 proxy (deployments/base-sepolia.json).
-    address internal constant PROXY = 0xc6887D5ac62749D0B51deC141BE73C86E121E03B;
+    /// @dev Live Base Sepolia proxy (deployments/base-sepolia.json). V2 is a
+    ///      UUPS implementation swap; the proxy address does not change.
+    address internal constant PROXY = 0x58E72Fa7fb92B100f2c652377465EEEe2642544C;
     address internal constant SAPIEN = 0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6;
     address internal constant KNOWN_ADMIN = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
 
@@ -71,23 +73,18 @@ contract SepoliaUpgradeForkTest is Test {
         assertLe(minAge, vault.MAX_MIN_DEPOSIT_AGE(), "fork: minDepositAge above MAX_MIN_DEPOSIT_AGE");
     }
 
-    /// @notice Share rate: assets are the token balance. This Sepolia vault
-    ///         is a fresh deploy and may still be empty; then the virtual-share
-    ///         offset keeps convertToAssets defined.
     function test_fork_liveV2_shareRate() public onlyFork {
         assertEq(address(vault.asset()), SAPIEN, "fork: asset() != SAPIEN");
         uint256 assets = vault.totalAssets();
         uint256 supply = vault.totalSupply();
         assertEq(assets, IERC20(SAPIEN).balanceOf(PROXY), "fork: totalAssets != token balance");
-        assertEq(vault.convertToAssets(0), 0, "fork: convertToAssets(0) != 0");
+        assertGt(supply, 0, "fork: live vault has no shares");
+        assertGt(assets, 0, "fork: live vault has no assets");
 
-        if (supply == 0) {
-            assertEq(assets, 0, "fork: empty supply with leftover assets");
-            // offset = 3 → convertToAssets(1000) = 1000 * (0+1) / (0+1000) = 1
-            assertEq(vault.convertToAssets(1000), 1, "fork: empty-vault virtual rate");
-        } else {
-            assertGt(vault.convertToAssets(10 ** vault.decimals()), 0, "fork: convertToAssets(1 share) is zero");
-        }
+        uint256 oneShare = 10 ** vault.decimals();
+        uint256 assetsPerShare = vault.convertToAssets(oneShare);
+        assertGt(assetsPerShare, 0, "fork: convertToAssets(1 share) is zero");
+        assertEq(vault.convertToAssets(0), 0, "fork: convertToAssets(0) != 0");
     }
 
     function test_fork_liveV2_trancheSplit() public onlyFork {
@@ -135,11 +132,9 @@ contract SepoliaUpgradeForkTest is Test {
         assertEq(vault.maxRedeem(admin), 0, "fork: maxRedeem not zero while paused");
     }
 
-    /// @notice `initializeV2` must not succeed on the live Sepolia V2 proxy.
-    ///         This vault was a fresh `initialize` deploy (not an in-place
-    ///         V1 upgrade), so the revert is not `InvalidInitialization`.
-    function test_fork_liveV2_initializeV2DoesNotSucceed() public onlyFork {
-        vm.expectRevert();
+    /// @notice `initializeV2` is consumed on this proxy (`reinitializer(2)`).
+    function test_fork_liveV2_initializeV2Consumed() public onlyFork {
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
         vault.initializeV2(admin);
     }
 }

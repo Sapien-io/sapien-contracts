@@ -2,7 +2,7 @@
   "network": "base-sepolia",
   "chainId": 84532,
   "sapienAddress": "0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6",
-  "vaultAddress": "0xc6887D5ac62749D0B51deC141BE73C86E121E03B",
+  "vaultAddress": "0x58E72Fa7fb92B100f2c652377465EEEe2642544C",
   "usdcAddress": "0x4d4394119CF096FbdbbD3Efb00d204c891C6Cd05",
-  "startBlock": 44827494
+  "startBlock": 40640925
 }
