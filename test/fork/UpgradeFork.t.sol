@@ -61,9 +61,7 @@ contract UpgradeForkTest is Test {
         assertEq(vault.defaultAdmin(), admin, "fork: defaultAdmin != expected Safe");
         assertEq(vault.owner(), admin, "fork: owner() != expected Safe");
         assertEq(
-            vault.defaultAdminDelay(),
-            vault.DEFAULT_ADMIN_TRANSFER_DELAY(),
-            "fork: admin delay not the S2 default"
+            vault.defaultAdminDelay(), vault.DEFAULT_ADMIN_TRANSFER_DELAY(), "fork: admin delay not the S2 default"
         );
         assertFalse(vault.paused(), "fork: live vault is paused");
         assertEq(vault.maxDeposit(address(0)), type(uint256).max, "fork: maxDeposit gated while unpaused");
