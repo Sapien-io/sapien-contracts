@@ -54,8 +54,9 @@ contract SepoliaCollateralLoopTest is Test {
 
         // Fork-local grant so unlock/slash can run even before the Safe
         // submits `GrantEngineRole` calldata on the live vault.
+        bytes32 engineRole = vault.ENGINE_ROLE();
         vm.prank(admin);
-        vault.grantRole(vault.ENGINE_ROLE(), engine);
+        vault.grantRole(engineRole, engine);
     }
 
     modifier onlyFork() {

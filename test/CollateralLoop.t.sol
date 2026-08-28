@@ -33,8 +33,9 @@ contract CollateralLoopTest is Test {
             )
         );
 
+        bytes32 engineRole = vault.ENGINE_ROLE();
         vm.prank(admin);
-        vault.grantRole(vault.ENGINE_ROLE(), engine);
+        vault.grantRole(engineRole, engine);
 
         token.mint(validator, DEPOSIT);
         vm.prank(validator);
