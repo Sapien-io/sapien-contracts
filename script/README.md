@@ -9,12 +9,30 @@ implementation behind it. Only `DEFAULT_ADMIN_ROLE` can authorize an upgrade
 |--------|---------|
 | `DeployBase.s.sol` | **Canonical** first-time deploy of impl + proxy (`initialize`); env-driven (`SAPIEN_TOKEN`, `ADMIN`) |
 | `DeployBaseSepolia.s.sol` | Base Sepolia deploy (hardcoded testnet token + dev Safe) |
+| `DeployAttestationRegistrySepolia.s.sol` | **M4** CREATE2-deploy `SapienAttestationRegistry` on Base Sepolia only; does not touch the vault |
 | `UpgradeVault.s.sol` | Upgrade a live proxy to a new implementation (`upgradeToAndCall` + `initializeV2`), with post-upgrade verification |
 | `GrantEngineRole.s.sol` | **Sepolia only** — print / execute / verify `grantRole(ENGINE_ROLE, SEPOLIA_ENGINE)`. Refuses the mainnet vault. |
 | `archive/DeployBaseMainnet.s.sol` | **Archived, reverts on run** — original mainnet deploy with hardcoded admin; the vault is already live (SEC-3) |
 
 Live addresses are in the repo [README](../README.md). Design and upgrade
-background: [docs/SapienVault.md](../docs/SapienVault.md#upgrades).
+background: [docs/SapienVault.md](../docs/SapienVault.md#upgrades). M4 registry:
+[docs/AttestationRegistry.md](../docs/AttestationRegistry.md).
+
+---
+
+## Attestation registry (Base Sepolia)
+
+`DeployAttestationRegistrySepolia` CREATE2-deploys `SapienAttestationRegistry`
+next to the live vault. It **never** writes `vaultAddress`. Constructor args
+and salt are hardcoded so the address is independent of the broadcasting EOA.
+
+```bash
+make deploy-registry-sepolia-dry   # simulate / print predicted address
+make deploy-registry-sepolia       # broadcast, verify, update deployments/base-sepolia.json
+```
+
+Requires `BASE_SEPOLIA_RPC_URL` and `DEPLOYER`. After deploy, the Safe grants
+`ISSUER_ROLE` to the engine. There is no mainnet target.
 
 ---
 

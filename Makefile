@@ -59,6 +59,22 @@ upgrade-sepolia-execute :; EXECUTE=true forge script script/UpgradeVault.s.sol:U
 upgrade-sepolia-verify :; VERIFY_ONLY=true forge script script/UpgradeVault.s.sol:UpgradeVault \
 	--rpc-url $${BASE_SEPOLIA_RPC_URL}
 
+# ── Attestation registry (M4, Base Sepolia only) ─────────────────────────
+# CREATE2 next to the live vault. Does not touch vaultAddress.
+# Requires: BASE_SEPOLIA_RPC_URL, DEPLOYER (broadcast). See docs/AttestationRegistry.md.
+
+deploy-registry-sepolia     :; WRITE_DEPLOYMENTS=true forge script \
+	script/DeployAttestationRegistrySepolia.s.sol:DeployAttestationRegistrySepolia \
+	--rpc-url $${BASE_SEPOLIA_RPC_URL} \
+	--account $${DEPLOYER} \
+	--broadcast \
+	--verify
+
+deploy-registry-sepolia-dry :; forge script \
+	script/DeployAttestationRegistrySepolia.s.sol:DeployAttestationRegistrySepolia \
+	--rpc-url $${BASE_SEPOLIA_RPC_URL} \
+	--account $${DEPLOYER}
+
 # ── Fork tests ───────────────────────────────────────────────────────────
 # Live V2 invariants against the current proxies. Suites skip when the RPC
 # env var is unset so local/CI stays green.

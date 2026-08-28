@@ -1,0 +1,22 @@
+{
+  "schema": "poq.attestation/v1",
+  "report_id": "PR-2026-0612-ASHLAR-0098",
+  "issued_at": "2026-06-12T14:03:00Z",
+  "issued_at_unix": 1781272980,
+  "note": "Example report from docs.sapien.io. Roots are the raw sha256 bytes (prefix stripped) that the issuer posts and then copies into the JWS. attestation.registry is a structured locator, not the string \"onchain\". The registry address is the CREATE2 prediction for Base Sepolia (see deployments/base-sepolia.json).",
+  "ids": {
+    "report_id_hash": "keccak256(bytes(report_id))",
+    "kid_hash": "keccak256(bytes(signing_key_id))"
+  },
+  "attestation": {
+    "root": "0x785e226d8dc36bc7369fed7f7de61ba7a01663beb2e13301e2c7558b2875c37b",
+    "score_root": "0x572419963bef2bbe572419963bef2bbe572419963bef2bbe572419963bef2bbe",
+    "signing_key_id": "poq-signing-key",
+    "registry": {
+      "chain": 84532,
+      "address": "0x2814F228b2d2F145400F052A105Abb6Ee0c2CeB4",
+      "tx": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  },
+  "schema_follow_up": "poq-monorepo proofreport/schema.go still types attestation.registry as an optional string omitted “until the validator/revocation registry exists (M4)”. That repo is not in this org; change the field to {chain, address, tx} and delete the M4 comment in a follow-up there."
+}
