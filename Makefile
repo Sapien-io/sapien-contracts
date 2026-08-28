@@ -66,5 +66,18 @@ upgrade-sepolia-verify :; VERIFY_ONLY=true forge script script/UpgradeVault.s.so
 #   make test-fork-mainnet    # requires BASE_MAINNET_RPC_URL
 #   make test-fork-sepolia    # requires BASE_SEPOLIA_RPC_URL (or FORK_RPC_URL)
 test-fork-sepolia :; forge test --match-path test/fork/SepoliaUpgradeFork.t.sol -vvv
+test-fork-sepolia-loop :; forge test --match-path test/fork/SepoliaCollateralLoop.t.sol -vvv
 test-fork-mainnet :; forge test --match-path test/fork/UpgradeFork.t.sol -vvv
+
+# ── Sepolia ENGINE_ROLE grant ──────────────────────────────────────────
+# Staging engine signer only. Script refuses the mainnet vault.
+# Requires: SEPOLIA_ENGINE, BASE_SEPOLIA_RPC_URL. See script/README.md.
+grant-engine-sepolia-calldata :; forge script script/GrantEngineRole.s.sol:GrantEngineRole \
+	--rpc-url $${BASE_SEPOLIA_RPC_URL}
+grant-engine-sepolia-execute :; EXECUTE=true forge script script/GrantEngineRole.s.sol:GrantEngineRole \
+	--rpc-url $${BASE_SEPOLIA_RPC_URL} \
+	--account $${DEPLOYER} \
+	--broadcast
+grant-engine-sepolia-verify :; VERIFY_ONLY=true forge script script/GrantEngineRole.s.sol:GrantEngineRole \
+	--rpc-url $${BASE_SEPOLIA_RPC_URL}
 

@@ -10,6 +10,7 @@ implementation behind it. Only `DEFAULT_ADMIN_ROLE` can authorize an upgrade
 | `DeployBase.s.sol` | **Canonical** first-time deploy of impl + proxy (`initialize`); env-driven (`SAPIEN_TOKEN`, `ADMIN`) |
 | `DeployBaseSepolia.s.sol` | Base Sepolia deploy (hardcoded testnet token + dev Safe) |
 | `UpgradeVault.s.sol` | Upgrade a live proxy to a new implementation (`upgradeToAndCall` + `initializeV2`), with post-upgrade verification |
+| `GrantEngineRole.s.sol` | **Sepolia only** — print / execute / verify `grantRole(ENGINE_ROLE, SEPOLIA_ENGINE)`. Refuses the mainnet vault. |
 | `archive/DeployBaseMainnet.s.sol` | **Archived, reverts on run** — original mainnet deploy with hardcoded admin; the vault is already live (SEC-3) |
 
 Live addresses are in the repo [README](../README.md). Design and upgrade
@@ -160,6 +161,28 @@ export ETHERSCAN_API_KEY=...
 forge verify-contract <impl> src/SapienVault.sol:SapienVault \
   --chain-id 84532 --watch
 ```
+
+---
+
+## Grant `ENGINE_ROLE` on Sepolia
+
+The staging engine signer needs `ENGINE_ROLE` on the Sepolia vault to call
+`unlockStake` / `slashStake`. The admin is a Safe, so the default path prints
+calldata. The script **reverts** if `VAULT_PROXY` is the mainnet vault
+(`0x60Bf63729f688287a450299962b36Cef0aFfaa42`) or anything other than the
+Sepolia UUPS (`0x58E72Fa7fb92B100f2c652377465EEEe2642544C`).
+
+```bash
+export BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
+export SEPOLIA_ENGINE=0x...    # staging engine signer
+
+make grant-engine-sepolia-calldata   # print grantRole calldata
+# Safe: target = 0x58E72Fa7…, value 0, paste calldata
+make grant-engine-sepolia-verify     # read-only hasRole check
+```
+
+Loop, `report.stake` fields, and Basescan observer notes:
+[docs/SepoliaCollateralLoop.md](../docs/SepoliaCollateralLoop.md).
 
 ---
 
