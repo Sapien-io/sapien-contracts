@@ -31,6 +31,7 @@ In short: the **vault** is the on-chain custodian and slashing tool; the **engin
 | Vault logic | `SapienVault` — `ERC4626Upgradeable`, `AccessControlDefaultAdminRulesUpgradeable`, `PausableUpgradeable`, `UUPSUpgradeable` |
 | Types | `Types.sol` — `StakeAccount`, `Tranche`, `SapienVaultStorage` (namespaced storage layout) |
 | Interface | `ISapienVault` — errors, events, external API |
+| Attestation (M4, separate) | `SapienAttestationRegistry` — proof-report hang-point; **not** a vault extension. See [AttestationRegistry](AttestationRegistry.md). |
 
 Custom state (per-user locks, share tranches, `minDepositAge`) lives in **ERC-7201-style namespaced storage** (`SapienVaultStorage`), not in the default OpenZeppelin storage slots, to reduce upgrade collision risk. The namespace string is `"sapien.storage.SapienVault"`. The pure function `verifyStorageLocation()` checks that the derived slot matches the implementation’s hard-coded slot. The tranche-accounting fields are appended to the struct, so the namespaced slot is unchanged across the SAP-1 upgrade.
 
