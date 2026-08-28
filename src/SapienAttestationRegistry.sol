@@ -29,7 +29,8 @@ contract SapienAttestationRegistry is AccessControlDefaultAdminRules, ISapienAtt
     ///        the grant so admin can install the engine later.
     constructor(address admin_, address issuer_) AccessControlDefaultAdminRules(DEFAULT_ADMIN_TRANSFER_DELAY, admin_) {
         if (issuer_ != address(0)) {
-            _grantRole(ISSUER_ROLE, issuer_);
+            bool granted = _grantRole(ISSUER_ROLE, issuer_);
+            assert(granted);
         }
     }
 

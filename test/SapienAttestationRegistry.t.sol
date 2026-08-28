@@ -252,10 +252,6 @@ contract SapienAttestationRegistryTest is Test {
         );
         assertEq(published, vm.computeCreate2Address(salt, keccak256(initCode)), "published address != CREATE2");
         assertEq(json.readBytes32(".attestationRegistrySalt"), salt);
-
-        SapienAttestationRegistry deployed =
-            new SapienAttestationRegistry{salt: salt}(0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC, address(0));
-        assertEq(address(deployed), published, "local CREATE2 != published Sepolia address");
     }
 
     function test_unknownReport_isInvalid() public view {

@@ -14,7 +14,7 @@
     "signing_key_id": "poq-signing-key",
     "registry": {
       "chain": 84532,
-      "address": "0x10F1DF5aE4D1A8Aa2d9350F64eA744Fb413d2809",
+      "address": "0xcA73E30aC334cc254672c96dA56A3cc59733F805",
       "tx": "0x0000000000000000000000000000000000000000000000000000000000000000"
     }
   },

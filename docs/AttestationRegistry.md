@@ -129,7 +129,7 @@ in the public Sapien-io org). A follow-up there should:
 ## Deploy (Base Sepolia only)
 
 Published CREATE2 address (Base Sepolia):
-`0x10F1DF5aE4D1A8Aa2d9350F64eA744Fb413d2809`.
+`0xcA73E30aC334cc254672c96dA56A3cc59733F805`.
 
 CREATE2 via Foundry's default factory
 (`0x4e59b44847b379578588920cA78FbF26c0B4956C`) and salt
