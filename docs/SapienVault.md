@@ -229,6 +229,7 @@ This makes **engine liveness — not just engine honesty — part of the trust m
 
 ## Further reading
 
+- [Sepolia collateral loop](SepoliaCollateralLoop.md) — lock → review → unlock or slash on the live Sepolia vault; `report.stake` mapping for observers. The vault still does not compute consensus.
 - [OpenZeppelin ERC-4626](https://docs.openzeppelin.com/contracts/erc4626)
 - [Foundry book](https://book.getfoundry.sh/) — build, test, and deploy in this repo
 

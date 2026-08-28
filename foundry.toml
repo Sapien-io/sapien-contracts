@@ -14,7 +14,10 @@ solc_version = "0.8.36"
 # fork the chain does not support risks emitting unsupported opcodes and makes
 # the bytecode unreproducible for Etherscan verification.
 evm_version = "cancun"
-fs_permissions = [{ access = "read-write", path = "./deployments" }]
+fs_permissions = [
+    { access = "read-write", path = "./deployments" },
+    { access = "read", path = "./src" },
+]
 
 # Invariant test configuration (full load — used for local runs; PR CI uses
 # the reduced [profile.ci.invariant] below).
