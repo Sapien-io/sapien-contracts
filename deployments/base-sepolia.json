@@ -4,7 +4,7 @@
   "sapienAddress": "0x7F54613f339d15424E9AdE87967BAE40b23Fa7F6",
   "vaultAddress": "0x58E72Fa7fb92B100f2c652377465EEEe2642544C",
   "usdcAddress": "0x4d4394119CF096FbdbbD3Efb00d204c891C6Cd05",
-  "attestationRegistryAddress": "0xcA73E30aC334cc254672c96dA56A3cc59733F805",
+  "attestationRegistryAddress": "0x2814F228b2d2F145400F052A105Abb6Ee0c2CeB4",
   "attestationRegistrySalt": "0x83509c536f96f321eae4ba0826563b2504d585cc1522affd92cf17cc48d1d91d",
   "attestationRegistryAdmin": "0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC",
   "attestationRegistryCreate2Factory": "0x4e59b44847b379578588920cA78FbF26c0B4956C",

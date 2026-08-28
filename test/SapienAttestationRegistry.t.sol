@@ -34,6 +34,14 @@ contract SapienAttestationRegistryTest is Test {
     bytes32 internal constant FIXTURE_SCORE_ROOT = 0x572419963bef2bbe572419963bef2bbe572419963bef2bbe572419963bef2bbe;
     uint64 internal constant FIXTURE_ISSUED_AT = 1_781_272_980; // 2026-06-12T14:03:00Z
 
+    /// @dev Canonical Sepolia CREATE2 pin. Must equal
+    ///      `deployments/base-sepolia.json` and `computeCreate2Address` under
+    ///      the default profile (`optimizer` on, `bytecode_hash = "none"`).
+    address internal constant SEPOLIA_VAULT = 0x58E72Fa7fb92B100f2c652377465EEEe2642544C;
+    address internal constant SEPOLIA_SAFE = 0x5602be03ecFfBB85D12b7404d4B38AF58277E4cC;
+    address internal constant SEPOLIA_REGISTRY = 0x2814F228b2d2F145400F052A105Abb6Ee0c2CeB4;
+    bytes32 internal constant REGISTRY_SALT = keccak256("sapien.attestation.registry.m4.base-sepolia");
+
     /// @dev Off-chain locator written into the JWS after `attest` confirms.
     ///      `txHash` is the issuance transaction hash (RPC receipt in
     ///      production; the Foundry call's unique id in this suite).
@@ -238,17 +246,26 @@ contract SapienAttestationRegistryTest is Test {
     function test_sepoliaDeploymentJson_vaultAddressUnchanged() public {
         string memory json = vm.readFile("deployments/base-sepolia.json");
         address vault = json.readAddress(".vaultAddress");
-        assertEq(vault, 0x58E72Fa7fb92B100f2c652377465EEEe2642544C, "do not change vaultAddress");
+        assertEq(vault, SEPOLIA_VAULT, "do not change vaultAddress");
 
         address published = json.readAddress(".attestationRegistryAddress");
-        assertTrue(published != address(0), "registry address must be published");
+        assertEq(published, SEPOLIA_REGISTRY, "JSON pin != canonical CREATE2");
         assertTrue(published != vault, "registry must be a separate contract");
         assertEq(json.readUint(".chainId"), 84532);
-        // Salt is the CREATE2 commitment. Do not compare `published` to
-        // `computeCreate2Address(type().creationCode)` here: `forge coverage`
-        // disables the optimizer, and solc's metadata hash varies by Foundry
-        // version, so initcode is not stable across CI jobs.
-        assertEq(json.readBytes32(".attestationRegistrySalt"), keccak256("sapien.attestation.registry.m4.base-sepolia"));
+        assertEq(json.readBytes32(".attestationRegistrySalt"), REGISTRY_SALT);
+
+        bytes memory initCode =
+            abi.encodePacked(type(SapienAttestationRegistry).creationCode, abi.encode(SEPOLIA_SAFE, address(0)));
+        address computed = vm.computeCreate2Address(REGISTRY_SALT, keccak256(initCode));
+        if (computed != SEPOLIA_REGISTRY) {
+            // `forge coverage` disables the optimizer, so initcode (and CREATE2)
+            // differ. The Foundry project job keeps the optimizer on and must
+            // hit the equality below. A miss on small (optimized) initcode is
+            // a real pin drift.
+            assertGt(initCode.length, 8000, "computed CREATE2 != pin on optimized compile");
+            return;
+        }
+        assertEq(computed, published, "computed CREATE2 != published pin");
     }
 
     function test_unknownReport_isInvalid() public view {

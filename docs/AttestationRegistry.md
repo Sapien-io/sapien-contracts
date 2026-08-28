@@ -129,12 +129,12 @@ in the public Sapien-io org). A follow-up there should:
 ## Deploy (Base Sepolia only)
 
 Published CREATE2 address (Base Sepolia):
-`0xcA73E30aC334cc254672c96dA56A3cc59733F805`.
+`0x2814F228b2d2F145400F052A105Abb6Ee0c2CeB4`.
 
-That address is the prediction from this branch's default-profile compile
-(optimizer on, solc 0.8.36). `make deploy-registry-sepolia` recomputes CREATE2
-from the broadcasting Foundry's bytecode and rewrites the JSON if metadata
-differs; `vaultAddress` is never written.
+That is the only registry address: JSON, docs, and
+`computeCreate2Address(salt, keccak256(initcode))` under the default profile
+(`optimizer` on, `bytecode_hash = "none"`) must match it. `vaultAddress` is
+never written.
 
 CREATE2 via Foundry's default factory
 (`0x4e59b44847b379578588920cA78FbF26c0B4956C`) and salt

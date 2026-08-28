@@ -14,6 +14,11 @@ solc_version = "0.8.36"
 # fork the chain does not support risks emitting unsupported opcodes and makes
 # the bytecode unreproducible for Etherscan verification.
 evm_version = "cancun"
+# Strip solc metadata so CREATE2(initcode) is identical across Foundry
+# versions and CI. The live vault bytecode is already on-chain; this only
+# affects newly compiled artifacts (the M4 registry pin).
+bytecode_hash = "none"
+cbor_metadata = false
 fs_permissions = [
     { access = "read-write", path = "./deployments" },
     { access = "read", path = "./src" },
