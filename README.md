@@ -11,6 +11,8 @@ ERC-4626 vault for SAPIEN token staking with typed lock categories. Holds user f
 
 Full vault design, roles, ERC-4626 behavior, locking/slashing, and integration notes: **[docs/SapienVault.md](docs/SapienVault.md)**.
 
+DefiLlama [sapien-vault](https://defillama.com/protocol/sapien-vault) listing (Staked vs headline TVL): **[Public listings](docs/SapienVault.md#public-listings)**.
+
 Sepolia lock → review → unlock or slash (Basescan vs `report.stake`): **[docs/SepoliaCollateralLoop.md](docs/SepoliaCollateralLoop.md)**.
 
 Sapien token MiCA whitepaper: **[docs/Sapien_Token_White_Paper_MiCA_v1.pdf](docs/Sapien_Token_White_Paper_MiCA_v1.pdf)**.

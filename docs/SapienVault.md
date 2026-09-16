@@ -227,6 +227,12 @@ This makes **engine liveness — not just engine honesty — part of the trust m
 
 ---
 
+## Public listings
+
+[DefiLlama](https://defillama.com/protocol/sapien-vault) lists the Base vault (`0x60Bf63729f688287a450299962b36Cef0aFfaa42`) as **sapien-vault**. Deposits of SAPIEN (the protocol's own token) are exported as `staking`, so headline **TVL stays $0** by [DefiLlama policy](https://docs.llama.fi/list-your-project/what-to-include-as-tvl): the Staking bucket is platform-own tokens and is excluded from headline TVL. That is a listing classification, not an empty vault. On-chain truth remains `totalAssets()` (and [vault.sapien.io](https://vault.sapien.io)).
+
+---
+
 ## Further reading
 
 - [Sepolia collateral loop](SepoliaCollateralLoop.md) — lock → review → unlock or slash on the live Sepolia vault; `report.stake` mapping for observers. The vault still does not compute consensus.
